@@ -2184,6 +2184,7 @@
 
 .auth-close {
   position: absolute;
+  z-index: 2;
   top: 1rem;
   right: 1rem;
   display: grid;

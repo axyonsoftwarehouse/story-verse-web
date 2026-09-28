@@ -1144,7 +1144,7 @@ function ContinueReading({
         {shown.map((p) => {
           const pct = Math.round(progressPct(p));
           return (
-            <div key={p.book.gutenbergId} className="continue-item">
+            <div key={p.book.gutenbergId} className="my-book">
               <button
                 type="button"
                 className="result"
@@ -1162,12 +1162,11 @@ function ContinueReading({
               </button>
               <button
                 type="button"
-                className="continue-remove"
+                className="link-btn my-book-remove"
                 onClick={() => onRemove(p)}
                 aria-label={`Tirar ${p.book.title} de Continue lendo`}
-                title="Tirar de Continue lendo"
               >
-                {Icon.close}
+                Remover
               </button>
             </div>
           );
