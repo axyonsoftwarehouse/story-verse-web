@@ -178,16 +178,25 @@ export async function translateParagraphs(
   original: string[],
 ): Promise<(string | null)[]> {
   // As marcações de itálico do Gutenberg (_assim_) confundem os tradutores.
-  const paragraphs = original.map((p) => p.replace(/_([^_]+)_/g, "$1"));
+  const cleaned = original.map((p) => p.replace(/_([^_]+)_/g, "$1"));
+  // Parágrafos vazios (ilustrações) não vão para o tradutor e voltam como null.
+  const indexes = cleaned.map((p, i) => (p.trim() ? i : -1)).filter((i) => i >= 0);
+  const out: (string | null)[] = cleaned.map(() => null);
+  if (indexes.length === 0) return out;
+  const paragraphs = indexes.map((i) => cleaned[i]);
+
+  let translated: (string | null)[] | null = null;
   if (engine === "local") {
     try {
-      return await translateLocal(paragraphs);
+      translated = await translateLocal(paragraphs);
     } catch (err) {
       // Pacote de idioma ainda não baixado ou recusado: o Google cobre este trecho.
       console.warn("Tradutor do navegador falhou, usando o Google:", err);
     }
   }
-  return translateRemote(paragraphs);
+  translated ??= await translateRemote(paragraphs);
+  indexes.forEach((orig, k) => (out[orig] = translated![k] ?? null));
+  return out;
 }
 
 /** Divide os parágrafos em trechos consecutivos: devolve [início, fim) de cada trecho. */
