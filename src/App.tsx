@@ -36,6 +36,7 @@ import {
   progressPct,
   recentProgress,
   removeProgress,
+  restoreProgress,
   saveProgress,
   type ReadingProgress,
 } from "./lib/progress";
@@ -1048,7 +1049,21 @@ type Celebration = { emoji: string; title: string; text?: string };
 const CONTINUE_PREVIEW = 4;
 
 /** Livros começados, para retomar do ponto onde o leitor parou: os 4 mais recentes e "Ver todos". */
-function ContinueReading({ items, onOpen }: { items: ReadingProgress[]; onOpen: (b: Ebook) => void }) {
+function ContinueReading({
+  items,
+  onOpen,
+  onRemove,
+  undo,
+  onUndo,
+}: {
+  items: ReadingProgress[];
+  onOpen: (b: Ebook) => void;
+  /** Tira o livro da lista (o leitor não quer mais continuar). */
+  onRemove: (p: ReadingProgress) => void;
+  /** Livro que acabou de sair da lista, enquanto ainda dá para desfazer. */
+  undo: ReadingProgress | null;
+  onUndo: () => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? items : items.slice(0, CONTINUE_PREVIEW);
 
@@ -1058,26 +1073,46 @@ function ContinueReading({ items, onOpen }: { items: ReadingProgress[]; onOpen: 
         <h2>Continue lendo</h2>
         <p>Volte exatamente de onde parou.</p>
       </div>
+      {undo ? (
+        <div className="continue-undo" role="status">
+          <span>
+            “{undo.book.title}” saiu de Continue lendo.
+          </span>
+          <button type="button" className="inline-link" onClick={onUndo}>
+            Desfazer
+          </button>
+        </div>
+      ) : null}
       <div className="result-grid">
         {shown.map((p) => {
           const pct = Math.round(progressPct(p));
           return (
-            <button
-              key={p.book.gutenbergId}
-              type="button"
-              className="result"
-              onClick={() => onOpen(p.book)}
-              aria-label={`Continuar ${p.book.title}, ${p.chapterLabel}, ${pct}% lido`}
-            >
-              <BookCover book={p.book} />
-              <span className="continue-bar" aria-hidden="true">
-                <span style={{ width: `${Math.max(pct, 3)}%` }} />
-              </span>
-              <strong>{p.book.title}</strong>
-              <span>
-                {p.chapterLabel} · {pct}%
-              </span>
-            </button>
+            <div key={p.book.gutenbergId} className="continue-item">
+              <button
+                type="button"
+                className="result"
+                onClick={() => onOpen(p.book)}
+                aria-label={`Continuar ${p.book.title}, ${p.chapterLabel}, ${pct}% lido`}
+              >
+                <BookCover book={p.book} />
+                <span className="continue-bar" aria-hidden="true">
+                  <span style={{ width: `${Math.max(pct, 3)}%` }} />
+                </span>
+                <strong>{p.book.title}</strong>
+                <span>
+                  {p.chapterLabel} · {pct}%
+                </span>
+              </button>
+              <button
+                type="button"
+                className="continue-remove"
+                onClick={() => onRemove(p)}
+                aria-label={`Tirar ${p.book.title} de Continue lendo`}
+                title="Tirar de Continue lendo"
+              >
+                {Icon.close}
+              </button>
+            </div>
           );
         })}
       </div>
@@ -1177,6 +1212,13 @@ export function App() {
   const [prefs, setPrefs] = useState(loadPrefs);
   /** Redesenha a página inicial quando um livro importado é removido (sai de "Continue lendo"). */
   const [, setHomeTick] = useState(0);
+  /** Livro que acabou de sair de "Continue lendo" (dá para desfazer por alguns segundos). */
+  const [continueUndo, setContinueUndo] = useState<ReadingProgress | null>(null);
+  useEffect(() => {
+    if (!continueUndo) return;
+    const t = window.setTimeout(() => setContinueUndo(null), 7000);
+    return () => window.clearTimeout(t);
+  }, [continueUndo]);
   const [importRequest, setImportRequest] = useState<BookHint | Record<string, never> | null>(null);
   const { install } = useInstallPrompt();
   const updateReady = useUpdateReady();
@@ -2187,7 +2229,23 @@ export function App() {
 
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
 
-        {recent.length > 0 ? <ContinueReading items={recent} onOpen={startBook} /> : null}
+        {recent.length > 0 || continueUndo ? (
+          <ContinueReading
+            items={recent}
+            onOpen={startBook}
+            onRemove={(p) => {
+              removeProgress(p.book.gutenbergId);
+              setContinueUndo(p);
+              setHomeTick((n) => n + 1);
+            }}
+            undo={continueUndo}
+            onUndo={() => {
+              if (continueUndo) restoreProgress(continueUndo);
+              setContinueUndo(null);
+              setHomeTick((n) => n + 1);
+            }}
+          />
+        ) : null}
 
         {SHELVES.map((shelf, si) => {
           const books = featuredBooks.filter((b) => (b.shelf ?? "classicos") === shelf.id);

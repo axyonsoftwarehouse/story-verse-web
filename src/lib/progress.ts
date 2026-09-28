@@ -57,6 +57,13 @@ export function removeProgress(gutenbergId: number) {
   writeStore(store);
 }
 
+/** Desfaz a remoção: devolve o livro à lista com a mesma posição e a mesma data de leitura. */
+export function restoreProgress(p: ReadingProgress) {
+  const store = readStore();
+  store[p.book.gutenbergId] = p;
+  writeStore(store);
+}
+
 /** Livros começados, do lido mais recentemente para o mais antigo. */
 export function recentProgress(): ReadingProgress[] {
   return Object.values(readStore())

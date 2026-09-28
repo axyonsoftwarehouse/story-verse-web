@@ -3045,3 +3045,73 @@
   border-radius: 6px;
   box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.6);
 }
+
+/* ---- Tirar livro de "Continue lendo" ---- */
+
+.continue-item {
+  position: relative;
+  min-width: 0;
+}
+
+/* Botão dentro do contêiner não se estica sozinho como o item da grade: ocupa a coluna toda. */
+.continue-item > .result {
+  width: 100%;
+}
+
+.continue-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(12, 10, 8, 0.72);
+  color: #f5f0e8;
+  cursor: pointer;
+  opacity: 0;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.continue-remove svg {
+  width: 15px;
+  height: 15px;
+}
+
+.continue-item:hover .continue-remove,
+.continue-remove:focus-visible {
+  opacity: 1;
+}
+
+.continue-remove:hover {
+  background: rgba(150, 60, 60, 0.85);
+}
+
+@media (hover: none) {
+  /* No toque não existe "passar o mouse": o botão fica sempre visível. */
+  .continue-remove {
+    opacity: 0.9;
+  }
+}
+
+.continue-undo {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: -0.6rem 0 1.2rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.05);
+  font-size: 0.85rem;
+  color: var(--text-read);
+  animation: rise 0.25s var(--ease-out) both;
+}
+
+.continue-undo .inline-link {
+  font-weight: 700;
+}
