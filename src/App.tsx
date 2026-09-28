@@ -398,9 +398,32 @@ const Icon = {
       <path d="M22 2l-7 20-4-9-9-4 20-7z" />
     </svg>
   ),
+  eye: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  eyeOff: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
+    </svg>
+  ),
   close: (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  ),
+  pause: (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  ),
+  play: (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.2-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" />
     </svg>
   ),
   speaker: (
@@ -1166,6 +1189,29 @@ function ContinueReading({
   );
 }
 
+/** Campo de senha com o "olhinho" para mostrar ou esconder o que foi digitado. */
+function PasswordInput(props: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span className="password-field">
+      <input {...props} type={visible ? "text" : "password"} />
+      <button
+        type="button"
+        className="password-toggle"
+        // Mantém o cursor no campo ao mostrar/esconder.
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Esconder senha" : "Mostrar senha"}
+        aria-pressed={visible}
+        title={visible ? "Esconder senha" : "Mostrar senha"}
+        disabled={props.disabled}
+      >
+        {visible ? Icon.eyeOff : Icon.eye}
+      </button>
+    </span>
+  );
+}
+
 function AuthModal({
   mode,
   onClose,
@@ -1341,7 +1387,7 @@ function AuthModal({
           {kind !== "forgot" ? (
             <label>
               Senha
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 6 : undefined} required disabled={loading} />
+              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 6 : undefined} required disabled={loading} />
             </label>
           ) : null}
           {kind === "login" ? (
@@ -1411,11 +1457,11 @@ function NewPasswordModal({ session, onDone }: { session: SupabaseSession; onDon
         <form onSubmit={submit} className="auth-form">
           <label>
             Senha nova
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
           </label>
           <label>
             Repita a senha
-            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
+            <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
           </label>
           {error ? <p className="auth-error" role="alert">{error}</p> : null}
           <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
@@ -1544,6 +1590,17 @@ export function App() {
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [pausedShelves, setPausedShelves] = useState<Record<string, boolean>>({});
+  /** Carrossel parado enquanto o dedo está nele (celular); volta a andar 3 s depois de soltar. */
+  const [touchPausedShelf, setTouchPausedShelf] = useState<string | null>(null);
+  const touchResumeRef = useRef<number | undefined>(undefined);
+  const holdCarousel = (shelfId: string) => {
+    window.clearTimeout(touchResumeRef.current);
+    setTouchPausedShelf(shelfId);
+  };
+  const releaseCarousel = () => {
+    window.clearTimeout(touchResumeRef.current);
+    touchResumeRef.current = window.setTimeout(() => setTouchPausedShelf(null), 3000);
+  };
 
   /** Chegou pelo link "esqueci minha senha": mostra a tela de senha nova. */
   const [passwordReset, setPasswordReset] = useState(false);
@@ -2839,15 +2896,30 @@ export function App() {
                       setPausedShelves((paused) => ({ ...paused, [shelf.id]: !paused[shelf.id] }))
                     }
                   >
-                    {pausedShelves[shelf.id] ? "▶ Retomar" : "Ⅱ Pausar"}
+                    {pausedShelves[shelf.id] ? (
+                      <>
+                        {Icon.play} Retomar
+                      </>
+                    ) : (
+                      <>
+                        {Icon.pause} Pausar
+                      </>
+                    )}
                   </button>
                 ) : null}
               </div>
               <div
                 className={canRead ? "shelf-grid" : "book-carousel"}
                 aria-label={canRead ? undefined : `${shelf.title}: carrossel de livros`}
+                onTouchStart={canRead ? undefined : () => holdCarousel(shelf.id)}
+                onTouchEnd={canRead ? undefined : releaseCarousel}
+                onTouchCancel={canRead ? undefined : releaseCarousel}
               >
-                <div className={`${canRead ? "shelf-grid-items" : "book-carousel-track"} ${pausedShelves[shelf.id] ? "is-paused" : ""}`}>
+                <div
+                  className={`${canRead ? "shelf-grid-items" : "book-carousel-track"} ${
+                    pausedShelves[shelf.id] || touchPausedShelf === shelf.id ? "is-paused" : ""
+                  }`}
+                >
                 {(canRead ? books : [...books, ...books]).map((b, bookIndex) => {
                   const duplicate = !canRead && bookIndex >= books.length;
                   return (

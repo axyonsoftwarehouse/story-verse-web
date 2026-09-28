@@ -62,6 +62,13 @@ function describeAuthError(message: string): string {
   if (normalized.includes("password should be at least")) return "A senha precisa ter pelo menos 6 caracteres.";
   if (normalized.includes("signup is disabled")) return "O cadastro está temporariamente indisponível.";
   if (normalized.includes("too many requests")) return "Muitas tentativas. Aguarde um pouco e tente novamente.";
+  if (normalized.includes("token has expired or is invalid")) {
+    return "Código inválido ou expirado. Confira os números ou peça um novo código.";
+  }
+  if (normalized.includes("for security purposes")) return "Aguarde alguns segundos antes de pedir um novo código.";
+  if (normalized.includes("rate limit")) return "Muitos e-mails enviados agora. Aguarde alguns minutos e tente de novo.";
+  if (normalized.includes("email address") && normalized.includes("invalid")) return "Este endereço de e-mail não é aceito.";
+  if (normalized.includes("not authorized")) return "Este e-mail ainda não pode receber mensagens do Storyverse.";
   return message;
 }
 
@@ -92,15 +99,19 @@ async function authRequest(
   } catch {
     throw new AuthNetworkError("Não foi possível conectar ao serviço de autenticação. Verifique sua conexão.");
   }
+  const payload = (await response.json().catch(() => ({}))) as AuthResponse;
+  const serverMessage = payload.msg ?? payload.message ?? payload.error_description ?? "";
+  // Falha no SMTP configurado no Supabase (vem como 500, mas não é o serviço fora do ar).
+  if (/error sending .*email/i.test(serverMessage)) {
+    throw new Error("Não conseguimos enviar o e-mail agora. Tente de novo em alguns minutos.");
+  }
   // Supabase fora do ar também não é motivo para deslogar.
   if (response.status >= 500) {
     throw new AuthNetworkError("O serviço de autenticação está instável. Tente de novo em instantes.");
   }
 
-  const payload = (await response.json().catch(() => ({}))) as AuthResponse;
   if (!response.ok) {
-    const message = payload.msg ?? payload.message ?? payload.error_description ?? "Falha na autenticação.";
-    throw new Error(describeAuthError(message));
+    throw new Error(describeAuthError(serverMessage || "Falha na autenticação."));
   }
   return payload;
 }

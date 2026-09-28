@@ -155,36 +155,14 @@
 }
 
 .wordmark-mark {
-  color: var(--accent);
-  font-size: 1rem;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px -6px rgba(228, 184, 106, 0.5);
 }
 
-.home-nav-links {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  margin-right: 0.5rem;
-}
 
-.home-nav-links button {
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-read);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-}
 
-.home-nav-links button:hover {
-  color: var(--accent);
-  border-color: var(--accent-dim);
-  background: rgba(228, 184, 106, 0.06);
-}
 
 .status {
   display: inline-flex;
@@ -594,10 +572,16 @@
   animation: books-carousel 50s linear infinite;
 }
 
-.book-carousel:hover .book-carousel-track,
-.book-carousel:focus-within .book-carousel-track,
 .book-carousel-track.is-paused {
   animation-play-state: paused;
+}
+
+/* Com mouse, passar por cima para; no toque o "hover" fica preso e o carrossel não voltaria a andar. */
+@media (hover: hover) {
+  .book-carousel:hover .book-carousel-track,
+  .book-carousel:focus-within .book-carousel-track {
+    animation-play-state: paused;
+  }
 }
 
 .book-carousel .book {
@@ -2159,38 +2143,17 @@
   font-size: 0.85rem;
 }
 
+/* Mesmo tamanho dos outros botões do topo; cores vêm do .btn (neutro) e do .btn-primary. */
 .nav-login,
 .nav-register {
-  min-height: 42px;
+  flex-shrink: 0;
   padding: 0.5rem 0.95rem;
   font-size: 0.85rem;
-  font-weight: 700;
   white-space: nowrap;
-  box-shadow: 0 6px 20px -10px rgba(228, 184, 106, 0.7);
-}
-
-.nav-login {
-  border-color: rgba(228, 184, 106, 0.7);
-  background: linear-gradient(145deg, rgba(228, 184, 106, 0.15), rgba(228, 184, 106, 0.06));
-  color: #f4d49c;
 }
 
 .nav-login:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: rgba(228, 184, 106, 0.2);
-  box-shadow: 0 8px 24px -9px rgba(228, 184, 106, 0.8);
-}
-
-.nav-register {
-  border-color: #e7bd75;
-  background: linear-gradient(145deg, #f3d18f 0%, #d8a957 58%, #bd873d 100%);
-  color: #21170c;
-  box-shadow: 0 8px 24px -8px rgba(220, 160, 60, 0.7);
-}
-
-.nav-register:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: 0 10px 28px -8px rgba(220, 160, 60, 0.85);
+  border-color: var(--accent-dim);
 }
 
 .nav-login:focus-visible,
@@ -2416,16 +2379,7 @@
     padding: 1rem 0;
   }
 
-  .home-nav-links {
-    flex: 0 0 auto;
-    margin: 0 0 0 auto;
-  }
 
-  .home-nav-links button {
-    padding: 0.35rem 0.45rem;
-    font-size: 0.66rem;
-    white-space: nowrap;
-  }
 
   .home-nav-actions .status {
     display: none;
@@ -2460,10 +2414,6 @@
     gap: 0.25rem;
   }
 
-  .home-nav-links button {
-    padding-inline: 0.35rem;
-    font-size: 0.62rem;
-  }
 
   .home-nav-actions {
     gap: 0.25rem;
@@ -3290,4 +3240,86 @@
   .nav-import-short {
     display: inline;
   }
+}
+
+/* "Esqueci minha senha": à direita, colado no campo de senha. */
+.auth-forgot {
+  justify-self: end;
+  margin-top: -0.55rem;
+  font-size: 0.8rem;
+}
+
+/* Ícone do botão de pausar/retomar o carrossel. */
+.carousel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.carousel-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
+/*
+ * Celular: o carrossel continua andando, mais devagar, com cards do tamanho da tela (86%) para o
+ * texto não aparecer cortado; o toque para a animação (e ela volta sozinha depois).
+ */
+@media (max-width: 700px) {
+  .book-carousel {
+    mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+  }
+
+  .book-carousel::before,
+  .book-carousel::after {
+    width: 1.5rem;
+  }
+
+  .book-carousel .book {
+    flex-basis: 86vw;
+  }
+
+  .book-carousel-track {
+    animation-duration: 80s;
+  }
+}
+
+/* ---- Campo de senha com o "olhinho" ---- */
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.auth-form .password-field input {
+  padding-right: 2.9rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.password-toggle:hover:not(:disabled),
+.password-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  background: rgba(228, 184, 106, 0.08);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
 }
