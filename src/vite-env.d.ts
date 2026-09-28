@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY?: string;
   /** Opcional. "false" deixa ler e conversar sem conta (a conta vira opcional). */
   readonly VITE_LOGIN_REQUIRED?: string;
+  /** Opcional. "true" pede o código de 6 números no cadastro (OTP configurado no Supabase). */
+  readonly VITE_SUPABASE_EMAIL_OTP_ENABLED?: string;
   readonly VITE_GROQ_API_KEY?: string;
   /** Opcional. Lista separada por vírgula; cada modelo tem cota própria no Groq. */
   readonly VITE_GROQ_MODELS?: string;

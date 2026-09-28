@@ -91,7 +91,9 @@ import {
   clearLegacyCredentials,
   loginRequired,
   consumeAuthRedirect,
+  EMAIL_OTP_ENABLED,
   refreshAuthSession,
+  resendSignupCode,
   requestPasswordReset,
   updatePassword,
   restoreAuthSession,
@@ -100,6 +102,7 @@ import {
   signUpWithPassword,
   type SupabaseSession,
   type SupabaseUser,
+  verifySignupCode,
 } from "./lib/auth";
 import {
   cachedTranslation,
@@ -328,16 +331,34 @@ function Avatar({
 /** Capa real do Gutenberg; se não houver (ou falhar), desenha uma capa tipográfica. */
 function BookCover({ book }: { book: Ebook }) {
   const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  const [useCoverMirror, setUseCoverMirror] = useState(false);
+  useEffect(() => {
+    setStatus("loading");
+    setUseCoverMirror(false);
+  }, [book.gutenbergId, book.coverUrl]);
+
+  const coverSrc =
+    useCoverMirror && book.coverUrl?.startsWith("/gutenberg/")
+      ? book.coverUrl.replace(/^\/gutenberg\//, "/gutenberg-mirror/")
+      : book.coverUrl;
+
   return (
     <div className="cover">
       {book.coverUrl && status !== "failed" ? (
         <img
           className={`cover-photo ${status === "loaded" ? "is-loaded" : ""}`}
-          src={book.coverUrl}
+          src={coverSrc}
           alt=""
           loading="lazy"
           onLoad={() => setStatus("loaded")}
-          onError={() => setStatus("failed")}
+          onError={() => {
+            if (!useCoverMirror && book.coverUrl?.startsWith("/gutenberg/")) {
+              setUseCoverMirror(true);
+              setStatus("loading");
+              return;
+            }
+            setStatus("failed");
+          }}
         />
       ) : null}
       <div className="cover-frame">
@@ -1162,12 +1183,45 @@ function AuthModal({
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
 
   function goTo(next: "login" | "register" | "forgot") {
     setIsFlipping(true);
     setKind(next);
     setError("");
     setSuccess("");
+  }
+
+  async function confirmEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setError("Digite o código de verificação de 6 números enviado para seu e-mail.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      onAuthenticated(await verifySignupCode(email.trim().toLowerCase(), verificationCode));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível verificar o código.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendCode() {
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      await resendSignupCode(email.trim().toLowerCase());
+      setSuccess("Enviamos um novo código. Verifique também a pasta de spam.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível reenviar o código.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -1196,9 +1250,14 @@ function AuthModal({
         setSuccess("Se houver uma conta com este e-mail, enviamos um link para você criar uma senha nova.");
       } else if (kind === "register") {
         const result = await signUpWithPassword(normalizedEmail, password, name.trim());
-        if (result.session) {
-          onAuthenticated(result.session);
+        if (result) {
+          onAuthenticated(result);
+        } else if (EMAIL_OTP_ENABLED) {
+          setVerificationPending(true);
+          setVerificationCode("");
+          setSuccess(`Enviamos um código de 6 números para ${normalizedEmail}. Verifique também a pasta de spam.`);
         } else {
+          // "Confirm email" ligado sem OTP: o link do e-mail volta para o app já logado.
           setSuccess("Conta criada. Enviamos um link de confirmação para o seu e-mail: é só abrir para entrar.");
         }
       } else {
@@ -1211,10 +1270,13 @@ function AuthModal({
     }
   }
 
-  const title =
-    kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?";
+  const title = verificationPending
+    ? "Confirme seu e-mail"
+    : kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?";
   const subtitle =
-    kind === "login"
+    verificationPending
+      ? `Digite abaixo o código de 6 números enviado para ${email}.`
+      : kind === "login"
       ? "Acesse seus livros, progresso e conversas com os personagens."
       : kind === "register"
         ? "Salve seu progresso e converse com os personagens no seu ritmo."
@@ -1235,6 +1297,36 @@ function AuthModal({
         <span className="eyebrow">Storyverse</span>
         <h2 id="auth-title">{title}</h2>
         <p className="auth-subtitle">{subtitle}</p>
+        {verificationPending ? (
+          <form onSubmit={confirmEmail} className="auth-form">
+            <label>
+              Código de verificação
+              <input
+                className="auth-otp-input"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000"
+                aria-label="Código de verificação de seis números"
+                required
+                disabled={loading}
+              />
+            </label>
+            {error ? <p className="auth-error" role="alert">{error}</p> : null}
+            {success ? <p className="auth-success" role="status">{success}</p> : null}
+            <button type="submit" className="btn btn-primary btn-lg" disabled={loading || verificationCode.length !== 6}>
+              {loading ? "Verificando..." : "Confirmar e-mail"}
+            </button>
+            <button type="button" className="inline-link auth-resend" onClick={() => void resendCode()} disabled={loading}>
+              Reenviar código
+            </button>
+          </form>
+        ) : (
+          <>
         <form onSubmit={submit} className="auth-form">
           {kind === "register" ? (
             <label>
@@ -1280,6 +1372,8 @@ function AuthModal({
             {kind === "login" ? "Criar conta" : "Fazer login"}
           </button>
         </p>
+          </>
+        )}
       </section>
     </div>
   );
@@ -1790,10 +1884,22 @@ export function App() {
     (hint: BookHint | Record<string, never> = {}) => {
       if (authLoading) return;
       if (!canRead) {
-        setAuthModal("register");
+        setAuthModal("login");
         return;
       }
       setImportRequest(hint);
+    },
+    [authLoading, canRead],
+  );
+
+  const goToHomeSection = useCallback(
+    (sectionId: string) => {
+      if (authLoading) return;
+      if (!canRead) {
+        setAuthModal("login");
+        return;
+      }
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
     },
     [authLoading, canRead],
   );
@@ -2626,12 +2732,12 @@ export function App() {
               tom e os segredos da própria história.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary btn-lg" href="#destaques">
+              <button type="button" className="btn btn-primary btn-lg" onClick={() => goToHomeSection("destaques")}>
                 Ver os destaques
-              </a>
-              <a className="btn btn-lg" href="#acervo">
+              </button>
+              <button type="button" className="btn btn-lg" onClick={() => goToHomeSection("acervo")}>
                 Buscar no acervo
-              </a>
+              </button>
               <button type="button" className="btn btn-lg" onClick={() => requestImport()}>
                 {Icon.upload}
                 Importar meu livro

@@ -26,7 +26,7 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 - **Layout responsivo**: no celular, o chat vira um painel deslizante aberto por um botão flutuante.
 - **Conversa salva por livro**: ao voltar, os personagens lembram do que foi dito (botão para recomeçar a conversa).
 - **Card para compartilhar**: uma fala do personagem (com a pergunta do leitor) ou uma citação do livro vira uma imagem 1080×1350 pronta para Stories, TikTok e WhatsApp, gerada no navegador.
-- **Conta e sessão**: cadastro e login por e-mail e senha via Supabase Auth; a sessão é renovada e mantida entre visitas. Leitura e importações continuam guardadas no aparelho.
+- **Conta e sessão**: cadastro e login por e-mail e senha via Supabase Auth; login, renovação da sessão e logout gerenciados pelo Supabase. A verificação OTP de seis dígitos está implementada, mas desativada por padrão e pode ser habilitada depois. Leitura e importações continuam guardadas no aparelho.
 - **Limite de 30 mensagens por dia** por navegador, para proteger a cota das chaves de IA (`DAILY_MESSAGE_LIMIT` em `src/lib/usageLimit.ts`).
 - **Ouvir em voz alta**: lê o capítulo com a voz do próprio aparelho, destacando o parágrafo, com velocidade ajustável e continuação automática no próximo capítulo.
 - **Marcações e citações favoritas**: selecione um trecho e toque em *Destacar*; o painel de marcações leva de volta ao trecho e compartilha como imagem.
@@ -154,6 +154,7 @@ npm run dev
 | `VITE_SUPABASE_URL` | sim para login | URL do projeto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | sim para login | Chave publicável/anon do Supabase; nunca use `service_role` no frontend |
 | `VITE_LOGIN_REQUIRED` | não | `false` deixa ler e conversar sem conta. Padrão: conta obrigatória. Sem as variáveis do Supabase, o app roda sem contas |
+| `VITE_SUPABASE_EMAIL_OTP_ENABLED` | não | `true` pede o código de 6 números no cadastro. `false` (padrão): entra direto se "Confirm email" estiver desligado, ou pelo link de confirmação enviado por e-mail |
 | `VITE_GROQ_API_KEY` | uma das chaves | Chave do Groq (`gsk_...`) |
 | `VITE_GROQ_MODELS` | não | Modelos do Groq em ordem de preferência, separados por vírgula |
 | `VITE_GEMINI_API_KEY` | uma das chaves | Chave do Google AI Studio |
@@ -166,9 +167,10 @@ O Vite só lê o `.env` ao iniciar: depois de alterar o arquivo, reinicie o `npm
 ### Configuração do Supabase Auth
 
 1. Crie um projeto Supabase e copie a **Project URL** e a chave **anon/publicable** em **Project Settings → API** para `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-2. Em **Authentication → Providers**, habilite o provedor de e-mail e senha. Configure a confirmação de e-mail conforme a política desejada.
-3. Em **Authentication → URL Configuration**, defina a URL do site e inclua os endereços locais/de produção na lista de redirecionamento.
-4. Para testar localmente, copie `.env.example` para `.env`, preencha as duas variáveis e reinicie o Vite.
+2. Em **Authentication → Providers → Email**, habilite e-mail/senha e desative **Confirm email** para permitir cadastro e login sem código neste momento.
+3. O fluxo OTP continua implementado, mas fica desligado com `VITE_SUPABASE_EMAIL_OTP_ENABLED=false` (padrão). Para habilitá-lo depois, ative essa variável, habilite **Confirm email** e ajuste **Email OTP Length** para `6`. No template de confirmação, use `{{ .Token }}`. Configure SMTP de produção para entrega confiável em caixas Gmail.
+4. Em **Authentication → URL Configuration**, defina a URL do site e inclua os endereços locais/de produção na lista de redirecionamento.
+5. Para testar localmente, copie `.env.example` para `.env`, preencha as duas variáveis e reinicie o Vite.
 
 A chave anon/publicável não é segredo e é enviada pelo navegador para o Supabase; a segurança depende das regras do Supabase. Nunca coloque a chave `service_role` no Vite, no repositório ou no navegador. Nenhuma senha de usuário é armazenada pelo app.
 

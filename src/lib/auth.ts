@@ -10,6 +10,7 @@ export const loginRequired = authEnabled && import.meta.env.VITE_LOGIN_REQUIRED?
 
 const SESSION_KEY = "storyverse:supabase-session";
 const LEGACY_AUTH_KEY = "storyverse:auth";
+export const EMAIL_OTP_ENABLED = import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED === "true";
 
 export type SupabaseUser = {
   id: string;
@@ -135,7 +136,7 @@ export async function signUpWithPassword(
   email: string,
   password: string,
   name: string,
-): Promise<{ session: SupabaseSession | null }> {
+): Promise<SupabaseSession | null> {
   const redirect = encodeURIComponent(window.location.origin);
   const payload = await authRequest(`signup?redirect_to=${redirect}`, {
     email,
@@ -144,7 +145,19 @@ export async function signUpWithPassword(
   });
   const session = makeSession(payload);
   storeSession(session);
-  return { session };
+  return session;
+}
+
+export async function verifySignupCode(email: string, token: string): Promise<SupabaseSession> {
+  const payload = await authRequest("verify", { type: "signup", email, token });
+  const session = makeSession(payload);
+  if (!session) throw new Error("Código confirmado, mas o serviço não retornou uma sessão válida.");
+  storeSession(session);
+  return session;
+}
+
+export async function resendSignupCode(email: string): Promise<void> {
+  await authRequest("resend", { type: "signup", email });
 }
 
 export async function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
@@ -155,7 +168,7 @@ export async function refreshAuthSession(refreshToken: string): Promise<Supabase
   return session;
 }
 
-export async function restoreAuthSession(): Promise<SupabaseSession | null> {
+async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
   clearLegacyCredentials();
   const stored = localStorage.getItem(SESSION_KEY);
   if (!stored) return null;
@@ -243,6 +256,17 @@ export async function requestPasswordReset(email: string): Promise<void> {
 /** Define a senha nova (logado pelo link de recuperação). */
 export async function updatePassword(session: SupabaseSession, password: string): Promise<void> {
   await authRequest("user", { password }, session.access_token, "PUT");
+}
+
+let restoreSessionRequest: Promise<SupabaseSession | null> | null = null;
+
+export function restoreAuthSession(): Promise<SupabaseSession | null> {
+  if (!restoreSessionRequest) {
+    restoreSessionRequest = restoreAuthSessionOnce().finally(() => {
+      restoreSessionRequest = null;
+    });
+  }
+  return restoreSessionRequest;
 }
 
 export async function signOut(session: SupabaseSession): Promise<void> {
