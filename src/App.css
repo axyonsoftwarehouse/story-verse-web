@@ -163,33 +163,6 @@
   box-shadow: 0 4px 14px -6px rgba(228, 184, 106, 0.5);
 }
 
-.home-nav-links {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  margin-right: 0.5rem;
-}
-
-.home-nav-links button {
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-read);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-}
-
-.home-nav-links button:hover {
-  color: var(--accent);
-  border-color: var(--accent-dim);
-  background: rgba(228, 184, 106, 0.06);
-}
-
 .status {
   display: inline-flex;
   align-items: center;
@@ -2189,7 +2162,9 @@
 }
 
 .auth-loading .wordmark-mark {
-  font-size: 1.8rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
 }
 
 .auth-loading p {
@@ -2368,17 +2343,6 @@
     padding: 1rem 0;
   }
 
-  .home-nav-links {
-    flex: 0 0 auto;
-    margin: 0 0 0 auto;
-  }
-
-  .home-nav-links button {
-    padding: 0.35rem 0.45rem;
-    font-size: 0.66rem;
-    white-space: nowrap;
-  }
-
   .home-nav-actions .status {
     display: none;
   }
@@ -2409,11 +2373,6 @@
 @media (max-width: 380px) {
   .home-nav {
     gap: 0.25rem;
-  }
-
-  .home-nav-links button {
-    padding-inline: 0.35rem;
-    font-size: 0.62rem;
   }
 
   .home-nav-actions {
@@ -3599,4 +3558,11 @@
   margin: 0 auto;
   border-radius: 6px;
   box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+}
+
+/* "Esqueci minha senha", logo abaixo do campo de senha. */
+.auth-forgot {
+  align-self: flex-end;
+  margin-top: -0.35rem;
+  font-size: 0.8rem;
 }

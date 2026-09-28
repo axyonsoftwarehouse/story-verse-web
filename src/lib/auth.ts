@@ -54,12 +54,23 @@ function describeAuthError(message: string): string {
   return message;
 }
 
-async function authRequest(path: string, body?: Record<string, unknown>, accessToken?: string): Promise<AuthResponse> {
+/**
+ * Sem internet (ou Supabase fora do ar). Diferente de "senha errada" ou "sessão revogada": nesse
+ * caso a sessão guardada continua valendo no aparelho, e a renovação é tentada de novo depois.
+ */
+export class AuthNetworkError extends Error {}
+
+async function authRequest(
+  path: string,
+  body?: Record<string, unknown>,
+  accessToken?: string,
+  method: "POST" | "PUT" | "GET" = "POST",
+): Promise<AuthResponse> {
   const { url, anonKey } = authConfig();
   let response: Response;
   try {
     response = await fetch(`${url}/auth/v1/${path}`, {
-      method: "POST",
+      method,
       headers: {
         apikey: anonKey,
         "Content-Type": "application/json",
@@ -68,7 +79,11 @@ async function authRequest(path: string, body?: Record<string, unknown>, accessT
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
-    throw new Error("Não foi possível conectar ao serviço de autenticação. Verifique sua conexão.");
+    throw new AuthNetworkError("Não foi possível conectar ao serviço de autenticação. Verifique sua conexão.");
+  }
+  // Supabase fora do ar também não é motivo para deslogar.
+  if (response.status >= 500) {
+    throw new AuthNetworkError("O serviço de autenticação está instável. Tente de novo em instantes.");
   }
 
   const payload = (await response.json().catch(() => ({}))) as AuthResponse;
@@ -155,11 +170,69 @@ export async function restoreAuthSession(): Promise<SupabaseSession | null> {
     try {
       return await refreshAuthSession(session.refresh_token);
     } catch (error) {
+      // Sem internet (app instalado, lendo offline): continua logado com a sessão guardada e
+      // renova quando a conexão voltar. Só sai se o Supabase recusar a sessão.
+      if (error instanceof AuthNetworkError) return session;
       storeSession(null);
       throw error;
     }
   }
   return session;
+}
+
+/**
+ * Link do e-mail (confirmação de cadastro ou "esqueci minha senha"): o Supabase volta para o
+ * site com a sessão no endereço (#access_token=…&refresh_token=…&type=signup|recovery). Aqui ela
+ * vira a sessão do app e sai da barra de endereço.
+ */
+type RedirectResult = { session: SupabaseSession; type: string } | { error: string } | null;
+let redirectResult: Promise<RedirectResult> | null = null;
+
+/** Lê o link uma vez só por carregamento (o React em desenvolvimento roda os efeitos duas vezes). */
+export function consumeAuthRedirect(): Promise<RedirectResult> {
+  redirectResult ??= readAuthRedirect();
+  return redirectResult;
+}
+
+async function readAuthRedirect(): Promise<RedirectResult> {
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!/(access_token|error_description)=/.test(hash)) return null;
+  const params = new URLSearchParams(hash);
+  // Tira os tokens do endereço antes de qualquer coisa (não ficam no histórico nem em prints).
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+  const errorText = params.get("error_description");
+  if (errorText) {
+    const expired = /expired|invalid/i.test(errorText);
+    return { error: expired ? "Este link expirou ou já foi usado. Peça um novo." : describeAuthError(errorText) };
+  }
+  const access_token = params.get("access_token");
+  const refresh_token = params.get("refresh_token");
+  if (!access_token || !refresh_token) return null;
+
+  const user = (await authRequest("user", undefined, access_token, "GET")) as unknown as SupabaseUser;
+  const expiresAt = Number(params.get("expires_at"));
+  const session: SupabaseSession = {
+    access_token,
+    refresh_token,
+    expires_at: Number.isFinite(expiresAt) && expiresAt > 0
+      ? expiresAt
+      : Math.floor(Date.now() / 1000) + Number(params.get("expires_in") ?? 3600),
+    user,
+  };
+  storeSession(session);
+  return { session, type: params.get("type") ?? "" };
+}
+
+/** Envia o e-mail de "esqueci minha senha"; o link volta para o site com type=recovery. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const redirect = encodeURIComponent(window.location.origin);
+  await authRequest(`recover?redirect_to=${redirect}`, { email });
+}
+
+/** Define a senha nova (logado pelo link de recuperação). */
+export async function updatePassword(session: SupabaseSession, password: string): Promise<void> {
+  await authRequest("user", { password }, session.access_token, "PUT");
 }
 
 export async function signOut(session: SupabaseSession): Promise<void> {

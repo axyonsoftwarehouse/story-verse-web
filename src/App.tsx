@@ -85,8 +85,12 @@ import {
 } from "./lib/speech";
 import { countMessage, DAILY_MESSAGE_LIMIT, messagesLeftToday } from "./lib/usageLimit";
 import {
+  AuthNetworkError,
   clearLegacyCredentials,
+  consumeAuthRedirect,
   refreshAuthSession,
+  requestPasswordReset,
+  updatePassword,
   restoreAuthSession,
   signInWithPassword,
   signOut,
@@ -1113,7 +1117,7 @@ function AuthModal({
   onClose: () => void;
   onAuthenticated: (session: SupabaseSession) => void;
 }) {
-  const [kind, setKind] = useState(mode);
+  const [kind, setKind] = useState<"login" | "register" | "forgot">(mode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1122,9 +1126,9 @@ function AuthModal({
   const [loading, setLoading] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
 
-  function switchKind() {
+  function goTo(next: "login" | "register" | "forgot") {
     setIsFlipping(true);
-    setKind(kind === "login" ? "register" : "login");
+    setKind(next);
     setError("");
     setSuccess("");
   }
@@ -1136,7 +1140,7 @@ function AuthModal({
       setError("Informe um endereço de e-mail válido.");
       return;
     }
-    if (!password || (kind === "register" && password.length < 6)) {
+    if (kind !== "forgot" && (!password || (kind === "register" && password.length < 6))) {
       setError(kind === "register" ? "A senha precisa ter pelo menos 6 caracteres." : "Informe sua senha.");
       return;
     }
@@ -1149,12 +1153,16 @@ function AuthModal({
     setError("");
     setSuccess("");
     try {
-      if (kind === "register") {
+      if (kind === "forgot") {
+        await requestPasswordReset(normalizedEmail);
+        // Mesma resposta exista ou não a conta (não revela quais e-mails estão cadastrados).
+        setSuccess("Se houver uma conta com este e-mail, enviamos um link para você criar uma senha nova.");
+      } else if (kind === "register") {
         const result = await signUpWithPassword(normalizedEmail, password, name.trim());
         if (result.session) {
           onAuthenticated(result.session);
         } else {
-          setSuccess("Conta criada. Verifique seu e-mail para confirmar o cadastro e depois faça login.");
+          setSuccess("Conta criada. Enviamos um link de confirmação para o seu e-mail: é só abrir para entrar.");
         }
       } else {
         onAuthenticated(await signInWithPassword(normalizedEmail, password));
@@ -1165,6 +1173,15 @@ function AuthModal({
       setLoading(false);
     }
   }
+
+  const title =
+    kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?";
+  const subtitle =
+    kind === "login"
+      ? "Acesse seus livros, progresso e conversas com os personagens."
+      : kind === "register"
+        ? "Salve seu progresso e converse com os personagens no seu ritmo."
+        : "Informe o e-mail da sua conta e enviaremos um link para criar uma senha nova.";
 
   return (
     <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -1179,12 +1196,8 @@ function AuthModal({
           {Icon.close}
         </button>
         <span className="eyebrow">Storyverse</span>
-        <h2 id="auth-title">{kind === "login" ? "Entre para continuar lendo" : "Crie sua conta gratuita"}</h2>
-        <p className="auth-subtitle">
-          {kind === "login"
-            ? "Acesse seus livros, progresso e conversas com os personagens."
-            : "Salve seu progresso e converse com os personagens no seu ritmo."}
-        </p>
+        <h2 id="auth-title">{title}</h2>
+        <p className="auth-subtitle">{subtitle}</p>
         <form onSubmit={submit} className="auth-form">
           {kind === "register" ? (
             <label>
@@ -1196,22 +1209,88 @@ function AuthModal({
             E-mail
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required disabled={loading} />
           </label>
-          <label>
-            Senha
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 6 : undefined} required disabled={loading} />
-          </label>
+          {kind !== "forgot" ? (
+            <label>
+              Senha
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 6 : undefined} required disabled={loading} />
+            </label>
+          ) : null}
+          {kind === "login" ? (
+            <button type="button" className="inline-link auth-forgot" onClick={() => goTo("forgot")} disabled={loading}>
+              Esqueci minha senha
+            </button>
+          ) : null}
           {error ? <p className="auth-error" role="alert">{error}</p> : null}
           {success ? <p className="auth-success" role="status">{success}</p> : null}
           <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? "Aguarde..." : kind === "login" ? "Fazer login" : "Criar conta"}
+            {loading
+              ? "Aguarde..."
+              : kind === "login"
+                ? "Fazer login"
+                : kind === "register"
+                  ? "Criar conta"
+                  : "Enviar link"}
           </button>
         </form>
         <p className="auth-switch">
-          {kind === "login" ? "Ainda não tem conta?" : "Já tem uma conta?"}{" "}
-          <button type="button" className="inline-link" onClick={switchKind} disabled={loading}>
+          {kind === "register" ? "Já tem uma conta?" : kind === "forgot" ? "Lembrou a senha?" : "Ainda não tem conta?"}{" "}
+          <button
+            type="button"
+            className="inline-link"
+            onClick={() => goTo(kind === "login" ? "register" : "login")}
+            disabled={loading}
+          >
             {kind === "login" ? "Criar conta" : "Fazer login"}
           </button>
         </p>
+      </section>
+    </div>
+  );
+}
+
+/** Tela de senha nova, aberta pelo link de "esqueci minha senha" (já logado por ele). */
+function NewPasswordModal({ session, onDone }: { session: SupabaseSession; onDone: (message: string) => void }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 6) return setError("A senha precisa ter pelo menos 6 caracteres.");
+    if (password !== confirm) return setError("As duas senhas não são iguais.");
+    setLoading(true);
+    setError("");
+    try {
+      await updatePassword(session, password);
+      onDone("Senha nova salva. Você já está conectado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a senha nova.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="auth-backdrop" role="presentation">
+      <section className="auth-card auth-card-enter" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
+        <span className="eyebrow">Storyverse</span>
+        <h2 id="new-password-title">Crie uma senha nova</h2>
+        <p className="auth-subtitle">Escolha a senha que você vai usar para entrar daqui para frente.</p>
+        <form onSubmit={submit} className="auth-form">
+          <label>
+            Senha nova
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
+          </label>
+          <label>
+            Repita a senha
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
+          </label>
+          {error ? <p className="auth-error" role="alert">{error}</p> : null}
+          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+            {loading ? "Aguarde..." : "Salvar senha"}
+          </button>
+        </form>
       </section>
     </div>
   );
@@ -1306,6 +1385,8 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       </section>
     </div>
   );
+}
+
 /**
  * Aplica os escudos uma vez por carregamento da página, antes de desenhar qualquer coisa (assim o
  * quadro da sequência já mostra o dia salvo). Devolve o tamanho da sequência salva, para o aviso.
@@ -1330,11 +1411,28 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [pausedShelves, setPausedShelves] = useState<Record<string, boolean>>({});
 
+  /** Chegou pelo link "esqueci minha senha": mostra a tela de senha nova. */
+  const [passwordReset, setPasswordReset] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         clearLegacyCredentials();
+        // Veio de um link do e-mail (confirmação de cadastro ou recuperação de senha)?
+        const redirect = await consumeAuthRedirect().catch((err: unknown) => ({
+          error: err instanceof Error ? err.message : "Não foi possível concluir o acesso pelo link.",
+        }));
+        if (redirect && "error" in redirect) {
+          if (!cancelled) setAuthNotice(redirect.error);
+        } else if (redirect) {
+          if (!cancelled) {
+            setAuthSession(redirect.session);
+            if (redirect.type === "recovery") setPasswordReset(true);
+            else if (redirect.type === "signup") setAuthNotice("E-mail confirmado. Boas-vindas ao Storyverse!");
+          }
+          return;
+        }
         const session = await restoreAuthSession();
         if (!cancelled) setAuthSession(session);
       } catch (err) {
@@ -1351,19 +1449,33 @@ export function App() {
     };
   }, []);
 
+  /** Muda para tentar renovar a sessão de novo (depois de uma falha de conexão). */
+  const [refreshRetry, setRefreshRetry] = useState(0);
   useEffect(() => {
     if (!authSession) return;
     const refreshIn = Math.max(1000, authSession.expires_at * 1000 - Date.now() - 60_000);
+    let retryTimer = 0;
+    const onOnline = () => setRefreshRetry((n) => n + 1);
     const timer = window.setTimeout(() => {
       void refreshAuthSession(authSession.refresh_token)
         .then((session) => setAuthSession(session))
         .catch((err: unknown) => {
+          // Sem internet: continua logado e tenta de novo quando a conexão voltar (ou em 1 min).
+          if (err instanceof AuthNetworkError) {
+            window.addEventListener("online", onOnline, { once: true });
+            retryTimer = window.setTimeout(onOnline, 60_000);
+            return;
+          }
           setAuthSession(null);
           setAuthNotice(err instanceof Error ? err.message : "Sua sessão expirou. Entre novamente.");
         });
     }, refreshIn);
-    return () => window.clearTimeout(timer);
-  }, [authSession]);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [authSession, refreshRetry]);
 
   useEffect(() => {
     function syncSession(event: StorageEvent) {
@@ -2325,7 +2437,7 @@ export function App() {
   if (authLoading && !book) {
     return (
       <main className="auth-loading" role="status" aria-live="polite">
-        <span className="wordmark-mark" aria-hidden="true">✦</span>
+        <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
         <p>Verificando sua sessão...</p>
       </main>
     );
@@ -2354,6 +2466,15 @@ export function App() {
               setAuthSession(session);
               setAuthNotice(null);
               setAuthModal(null);
+            }}
+          />
+        ) : null}
+        {passwordReset && authSession ? (
+          <NewPasswordModal
+            session={authSession}
+            onDone={(message) => {
+              setPasswordReset(false);
+              setAuthNotice(message);
             }}
           />
         ) : null}
