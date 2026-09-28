@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  readonly VITE_SUPABASE_EMAIL_OTP_ENABLED?: string;
   readonly VITE_GROQ_API_KEY?: string;
   /** Opcional. Lista separada por vírgula; cada modelo tem cota própria no Groq. */
   readonly VITE_GROQ_MODELS?: string;
