@@ -410,6 +410,12 @@ const Icon = {
       <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
     </svg>
   ),
+  mail: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <path d="m4 7 8 6 8-6" />
+    </svg>
+  ),
   close: (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <path d="M18 6L6 18M6 6l12 12" />
@@ -1212,6 +1218,9 @@ function PasswordInput(props: Omit<React.InputHTMLAttributes<HTMLInputElement>, 
   );
 }
 
+/** O Supabase só deixa reenviar e-mail para o mesmo endereço depois de 60 s. */
+const RESEND_COOLDOWN = 60;
+
 function AuthModal({
   mode,
   onClose,
@@ -1228,27 +1237,55 @@ function AuthModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isFlipping, setIsFlipping] = useState(false);
-  const [verificationPending, setVerificationPending] = useState(false);
+  /** Depois do envio: tela de "confira seu e-mail" (link de cadastro, código ou link de senha nova). */
+  const [sent, setSent] = useState<"confirm" | "code" | "reset" | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  // O foco fica no livro clicado atrás do modal e deixaria o carrossel parado depois de fechar.
+  useEffect(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldown]);
+
+  const normalizedEmail = email.trim().toLowerCase();
 
   function goTo(next: "login" | "register" | "forgot") {
-    setIsFlipping(true);
     setKind(next);
+    setSent(null);
     setError("");
     setSuccess("");
+  }
+
+  function showSent(next: "confirm" | "code" | "reset") {
+    setSent(next);
+    setVerificationCode("");
+    setCooldown(RESEND_COOLDOWN);
   }
 
   async function confirmEmail(e: React.FormEvent) {
     e.preventDefault();
     if (!/^\d{6}$/.test(verificationCode)) {
-      setError("Digite o código de verificação de 6 números enviado para seu e-mail.");
+      setError("Digite os 6 números do código que enviamos.");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      onAuthenticated(await verifySignupCode(email.trim().toLowerCase(), verificationCode));
+      onAuthenticated(await verifySignupCode(normalizedEmail, verificationCode));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível verificar o código.");
     } finally {
@@ -1256,15 +1293,17 @@ function AuthModal({
     }
   }
 
-  async function resendCode() {
+  async function resend() {
     setLoading(true);
     setError("");
     setSuccess("");
     try {
-      await resendSignupCode(email.trim().toLowerCase());
-      setSuccess("Enviamos um novo código. Verifique também a pasta de spam.");
+      if (sent === "reset") await requestPasswordReset(normalizedEmail);
+      else await resendSignupCode(normalizedEmail);
+      setSuccess(sent === "code" ? "Código novo enviado." : "E-mail enviado de novo.");
+      setCooldown(RESEND_COOLDOWN);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível reenviar o código.");
+      setError(err instanceof Error ? err.message : "Não foi possível reenviar agora.");
     } finally {
       setLoading(false);
     }
@@ -1272,7 +1311,6 @@ function AuthModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setError("Informe um endereço de e-mail válido.");
       return;
@@ -1291,21 +1329,14 @@ function AuthModal({
     setSuccess("");
     try {
       if (kind === "forgot") {
-        await requestPasswordReset(normalizedEmail);
         // Mesma resposta exista ou não a conta (não revela quais e-mails estão cadastrados).
-        setSuccess("Se houver uma conta com este e-mail, enviamos um link para você criar uma senha nova.");
+        await requestPasswordReset(normalizedEmail);
+        showSent("reset");
       } else if (kind === "register") {
         const result = await signUpWithPassword(normalizedEmail, password, name.trim());
-        if (result) {
-          onAuthenticated(result);
-        } else if (EMAIL_OTP_ENABLED) {
-          setVerificationPending(true);
-          setVerificationCode("");
-          setSuccess(`Enviamos um código de 6 números para ${normalizedEmail}. Verifique também a pasta de spam.`);
-        } else {
-          // "Confirm email" ligado sem OTP: o link do e-mail volta para o app já logado.
-          setSuccess("Conta criada. Enviamos um link de confirmação para o seu e-mail: é só abrir para entrar.");
-        }
+        if (result) onAuthenticated(result);
+        // Sem OTP, o link do e-mail volta para o app já logado.
+        else showSent(EMAIL_OTP_ENABLED ? "code" : "confirm");
       } else {
         onAuthenticated(await signInWithPassword(normalizedEmail, password));
       }
@@ -1316,63 +1347,93 @@ function AuthModal({
     }
   }
 
-  const title = verificationPending
-    ? "Confirme seu e-mail"
-    : kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?";
-  const subtitle =
-    verificationPending
-      ? `Digite abaixo o código de 6 números enviado para ${email}.`
-      : kind === "login"
-      ? "Acesse seus livros, progresso e conversas com os personagens."
-      : kind === "register"
-        ? "Salve seu progresso e converse com os personagens no seu ritmo."
-        : "Informe o e-mail da sua conta e enviaremos um link para criar uma senha nova.";
+  const feedback = (
+    <>
+      {error ? <p className="auth-error" role="alert">{error}</p> : null}
+      {success ? <p className="auth-success" role="status">{success}</p> : null}
+    </>
+  );
 
-  return (
-    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section
-        className={`auth-card auth-card-enter ${isFlipping ? "is-flipping" : ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="auth-title"
-        onAnimationEnd={() => setIsFlipping(false)}
-      >
-        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
-          {Icon.close}
-        </button>
-        <span className="eyebrow">Storyverse</span>
-        <h2 id="auth-title">{title}</h2>
-        <p className="auth-subtitle">{subtitle}</p>
-        {verificationPending ? (
+  const resendButton = (
+    <button type="button" className="btn auth-resend" onClick={() => void resend()} disabled={loading || cooldown > 0}>
+      {cooldown > 0 ? `Reenviar em ${cooldown}s` : sent === "code" ? "Reenviar código" : "Reenviar e-mail"}
+    </button>
+  );
+
+  let body: React.ReactNode;
+  if (sent) {
+    body = (
+      <>
+        <span className="auth-sent-icon" aria-hidden="true">{Icon.mail}</span>
+        <h2 id="auth-title">{sent === "code" ? "Digite o código" : "Confira seu e-mail"}</h2>
+        <p className="auth-subtitle">
+          {sent === "code"
+            ? "Enviamos um código de 6 números para"
+            : sent === "confirm"
+              ? "Enviamos um link de confirmação para"
+              : "Se houver uma conta com este e-mail, enviamos um link para criar uma senha nova em"}
+          <strong className="auth-email">{normalizedEmail}</strong>
+        </p>
+        {sent === "code" ? (
           <form onSubmit={confirmEmail} className="auth-form">
-            <label>
-              Código de verificação
-              <input
-                className="auth-otp-input"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000"
-                aria-label="Código de verificação de seis números"
-                required
-                disabled={loading}
-              />
-            </label>
-            {error ? <p className="auth-error" role="alert">{error}</p> : null}
-            {success ? <p className="auth-success" role="status">{success}</p> : null}
+            <input
+              className="auth-otp-input"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="000000"
+              aria-label="Código de verificação de seis números"
+              autoFocus
+              required
+              disabled={loading}
+            />
+            {feedback}
             <button type="submit" className="btn btn-primary btn-lg" disabled={loading || verificationCode.length !== 6}>
               {loading ? "Verificando..." : "Confirmar e-mail"}
             </button>
-            <button type="button" className="inline-link auth-resend" onClick={() => void resendCode()} disabled={loading}>
-              Reenviar código
-            </button>
           </form>
-        ) : (
-          <>
+        ) : null}
+        <p className="auth-hint">
+          {sent === "confirm" ? (
+            <>
+              Toque em <strong>Confirmar conta</strong> no e-mail para entrar.{" "}
+            </>
+          ) : sent === "reset" ? (
+            "O link vale por 1 hora. "
+          ) : null}
+          Não chegou? Veja a pasta de spam.
+        </p>
+        {sent !== "code" ? feedback : null}
+        {resendButton}
+        <p className="auth-switch">
+          <button type="button" className="inline-link" onClick={() => goTo(sent === "reset" ? "login" : kind)} disabled={loading}>
+            Usar outro e-mail
+          </button>
+          {" · "}
+          <button type="button" className="inline-link" onClick={() => goTo("login")} disabled={loading}>
+            Voltar para o login
+          </button>
+        </p>
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <span className="eyebrow">Storyverse</span>
+        <h2 id="auth-title">
+          {kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?"}
+        </h2>
+        <p className="auth-subtitle">
+          {kind === "login"
+            ? "Acesse seus livros, progresso e conversas com os personagens."
+            : kind === "register"
+              ? "Salve seu progresso e converse com os personagens no seu ritmo."
+              : "Informe o e-mail da sua conta e enviaremos um link para criar uma senha nova."}
+        </p>
         <form onSubmit={submit} className="auth-form">
           {kind === "register" ? (
             <label>
@@ -1395,31 +1456,31 @@ function AuthModal({
               Esqueci minha senha
             </button>
           ) : null}
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
-          {success ? <p className="auth-success" role="status">{success}</p> : null}
+          {feedback}
           <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading
-              ? "Aguarde..."
-              : kind === "login"
-                ? "Fazer login"
-                : kind === "register"
-                  ? "Criar conta"
-                  : "Enviar link"}
+            {loading ? "Aguarde..." : kind === "login" ? "Fazer login" : kind === "register" ? "Criar conta" : "Enviar link"}
           </button>
         </form>
         <p className="auth-switch">
           {kind === "register" ? "Já tem uma conta?" : kind === "forgot" ? "Lembrou a senha?" : "Ainda não tem conta?"}{" "}
-          <button
-            type="button"
-            className="inline-link"
-            onClick={() => goTo(kind === "login" ? "register" : "login")}
-            disabled={loading}
-          >
+          <button type="button" className="inline-link" onClick={() => goTo(kind === "login" ? "register" : "login")} disabled={loading}>
             {kind === "login" ? "Criar conta" : "Fazer login"}
           </button>
         </p>
-          </>
-        )}
+      </>
+    );
+  }
+
+  return (
+    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
+          {Icon.close}
+        </button>
+        {/* A key troca o conteúdo com um fade curto ao ir de login para cadastro etc. */}
+        <div key={sent ?? kind} className={`auth-view ${sent ? "auth-view-sent" : ""}`}>
+          {body}
+        </div>
       </section>
     </div>
   );
@@ -1450,7 +1511,7 @@ function NewPasswordModal({ session, onDone }: { session: SupabaseSession; onDon
 
   return (
     <div className="auth-backdrop" role="presentation">
-      <section className="auth-card auth-card-enter" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
+      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
         <span className="eyebrow">Storyverse</span>
         <h2 id="new-password-title">Crie uma senha nova</h2>
         <p className="auth-subtitle">Escolha a senha que você vai usar para entrar daqui para frente.</p>
@@ -1583,7 +1644,7 @@ export function App() {
   // Sem Supabase configurado não há sessão para verificar: a tela abre direto.
   const [authLoading, setAuthLoading] = useState(authEnabled);
   const [authActionLoading, setAuthActionLoading] = useState(false);
-  const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<{ text: string; ok?: boolean } | null>(null);
   const authUser: SupabaseUser | null = authSession?.user ?? null;
   /** Pode ler e importar: login desligado, conta opcional ou já entrou. */
   const canRead = !loginRequired || !!authUser;
@@ -1616,12 +1677,12 @@ export function App() {
           error: err instanceof Error ? err.message : "Não foi possível concluir o acesso pelo link.",
         }));
         if (redirect && "error" in redirect) {
-          if (!cancelled) setAuthNotice(redirect.error);
+          if (!cancelled) setAuthNotice({ text: redirect.error });
         } else if (redirect) {
           if (!cancelled) {
             setAuthSession(redirect.session);
             if (redirect.type === "recovery") setPasswordReset(true);
-            else if (redirect.type === "signup") setAuthNotice("E-mail confirmado. Boas-vindas ao Storyverse!");
+            else if (redirect.type === "signup") setAuthNotice({ text: "E-mail confirmado. Boas-vindas ao Storyverse!", ok: true });
           }
           return;
         }
@@ -1630,7 +1691,7 @@ export function App() {
       } catch (err) {
         if (!cancelled) {
           setAuthSession(null);
-          setAuthNotice(err instanceof Error ? err.message : "Não foi possível restaurar sua sessão.");
+          setAuthNotice({ text: err instanceof Error ? err.message : "Não foi possível restaurar sua sessão." });
         }
       } finally {
         if (!cancelled) setAuthLoading(false);
@@ -1659,7 +1720,7 @@ export function App() {
             return;
           }
           setAuthSession(null);
-          setAuthNotice(err instanceof Error ? err.message : "Sua sessão expirou. Entre novamente.");
+          setAuthNotice({ text: err instanceof Error ? err.message : "Sua sessão expirou. Entre novamente." });
         });
     }, refreshIn);
     return () => {
@@ -1693,7 +1754,7 @@ export function App() {
     try {
       await signOut(authSession);
     } catch (err) {
-      setAuthNotice(err instanceof Error ? `Sessão encerrada neste dispositivo. ${err.message}` : "Sessão encerrada neste dispositivo.");
+      setAuthNotice({ text: err instanceof Error ? `Sessão encerrada neste dispositivo. ${err.message}` : "Sessão encerrada neste dispositivo." });
     } finally {
       setAuthSession(null);
       setAuthActionLoading(false);
@@ -2685,7 +2746,7 @@ export function App() {
             session={authSession}
             onDone={(message) => {
               setPasswordReset(false);
-              setAuthNotice(message);
+              setAuthNotice({ text: message, ok: true });
             }}
           />
         ) : null}
@@ -2729,7 +2790,11 @@ export function App() {
           </div>
         </nav>
 
-        {authNotice ? <p className="auth-global-notice" role="alert">{authNotice}</p> : null}
+        {authNotice ? (
+          <p className={`auth-global-notice ${authNotice.ok ? "is-ok" : ""}`} role={authNotice.ok ? "status" : "alert"}>
+            {authNotice.text}
+          </p>
+        ) : null}
 
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
 

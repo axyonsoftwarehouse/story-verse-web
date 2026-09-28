@@ -579,7 +579,7 @@
 /* Com mouse, passar por cima para; no toque o "hover" fica preso e o carrossel não voltaria a andar. */
 @media (hover: hover) {
   .book-carousel:hover .book-carousel-track,
-  .book-carousel:focus-within .book-carousel-track {
+  .book-carousel:has(:focus-visible) .book-carousel-track {
     animation-play-state: paused;
   }
 }
@@ -2162,6 +2162,8 @@
   outline-offset: 3px;
 }
 
+/* ---- Login / cadastro: mesmo visual do "Sobre" (fundo, borda, entrada suave) ---- */
+
 .auth-backdrop {
   position: fixed;
   z-index: 20;
@@ -2169,8 +2171,19 @@
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(5, 4, 3, 0.78);
+  overflow-y: auto;
+  background: rgba(5, 4, 3, 0.8);
   backdrop-filter: blur(8px);
+  animation: auth-backdrop-in 0.2s ease-out both;
+}
+
+@keyframes auth-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .auth-loading {
@@ -2200,67 +2213,53 @@
   font-size: 0.88rem;
 }
 
+.auth-global-notice.is-ok {
+  border-color: var(--accent-2-dim);
+  background: rgba(155, 196, 181, 0.08);
+  color: var(--accent-2);
+}
+
 .auth-card {
   position: relative;
-  width: min(100%, 430px);
-  padding: 2.2rem;
+  width: min(100%, 420px);
+  padding: 2rem;
   border: 1px solid var(--border-strong);
   border-radius: 24px;
-  background: linear-gradient(155deg, rgba(45, 38, 30, 0.98), rgba(18, 15, 12, 0.99));
+  background:
+    radial-gradient(ellipse 90% 35% at 50% 0%, rgba(120, 80, 50, 0.16), transparent 70%),
+    var(--bg);
   box-shadow: var(--shadow-elevated);
-  animation: auth-card-enter 0.62s var(--ease-out) both;
-  transform-style: preserve-3d;
-  backface-visibility: hidden;
+  animation: about-dialog-in 0.28s var(--ease-out) both;
 }
 
-.auth-card-enter {
-  transform-origin: center;
+/* Trocar entre login, cadastro e "confira seu e-mail": só um fade, sem movimento. */
+.auth-view {
+  animation: auth-view-in 0.2s ease-out both;
 }
 
-.auth-card.is-flipping {
-  animation: auth-card-flip 0.62s var(--ease-out) both;
-}
-
-@keyframes auth-card-enter {
-  0% {
+@keyframes auth-view-in {
+  from {
     opacity: 0;
-    transform: perspective(1100px) rotateY(-90deg) scale(0.88);
   }
-  55% {
-    opacity: 1;
-    transform: perspective(1100px) rotateY(12deg) scale(1.02);
-  }
-  100% {
-    opacity: 1;
-    transform: perspective(1100px) rotateY(0deg) scale(1);
-  }
-}
-
-@keyframes auth-card-flip {
-  0% {
-    transform: perspective(1100px) rotateY(0deg);
-  }
-  45% {
-    transform: perspective(1100px) rotateY(90deg) scale(0.96);
-    opacity: 0.72;
-  }
-  100% {
-    transform: perspective(1100px) rotateY(0deg);
+  to {
     opacity: 1;
   }
 }
 
 .auth-card h2 {
-  margin: 0.2rem 0 0.6rem;
+  margin: 0.35rem 0 0.5rem;
+  padding-right: 2.5rem;
   font-family: var(--font-read);
-  font-size: 1.8rem;
+  font-size: clamp(1.45rem, 5vw, 1.75rem);
   font-weight: 500;
+  line-height: 1.2;
 }
 
 .auth-subtitle {
   margin: 0 0 1.5rem;
   color: var(--muted);
-  line-height: 1.5;
+  font-size: 0.93rem;
+  line-height: 1.55;
 }
 
 .auth-close {
@@ -2276,6 +2275,12 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.auth-close:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
 }
 
 .auth-form {
@@ -2291,49 +2296,47 @@
   font-weight: 600;
 }
 
+/* Mesmo campo da busca: fundo leve, borda fina e anel dourado no foco. */
 .auth-form input {
   width: 100%;
-  padding: 0.75rem 0.85rem;
+  height: 46px;
+  padding: 0 0.9rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: rgba(255, 248, 235, 0.05);
+  background: rgba(255, 248, 235, 0.04);
   color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .auth-form input:focus {
-  outline: 2px solid var(--accent-dim);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(228, 184, 106, 0.12);
 }
 
-.auth-form .auth-otp-input {
-  width: min(100%, 320px);
-  margin: 0 auto;
-  padding: 0.85rem 1rem;
-  font-family: var(--font-ui);
-  font-size: clamp(1.7rem, 8vw, 2.25rem);
-  font-weight: 700;
-  letter-spacing: 0.42em;
-  text-align: center;
-  text-indent: 0.55em;
-}
-
-.auth-resend {
-  justify-self: center;
+.auth-form .btn-lg {
+  width: 100%;
   margin-top: 0.25rem;
 }
 
-.auth-error {
+.auth-error,
+.auth-success {
   margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(232, 168, 168, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(232, 168, 168, 0.07);
   color: var(--danger);
-  font-size: 0.82rem;
-  line-height: 1.4;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .auth-success {
-  margin: 0;
+  border-color: var(--accent-2-dim);
+  background: rgba(155, 196, 181, 0.07);
   color: var(--accent-2);
-  font-size: 0.84rem;
-  line-height: 1.45;
 }
 
 .auth-switch {
@@ -2343,9 +2346,105 @@
   text-align: center;
 }
 
+/* Tela de "confira seu e-mail": centralizada, com o endereço em destaque. */
+.auth-view-sent {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.auth-view-sent h2 {
+  padding-right: 0;
+}
+
+.auth-view-sent .auth-form {
+  width: 100%;
+}
+
+.auth-sent-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0.25rem 0 0.4rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 50%;
+  background: rgba(228, 184, 106, 0.08);
+  color: var(--accent);
+}
+
+.auth-sent-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.auth-email {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--text);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.auth-view-sent .auth-subtitle {
+  margin-bottom: 1rem;
+}
+
+.auth-hint {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.auth-view-sent .auth-error,
+.auth-view-sent .auth-success {
+  width: 100%;
+  margin-bottom: 0.9rem;
+}
+
+.auth-resend {
+  min-width: 190px;
+  font-variant-numeric: tabular-nums;
+}
+
+.auth-view-sent .auth-form + .auth-hint {
+  margin-top: 1rem;
+}
+
+.auth-view-sent .auth-switch {
+  margin-top: 0.6rem;
+}
+
+.inline-link:disabled {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: default;
+}
+
+.auth-form .auth-otp-input {
+  width: min(100%, 300px);
+  height: 58px;
+  margin: 0 auto;
+  font-family: var(--font-ui);
+  font-size: clamp(1.6rem, 7vw, 2rem);
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-align: center;
+  text-indent: 0.4em;
+}
+
 @media (max-width: 480px) {
   .auth-card {
-    padding: 1.7rem 1.25rem;
+    padding: 1.6rem 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-backdrop,
+  .auth-card,
+  .auth-view {
+    animation: none;
   }
 }
 
