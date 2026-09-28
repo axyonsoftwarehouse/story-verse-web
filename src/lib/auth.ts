@@ -1,3 +1,13 @@
+/**
+ * O login só existe com o Supabase configurado. Sem as variáveis (ex.: deploy que ainda não as
+ * tem), o app funciona como antes, sem contas — o merge não quebra a produção.
+ */
+export const authEnabled = Boolean(
+  import.meta.env.VITE_SUPABASE_URL?.trim() && import.meta.env.VITE_SUPABASE_ANON_KEY?.trim(),
+);
+/** Conta obrigatória para ler e importar. `VITE_LOGIN_REQUIRED=false` deixa a conta opcional. */
+export const loginRequired = authEnabled && import.meta.env.VITE_LOGIN_REQUIRED?.trim() !== "false";
+
 const SESSION_KEY = "storyverse:supabase-session";
 const LEGACY_AUTH_KEY = "storyverse:auth";
 

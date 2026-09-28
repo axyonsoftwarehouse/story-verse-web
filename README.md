@@ -153,6 +153,7 @@ npm run dev
 |---|---|---|
 | `VITE_SUPABASE_URL` | sim para login | URL do projeto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | sim para login | Chave publicável/anon do Supabase; nunca use `service_role` no frontend |
+| `VITE_LOGIN_REQUIRED` | não | `false` deixa ler e conversar sem conta. Padrão: conta obrigatória. Sem as variáveis do Supabase, o app roda sem contas |
 | `VITE_GROQ_API_KEY` | uma das chaves | Chave do Groq (`gsk_...`) |
 | `VITE_GROQ_MODELS` | não | Modelos do Groq em ordem de preferência, separados por vírgula |
 | `VITE_GEMINI_API_KEY` | uma das chaves | Chave do Google AI Studio |

@@ -87,7 +87,9 @@ import {
 import { countMessage, DAILY_MESSAGE_LIMIT, messagesLeftToday } from "./lib/usageLimit";
 import {
   AuthNetworkError,
+  authEnabled,
   clearLegacyCredentials,
+  loginRequired,
   consumeAuthRedirect,
   refreshAuthSession,
   requestPasswordReset,
@@ -1438,10 +1440,13 @@ function shieldNoticeOnLoad(): number | null {
 export function App() {
   const [book, setBook] = useState<Ebook | null>(null);
   const [authSession, setAuthSession] = useState<SupabaseSession | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // Sem Supabase configurado não há sessão para verificar: a tela abre direto.
+  const [authLoading, setAuthLoading] = useState(authEnabled);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const authUser: SupabaseUser | null = authSession?.user ?? null;
+  /** Pode ler e importar: login desligado, conta opcional ou já entrou. */
+  const canRead = !loginRequired || !!authUser;
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [pausedShelves, setPausedShelves] = useState<Record<string, boolean>>({});
@@ -1450,6 +1455,7 @@ export function App() {
   const [passwordReset, setPasswordReset] = useState(false);
 
   useEffect(() => {
+    if (!authEnabled) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -1765,7 +1771,7 @@ export function App() {
 
   const startBook = useCallback((b: Ebook) => {
     if (authLoading) return;
-    if (!authUser) {
+    if (!canRead) {
       setAuthModal("login");
       return;
     }
@@ -1778,18 +1784,18 @@ export function App() {
     setInput("");
     setChatOpen(false);
     window.scrollTo({ top: 0 });
-  }, [authLoading, authUser]);
+  }, [authLoading, canRead]);
 
   const requestImport = useCallback(
     (hint: BookHint | Record<string, never> = {}) => {
       if (authLoading) return;
-      if (!authUser) {
+      if (!canRead) {
         setAuthModal("register");
         return;
       }
       setImportRequest(hint);
     },
-    [authLoading, authUser],
+    [authLoading, canRead],
   );
 
   const stopSpeaking = useCallback(() => {
@@ -2535,7 +2541,7 @@ export function App() {
                 Instalar app
               </button>
             ) : null}
-            {authUser ? (
+            {canRead ? (
               <button
                 type="button"
                 className="btn nav-import"
@@ -2547,7 +2553,7 @@ export function App() {
                 <span className="nav-import-short">Importar</span>
               </button>
             ) : null}
-            {authUser ? (
+            {!authEnabled ? null : authUser ? (
               <button type="button" className="btn nav-account" onClick={() => void logout()} disabled={authActionLoading}>
                 {authActionLoading ? "Saindo..." : "Sair"}
               </button>
@@ -2718,7 +2724,7 @@ export function App() {
               <div className="shelf-head">
                 <h2>{shelf.title}</h2>
                 <p>{shelf.subtitle}</p>
-                {!authUser ? (
+                {!canRead ? (
                   <button
                     type="button"
                     className="carousel-toggle"
@@ -2732,12 +2738,12 @@ export function App() {
                 ) : null}
               </div>
               <div
-                className={authUser ? "shelf-grid" : "book-carousel"}
-                aria-label={authUser ? undefined : `${shelf.title}: carrossel de livros`}
+                className={canRead ? "shelf-grid" : "book-carousel"}
+                aria-label={canRead ? undefined : `${shelf.title}: carrossel de livros`}
               >
-                <div className={`${authUser ? "shelf-grid-items" : "book-carousel-track"} ${pausedShelves[shelf.id] ? "is-paused" : ""}`}>
-                {(authUser ? books : [...books, ...books]).map((b, bookIndex) => {
-                  const duplicate = !authUser && bookIndex >= books.length;
+                <div className={`${canRead ? "shelf-grid-items" : "book-carousel-track"} ${pausedShelves[shelf.id] ? "is-paused" : ""}`}>
+                {(canRead ? books : [...books, ...books]).map((b, bookIndex) => {
+                  const duplicate = !canRead && bookIndex >= books.length;
                   return (
                   <article key={`${b.id}-${bookIndex}`} className="book" aria-hidden={duplicate}>
                     <button
@@ -2782,7 +2788,7 @@ export function App() {
           );
         })}
 
-        {authUser ? (
+        {canRead ? (
           <>
             <MyBooks
               onOpen={startBook}
