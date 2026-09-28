@@ -421,17 +421,6 @@ const Icon = {
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   ),
-  pause: (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="5" width="4" height="14" rx="1" />
-      <rect x="14" y="5" width="4" height="14" rx="1" />
-    </svg>
-  ),
-  play: (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.2-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" />
-    </svg>
-  ),
   speaker: (
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M11 5L6 9H3v6h3l5 4V5z" />
@@ -1556,70 +1545,46 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
           </button>
         </header>
         <div className="about-copy">
-          <p>Ler um livro não precisa ser uma experiência solitária.</p>
-          <p>
-            O <strong>Storyverse</strong> transforma a leitura em uma experiência interativa, onde as
-            histórias ganham voz e os personagens deixam de ser apenas palavras na página.
+          <p className="about-lead">
+            Enquanto você lê, os personagens do livro conversam com você num chat ao lado da página.
           </p>
-          <p>
-            Enquanto você lê, os personagens acompanham o ponto da história em que você está e podem
-            conversar com você em um chat ao lado do livro. Pergunte, provoque, descubra o que eles
-            pensam ou simplesmente converse com eles.
-          </p>
-          <p>
-            Quer saber o que Isaura sente diante de Leôncio? Pergunte. Quer provocar Sherlock Holmes?
-            Vá em frente. Quer ouvir o que Drácula teria a dizer? Ele está esperando.
-          </p>
-          <p>
-            E existe uma regra importante: <strong>ninguém conta o que ainda não aconteceu.</strong> Os
-            personagens conhecem apenas o momento da história que você já alcançou, mantendo a
-            experiência livre de spoilers.
-          </p>
-          <h3>📚 Descubra. Leia. Converse.</h3>
-          <p>
-            No Storyverse, você encontra clássicos em domínio público, com destaque para romances,
-            terror, vampiros e grandes histórias da literatura.
-          </p>
-          <ul>
-            <li>💬 Conversar com os personagens da história;</li>
-            <li>📖 Ler capítulo por capítulo sem perder seu progresso;</li>
-            <li>🌙 Escolher entre modo noturno e sépia;</li>
-            <li>🔊 Ouvir o livro em voz alta;</li>
-            <li>⭐ Destacar seus trechos favoritos;</li>
-            <li>📌 Salvar citações e momentos marcantes;</li>
-            <li>🔎 Descobrir o significado de palavras;</li>
-            <li>🔥 Acompanhar sua sequência e suas metas de leitura;</li>
-            <li>📱 Continuar lendo pelo celular, inclusive offline;</li>
-            <li>🖼️ Compartilhar seus momentos favoritos como imagens.</li>
+          <ol className="about-steps">
+            <li>
+              <strong>Escolha um livro</strong>
+              <span>Clássicos em domínio público ou um EPUB, PDF ou TXT seu.</span>
+            </li>
+            <li>
+              <strong>Leia no seu ritmo</strong>
+              <span>O progresso fica salvo, inclusive no celular e offline.</span>
+            </li>
+            <li>
+              <strong>Converse com quem vive nele</strong>
+              <span>Pergunte a Sherlock, provoque Drácula, ouça Isaura.</span>
+            </li>
+          </ol>
+          <div className="about-rules">
+            <p>
+              <strong>Sem spoilers.</strong> Os personagens só sabem o que você já leu.
+            </p>
+            <p>
+              <strong>O livro é o original.</strong> A IA dá voz aos personagens, mas não muda a história.
+            </p>
+          </div>
+          <p className="about-sub">Também dá para</p>
+          <ul className="about-features">
+            <li>Ouvir em voz alta</li>
+            <li>Ler no modo noturno ou sépia</li>
+            <li>Destacar trechos</li>
+            <li>Ver o significado de palavras</li>
+            <li>Criar metas de leitura</li>
+            <li>Compartilhar citações</li>
           </ul>
-          <h3>✨ E se o livro não estiver na estante?</h3>
-          <p>
-            O Storyverse também permite <strong>importar seus próprios livros</strong> em EPUB, PDF ou
-            TXT. O livro permanece no seu navegador, e você pode transformá-lo em uma experiência
-            interativa com personagens e conversas.
-          </p>
-          <h3>🧠 Histórias que respondem a você</h3>
-          <p>
-            A inteligência artificial não substitui o livro. Ela existe para criar uma nova camada de
-            interação ao redor dele. O texto original continua sendo o texto original: a IA não altera
-            a história, não escreve novos capítulos e não decide o que acontece. Ela simplesmente dá
-            voz aos personagens para que você possa conhecê-los de uma maneira diferente.
-          </p>
-          <p className="about-quote">
-            <strong>Você lê a história.</strong>
-            <br />
-            <strong>Eles vivem nela.</strong>
-            <br />
-            E agora vocês podem conversar.
-          </p>
-          <h3>🌌 Seu próximo capítulo começa aqui.</h3>
-          <p>
-            Escolha um livro, abra o primeiro capítulo e dê o primeiro passo. Talvez você comece
-            querendo apenas ler algumas páginas. Mas, quando um personagem olhar para você e responder...
-            <strong> talvez você não queira mais parar de ler.</strong>
-          </p>
-          <p><strong>Storyverse — Leia o livro. Converse com quem vive nele.</strong></p>
         </div>
+        <footer className="about-foot">
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            Começar a ler
+          </button>
+        </footer>
       </section>
     </div>
   );
@@ -1650,18 +1615,6 @@ export function App() {
   const canRead = !loginRequired || !!authUser;
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [pausedShelves, setPausedShelves] = useState<Record<string, boolean>>({});
-  /** Carrossel parado enquanto o dedo está nele (celular); volta a andar 3 s depois de soltar. */
-  const [touchPausedShelf, setTouchPausedShelf] = useState<string | null>(null);
-  const touchResumeRef = useRef<number | undefined>(undefined);
-  const holdCarousel = (shelfId: string) => {
-    window.clearTimeout(touchResumeRef.current);
-    setTouchPausedShelf(shelfId);
-  };
-  const releaseCarousel = () => {
-    window.clearTimeout(touchResumeRef.current);
-    touchResumeRef.current = window.setTimeout(() => setTouchPausedShelf(null), 3000);
-  };
 
   /** Chegou pelo link "esqueci minha senha": mostra a tela de senha nova. */
   const [passwordReset, setPasswordReset] = useState(false);
@@ -2952,39 +2905,12 @@ export function App() {
               <div className="shelf-head">
                 <h2>{shelf.title}</h2>
                 <p>{shelf.subtitle}</p>
-                {!canRead ? (
-                  <button
-                    type="button"
-                    className="carousel-toggle"
-                    aria-pressed={Boolean(pausedShelves[shelf.id])}
-                    onClick={() =>
-                      setPausedShelves((paused) => ({ ...paused, [shelf.id]: !paused[shelf.id] }))
-                    }
-                  >
-                    {pausedShelves[shelf.id] ? (
-                      <>
-                        {Icon.play} Retomar
-                      </>
-                    ) : (
-                      <>
-                        {Icon.pause} Pausar
-                      </>
-                    )}
-                  </button>
-                ) : null}
               </div>
               <div
                 className={canRead ? "shelf-grid" : "book-carousel"}
                 aria-label={canRead ? undefined : `${shelf.title}: carrossel de livros`}
-                onTouchStart={canRead ? undefined : () => holdCarousel(shelf.id)}
-                onTouchEnd={canRead ? undefined : releaseCarousel}
-                onTouchCancel={canRead ? undefined : releaseCarousel}
               >
-                <div
-                  className={`${canRead ? "shelf-grid-items" : "book-carousel-track"} ${
-                    pausedShelves[shelf.id] || touchPausedShelf === shelf.id ? "is-paused" : ""
-                  }`}
-                >
+                <div className={canRead ? "shelf-grid-items" : "book-carousel-track"}>
                 {(canRead ? books : [...books, ...books]).map((b, bookIndex) => {
                   const duplicate = !canRead && bookIndex >= books.length;
                   return (

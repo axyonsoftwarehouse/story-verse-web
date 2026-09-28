@@ -413,8 +413,8 @@
 .about-dialog {
   display: flex;
   flex-direction: column;
-  width: min(100%, 900px);
-  max-height: min(88vh, 900px);
+  width: min(100%, 620px);
+  max-height: min(88vh, 760px);
   overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: 24px;
@@ -434,43 +434,6 @@
     opacity: 1;
     transform: none;
   }
-}
-
-.about-copy p {
-  margin: 0 0 1rem;
-}
-
-.about-copy strong {
-  color: var(--text-read);
-}
-
-.about-copy h3 {
-  margin: 2rem 0 0.6rem;
-  color: var(--text);
-  font-family: var(--font-read);
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-
-.about-copy ul {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem 1.5rem;
-  margin: 1rem 0 1.4rem;
-  padding: 0;
-  list-style: none;
-}
-
-.about-copy li {
-  color: var(--text-read);
-}
-
-.about-quote {
-  padding-left: 1rem;
-  border-left: 2px solid var(--accent);
-  color: var(--text-read);
-  font-family: var(--font-read);
-  font-size: 1.1rem;
 }
 
 .step {
@@ -572,18 +535,6 @@
   animation: books-carousel 50s linear infinite;
 }
 
-.book-carousel-track.is-paused {
-  animation-play-state: paused;
-}
-
-/* Com mouse, passar por cima para; no toque o "hover" fica preso e o carrossel não voltaria a andar. */
-@media (hover: hover) {
-  .book-carousel:hover .book-carousel-track,
-  .book-carousel:has(:focus-visible) .book-carousel-track {
-    animation-play-state: paused;
-  }
-}
-
 .book-carousel .book {
   flex: 0 0 clamp(290px, 39vw, 430px);
   grid-template-columns: clamp(104px, 13vw, 145px) minmax(0, 1fr);
@@ -600,26 +551,6 @@
   transform: translateY(-3px);
   border-color: var(--accent-dim);
   box-shadow: 0 18px 38px -22px rgba(0, 0, 0, 0.9), var(--glow-warm);
-}
-
-.carousel-toggle {
-  flex-shrink: 0;
-  padding: 0.4rem 0.7rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: rgba(255, 248, 235, 0.035);
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.76rem;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-}
-
-.carousel-toggle:hover,
-.carousel-toggle[aria-pressed="true"] {
-  color: var(--accent);
-  border-color: var(--accent-dim);
-  background: rgba(228, 184, 106, 0.08);
 }
 
 @keyframes books-carousel {
@@ -1108,9 +1039,6 @@
     gap: 1.4rem;
   }
 
-  .about-copy ul {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 520px) {
@@ -1167,16 +1095,8 @@
     border-radius: 18px;
   }
 
-  .about-copy {
-    font-size: 0.92rem;
-    line-height: 1.65;
-  }
 
-  .about-copy ul {
-    gap: 0.5rem;
-  }
-
-  .shelf-head {
+    .shelf-head {
     align-items: flex-start;
   }
 
@@ -3348,21 +3268,9 @@
   font-size: 0.8rem;
 }
 
-/* Ícone do botão de pausar/retomar o carrossel. */
-.carousel-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.carousel-toggle svg {
-  width: 12px;
-  height: 12px;
-}
-
 /*
  * Celular: o carrossel continua andando, mais devagar, com cards do tamanho da tela (86%) para o
- * texto não aparecer cortado; o toque para a animação (e ela volta sozinha depois).
+ * texto não aparecer cortado; ele não para.
  */
 @media (max-width: 700px) {
   .book-carousel {
@@ -3421,4 +3329,137 @@
 .password-toggle:focus-visible {
   outline: 2px solid var(--accent-dim);
   outline-offset: 1px;
+}
+
+/* ---- "Sobre": curto, em blocos (lead, 3 passos, 2 regras, recursos em chips) ---- */
+
+.about-copy {
+  padding-top: 1.25rem;
+  padding-bottom: 1.1rem;
+}
+
+.about-lead {
+  margin: 0 0 1.4rem;
+  color: var(--text-read);
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+.about-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: about-step;
+}
+
+.about-steps li {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.03);
+  counter-increment: about-step;
+}
+
+.about-steps li::before {
+  content: counter(about-step);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 50%;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.about-steps strong {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.about-steps span {
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.about-rules {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0.9rem 1rem;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(228, 184, 106, 0.05);
+}
+
+.about-rules p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.about-rules strong {
+  color: var(--text);
+}
+
+.about-sub {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.about-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-features li {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--text-read);
+  font-size: 0.8rem;
+}
+
+.about-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem clamp(1rem, 4vw, 2rem);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 560px) {
+  .about-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .about-steps li {
+    grid-template-columns: auto 1fr;
+    column-gap: 0.75rem;
+    padding: 0.8rem 0.9rem;
+  }
+
+  .about-steps li::before {
+    grid-row: span 2;
+    margin: 0;
+  }
+
+  .about-foot .btn {
+    width: 100%;
+  }
 }
