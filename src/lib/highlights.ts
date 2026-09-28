@@ -2,6 +2,8 @@
 
 export type Highlight = {
   id: string;
+  /** Trecho que atravessa parágrafos: um pedaço por parágrafo, todos com o mesmo grupo. */
+  group?: string;
   chapterIndex: number;
   chapterLabel: string;
   /** Parágrafo do capítulo onde o trecho está (para voltar direto a ele). */

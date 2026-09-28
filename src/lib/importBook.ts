@@ -14,9 +14,51 @@ export type ImportedBook = {
   language: "pt" | "en";
   /** Capa reduzida (JPEG em data URL, ~15 KB): imagem do EPUB ou 1ª página do PDF. */
   cover?: string;
+  /**
+   * Ilustrações do livro, já reduzidas. No texto, cada uma aparece como um parágrafo
+   * "[[img:<id>]]" no lugar em que estava no arquivo.
+   */
+  images?: Record<string, Blob>;
 };
 
-type Parsed = { text: string; title?: string; author?: string; cover?: string };
+type Parsed = { text: string; title?: string; author?: string; cover?: string; images?: Record<string, Blob> };
+
+/** Ilustração no meio do texto: largura máxima guardada (boa na tela do celular e do computador). */
+const IMAGE_MAX_WIDTH = 1000;
+/** Menor que isso é ícone, enfeite ou vinheta: não vale como ilustração. */
+const IMAGE_MIN_SIDE = 100;
+/** Livros com centenas de imagens (quadrinhos, catálogos) ficariam pesados demais no aparelho. */
+const MAX_IMAGES = 300;
+
+const imageMarker = (id: string) => `[[img:${id}]]`;
+
+/** Reduz uma ilustração para guardar no aparelho (WebP quando o navegador sabe gerar; senão JPEG). */
+async function shrinkImage(source: Blob | ImageBitmap | HTMLCanvasElement): Promise<Blob | null> {
+  try {
+    const img = source instanceof Blob ? await createImageBitmap(source) : source;
+    if (img.width < IMAGE_MIN_SIDE || img.height < IMAGE_MIN_SIDE) return null;
+    const scale = Math.min(1, IMAGE_MAX_WIDTH / img.width);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext("2d")!;
+    // Fundo branco: PNG com transparência viraria preto no JPEG.
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const toBlob = (type: string, q: number) =>
+      new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), type, q));
+    const webp = await toBlob("image/webp", 0.82);
+    return webp?.type === "image/webp" ? webp : await toBlob("image/jpeg", 0.82);
+  } catch {
+    return null;
+  }
+}
+
+/** Tira do texto os marcadores de imagens que não puderam ser guardadas. */
+function dropMissingMarkers(text: string, images: Record<string, Blob>): string {
+  return text.replace(/\n*\[\[img:([\w-]+)\]\]\n*/g, (m, id: string) => (images[id] ? m : "\n\n"));
+}
 
 /** Largura da capa guardada: basta para a estante e mantém o armazenamento pequeno. */
 const COVER_WIDTH = 240;
@@ -62,8 +104,9 @@ export async function importBookFile(file: File): Promise<ImportedBook> {
     text,
     title: result.title?.trim() || fallbackTitle,
     author: result.author?.trim() || "",
-    language: detectLanguage(text),
+    language: detectLanguage(text.replace(/\[\[img:[\w-]+\]\]/g, "")),
     cover: result.cover,
+    images: result.images && Object.keys(result.images).length > 0 ? result.images : undefined,
   };
 }
 
@@ -132,8 +175,15 @@ function resolvePath(base: string, href: string): string {
   return out.join("/");
 }
 
-/** Texto de cada bloco do capítulo; itálico vira _assim_, como nos .txt do Gutenberg. */
-function epubBlocks(doc: Document): { title: string; paragraphs: string[] } {
+/**
+ * Texto de cada bloco do capítulo; itálico vira _assim_, como nos .txt do Gutenberg.
+ * `imageId` recebe o endereço de cada ilustração (<img>, <image> do SVG) e devolve o marcador
+ * que entra no texto naquele ponto (ou null para ignorar a imagem).
+ */
+function epubBlocks(
+  doc: Document,
+  imageId: (src: string) => string | null = () => null,
+): { title: string; paragraphs: string[] } {
   const body = doc.body ?? doc.documentElement;
   for (const br of Array.from(body.querySelectorAll("br"))) br.replaceWith("\n");
   for (const el of Array.from(body.querySelectorAll("i,em"))) {
@@ -141,14 +191,22 @@ function epubBlocks(doc: Document): { title: string; paragraphs: string[] } {
     if (t.trim()) el.replaceWith(`_${t}_`);
   }
 
-  // Só blocos "folha" (um <li> com <p> dentro contaria o texto duas vezes).
-  const blocks = Array.from(body.querySelectorAll(BLOCK_SELECTOR)).filter(
-    (el) => !el.querySelector(BLOCK_SELECTOR),
+  // Só blocos "folha" (um <li> com <p> dentro contaria o texto duas vezes). As imagens entram
+  // na mesma lista, na ordem em que aparecem no documento.
+  const blocks = Array.from(body.querySelectorAll(`${BLOCK_SELECTOR},img,image`)).filter(
+    (el) => /^(img|image)$/i.test(el.tagName) || !el.querySelector(BLOCK_SELECTOR),
   );
   const clean = (s: string | null) => (s ?? "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, " ").trim();
 
   const items = blocks
-    .map((el) => ({ heading: /^h[1-3]$/i.test(el.tagName), text: clean(el.textContent) }))
+    .map((el) => {
+      if (/^(img|image)$/i.test(el.tagName)) {
+        const src = el.getAttribute("src") ?? el.getAttribute("href") ?? el.getAttribute("xlink:href") ?? "";
+        const id = src ? imageId(src) : null;
+        return { heading: false, text: id ? imageMarker(id) : "" };
+      }
+      return { heading: /^h[1-3]$/i.test(el.tagName), text: clean(el.textContent) };
+    })
     .filter((it) => it.text);
   // Nome do capítulo: de preferência um título "Chapter X"/"Capítulo X" (antes dele pode vir o
   // nome do livro); senão, o título que abre o documento. Ele sai do corpo do texto.
@@ -219,6 +277,21 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   const coverBytes = coverItem ? files[resolvePath(base, decodeURIComponent(coverItem.href))] : undefined;
   const cover = coverBytes ? await shrinkCover(new Blob([coverBytes], { type: coverItem!.type })) : undefined;
 
+  // Ilustrações: cada arquivo de imagem vira um id; a capa não se repete dentro do texto.
+  const coverPath = coverItem ? resolvePath(base, decodeURIComponent(coverItem.href)) : null;
+  const imagePaths = new Map<string, string>(); // caminho no EPUB → id
+  const imageIdFor = (docDir: string) => (src: string) => {
+    if (/^(data:|https?:)/i.test(src)) return null;
+    const path = resolvePath(docDir, decodeURIComponent(src.split("#")[0]));
+    if (path === coverPath || !files[path]) return null;
+    if (!imagePaths.has(path)) {
+      if (imagePaths.size >= MAX_IMAGES) return null;
+      imagePaths.set(path, `e${imagePaths.size + 1}`);
+    }
+    return imagePaths.get(path)!;
+  };
+  const isMarker = (p: string) => /^\[\[img:[\w-]+\]\]$/.test(p);
+
   const out: string[] = [];
   let chapter = 0;
   for (const ref of Array.from(opf.getElementsByTagNameNS("*", "itemref"))) {
@@ -230,11 +303,13 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
     const source = read(path);
     if (!source) continue;
 
-    const { title, paragraphs } = epubBlocks(parseXml(source, "application/xhtml+xml"));
+    const docDir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    const { title, paragraphs } = epubBlocks(parseXml(source, "application/xhtml+xml"), imageIdFor(docDir));
     // Licença no fim dos EPUBs do Gutenberg.
     if (/project gutenberg/i.test(title)) continue;
-    const chars = paragraphs.reduce((n, p) => n + p.length, 0);
-    const avg = paragraphs.length ? chars / paragraphs.length : 0;
+    const textParas = paragraphs.filter((p) => !isMarker(p));
+    const chars = textParas.reduce((n, p) => n + p.length, 0);
+    const avg = textParas.length ? chars / textParas.length : 0;
     const isChapter = chars >= MIN_EPUB_CHAPTER_CHARS && avg >= 60;
 
     if (isChapter) {
@@ -242,18 +317,129 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
       const sub = chapterSubtitle(title);
       out.push(`Capítulo ${chapter}${sub ? `: ${sub}` : ""}`);
       out.push(...paragraphs);
-    } else if (chapter > 0 && chars > 0) {
-      // Trecho curto no meio do livro (ex.: "Parte Dois"): entra no fim do capítulo anterior.
+    } else if (chapter > 0 && (chars > 0 || paragraphs.length > 0)) {
+      // Trecho curto no meio do livro ("Parte Dois", página só com ilustração): entra no fim do
+      // capítulo anterior.
       out.push(...(title ? [title, ...paragraphs] : paragraphs));
     }
   }
 
-  return { text: out.join("\n\n"), title: meta("title"), author: meta("creator"), cover };
+  // Reduz as ilustrações usadas; as que não servirem (ícones, arquivo quebrado) saem do texto.
+  const illustrations: Record<string, Blob> = {};
+  const usedText = out.join("\n\n");
+  for (const [path, id] of imagePaths) {
+    if (!usedText.includes(imageMarker(id))) continue;
+    const type = [...manifest.values()].find((it) => resolvePath(base, decodeURIComponent(it.href)) === path)?.type;
+    const small = await shrinkImage(new Blob([files[path]], { type: type || "image/jpeg" }));
+    if (small) illustrations[id] = small;
+  }
+
+  return {
+    text: dropMissingMarkers(usedText, illustrations),
+    title: meta("title"),
+    author: meta("creator"),
+    cover,
+    images: illustrations,
+  };
 }
 
 /* ------------------------------- PDF ------------------------------- */
 
 type PdfLine = { text: string; x: number; y: number; h: number; w: number };
+/** Ilustração de uma página do PDF: `y` é o topo dela, na mesma escala das linhas de texto. */
+type PdfImage = { id: string; y: number };
+
+type Matrix = [number, number, number, number, number, number];
+const multiply = (m: Matrix, t: Matrix): Matrix => [
+  m[0] * t[0] + m[2] * t[1],
+  m[1] * t[0] + m[3] * t[1],
+  m[0] * t[2] + m[2] * t[3],
+  m[1] * t[2] + m[3] * t[3],
+  m[0] * t[4] + m[2] * t[5] + m[4],
+  m[1] * t[4] + m[3] * t[5] + m[5],
+];
+
+/** Imagem decodificada pelo pdf.js: bitmap pronto ou pixels crus (RGBA, RGB ou 1 bit). */
+type PdfImageObject = { width: number; height: number; bitmap?: ImageBitmap; data?: Uint8ClampedArray; kind?: number };
+
+async function pdfImageToBlob(obj: PdfImageObject): Promise<Blob | null> {
+  if (obj.bitmap) return shrinkImage(obj.bitmap);
+  const { width: w, height: h, data, kind } = obj;
+  if (!data || !w || !h) return null;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  if (kind === 3) rgba.set(data.subarray(0, rgba.length));
+  else if (kind === 2) {
+    for (let i = 0, j = 0; i < w * h; i++, j += 3) rgba.set([data[j], data[j + 1], data[j + 2], 255], i * 4);
+  } else if (kind === 1) {
+    const stride = Math.ceil(w / 8);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const on = (data[y * stride + (x >> 3)] >> (7 - (x & 7))) & 1;
+        rgba.set(on ? [255, 255, 255, 255] : [0, 0, 0, 255], (y * w + x) * 4);
+      }
+    }
+  } else return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d")!.putImageData(new ImageData(rgba, w, h), 0, 0);
+  return shrinkImage(canvas);
+}
+
+type PdfPageLike = {
+  getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+  objs: { get: (id: string, cb: (obj: unknown) => void) => void };
+  commonObjs: { get: (id: string, cb: (obj: unknown) => void) => void };
+};
+
+/**
+ * Ilustrações de uma página: segue as transformações do PDF para saber o tamanho e a altura
+ * de cada imagem desenhada. Imagens pequenas (ícones, enfeites) ficam de fora.
+ */
+async function extractPdfImages(
+  page: PdfPageLike,
+  OPS: Record<string, number>,
+): Promise<{ blob: Blob; y: number; key: string }[]> {
+  const ops = await page.getOperatorList();
+  const found: { blob: Blob; y: number; key: string }[] = [];
+  let ctm: Matrix = [1, 0, 0, 1, 0, 0];
+  const stack: Matrix[] = [];
+  const getObj = (name: string) =>
+    new Promise<PdfImageObject | null>((resolve) => {
+      const timer = window.setTimeout(() => resolve(null), 3000);
+      try {
+        (name.startsWith("g_") ? page.commonObjs : page.objs).get(name, (o) => {
+          window.clearTimeout(timer);
+          resolve((o as PdfImageObject) ?? null);
+        });
+      } catch {
+        window.clearTimeout(timer);
+        resolve(null);
+      }
+    });
+
+  for (let i = 0; i < ops.fnArray.length; i++) {
+    const fn = ops.fnArray[i];
+    const args = ops.argsArray[i];
+    if (fn === OPS.save) stack.push(ctm);
+    else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS.transform) ctm = multiply(ctm, args as Matrix);
+    else if (fn === OPS.paintFormXObjectBegin) {
+      stack.push(ctm);
+      if (Array.isArray(args?.[0]) && args[0].length === 6) ctm = multiply(ctm, args[0] as Matrix);
+    } else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS.paintImageXObject || fn === OPS.paintImageXObjectRepeat || fn === OPS.paintInlineImageXObject) {
+      // Tamanho na página (em pontos): menor que ~3 cm é enfeite.
+      if (Math.hypot(ctm[0], ctm[1]) < 90 || Math.hypot(ctm[2], ctm[3]) < 90) continue;
+      const obj =
+        fn === OPS.paintInlineImageXObject ? (args[0] as PdfImageObject) : await getObj(String(args[0]));
+      if (!obj) continue;
+      const blob = await pdfImageToBlob(obj);
+      if (blob) found.push({ blob, y: Math.max(ctm[5], ctm[5] + ctm[3]), key: `${obj.width}x${obj.height}` });
+    }
+  }
+  return found;
+}
 
 async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   // pdf.js tem ~1 MB: só é baixado quando alguém importa um PDF. O build "legacy" funciona em
@@ -272,8 +458,27 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   }
 
   const pages: PdfLine[][] = [];
+  const pageImages: PdfImage[][] = [];
+  const images: Record<string, Blob> = {};
+  const imageKeys: Record<string, string> = {};
   for (let n = 1; n <= doc.numPages; n++) {
     const page = await doc.getPage(n);
+    // Ilustrações (a 1ª página é a capa, que já vai para a estante).
+    const onPage: PdfImage[] = [];
+    if (n > 1 && Object.keys(images).length < MAX_IMAGES) {
+      try {
+        const found = await extractPdfImages(page as unknown as PdfPageLike, pdfjs.OPS as Record<string, number>);
+        found.forEach((f, k) => {
+          const id = `p${n}-${k + 1}`;
+          images[id] = f.blob;
+          imageKeys[id] = f.key;
+          onPage.push({ id, y: f.y });
+        });
+      } catch {
+        // Imagem que o pdf.js não consegue ler: segue só com o texto da página.
+      }
+    }
+    pageImages.push(onPage);
     const content = await page.getTextContent();
     const lines: PdfLine[] = [];
     let cur: PdfLine | null = null;
@@ -326,7 +531,20 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   const info = (meta?.info ?? {}) as { Title?: string; Author?: string };
   await doc.destroy();
 
-  return { text: pdfLinesToText(pages), title: info.Title, author: info.Author, cover };
+  // A mesma imagem em muitas páginas é logotipo ou vinheta, não ilustração.
+  const pagesPerKey = new Map<string, number>();
+  for (const key of Object.values(imageKeys)) pagesPerKey.set(key, (pagesPerKey.get(key) ?? 0) + 1);
+  for (const [id, key] of Object.entries(imageKeys)) {
+    if (pages.length >= 6 && (pagesPerKey.get(key) ?? 0) >= Math.max(3, pages.length * 0.3)) delete images[id];
+  }
+
+  return {
+    text: dropMissingMarkers(pdfLinesToText(pages, pageImages), images),
+    title: info.Title,
+    author: info.Author,
+    cover,
+    images,
+  };
 }
 
 function median(values: number[]): number {
@@ -335,8 +553,11 @@ function median(values: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-/** Junta as linhas do PDF em parágrafos, sem cabeçalho, rodapé e número de página. */
-function pdfLinesToText(pages: PdfLine[][]): string {
+/**
+ * Junta as linhas do PDF em parágrafos, sem cabeçalho, rodapé e número de página. As ilustrações
+ * de cada página entram entre as linhas, na altura em que aparecem.
+ */
+function pdfLinesToText(pages: PdfLine[][], pageImages: PdfImage[][] = []): string {
   // Cabeçalho/rodapé: linhas do topo ou do fim que se repetem em muitas páginas.
   const key = (t: string) => t.toLowerCase().replace(/\d+/g, "#");
   const edgeCount = new Map<string, number>();
@@ -381,9 +602,21 @@ function pdfLinesToText(pages: PdfLine[][]): string {
   };
   let chapter = 0;
 
-  for (const lines of pages) {
+  pages.forEach((lines, pageIndex) => {
     let prev: PdfLine | null = null;
+    // Imagens da página, de cima para baixo (no PDF, "y" maior = mais alto na página).
+    const imgs = [...(pageImages[pageIndex] ?? [])].sort((a, b) => b.y - a.y);
+    let next = 0;
+    const emitImagesAbove = (y: number) => {
+      while (next < imgs.length && imgs[next].y > y) {
+        flush();
+        paragraphs.push(imageMarker(imgs[next].id));
+        next++;
+        prev = null;
+      }
+    };
     lines.forEach((l, i) => {
+      emitImagesAbove(l.y);
       const atEdge = i < 2 || i >= lines.length - 2;
       if (atEdge && (repeated(l.text) || (isPageNumber(l.text) && l.h <= bodyH * 1.2))) return;
 
@@ -414,7 +647,9 @@ function pdfLinesToText(pages: PdfLine[][]): string {
       append(l.text);
       prev = l;
     });
-  }
+    // O que sobrou fica abaixo de todo o texto da página.
+    emitImagesAbove(-Infinity);
+  });
   flush();
   return paragraphs.join("\n\n");
 }

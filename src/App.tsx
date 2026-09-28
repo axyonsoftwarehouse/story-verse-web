@@ -26,6 +26,7 @@ import {
   deleteLocalBook,
   isLocalBook,
   listLocalBooks,
+  loadLocalBookImages,
   loadLocalBookText,
   newLocalBookId,
   saveLocalBook,
@@ -166,27 +167,80 @@ function suggestionsFor(c: StoryCharacter): string[] {
   ];
 }
 
-type Block = { kind: "heading" | "p"; text: string };
+type Block = { kind: "heading" | "p" | "image"; text: string };
+
+/** Marcador de ilustração no texto de livros importados: "[[img:3]]" (a imagem fica no aparelho). */
+const IMAGE_MARKER = /^\[\[img:([\w-]+)\]\]$/;
+const IMAGE_MARKERS = /\[\[img:[\w-]+\]\]/g;
+
+/** Termina como frase (ponto, interrogação, aspas de fecho…): o parágrafo não continua no próximo. */
+const ENDS_SENTENCE = /[.!?…:;"»”)\]]$/;
+/** Títulos de seção de verdade: "Capítulo 3", "PARTE II", "Prólogo", numeral romano sozinho. */
+const SECTION_WORD =
+  /^(cap[ií]tulo|chapter|parte|part|livro|book|pr[oó]logo|prologue|ep[ií]logo|epilogue|pref[aá]cio|preface|introdu[cç][aã]o|introduction|ato|act|cena|scene)\b/i;
+const ROMAN_ALONE = /^[IVXLC]{1,9}\.?$/;
+
+function isHeading(p: string, next: string | undefined): boolean {
+  if (p.startsWith("—") || p.startsWith("-") || p.length > 90) return false;
+  if (SECTION_WORD.test(p) || ROMAN_ALONE.test(p)) return true;
+  // Todo em maiúsculas ("O RETRATO", "A SCANDAL IN BOHEMIA").
+  const letters = p.replace(/[^\p{L}]/gu, "");
+  if (letters.length >= 3 && p === p.toUpperCase() && !/[!?]$/.test(p)) return true;
+  // Linha curta com cara de título: começa em maiúscula, poucas palavras, sem pontuação final,
+  // e o parágrafo seguinte começa de novo (não é continuação da mesma frase).
+  const words = p.split(/\s+/).length;
+  return (
+    p.length <= 50 &&
+    words <= 8 &&
+    /^[\p{Lu}\d"“«]/u.test(p) &&
+    !/[,.!?…:;"»”)\-—]$/.test(p) &&
+    (next === undefined || /^[\p{Lu}\d"“«—-]/u.test(next))
+  );
+}
 
 /**
  * Os .txt do Gutenberg quebram as linhas a cada ~70 caracteres e separam parágrafos por
- * linha em branco: cada bloco vira um parágrafo; blocos curtos sem pontuação viram subtítulos.
+ * linha em branco: cada bloco vira um parágrafo. PDFs e EPUBs às vezes quebram uma frase no meio
+ * ("…encontrei no trem da" + "Central um rapaz…"): esses pedaços voltam a ser um parágrafo só.
+ * Só vira subtítulo (em destaque) o que é mesmo título de seção.
  */
 function toBlocks(text: string, skipHeadline?: string): Block[] {
   // Ignora o "(1/2)" que o app acrescenta quando divide um capítulo longo em partes.
   const norm = (s: string) =>
     s.toUpperCase().replace(/\s*\(\d+\/\d+\)$/, "").replace(/\s+/g, " ").replace(/[\].\s]+$/, "");
-  const paras = text
+  const raw = text
     .replace(/\r\n/g, "\n")
     .split(/\n[ \t]*\n/)
     .map((p) => p.replace(/\s+/g, " ").trim())
     .filter(Boolean);
-  if (skipHeadline && paras[0] && norm(paras[0]) === norm(skipHeadline)) paras.shift();
-  return paras.map((p) => {
-    const isShortTitle = p.length <= 60 && !/[.!?…:;,"»”)\-—]$/.test(p);
-    const isUpperTitle = p.length <= 90 && p === p.toUpperCase() && /[A-Z]/.test(p);
-    return { kind: (isShortTitle || isUpperTitle) && !p.startsWith("—") ? "heading" : "p", text: p };
+  // O título do capítulo já aparece no topo: não repete ("Capítulo I" + "I" logo abaixo).
+  if (skipHeadline && raw[0]) {
+    const label = norm(skipHeadline);
+    const first = norm(raw[0]);
+    if (first === label || (ROMAN_ALONE.test(raw[0]) && label.endsWith(` ${first}`))) raw.shift();
+  }
+
+  // Junta pedaços de frase: sem pontuação no fim e o próximo começando em minúscula.
+  const paras: string[] = [];
+  for (const p of raw) {
+    const prev = paras[paras.length - 1];
+    if (prev && !IMAGE_MARKER.test(prev) && !IMAGE_MARKER.test(p) && !ENDS_SENTENCE.test(prev) && /^\p{Ll}/u.test(p)) {
+      paras[paras.length - 1] = `${prev.replace(/-$/, "")}${prev.endsWith("-") ? "" : " "}${p}`;
+    } else {
+      paras.push(p);
+    }
+  }
+
+  return paras.map((p, i) => {
+    const img = p.match(IMAGE_MARKER);
+    if (img) return { kind: "image", text: img[1] };
+    return { kind: isHeading(p, paras[i + 1]) ? "heading" : "p", text: p };
   });
+}
+
+/** Texto sem os marcadores de ilustração (para a IA, a voz e a tradução). */
+function withoutImageMarkers(text: string): string {
+  return text.replace(IMAGE_MARKERS, "");
 }
 
 /** O Gutenberg marca itálico como _assim_. */
@@ -691,7 +745,7 @@ function MyBooks({
     };
     setSaving(true);
     try {
-      await saveLocalBook(book, parsed.text);
+      await saveLocalBook(book, parsed.text, parsed.images);
       setBooks((prev) => [book, ...prev]);
       setSaving(false);
       close();
@@ -1093,6 +1147,8 @@ export function App() {
   const [highlightsOpen, setHighlightsOpen] = useState(false);
   const [selection, setSelection] = useState<{
     text: string;
+    /** Pedaço selecionado em cada parágrafo (a seleção pode atravessar vários). */
+    parts: { block: number; text: string }[];
     block: number;
     x: number;
     top: number;
@@ -1328,6 +1384,24 @@ export function App() {
     setHighlights(book ? loadHighlights(book.id) : []);
   }, [book]);
 
+  /** Ilustrações de livro importado (guardadas no aparelho): endereços para as <img>. */
+  const [bookImages, setBookImages] = useState<Record<string, string>>({});
+  useEffect(() => {
+    setBookImages({});
+    if (!book || !isLocalBook(book)) return;
+    let revoke: (() => void) | null = null;
+    let alive = true;
+    void loadLocalBookImages(book.gutenbergId).then((r) => {
+      if (!alive) return r.revoke();
+      revoke = r.revoke;
+      setBookImages(r.urls);
+    });
+    return () => {
+      alive = false;
+      revoke?.();
+    };
+  }, [book]);
+
   /** Tempo de leitura (para a sequência de dias e a meta): conta de 15 em 15 s com o leitor ativo. */
   useEffect(() => {
     if (!book || loadState !== "ready") return;
@@ -1455,10 +1529,13 @@ export function App() {
 
     prevChapterIdxRef.current = chapterIndex;
     const line = chapterTransitionMessage(currentChapter.label);
-    setThreads((prev) => ({
-      ...prev,
-      [character.id]: [...(prev[character.id] ?? []), { id: uid(), role: "assistant", text: line }],
-    }));
+    setThreads((prev) => {
+      const thread = prev[character.id] ?? [];
+      // Pulando vários capítulos seguidos, sem conversa no meio: troca o aviso em vez de empilhar.
+      const last = thread[thread.length - 1];
+      const keep = last?.id.startsWith("capitulo-") ? thread.slice(0, -1) : thread;
+      return { ...prev, [character.id]: [...keep, { id: `capitulo-${uid()}`, role: "assistant", text: line }] };
+    });
   }, [chapterIndex, character, loadState, currentChapter, activeCharId]);
 
   useEffect(() => {
@@ -1541,7 +1618,8 @@ export function App() {
     // Espera a rolagem parar: quem passa correndo pelo capítulo não dispara um pedido por trecho.
     const t = setTimeout(() => {
       setTranslatingChunk(c);
-      translateParagraphs(engine, blocks.slice(start, end).map((b) => b.text))
+      // Ilustrações não têm o que traduzir.
+      translateParagraphs(engine, blocks.slice(start, end).map((b) => (b.kind === "image" ? "" : b.text)))
         .then((result) => {
           storeTranslation(book.gutenbergId, chapterIndex, c, result);
           if (chapterKeyRef.current === key) {
@@ -1584,6 +1662,8 @@ export function App() {
   const shownTexts = useMemo(
     () =>
       blocks.map((b, i) => {
+        // Ilustração: sem texto (a voz pula, a tradução ignora).
+        if (b.kind === "image") return "";
         const c = chunkOfBlock[i];
         return (translateOn ? translations[c]?.[i - chunks[c][0]] : null) ?? b.text;
       }),
@@ -1686,39 +1766,67 @@ export function App() {
     return () => cancelAnimationFrame(frame);
   }, [blocks, loadState]);
 
-  /* ---- Seleção de texto: destacar, significado, compartilhar ---- */
+  /* ---- Seleção de texto: marcar, significado, compartilhar ---- */
+
+  /** Lê a seleção atual no texto do livro (pode atravessar vários parágrafos). */
+  function readSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return setSelection(null);
+    const range = sel.getRangeAt(0);
+    const common = range.commonAncestorContainer;
+    const prose = (common instanceof Element ? common : common.parentElement)?.closest(".prose");
+    if (!prose) return setSelection(null);
+
+    // Um pedaço por parágrafo tocado pela seleção (cada um é marcado no seu parágrafo).
+    const parts: { block: number; text: string }[] = [];
+    for (const el of Array.from(prose.querySelectorAll<HTMLElement>("p[data-block], h2[data-block]"))) {
+      if (!range.intersectsNode(el)) continue;
+      const piece = document.createRange();
+      piece.selectNodeContents(el);
+      if (el.contains(range.startContainer)) piece.setStart(range.startContainer, range.startOffset);
+      if (el.contains(range.endContainer)) piece.setEnd(range.endContainer, range.endOffset);
+      const text = piece.toString().replace(/\s+/g, " ").trim();
+      if (text) parts.push({ block: Number(el.dataset.block), text });
+      if (parts.length >= 12) break;
+    }
+    if (parts.length === 0) return setSelection(null);
+
+    const text = parts.map((p) => p.text).join(" ");
+    const rect = range.getBoundingClientRect();
+    setSelection({
+      text,
+      parts,
+      block: parts[0].block,
+      x: rect.left + rect.width / 2,
+      top: rect.top,
+      bottom: rect.bottom,
+      word: parts.length === 1 && !/\s/.test(text) ? normalizeWord(text) : null,
+    });
+    setWordCard(null);
+  }
+
+  /** No celular, arrastar as alças da seleção não dispara toque: acompanha pela própria seleção. */
   useEffect(() => {
+    let timer = 0;
     const onChange = () => {
+      window.clearTimeout(timer);
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) setSelection(null);
+      if (!sel || sel.isCollapsed) {
+        setSelection(null);
+        return;
+      }
+      timer = window.setTimeout(readSelection, 250);
     };
     document.addEventListener("selectionchange", onChange);
-    return () => document.removeEventListener("selectionchange", onChange);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("selectionchange", onChange);
+    };
+    // readSelection só usa setters (estáveis) e o DOM.
   }, []);
 
   function handleSelection() {
-    window.setTimeout(() => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return setSelection(null);
-      const text = sel.toString().replace(/\s+/g, " ").trim();
-      if (!text) return setSelection(null);
-      const blockOf = (n: Node | null) =>
-        (n instanceof Element ? n : n?.parentElement)?.closest<HTMLElement>("[data-block]") ?? null;
-      const a = blockOf(sel.anchorNode);
-      // Só dentro de um parágrafo (destaques que atravessam parágrafos não teriam onde ser desenhados).
-      if (!a || a !== blockOf(sel.focusNode)) return setSelection(null);
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      const word = !/\s/.test(text) ? normalizeWord(text) : null;
-      setSelection({
-        text,
-        block: Number(a.dataset.block),
-        x: rect.left + rect.width / 2,
-        top: rect.top,
-        bottom: rect.bottom,
-        word,
-      });
-      setWordCard(null);
-    }, 10);
+    window.setTimeout(readSelection, 10);
   }
 
   function clearSelection() {
@@ -1728,30 +1836,44 @@ export function App() {
 
   function addHighlight() {
     if (!book || !selection || !currentChapter) return;
-    const text = selection.text.slice(0, MAX_HIGHLIGHT_CHARS);
-    const next: Highlight[] = [
-      ...highlights,
-      {
-        id: uid(),
-        chapterIndex,
-        chapterLabel: currentChapter.label,
-        paragraph: selection.block,
-        text,
-        createdAt: Date.now(),
-      },
-    ];
+    // Trecho que atravessa parágrafos: um pedaço por parágrafo, todos do mesmo grupo.
+    const group = uid();
+    const createdAt = Date.now();
+    const pieces: Highlight[] = selection.parts.map((p) => ({
+      id: uid(),
+      group,
+      chapterIndex,
+      chapterLabel: currentChapter.label,
+      paragraph: p.block,
+      text: p.text.slice(0, MAX_HIGHLIGHT_CHARS),
+      createdAt,
+    }));
+    const next = [...highlights, ...pieces];
     setHighlights(next);
     saveHighlights(book.id, next);
     clearSelection();
-    setToast("Trecho destacado");
+    setToast("Trecho marcado");
   }
 
-  function removeHighlight(id: string) {
+  /** Remove a marcação inteira (todos os pedaços do mesmo trecho). */
+  function removeHighlight(h: Highlight) {
     if (!book) return;
-    const next = highlights.filter((h) => h.id !== id);
+    const next = highlights.filter((x) => (h.group ? x.group !== h.group : x.id !== h.id));
     setHighlights(next);
     saveHighlights(book.id, next);
   }
+
+  /** Marcações agrupadas por trecho, na ordem do livro (para o painel). */
+  const highlightGroups = useMemo(() => {
+    const groups = new Map<string, { first: Highlight; text: string }>();
+    for (const h of [...highlights].sort((a, b) => a.chapterIndex - b.chapterIndex || a.paragraph - b.paragraph)) {
+      const key = h.group ?? h.id;
+      const g = groups.get(key);
+      if (g) g.text = `${g.text} ${h.text}`;
+      else groups.set(key, { first: h, text: h.text });
+    }
+    return [...groups.values()];
+  }, [highlights]);
 
   function openHighlight(h: Highlight) {
     setHighlightsOpen(false);
@@ -1826,7 +1948,7 @@ export function App() {
   const readingProgressPct =
     chapters.length > 0 ? ((chapterIndex + scrollRatio) / chapters.length) * 100 : 0;
   const textExcerpt = useMemo(
-    () => excerptNearScrollRatio(displayedStory, scrollRatio, 2000),
+    () => excerptNearScrollRatio(withoutImageMarkers(displayedStory), scrollRatio, 2000),
     [displayedStory, scrollRatio],
   );
 
@@ -2366,6 +2488,14 @@ export function App() {
 
               {blocks.map((b, i) => {
                 const c = chunkOfBlock[i];
+                if (b.kind === "image") {
+                  const src = bookImages[b.text];
+                  return src ? (
+                    <figure key={i} className="prose-figure" data-chunk={c} data-block={i}>
+                      <img src={src} alt="Ilustração do livro" loading="lazy" />
+                    </figure>
+                  ) : null;
+                }
                 const pending = translateOn && !translations[c];
                 const marks = highlights
                   .filter((h) => h.chapterIndex === chapterIndex && h.paragraph === i)
@@ -2498,7 +2628,7 @@ export function App() {
             onPointerDown={(e) => e.preventDefault()}
           >
             <button type="button" onClick={addHighlight}>
-              {Icon.highlight} Destacar
+              {Icon.bookmark} Marcar
             </button>
             {selection.word ? (
               <button type="button" onClick={showMeaning}>
@@ -2578,32 +2708,30 @@ export function App() {
                   {Icon.close}
                 </button>
               </div>
-              {highlights.length === 0 ? (
+              {highlightGroups.length === 0 ? (
                 <p className="import-note">
-                  Selecione um trecho do livro e toque em <strong>Destacar</strong> para guardar suas citações
+                  Selecione um trecho do livro e toque em <strong>Marcar</strong> para guardar suas citações
                   favoritas aqui.
                 </p>
               ) : (
                 <ul className="marks-list">
-                  {[...highlights]
-                    .sort((a, b) => a.chapterIndex - b.chapterIndex || a.paragraph - b.paragraph)
-                    .map((h) => (
-                      <li key={h.id}>
-                        <span className="marks-chapter">{h.chapterLabel}</span>
-                        <blockquote>{h.text}</blockquote>
-                        <div className="marks-actions">
-                          <button type="button" className="link-btn" onClick={() => openHighlight(h)}>
-                            Ir para o trecho
-                          </button>
-                          <button type="button" className="link-btn" onClick={() => shareQuote(h.text, h.chapterLabel)}>
-                            Compartilhar
-                          </button>
-                          <button type="button" className="link-btn marks-remove" onClick={() => removeHighlight(h.id)}>
-                            Remover
-                          </button>
-                        </div>
-                      </li>
-                    ))}
+                  {highlightGroups.map(({ first, text }) => (
+                    <li key={first.group ?? first.id}>
+                      <span className="marks-chapter">{first.chapterLabel}</span>
+                      <blockquote>{text}</blockquote>
+                      <div className="marks-actions">
+                        <button type="button" className="link-btn" onClick={() => openHighlight(first)}>
+                          Ir para o trecho
+                        </button>
+                        <button type="button" className="link-btn" onClick={() => shareQuote(text, first.chapterLabel)}>
+                          Compartilhar
+                        </button>
+                        <button type="button" className="link-btn marks-remove" onClick={() => removeHighlight(first)}>
+                          Remover
+                        </button>
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>

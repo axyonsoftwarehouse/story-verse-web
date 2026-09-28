@@ -7,7 +7,14 @@ import type { Ebook } from "../data/types";
 const DB_NAME = "storyverse-books";
 const STORE = "books";
 
-type StoredBook = { id: number; book: Ebook; text: string; importedAt: number };
+type StoredBook = {
+  id: number;
+  book: Ebook;
+  text: string;
+  importedAt: number;
+  /** Ilustrações do livro (marcadas no texto como "[[img:<id>]]"). */
+  images?: Record<string, Blob>;
+};
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -47,10 +54,10 @@ export function isLocalBook(book: Ebook): boolean {
   return book.source === "local";
 }
 
-export async function saveLocalBook(book: Ebook, text: string): Promise<void> {
+export async function saveLocalBook(book: Ebook, text: string, images?: Record<string, Blob>): Promise<void> {
   try {
     await run("readwrite", (s) =>
-      s.put({ id: book.gutenbergId, book, text, importedAt: Date.now() } satisfies StoredBook),
+      s.put({ id: book.gutenbergId, book, text, importedAt: Date.now(), images } satisfies StoredBook),
     );
   } catch (e) {
     if (e instanceof DOMException && e.name === "QuotaExceededError") {
@@ -66,6 +73,17 @@ export async function loadLocalBookText(id: number): Promise<string> {
     throw new Error("Este livro não está mais neste aparelho. Importe o arquivo de novo.");
   }
   return stored.text;
+}
+
+/** Ilustrações do livro como endereços para <img> (chame `revoke` ao fechar o livro). */
+export async function loadLocalBookImages(
+  id: number,
+): Promise<{ urls: Record<string, string>; revoke: () => void }> {
+  const stored = await run<StoredBook | undefined>("readonly", (s) => s.get(id)).catch(() => undefined);
+  const urls = Object.fromEntries(
+    Object.entries(stored?.images ?? {}).map(([key, blob]) => [key, URL.createObjectURL(blob)]),
+  );
+  return { urls, revoke: () => Object.values(urls).forEach((u) => URL.revokeObjectURL(u)) };
 }
 
 /** Livros importados, do mais recente para o mais antigo. */
