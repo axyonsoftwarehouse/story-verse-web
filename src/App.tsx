@@ -76,7 +76,11 @@ import {
   reconcileStreak,
   setReadingGoalMinutes,
   takeShieldNotice,
+  readingDays,
+  type ReadingDay,
   type ReadingEvents,
+  type ReadingSummary,
+  type ReadingTotals,
 } from "./lib/readingStats";
 import {
   disableDailyNotifications,
@@ -1392,6 +1396,286 @@ function EditProfileModal({
   );
 }
 
+/** Quem pediu menos movimento no sistema vê tudo parado. */
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Número que sobe de 0 até `value` ao aparecer (≈0,9 s, desacelerando no fim). */
+function useCountUp(value: number, duration = 900): number {
+  const [shown, setShown] = useState(() => (prefersReducedMotion() ? value : 0));
+  useEffect(() => {
+    if (prefersReducedMotion()) return setShown(value);
+    let frame = 0;
+    const start = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / duration);
+      setShown(Math.round(value * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, duration]);
+  return shown;
+}
+
+function CountUp({ value, format = (n: number) => String(n) }: { value: number; format?: (n: number) => string }) {
+  return <>{format(useCountUp(value))}</>;
+}
+
+/** Nível do dia pela meta: 0 sem leitura, 1 pouco, 2 perto da meta, 3 meta cumprida. */
+function dayLevel(minutes: number, goal: number): 0 | 1 | 2 | 3 {
+  if (minutes <= 0) return 0;
+  if (minutes >= goal) return 3;
+  return minutes >= goal / 2 ? 2 : 1;
+}
+const LEVEL_LABELS = ["Sem leitura", "Pouco", "Perto da meta", "Meta cumprida"] as const;
+const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+function dayTitle(d: ReadingDay): string {
+  const date = d.date.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+  return d.state === "frozen" ? `${date}: salvo por escudo` : `${date}: ${d.minutes} min`;
+}
+
+/** Anel da meta de hoje (medidor: trilho e preenchimento do mesmo tom). */
+function GoalRing({ minutes, goal }: { minutes: number; goal: number }) {
+  const pct = Math.min(1, goal > 0 ? minutes / goal : 0);
+  const r = 52;
+  const len = 2 * Math.PI * r;
+  const [drawn, setDrawn] = useState(prefersReducedMotion() ? pct : 0);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setDrawn(pct));
+    return () => cancelAnimationFrame(t);
+  }, [pct]);
+  const done = minutes >= goal;
+  return (
+    <div className={`goal-ring ${done ? "is-done" : ""}`} role="img" aria-label={`Meta de hoje: ${minutes} de ${goal} minutos`}>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle className="goal-ring-track" cx="60" cy="60" r={r} />
+        <circle
+          className="goal-ring-fill"
+          cx="60"
+          cy="60"
+          r={r}
+          strokeDasharray={len}
+          strokeDashoffset={len * (1 - drawn)}
+          transform="rotate(-90 60 60)"
+        />
+      </svg>
+      <div className="goal-ring-center">
+        <strong>
+          <CountUp value={minutes} />
+        </strong>
+        <span>de {goal} min</span>
+      </div>
+    </div>
+  );
+}
+
+/** Dica flutuante dos gráficos (acompanha a marca sob o dedo/mouse). */
+function useChartTip() {
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const show = (e: React.PointerEvent | React.FocusEvent, text: string) => {
+    const el = e.currentTarget as Element;
+    const box = el.closest(".dash-card")?.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (box) setTip({ x: r.left + r.width / 2 - box.left, y: r.top - box.top, text });
+  };
+  const node = tip ? (
+    <div className="chart-tip" style={{ left: tip.x, top: tip.y }} role="status">
+      {tip.text}
+    </div>
+  ) : null;
+  return { show, hide: () => setTip(null), node };
+}
+
+/** Barras dos últimos 7 dias; hoje em destaque e linha tracejada da meta. */
+function WeekBars({ days, goal }: { days: ReadingDay[]; goal: number }) {
+  const { show, hide, node } = useChartTip();
+  const top = Math.max(...days.map((d) => d.minutes));
+  // Folga acima da meta e da maior barra (o número dela fica por cima, dentro do gráfico).
+  const max = Math.max(goal * 1.25, top * 1.18, 1);
+  const pct = (m: number) => `${(m / max) * 100}%`;
+  return (
+    <div className="week-bars-wrap">
+      <div className="week-plot" onPointerLeave={hide}>
+        <div className="week-goal-line" style={{ bottom: pct(goal) }}>
+          <span>meta {goal} min</span>
+        </div>
+        {days.map((d, i) => {
+          const today = i === days.length - 1;
+          const label = today || (d.minutes === top && top > 0);
+          return (
+            <div
+              key={d.key}
+              className={`week-bar ${today ? "is-today" : ""} ${d.state === "frozen" ? "is-frozen" : ""}`}
+              tabIndex={0}
+              onPointerEnter={(e) => show(e, dayTitle(d))}
+              onFocus={(e) => show(e, dayTitle(d))}
+              onBlur={hide}
+              aria-label={dayTitle(d)}
+            >
+              <span
+                className="week-bar-fill"
+                style={{ height: d.minutes > 0 ? `max(4px, ${pct(d.minutes)})` : 0, animationDelay: `${i * 60}ms` }}
+              >
+                {label && d.minutes > 0 ? <span className="week-bar-value">{d.minutes}</span> : null}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="week-days" aria-hidden="true">
+        {days.map((d, i) => (
+          <span key={d.key} className={i === days.length - 1 ? "is-today" : ""}>
+            {i === days.length - 1 ? "hoje" : WEEKDAY_SHORT[d.date.getDay()]}
+          </span>
+        ))}
+      </div>
+      {node}
+    </div>
+  );
+}
+
+/** Mapa de constância: um quadrado por dia, semanas em colunas (como o GitHub). */
+const HEAT_CELL = 14;
+const HEAT_GAP = 4;
+
+function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: number }) {
+  const { show, hide, node } = useChartTip();
+  // Quantas semanas cabem na largura (quadrados de tamanho fixo): ~1 ano no computador.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [weeks, setWeeks] = useState(18);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const fit = () => setWeeks(Math.max(8, Math.min(53, Math.floor((el.clientWidth + HEAT_GAP) / (HEAT_CELL + HEAT_GAP)))));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Colunas = semanas começando no domingo; a última termina hoje.
+  const today = allDays[allDays.length - 1].date;
+  const days = allDays.slice(-((weeks - 1) * 7 + today.getDay() + 1));
+  const cells: (ReadingDay | null)[] = days;
+  const readCount = days.filter((d) => d.minutes > 0).length;
+  return (
+    <div className="heatmap-wrap" ref={wrapRef}>
+      <div className="heatmap" onPointerLeave={hide} aria-hidden="true">
+        {cells.map((d, i) =>
+          d ? (
+            <span
+              key={d.key}
+              className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)}`}
+              style={{ animationDelay: `${Math.floor(i / 7) * 25}ms` }}
+              onPointerEnter={(e) => show(e, dayTitle(d))}
+            />
+          ) : (
+            <span key={`pad-${i}`} className="heat-cell is-pad" />
+          ),
+        )}
+      </div>
+      <div className="heatmap-foot">
+        <span>
+          {readCount} {readCount === 1 ? "dia" : "dias"} com leitura nas últimas {weeks} semanas
+        </span>
+        <span className="heat-legend" aria-hidden="true">
+          {([1, 2, 3] as const).map((lv) => (
+            <span key={lv}>
+              <i className={`heat-cell lv-${lv}`} />
+              {LEVEL_LABELS[lv]}
+            </span>
+          ))}
+        </span>
+      </div>
+      {/* Mesmo dado em tabela, para leitores de tela. */}
+      <table className="sr-only">
+        <caption>Minutos lidos por dia</caption>
+        <tbody>
+          {days
+            .filter((d) => d.minutes > 0 || d.state === "frozen")
+            .map((d) => (
+              <tr key={d.key}>
+                <th>{d.date.toLocaleDateString("pt-BR")}</th>
+                <td>{d.state === "frozen" ? "salvo por escudo" : `${d.minutes} min`}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+      {node}
+    </div>
+  );
+}
+
+/** Painel "Sua leitura" do perfil: meta de hoje, sequência, semana, constância e totais. */
+function ReadingDashboard({
+  summary,
+  totals,
+  finishedCount,
+  markCount,
+}: {
+  summary: ReadingSummary;
+  totals: ReadingTotals;
+  finishedCount: number;
+  markCount: number;
+}) {
+  const week = useMemo(() => readingDays(7), []);
+  const history = useMemo(() => readingDays(53 * 7), []);
+  const tiles = [
+    { label: "Tempo lendo", value: totals.totalMinutes, format: formatMinutes },
+    { label: "Nesta semana", value: totals.weekMinutes, format: formatMinutes },
+    { label: "Livros terminados", value: finishedCount },
+    { label: "Trechos marcados", value: markCount },
+  ];
+  return (
+    <section className="dashboard" aria-label="Sua leitura">
+      <div className="dash-card dash-today">
+        <GoalRing minutes={summary.todayMinutes} goal={summary.goalMinutes} />
+        <div className="dash-streak">
+          <span className="dash-label">Sequência</span>
+          <strong className={`dash-hero ${summary.readToday ? "is-lit" : ""}`}>
+            <span className="dash-flame" aria-hidden="true">🔥</span>
+            <CountUp value={summary.streak} />
+          </strong>
+          <span className="dash-sub">
+            {summary.streak === 1 ? "dia seguido" : "dias seguidos"} · recorde {totals.bestStreak}
+          </span>
+          {summary.shields > 0 ? (
+            <span className="dash-shield">🛡️ {summary.shields} {summary.shields === 1 ? "escudo" : "escudos"}</span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="dash-card dash-week">
+        <div className="dash-card-head">
+          <span className="dash-label">Últimos 7 dias</span>
+          <span className="dash-sub">{formatMinutes(totals.weekMinutes)} no total</span>
+        </div>
+        <WeekBars days={week} goal={summary.goalMinutes} />
+      </div>
+
+      <div className="dash-card dash-heat">
+        <div className="dash-card-head">
+          <span className="dash-label">Constância</span>
+        </div>
+        <ReadingHeatmap days={history} goal={summary.goalMinutes} />
+      </div>
+
+      <div className="dash-tiles">
+        {tiles.map((t) => (
+          <div key={t.label} className="dash-card dash-tile">
+            <strong>
+              <CountUp value={t.value} format={t.format} />
+            </strong>
+            <span>{t.label}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 type ReadingPrefs = ReturnType<typeof loadPrefs>;
 
 function formatDate(iso: string | null): string {
@@ -1942,14 +2226,6 @@ function ProfilePage({
 
   const chosenAvatar = findAvatar(user.user_metadata?.avatar);
 
-  const stats = [
-    { icon: "🔥", label: "Sequência atual", value: `${summary.streak} ${summary.streak === 1 ? "dia" : "dias"}` },
-    { icon: "🏅", label: "Recorde", value: `${totals.bestStreak} ${totals.bestStreak === 1 ? "dia" : "dias"}` },
-    { icon: "📅", label: "Nesta semana", value: formatMinutes(totals.weekMinutes) },
-    { icon: "⏱️", label: "Tempo lendo", value: formatMinutes(totals.totalMinutes) },
-    { icon: "📚", label: "Livros terminados", value: String(finished.length) },
-    { icon: "✨", label: "Trechos marcados", value: String(markCount) },
-  ];
 
   return (
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
@@ -1975,15 +2251,7 @@ function ProfilePage({
         </div>
       </header>
 
-      <section className="profile-stats" aria-label="Sua leitura">
-        {stats.map((s) => (
-          <div key={s.label} className="profile-stat">
-            <span className="profile-stat-icon" aria-hidden="true">{s.icon}</span>
-            <strong>{s.value}</strong>
-            <span>{s.label}</span>
-          </div>
-        ))}
-      </section>
+      <ReadingDashboard summary={summary} totals={totals} finishedCount={finished.length} markCount={markCount} />
       <p className="profile-device-note">Os números e as marcações são deste aparelho.</p>
 
       <ProfileShelf

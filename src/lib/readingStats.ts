@@ -270,3 +270,18 @@ export function readingTotals(): ReadingTotals {
     bestStreak: Math.max(best, computeStreak(stats, meta, now)),
   };
 }
+
+export type ReadingDay = { key: string; date: Date; minutes: number; state: DayState };
+
+/** Últimos `n` dias (do mais antigo para hoje), com os minutos lidos — para os gráficos do perfil. */
+export function readingDays(n: number): ReadingDay[] {
+  const stats = read();
+  const meta = readMeta();
+  const now = new Date();
+  return Array.from({ length: n }, (_, i) => {
+    const date = daysAgo(n - 1 - i, now);
+    const key = dayKey(date);
+    const state: DayState = readOn(stats, date) ? "read" : meta.frozen.includes(key) ? "frozen" : "missed";
+    return { key, date, minutes: Math.floor((stats[key] ?? 0) / 60), state };
+  });
+}

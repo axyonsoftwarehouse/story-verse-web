@@ -4111,35 +4111,6 @@
   overflow-wrap: anywhere;
 }
 
-.profile-stats {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.profile-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: linear-gradient(165deg, rgba(40, 34, 28, 0.6), rgba(16, 13, 10, 0.7));
-}
-
-.profile-stat strong {
-  color: var(--text);
-  font-family: var(--font-read);
-  font-size: 1.45rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.profile-stat span {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
 .profile-device-note {
   margin: 0.6rem 0 2.5rem;
   color: var(--muted);
@@ -4286,12 +4257,6 @@
   border-color: rgba(232, 168, 168, 0.55);
 }
 
-@media (max-width: 900px) {
-  .profile-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 560px) {
   .profile-hero {
     flex-direction: column;
@@ -4303,18 +4268,6 @@
     width: 68px;
     height: 68px;
     font-size: 2rem;
-  }
-
-  .profile-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .profile-stat {
-    padding: 0.85rem 0.9rem;
-  }
-
-  .profile-stat strong {
-    font-size: 1.2rem;
   }
 
   .profile-pref .segmented {
@@ -4430,12 +4383,6 @@
 
 .profile-avatar {
   transition: background 0.3s ease, box-shadow 0.3s ease;
-}
-
-.profile-stat-icon {
-  margin-bottom: 0.2rem;
-  font-size: 1.1rem;
-  line-height: 1;
 }
 
 .avatar-choice {
@@ -5129,4 +5076,435 @@
 
 .row-card .continue-bar {
   margin: 0.15rem 0 0;
+}
+
+/* ============ Saudação centralizada ============ */
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.welcome-actions {
+  justify-content: center;
+}
+
+/* ============ Painel "Sua leitura" (perfil) ============
+ * Uma cor só (dourado) em escala: sem leitura / pouco / perto da meta / meta cumprida.
+ * Escala validada no fundo escuro (vizinhos com ΔE ≥ 22 em visão normal e daltonismo).
+ */
+
+.dashboard {
+  --heat-0: rgba(255, 248, 235, 0.05);
+  --heat-1: #5e4c2d;
+  --heat-2: #b08c52;
+  --heat-3: #f6dba6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 0.9rem;
+}
+
+.dash-card {
+  position: relative;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(165deg, rgba(40, 34, 28, 0.7), rgba(16, 13, 10, 0.8));
+}
+
+.dash-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+.dash-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dash-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* Hoje: anel da meta + sequência */
+.dash-today {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+}
+
+.goal-ring {
+  position: relative;
+  flex-shrink: 0;
+  width: 128px;
+  height: 128px;
+}
+
+.goal-ring svg {
+  width: 100%;
+  height: 100%;
+}
+
+.goal-ring-track {
+  fill: none;
+  stroke: rgba(228, 184, 106, 0.14);
+  stroke-width: 10;
+}
+
+.goal-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.1s var(--ease-out);
+  filter: drop-shadow(0 0 6px rgba(228, 184, 106, 0.45));
+}
+
+.goal-ring.is-done .goal-ring-fill {
+  stroke: var(--heat-3);
+}
+
+.goal-ring-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.goal-ring-center strong {
+  color: var(--text);
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-ring-center span {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.dash-streak {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dash-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text);
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-flame {
+  font-size: 2.1rem;
+  filter: grayscale(1) opacity(0.45);
+}
+
+.dash-hero.is-lit .dash-flame {
+  filter: none;
+  animation: flame 1.8s ease-in-out infinite;
+}
+
+@keyframes flame {
+  0%,
+  100% {
+    transform: scale(1) rotate(-3deg);
+  }
+  50% {
+    transform: scale(1.1) rotate(3deg);
+  }
+}
+
+.dash-shield {
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Barras da semana */
+.week-bars-wrap,
+.heatmap-wrap {
+  position: relative;
+}
+
+/* Área do gráfico: barras e linha da meta medem a mesma altura (sem padding). */
+.week-plot {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: end;
+  gap: 6px;
+  height: 128px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.week-goal-line {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed rgba(228, 184, 106, 0.45);
+  pointer-events: none;
+}
+
+/* À esquerda: a barra de hoje (à direita) leva o número em cima e bateria no texto. */
+.week-goal-line span {
+  position: absolute;
+  left: 0;
+  bottom: 3px;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.week-bar {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  border-radius: 6px 6px 0 0;
+  outline: none;
+  cursor: default;
+}
+
+.week-bar:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.week-bar-fill {
+  position: relative;
+  display: block;
+  width: min(100%, 26px);
+  border-radius: 4px 4px 0 0;
+  background: var(--heat-2);
+  transform-origin: bottom;
+  animation: bar-grow 0.7s var(--ease-out) both;
+  transition: filter 0.15s;
+}
+
+.week-bar.is-today .week-bar-fill {
+  background: var(--accent);
+  box-shadow: 0 0 16px -2px rgba(228, 184, 106, 0.55);
+}
+
+.week-bar.is-frozen .week-bar-fill {
+  background: var(--accent-2);
+}
+
+.week-bar:hover .week-bar-fill {
+  filter: brightness(1.15);
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.week-bar-value {
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  translate: -50% 0;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 0.4rem;
+}
+
+.week-days span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.week-days span.is-today {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Mapa de constância */
+.dash-heat {
+  grid-column: 1 / -1;
+}
+
+/* Quadrados de tamanho fixo (14 px + 4 px): o componente escolhe quantas semanas cabem. */
+.heatmap {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 14px);
+  grid-auto-columns: 14px;
+  gap: 4px;
+}
+
+.heat-cell {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--heat-0);
+  animation: cell-in 0.4s ease-out both;
+}
+
+.heat-cell.lv-1 {
+  background: var(--heat-1);
+}
+
+.heat-cell.lv-2 {
+  background: var(--heat-2);
+}
+
+.heat-cell.lv-3 {
+  background: var(--heat-3);
+}
+
+.heat-cell.lv-frozen {
+  background: var(--accent-2-dim);
+}
+
+.heat-cell.is-pad {
+  visibility: hidden;
+}
+
+.heatmap .heat-cell:not(.is-pad):hover {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
+@keyframes cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+.heatmap-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 0.8rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.heat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+}
+
+.heat-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.heat-legend .heat-cell {
+  width: 11px;
+  animation: none;
+}
+
+/* Totais */
+.dash-tiles {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.dash-tile {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.dash-tile strong {
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-tile span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* Dica dos gráficos */
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  translate: -50% calc(-100% - 8px);
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-soft);
+}
+
+@media (max-width: 800px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .dash-today {
+    gap: 1rem;
+  }
+
+  .goal-ring {
+    width: 108px;
+    height: 108px;
+  }
+
+  .dash-hero {
+    font-size: 2.5rem;
+  }
+
+  .dash-card {
+    padding: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-ring-fill,
+  .week-bar-fill,
+  .heat-cell,
+  .dash-hero.is-lit .dash-flame {
+    animation: none;
+    transition: none;
+  }
 }
