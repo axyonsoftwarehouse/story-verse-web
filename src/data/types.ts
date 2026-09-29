@@ -44,4 +44,6 @@ export type Ebook = {
   source?: "gutenberg" | "local" | "community";
   /** Caminho do texto no Storage do Supabase (livros da comunidade). */
   communityPath?: string;
+  /** Quando o admin aprovou (livros da comunidade): até 7 dias depois aparece em "Novidades". */
+  publishedAt?: string;
 };

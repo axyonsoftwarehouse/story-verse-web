@@ -121,6 +121,7 @@ export function submissionToEbook(s: Submission): Ebook {
     textLanguage: s.language,
     source: "community",
     communityPath: s.text_path,
+    ...(s.reviewed_at ? { publishedAt: s.reviewed_at } : {}),
     ...(characters.length > 0 ? { characters } : {}),
   };
 }
@@ -249,4 +250,39 @@ export async function checkIsAdmin(session: SupabaseSession): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Dias que um livro aprovado fica em "Novidades". */
+export const NEW_BOOK_DAYS = 7;
+
+/** Dias desde a aprovação, ou null se não é livro da comunidade aprovado. */
+export function daysSincePublished(book: Ebook, now = Date.now()): number | null {
+  if (book.source !== "community" || !book.publishedAt) return null;
+  const t = new Date(book.publishedAt).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((now - t) / 86_400_000));
+}
+
+export function isNewCommunityBook(book: Ebook): boolean {
+  const d = daysSincePublished(book);
+  return d !== null && d < NEW_BOOK_DAYS;
+}
+
+/** "Novo · hoje", "Novo · ontem", "Novo · há 3 dias". */
+export function newBookLabel(book: Ebook): string {
+  const d = daysSincePublished(book) ?? 0;
+  return d === 0 ? "Novo · hoje" : d === 1 ? "Novo · ontem" : `Novo · há ${d} dias`;
+}
+
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/** Busca por título ou autor, sem acento e sem diferenciar maiúsculas (todas as palavras). */
+export function matchesCommunitySearch(book: Ebook, term: string): boolean {
+  const hay = normalize(`${book.title} ${book.author}`);
+  return normalize(term)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => hay.includes(w));
 }

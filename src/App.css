@@ -4911,3 +4911,75 @@
 .profile > section.shelf:last-of-type {
   margin-bottom: 0;
 }
+
+/* ============ Novidades da comunidade ============ */
+
+.result {
+  position: relative;
+}
+
+/* ".result .new-badge": o selo é um <span> e não pode herdar o cinza de ".result span". */
+.new-badge,
+.result .new-badge {
+  position: absolute;
+  z-index: 2;
+  /* Como adesivo na borda da capa: não cobre o título nem o gênero desenhados nela. */
+  top: -9px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 0.2rem 0.55rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, #f3d18f, #d8a957);
+  color: #21170c;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px -4px rgba(228, 184, 106, 0.7);
+}
+
+/* Faixa em destaque: moldura dourada, brilho e fundo próprio. */
+.novidades {
+  position: relative;
+  padding: clamp(1.2rem, 3vw, 1.8rem);
+  overflow: hidden;
+  border: 1px solid var(--accent-dim);
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse 60% 90% at 0% 0%, rgba(228, 184, 106, 0.16), transparent 60%),
+    radial-gradient(ellipse 50% 80% at 100% 100%, rgba(155, 196, 181, 0.1), transparent 60%),
+    linear-gradient(165deg, rgba(40, 34, 28, 0.85), rgba(16, 13, 10, 0.9));
+  box-shadow: 0 24px 60px -30px rgba(228, 184, 106, 0.45);
+}
+
+.novidades .shelf-head {
+  display: block;
+}
+
+.novidades .shelf-head .eyebrow {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+}
+
+.novidades .shelf-head h2 {
+  margin-bottom: 0.25rem;
+}
+
+.novidades .result .cover {
+  box-shadow: 0 16px 34px -18px rgba(228, 184, 106, 0.55);
+}
+
+.explore-community {
+  margin: 0.4rem 0 1.6rem;
+}
+
+.explore-community h3 {
+  margin: 0 0 0.8rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

@@ -18,7 +18,10 @@ import {
   checkIsAdmin,
   deleteSubmission,
   fetchCommunityText,
+  isNewCommunityBook,
   listSubmissions,
+  matchesCommunitySearch,
+  newBookLabel,
   reviewSubmission,
   rightsLabel,
   RIGHTS_OPTIONS,
@@ -554,13 +557,18 @@ const LANGUAGE_FILTERS: { id: SearchLanguage; label: string }[] = [
 function Explore({
   onOpen,
   onImport,
+  communityBooks = [],
 }: {
+  /** Aprovados do acervo da comunidade: entram na busca e têm filtro próprio. */
+  communityBooks?: Ebook[];
   onOpen: (b: Ebook) => void;
   /** Abre o formulário de importação; com `hint`, já preenchido com o livro escolhido. */
   onImport: (hint?: BookHint) => void;
 }) {
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState<SearchLanguage>("pt");
+  /** "community": só os livros enviados pela comunidade. */
+  const [origin, setOrigin] = useState<"all" | "community">("all");
   const [books, setBooks] = useState<Ebook[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [next, setNext] = useState<string | null>(null);
@@ -632,6 +640,26 @@ function Explore({
     ? books
     : suggestedBooks.filter((b) => language === "all" || b.textLanguage === language);
 
+  const communityShown = communityBooks.filter(
+    (b) => (language === "all" || b.textLanguage === language) && (!searching || matchesCommunitySearch(b, term)),
+  );
+  const onlyCommunity = origin === "community";
+  const communityGrid = (list: Ebook[]) => (
+    <div className="result-grid">
+      {list.map((b) => (
+        <button key={b.id} type="button" className="result" onClick={() => onOpen(b)}>
+          {isNewCommunityBook(b) ? <span className="new-badge">{newBookLabel(b)}</span> : null}
+          <BookCover book={b} />
+          <strong>{b.title}</strong>
+          <span>
+            {b.author}
+            {b.textLanguage === "pt" ? " · PT" : ""}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <section className="explore" id="acervo">
       <div className="shelf-head">
@@ -662,9 +690,45 @@ function Explore({
             </button>
           ))}
         </div>
+        {communityBooks.length > 0 ? (
+          <div className="filter-pills" role="group" aria-label="Origem dos livros">
+            <button type="button" className={`filter-pill ${origin === "all" ? "active" : ""}`} onClick={() => setOrigin("all")}>
+              Todo o acervo
+            </button>
+            <button
+              type="button"
+              className={`filter-pill ${origin === "community" ? "active" : ""}`}
+              onClick={() => setOrigin("community")}
+            >
+              Da comunidade
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {!searching ? (
+      {onlyCommunity ? (
+        <>
+          <p className="explore-note">
+            {communityShown.length === 0
+              ? searching
+                ? `Nenhum livro da comunidade para “${term}”.`
+                : "Nenhum livro da comunidade neste idioma ainda."
+              : searching
+                ? `${communityShown.length} ${communityShown.length === 1 ? "livro" : "livros"} da comunidade para “${term}”`
+                : "Livros enviados por leitores e aprovados pela curadoria."}
+          </p>
+          {communityShown.length > 0 ? communityGrid(communityShown) : null}
+        </>
+      ) : null}
+
+      {!onlyCommunity && searching && communityShown.length > 0 ? (
+        <div className="explore-community">
+          <h3>Da comunidade</h3>
+          {communityGrid(communityShown)}
+        </div>
+      ) : null}
+
+      {onlyCommunity ? null : !searching ? (
         <p className="explore-note">Sugestões para começar. Os personagens aparecem quando você abre o livro.</p>
       ) : status === "error" ? (
         <p className="explore-note">Não foi possível buscar livros agora. Tente de novo em instantes.</p>
@@ -689,7 +753,7 @@ function Explore({
         </p>
       )}
 
-      {status !== "error" ? (
+      {status !== "error" && !onlyCommunity ? (
         <div className="result-grid">
           {searching && status === "loading"
             ? Array.from({ length: 8 }, (_, i) => (
@@ -712,7 +776,7 @@ function Explore({
         </div>
       ) : null}
 
-      {searching && outside.length > 0 ? (
+      {searching && outside.length > 0 && !onlyCommunity ? (
         <div className="outside">
           <div className="outside-head">
             <h3>Fora do acervo</h3>
@@ -747,7 +811,7 @@ function Explore({
         </div>
       ) : null}
 
-      {searching && status === "ready" && next ? (
+      {searching && status === "ready" && next && !onlyCommunity ? (
         <div className="explore-more">
           <button type="button" className="btn" onClick={loadMore} disabled={loadingMore}>
             {loadingMore ? "Carregando…" : "Carregar mais"}
@@ -1571,13 +1635,17 @@ function ModerationPage({
 function ProfileShelf({
   title,
   subtitle,
+  eyebrow,
+  className,
   items,
   empty,
   onOpen,
 }: {
   title: string;
   subtitle?: string;
-  items: { book: Ebook; sub: string; pct?: number }[];
+  eyebrow?: string;
+  className?: string;
+  items: { book: Ebook; sub: string; pct?: number; badge?: string }[];
   empty?: string;
   onOpen: (book: Ebook) => void;
 }) {
@@ -1585,8 +1653,9 @@ function ProfileShelf({
   if (items.length === 0 && !empty) return null;
   const shown = showAll ? items : items.slice(0, CONTINUE_PREVIEW);
   return (
-    <section className="shelf">
+    <section className={`shelf ${className ?? ""}`}>
       <div className="shelf-head">
+        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
         <h2>{title}</h2>
         {subtitle ? <p>{subtitle}</p> : null}
       </div>
@@ -1594,8 +1663,9 @@ function ProfileShelf({
         <p className="profile-empty">{empty}</p>
       ) : (
         <div className="result-grid">
-          {shown.map(({ book, sub, pct }) => (
+          {shown.map(({ book, sub, pct, badge }) => (
             <button key={book.id} type="button" className="result" onClick={() => onOpen(book)}>
+              {badge ? <span className="new-badge">{badge}</span> : null}
               <BookCover book={book} />
               {pct !== undefined ? (
                 <span className="continue-bar" aria-hidden="true">
@@ -4002,6 +4072,17 @@ export function App() {
           />
         ) : null}
 
+        {communityBooks.some(isNewCommunityBook) ? (
+          <ProfileShelf
+            className="novidades"
+            eyebrow="✨ Acabou de chegar"
+            title="Novidades"
+            subtitle="Livros que entraram no acervo da comunidade nesta semana."
+            onOpen={startBook}
+            items={communityBooks.filter(isNewCommunityBook).map((b) => ({ book: b, sub: b.author, badge: newBookLabel(b) }))}
+          />
+        ) : null}
+
         {SHELVES.map((shelf, si) => {
           const books = featuredBooks.filter((b) => (b.shelf ?? "classicos") === shelf.id);
           if (books.length === 0) return null;
@@ -4067,7 +4148,11 @@ export function App() {
             title="Da comunidade"
             subtitle="Livros enviados por leitores e aprovados pela curadoria."
             onOpen={startBook}
-            items={communityBooks.map((b) => ({ book: b, sub: b.author }))}
+            items={communityBooks.map((b) => ({
+              book: b,
+              sub: b.author,
+              ...(isNewCommunityBook(b) ? { badge: "Novo" } : {}),
+            }))}
           />
         ) : null}
 
@@ -4086,7 +4171,7 @@ export function App() {
             />
 
             <div id="recursos">
-              <Explore onOpen={startBook} onImport={(hint) => requestImport(hint ?? {})} />
+              <Explore onOpen={startBook} onImport={(hint) => requestImport(hint ?? {})} communityBooks={communityBooks} />
             </div>
           </>
         ) : null}
