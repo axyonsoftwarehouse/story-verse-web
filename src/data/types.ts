@@ -37,6 +37,11 @@ export type Ebook = {
   demo?: HeroDemo;
   /** Seção da estante em destaque. */
   shelf?: "pt" | "terror" | "classicos";
-  /** "local": importado pelo leitor, com o texto guardado só no navegador (id negativo). */
-  source?: "gutenberg" | "local";
+  /**
+   * "local": importado pelo leitor, com o texto guardado só no navegador (id negativo).
+   * "community": enviado por um leitor e aprovado pelo admin; o texto vem do Supabase.
+   */
+  source?: "gutenberg" | "local" | "community";
+  /** Caminho do texto no Storage do Supabase (livros da comunidade). */
+  communityPath?: string;
 };

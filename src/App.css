@@ -4645,3 +4645,260 @@
 .profile-id {
   flex: 1;
 }
+
+/* ============ Acervo da comunidade ============ */
+
+.share-box {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.03);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.share-box.is-on {
+  border-color: var(--accent-dim);
+  background: rgba(228, 184, 106, 0.05);
+}
+
+.share-toggle,
+.share-agree,
+.share-right {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  cursor: pointer;
+}
+
+.share-toggle input,
+.share-agree input,
+.share-right input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0.15rem 0 0;
+  accent-color: var(--accent);
+}
+
+.share-toggle span,
+.share-right span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.share-toggle strong,
+.share-right strong {
+  font-size: 0.9rem;
+}
+
+.share-toggle small,
+.share-right small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.share-rights {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.share-right {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.share-right.is-on {
+  border-color: var(--accent-dim);
+  background: rgba(228, 184, 106, 0.06);
+}
+
+.share-agree span {
+  color: var(--text-read);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.submission-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.submission {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.submission-main {
+  display: grid;
+  flex: 1 1 260px;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.submission-main strong {
+  font-family: var(--font-read);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.submission-main > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.submission-note {
+  margin: 0.2rem 0 0;
+  color: var(--text-read);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.status-chip {
+  flex-shrink: 0;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-chip.is-pending {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.status-chip.is-approved {
+  border-color: var(--accent-2-dim);
+  color: var(--accent-2);
+}
+
+.status-chip.is-rejected {
+  border-color: rgba(232, 168, 168, 0.35);
+  color: var(--danger);
+}
+
+.profile-admin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem 1rem;
+}
+
+.profile-admin div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.profile-admin span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.moderation-head {
+  margin: 0.5rem 0 1.4rem;
+}
+
+.moderation-head h1 {
+  margin: 0.35rem 0 0.5rem;
+  font-family: var(--font-read);
+  font-size: clamp(1.7rem, 5vw, 2.4rem);
+  font-weight: 500;
+}
+
+.moderation-head p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.moderation-tabs {
+  margin-bottom: 1.2rem;
+}
+
+.moderation-error {
+  margin-bottom: 1rem;
+}
+
+.moderation-empty {
+  padding: 2rem 0;
+}
+
+.moderation .page-status {
+  --r-border: var(--border-strong);
+  --r-accent: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 2rem 0;
+  color: var(--muted);
+}
+
+.moderation-item {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.moderation-rights {
+  margin: 0.35rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border-left: 2px solid var(--accent-dim);
+  border-radius: 0 8px 8px 0;
+  background: rgba(228, 184, 106, 0.05);
+  color: var(--text-read);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.moderation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.moderation-reject {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.moderation-reject textarea {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.moderation-reject textarea:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+
+@media (max-width: 560px) {
+  .moderation-actions .btn {
+    flex: 1;
+  }
+}
+
+.moderation-rights strong {
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
+  font-weight: 700;
+}

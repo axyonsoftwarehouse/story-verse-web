@@ -55,6 +55,11 @@ function authConfig() {
   return { url, anonKey };
 }
 
+/** Endereço e chave pública do Supabase, para as outras chamadas (banco e arquivos). */
+export function supabaseConfig() {
+  return authConfig();
+}
+
 function describeAuthError(message: string): string {
   const normalized = message.toLowerCase();
   if (normalized.includes("invalid login credentials")) return "E-mail ou senha incorretos.";

@@ -12,6 +12,20 @@ import {
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { finishedBooks, markBookFinished } from "./lib/finished";
+import {
+  approvedCommunityBooks,
+  checkIsAdmin,
+  deleteSubmission,
+  fetchCommunityText,
+  listSubmissions,
+  reviewSubmission,
+  rightsLabel,
+  RIGHTS_OPTIONS,
+  submissionToEbook,
+  submitBook,
+  type Rights,
+  type Submission,
+} from "./lib/community";
 import { lookupWord, normalizeWord, type WordInfo } from "./lib/dictionary";
 import {
   allHighlights,
@@ -750,6 +764,8 @@ function MyBooks({
   onRequest,
   request,
   setRequest,
+  session,
+  onSubmitted,
 }: {
   onOpen: (b: Ebook) => void;
   onRemoved: () => void;
@@ -760,6 +776,9 @@ function MyBooks({
    */
   request: BookHint | Record<string, never> | null;
   setRequest: (r: BookHint | Record<string, never> | null) => void;
+  /** Logado: pode sugerir o livro para o acervo da comunidade. */
+  session?: SupabaseSession | null;
+  onSubmitted?: () => void;
 }) {
   const open = request !== null;
   const hint = request && "title" in request ? request : null;
@@ -773,6 +792,10 @@ function MyBooks({
   const [author, setAuthor] = useState("");
   const [language, setLanguage] = useState<"pt" | "en">("pt");
   const [castText, setCastText] = useState("");
+  const [share, setShare] = useState(false);
+  const [rights, setRights] = useState<Rights | null>(null);
+  const [rightsNote, setRightsNote] = useState("");
+  const [agree, setAgree] = useState(false);
 
   useEffect(() => {
     void listLocalBooks().then(setBooks);
@@ -790,6 +813,10 @@ function MyBooks({
     setTitle("");
     setAuthor("");
     setCastText("");
+    setShare(false);
+    setRights(null);
+    setRightsNote("");
+    setAgree(false);
   }, [saving, setRequest]);
 
   useEffect(() => {
@@ -824,6 +851,8 @@ function MyBooks({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!parsed || saving) return;
+    if (share && !rights) return setError("Escolha por que este livro pode ser compartilhado.");
+    if (share && !agree) return setError("Confirme a declaração de direitos para enviar ao acervo.");
     const id = newLocalBookId();
     const bookTitle = title.trim() || "Meu livro";
     const characters = castFromNames(bookTitle, castText);
@@ -842,6 +871,20 @@ function MyBooks({
     };
     setSaving(true);
     try {
+      // Envia primeiro: se falhar, nada fica pela metade e dá para tentar de novo.
+      if (share && session && rights) {
+        await submitBook(session, {
+          title: book.title,
+          author: author.trim(),
+          language,
+          rights,
+          rightsNote,
+          characters: castText,
+          submitterName: displayNameOf(session.user),
+          text: withoutImageMarkers(parsed.text),
+        });
+        onSubmitted?.();
+      }
       await saveLocalBook(book, parsed.text, parsed.images);
       setBooks((prev) => [book, ...prev]);
       setSaving(false);
@@ -956,6 +999,51 @@ function MyBooks({
               </>
             ) : null}
 
+            {parsed && session ? (
+              <div className={`share-box ${share ? "is-on" : ""}`}>
+                <label className="share-toggle">
+                  <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} />
+                  <span>
+                    <strong>Sugerir para o acervo da comunidade</strong>
+                    <small>Se for aprovado, outras pessoas também vão poder ler.</small>
+                  </span>
+                </label>
+                {share ? (
+                  <>
+                    <div className="share-rights" role="radiogroup" aria-label="Por que pode ser compartilhado">
+                      {RIGHTS_OPTIONS.map((o) => (
+                        <label key={o.id} className={`share-right ${rights === o.id ? "is-on" : ""}`}>
+                          <input type="radio" name="rights" checked={rights === o.id} onChange={() => setRights(o.id)} />
+                          <span>
+                            <strong>{o.label}</strong>
+                            <small>{o.hint}</small>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {rights ? (
+                      <label className="field">
+                        <span>Como sabemos? (ajuda na análise)</span>
+                        <input
+                          value={rightsNote}
+                          onChange={(e) => setRightsNote(e.target.value)}
+                          maxLength={500}
+                          placeholder={RIGHTS_OPTIONS.find((o) => o.id === rights)?.placeholder}
+                        />
+                      </label>
+                    ) : null}
+                    <label className="share-agree">
+                      <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+                      <span>
+                        Declaro que este livro pode ser compartilhado e entendo que ele será removido se violar
+                        direitos autorais. Livros com direitos reservados (ex.: best-sellers atuais) são recusados.
+                      </span>
+                    </label>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
             {error ? <p className="import-error" role="alert">{error}</p> : null}
 
             <p className="import-note">
@@ -968,7 +1056,7 @@ function MyBooks({
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary" disabled={!parsed || saving}>
-                {saving ? "Guardando…" : "Importar e ler"}
+                {saving ? (share ? "Enviando…" : "Guardando…") : share ? "Enviar e ler" : "Importar e ler"}
               </button>
             </div>
           </form>
@@ -1229,14 +1317,257 @@ function EditProfileModal({
 
 type ReadingPrefs = ReturnType<typeof loadPrefs>;
 
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/** Tamanho aproximado em páginas (≈1.800 caracteres por página impressa). */
+function pagesOf(chars: number | null): string {
+  if (!chars) return "";
+  const n = Math.max(1, Math.round(chars / 1800));
+  return `~${n} ${n === 1 ? "página" : "páginas"}`;
+}
+
+const STATUS_LABELS: Record<Submission["status"], string> = {
+  pending: "Em análise",
+  approved: "Publicado",
+  rejected: "Recusado",
+};
+
+/** Envios do próprio leitor, com o andamento de cada um (no perfil). */
+function MySubmissions({ session }: { session: SupabaseSession }) {
+  const [items, setItems] = useState<Submission[] | null>(null);
+  useEffect(() => {
+    void listSubmissions(session, "mine").then(setItems).catch(() => setItems([]));
+  }, [session]);
+
+  async function withdraw(s: Submission) {
+    if (!window.confirm(`Desistir de enviar “${s.title}”?`)) return;
+    try {
+      await deleteSubmission(session, s);
+      setItems((list) => list?.filter((x) => x.id !== s.id) ?? null);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Não foi possível desistir agora.");
+    }
+  }
+
+  if (!items || items.length === 0) return null;
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h2>Seus envios</h2>
+        <p>Livros que você sugeriu para o acervo da comunidade.</p>
+      </div>
+      <ul className="submission-list">
+        {items.map((s) => (
+          <li key={s.id} className="profile-card submission">
+            <div className="submission-main">
+              <strong>{s.title}</strong>
+              <span>
+                {s.author || "Autor não informado"} · enviado em {formatDate(s.created_at)}
+              </span>
+              {s.status === "rejected" && s.review_note ? <p className="submission-note">Motivo: {s.review_note}</p> : null}
+            </div>
+            <span className={`status-chip is-${s.status}`}>{STATUS_LABELS[s.status]}</span>
+            {s.status === "pending" ? (
+              <button type="button" className="link-btn" onClick={() => void withdraw(s)}>
+                Desistir
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Moderação (só admin): aprovar ou recusar envios e tirar livros do acervo. */
+function ModerationPage({
+  session,
+  onClose,
+  onRead,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onRead: (book: Ebook) => void;
+}) {
+  const [tab, setTab] = useState<"pending" | "approved">("pending");
+  const [pending, setPending] = useState<Submission[] | null>(null);
+  const [approved, setApproved] = useState<Submission[] | null>(null);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<{ id: string; note: string } | null>(null);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    Promise.all([listSubmissions(session, "pending"), listSubmissions(session, "approved")])
+      .then(([p, a]) => {
+        setPending(p);
+        setApproved(a);
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar os envios."));
+  }, [session]);
+
+  async function approve(s: Submission) {
+    setBusyId(s.id);
+    setError("");
+    try {
+      const updated = await reviewSubmission(session, s.id, "approved");
+      setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
+      setApproved((list) => [updated, ...(list ?? [])]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível aprovar.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reject(s: Submission, note: string) {
+    if (!note.trim()) return setError("Escreva o motivo da recusa: quem enviou vai ver.");
+    setBusyId(s.id);
+    setError("");
+    try {
+      await reviewSubmission(session, s.id, "rejected", note);
+      setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
+      setRejecting(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível recusar.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(s: Submission) {
+    if (!window.confirm(`Tirar “${s.title}” do acervo? O arquivo também será apagado.`)) return;
+    setBusyId(s.id);
+    setError("");
+    try {
+      await deleteSubmission(session, s);
+      setApproved((list) => list?.filter((x) => x.id !== s.id) ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível remover.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const list = tab === "pending" ? pending : approved;
+  return (
+    <div className="home profile moderation">
+      <nav className="home-nav profile-nav">
+        <button type="button" className="btn" onClick={onClose}>
+          {Icon.back} Voltar
+        </button>
+      </nav>
+      <header className="moderation-head">
+        <span className="eyebrow">Admin</span>
+        <h1>Moderação do acervo</h1>
+        <p>
+          Aprove só o que pode ser distribuído: domínio público, obra do próprio autor ou licença livre. Na dúvida,
+          recuse.
+        </p>
+      </header>
+
+      <div className="segmented moderation-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "pending"} className={tab === "pending" ? "is-on" : ""} onClick={() => setTab("pending")}>
+          Em análise{pending ? ` (${pending.length})` : ""}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "approved"} className={tab === "approved" ? "is-on" : ""} onClick={() => setTab("approved")}>
+          Publicados{approved ? ` (${approved.length})` : ""}
+        </button>
+      </div>
+
+      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
+
+      {list === null && !error ? (
+        <div className="page-status">
+          <span className="spinner" aria-hidden="true" />
+          Carregando envios…
+        </div>
+      ) : list && list.length === 0 ? (
+        <p className="profile-empty moderation-empty">
+          {tab === "pending" ? "Nenhum envio esperando análise. 🎉" : "Nenhum livro publicado ainda."}
+        </p>
+      ) : (
+        <ul className="submission-list">
+          {list?.map((s) => (
+            <li key={s.id} className="profile-card moderation-item">
+              <div className="submission-main">
+                <strong>{s.title}</strong>
+                <span>
+                  {s.author || "Autor não informado"} · {s.language === "en" ? "Inglês" : "Português"}
+                  {s.char_count ? ` · ${pagesOf(s.char_count)}` : ""}
+                </span>
+                <span>
+                  Enviado por {s.submitter_name || "leitor"} em {formatDate(s.created_at)}
+                  {s.reviewed_at && tab === "approved" ? ` · publicado em ${formatDate(s.reviewed_at)}` : ""}
+                </span>
+                <p className="moderation-rights">
+                  <strong>{rightsLabel(s.rights)}</strong>
+                  {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
+                </p>
+                {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
+              </div>
+
+              {rejecting?.id === s.id ? (
+                <div className="moderation-reject">
+                  <textarea
+                    value={rejecting.note}
+                    onChange={(e) => setRejecting({ id: s.id, note: e.target.value })}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Motivo (quem enviou vai ver). Ex.: obra ainda tem direitos autorais."
+                    autoFocus
+                  />
+                  <div className="moderation-actions">
+                    <button type="button" className="btn" onClick={() => setRejecting(null)} disabled={busyId === s.id}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="btn profile-logout" onClick={() => void reject(s, rejecting.note)} disabled={busyId === s.id}>
+                      {busyId === s.id ? "Recusando…" : "Recusar envio"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="moderation-actions">
+                  <button type="button" className="btn" onClick={() => onRead(submissionToEbook(s))}>
+                    {Icon.book} Ler
+                  </button>
+                  {tab === "pending" ? (
+                    <>
+                      <button type="button" className="btn profile-logout" onClick={() => setRejecting({ id: s.id, note: "" })} disabled={busyId === s.id}>
+                        Recusar
+                      </button>
+                      <button type="button" className="btn btn-primary" onClick={() => void approve(s)} disabled={busyId === s.id}>
+                        {busyId === s.id ? "Aprovando…" : "Aprovar"}
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="btn profile-logout" onClick={() => void remove(s)} disabled={busyId === s.id}>
+                      {busyId === s.id ? "Removendo…" : "Tirar do acervo"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
 function ProfileShelf({
   title,
+  subtitle,
   items,
   empty,
   onOpen,
 }: {
   title: string;
+  subtitle?: string;
   items: { book: Ebook; sub: string; pct?: number }[];
   empty?: string;
   onOpen: (book: Ebook) => void;
@@ -1248,6 +1579,7 @@ function ProfileShelf({
     <section className="shelf">
       <div className="shelf-head">
         <h2>{title}</h2>
+        {subtitle ? <p>{subtitle}</p> : null}
       </div>
       {items.length === 0 ? (
         <p className="profile-empty">{empty}</p>
@@ -1293,6 +1625,8 @@ function ProfilePage({
   prefs,
   setPrefs,
   lastBook,
+  isAdmin,
+  onOpenModeration,
 }: {
   session: SupabaseSession;
   onSessionChange: (session: SupabaseSession) => void;
@@ -1304,6 +1638,8 @@ function ProfilePage({
   prefs: ReadingPrefs;
   setPrefs: React.Dispatch<React.SetStateAction<ReadingPrefs>>;
   lastBook?: LastBook;
+  isAdmin?: boolean;
+  onOpenModeration?: () => void;
 }) {
   const user = session.user;
   const name = displayNameOf(user);
@@ -1496,6 +1832,8 @@ function ProfilePage({
       />
       <ProfileShelf title="Seus livros importados" onOpen={onOpenBook} items={imported.map((b) => ({ book: b, sub: b.author }))} />
 
+      <MySubmissions session={session} />
+
       <section className="shelf">
         <div className="shelf-head">
           <h2>Marcações</h2>
@@ -1567,6 +1905,23 @@ function ProfilePage({
           <ReminderSetup lastBook={lastBook} time={reminderTime} onTimeChange={setReminderTime} />
         </div>
       </section>
+
+      {isAdmin ? (
+        <section className="shelf">
+          <div className="shelf-head">
+            <h2>Admin</h2>
+          </div>
+          <div className="profile-card profile-admin">
+            <div>
+              <strong>Moderação do acervo</strong>
+              <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={onOpenModeration}>
+              Abrir moderação
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="shelf">
         <div className="shelf-head">
@@ -2251,6 +2606,10 @@ export function App() {
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [moderationOpen, setModerationOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
+  const [communityTick, setCommunityTick] = useState(0);
   /** Aberto pelo perfil numa marcação: o livro abre direto nesse trecho. */
   const openAtRef = useRef<{ bookId: string; chapterIndex: number; chapterLabel: string; paragraph: number } | null>(null);
 
@@ -2346,6 +2705,22 @@ export function App() {
     return () => window.removeEventListener("storage", syncSession);
   }, []);
 
+  const authUserId = authSession?.user.id;
+  useEffect(() => {
+    if (!authSession) return setIsAdmin(false);
+    let alive = true;
+    void checkIsAdmin(authSession).then((ok) => alive && setIsAdmin(ok));
+    return () => {
+      alive = false;
+    };
+    // Só quando troca de usuário (não a cada renovação do token).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUserId]);
+
+  /** Sessão atual para o carregamento do texto (sem recarregar o livro quando o token renova). */
+  const authSessionRef = useRef(authSession);
+  authSessionRef.current = authSession;
+
   async function logout() {
     if (!authSession || authActionLoading) return;
     setAuthActionLoading(true);
@@ -2358,6 +2733,7 @@ export function App() {
       setAuthSession(null);
       setAuthActionLoading(false);
       setProfileOpen(false);
+      setModerationOpen(false);
     }
   }
 
@@ -2430,6 +2806,16 @@ export function App() {
   const [prefs, setPrefs] = useState(loadPrefs);
   /** Redesenha a página inicial quando um livro importado é removido (sai de "Continue lendo"). */
   const [, setHomeTick] = useState(0);
+  useEffect(() => {
+    if (!authEnabled || book) return;
+    let alive = true;
+    void approvedCommunityBooks(authSessionRef.current)
+      .then((list) => alive && setCommunityBooks(list))
+      .catch(() => alive && setCommunityBooks([]));
+    return () => {
+      alive = false;
+    };
+  }, [book, authUserId, communityTick]);
   /** Livro que acabou de sair de "Continue lendo" (dá para desfazer por alguns segundos). */
   const [continueUndo, setContinueUndo] = useState<ReadingProgress | null>(null);
   useEffect(() => {
@@ -2494,7 +2880,11 @@ export function App() {
     setScrollRatio(0);
     midChapterNudgeSentRef.current = {};
 
-    (isLocalBook(book) ? loadLocalBookText(book.gutenbergId) : fetchBookText(book.gutenbergId))
+    (isLocalBook(book)
+      ? loadLocalBookText(book.gutenbergId)
+      : book.source === "community" && book.communityPath
+        ? fetchCommunityText(authSessionRef.current, book.communityPath)
+        : fetchBookText(book.gutenbergId))
       .then((text) => {
         if (cancelled) return;
         const saved = loadProgress(book.gutenbergId);
@@ -3338,9 +3728,23 @@ export function App() {
         }
       : undefined;
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
+    if (moderationOpen && authSession && isAdmin) {
+      return (
+        <ModerationPage
+          session={authSession}
+          onClose={() => {
+            setModerationOpen(false);
+            setCommunityTick((n) => n + 1);
+          }}
+          onRead={startBook}
+        />
+      );
+    }
     if (profileOpen && authSession) {
       return (
         <ProfilePage
+          isAdmin={isAdmin}
+          onOpenModeration={() => setModerationOpen(true)}
           session={authSession}
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
@@ -3636,11 +4040,24 @@ export function App() {
           );
         })}
 
+        {communityBooks.length > 0 ? (
+          <ProfileShelf
+            title="Da comunidade"
+            subtitle="Livros enviados por leitores e aprovados pela curadoria."
+            onOpen={startBook}
+            items={communityBooks.map((b) => ({ book: b, sub: b.author }))}
+          />
+        ) : null}
+
         {canRead ? (
           <>
             <MyBooks
               onOpen={startBook}
               onRemoved={() => setHomeTick((n) => n + 1)}
+              session={authSession}
+              onSubmitted={() =>
+                setAuthNotice({ text: "Livro enviado para análise. Você acompanha em Perfil › Seus envios.", ok: true })
+              }
               onRequest={() => requestImport()}
               request={importRequest}
               setRequest={setImportRequest}
@@ -3959,6 +4376,8 @@ export function App() {
                 )}
                 {isLocalBook(book) ? (
                   <span className="source-link">Livro importado · guardado só neste aparelho</span>
+                ) : book.source === "community" ? (
+                  <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
                 ) : (
                   <a
                     className="source-link"
