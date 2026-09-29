@@ -4438,44 +4438,6 @@
   line-height: 1;
 }
 
-.profile-edit-card {
-  display: grid;
-  gap: 1.3rem;
-}
-
-.profile-field {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.profile-field > span {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.profile-field input {
-  width: min(100%, 420px);
-  height: 48px;
-  padding: 0 0.95rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 248, 235, 0.04);
-  color: var(--text);
-  font: inherit;
-  font-family: var(--font-read);
-  font-size: 1.15rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.profile-field input:focus {
-  outline: none;
-  border-color: var(--accent-dim);
-  box-shadow: 0 0 0 3px rgba(228, 184, 106, 0.12);
-}
-
 .avatar-choice {
   transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.15s var(--ease-out);
 }
@@ -4611,4 +4573,62 @@
 
 .avatar-picker {
   width: min(100%, 460px);
+}
+
+/* ---- Nome com lápis ao lado (edita ali mesmo) ---- */
+
+.profile-id h1 {
+  align-items: center;
+  column-gap: 0.55rem;
+}
+
+.profile-name-edit {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: rgba(255, 248, 235, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.profile-name-edit svg {
+  width: 15px;
+  height: 15px;
+}
+
+.profile-name-edit:hover {
+  border-color: var(--accent-dim);
+  background: rgba(228, 184, 106, 0.08);
+  color: var(--accent);
+}
+
+.profile-name-input {
+  display: block;
+  width: min(100%, 460px);
+  margin: 0 0 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-read);
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.profile-name-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(228, 184, 106, 0.12);
+}
+
+.profile-id {
+  flex: 1;
 }

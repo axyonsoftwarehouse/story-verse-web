@@ -1286,6 +1286,8 @@ function ProfilePage({
   const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
   const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const nameBeforeEdit = useRef(savedName);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -1431,7 +1433,41 @@ function ProfilePage({
           <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
         </button>
         <div className="profile-id">
-          <h1>{trimmedName || savedName}</h1>
+          {editingName ? (
+            <input
+              className="profile-name-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => setEditingName(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  setName(nameBeforeEdit.current);
+                  setEditingName(false);
+                }
+              }}
+              maxLength={60}
+              autoComplete="name"
+              aria-label="Seu nome"
+              autoFocus
+            />
+          ) : (
+            <h1>
+              <span>{trimmedName || savedName}</span>
+              <button
+                type="button"
+                className="profile-name-edit"
+                onClick={() => {
+                  nameBeforeEdit.current = name;
+                  setEditingName(true);
+                }}
+                aria-label="Editar nome"
+                title="Editar nome"
+              >
+                {Icon.pencil}
+              </button>
+            </h1>
+          )}
           <p>
             {user.email}
             {since ? ` · lendo no Storyverse desde ${since}` : ""}
@@ -1449,19 +1485,6 @@ function ProfilePage({
         ))}
       </section>
       <p className="profile-device-note">Os números e as marcações são deste aparelho.</p>
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Seu perfil</h2>
-          <p>Como você aparece no Storyverse.</p>
-        </div>
-        <div className="profile-card profile-edit-card">
-          <label className="profile-field">
-            <span>Nome</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
-          </label>
-        </div>
-      </section>
 
       <ProfileShelf
         title="Lendo agora"
