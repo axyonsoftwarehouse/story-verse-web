@@ -5102,7 +5102,7 @@
   --heat-2: #b08c52;
   --heat-3: #f6dba6;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(170px, 0.75fr) minmax(0, 1.25fr) minmax(0, 1.6fr);
   gap: 0.9rem;
 }
 
@@ -5506,5 +5506,350 @@
   .dash-hero.is-lit .dash-flame {
     animation: none;
     transition: none;
+  }
+}
+
+/* ============ Painel: meta, sequência com fogo e checks ============ */
+
+.dash-goal {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.8rem;
+}
+
+.dash-goal .dash-label {
+  justify-self: start;
+}
+
+.goal-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.goal-caption.is-done {
+  color: var(--heat-3);
+}
+
+.goal-ring-check {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--heat-3);
+  color: #1c140c;
+  animation: pop 0.45s var(--ease-out) both;
+}
+
+.goal-ring-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+
+
+/* Sequência */
+.dash-streak {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  overflow: hidden;
+}
+
+.dash-streak.is-lit {
+  border-color: rgba(240, 122, 42, 0.35);
+  background:
+    radial-gradient(ellipse 55% 90% at 12% 70%, rgba(240, 122, 42, 0.16), transparent 70%),
+    linear-gradient(165deg, rgba(40, 34, 28, 0.7), rgba(16, 13, 10, 0.8));
+}
+
+.dash-streak-info {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.dash-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.dash-hero small {
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.dash-record {
+  color: var(--text-read);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dash-shield-progress {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.dash-shield-bar {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: rgba(155, 196, 181, 0.15);
+}
+
+.dash-shield-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-2);
+  transition: width 0.8s var(--ease-out);
+}
+
+/* Chama animada */
+.streak-flame-anim {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  height: 94px;
+}
+
+.streak-flame-anim svg {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.flame-layer {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.streak-flame-anim:not(.is-lit) .flame-layer {
+  filter: grayscale(1) brightness(0.55);
+}
+
+.streak-flame-anim:not(.is-lit) .flame-core {
+  opacity: 0.35;
+}
+
+.streak-flame-anim.is-lit .flame-outer {
+  animation: flame-flicker-a 1.3s ease-in-out infinite alternate;
+}
+
+.streak-flame-anim.is-lit .flame-mid {
+  animation: flame-flicker-b 0.9s ease-in-out infinite alternate;
+}
+
+.streak-flame-anim.is-lit .flame-core {
+  animation: flame-flicker-c 0.65s ease-in-out infinite alternate;
+}
+
+@keyframes flame-flicker-a {
+  0% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  35% {
+    transform: scale(0.97, 1.05) skewX(-2.5deg);
+  }
+  70% {
+    transform: scale(1.02, 0.97) skewX(2deg);
+  }
+  100% {
+    transform: scale(0.98, 1.07) skewX(-1deg);
+  }
+}
+
+@keyframes flame-flicker-b {
+  0% {
+    transform: scale(1, 1) skewX(1deg);
+  }
+  50% {
+    transform: scale(0.94, 1.09) skewX(-3deg);
+  }
+  100% {
+    transform: scale(1.03, 0.95) skewX(2.5deg);
+  }
+}
+
+@keyframes flame-flicker-c {
+  0% {
+    transform: scale(1, 1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(0.9, 1.14);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.05, 0.92);
+    opacity: 0.85;
+  }
+}
+
+.flame-glow {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  width: 110%;
+  height: 70%;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 150, 50, 0.55), transparent);
+  filter: blur(6px);
+  opacity: 0;
+}
+
+.streak-flame-anim.is-lit .flame-glow {
+  opacity: 1;
+  animation: flame-glow 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes flame-glow {
+  from {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+.flame-spark {
+  position: absolute;
+  z-index: 2;
+  bottom: 38%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffd27a;
+  box-shadow: 0 0 6px #ff9a3c;
+  opacity: 0;
+}
+
+.streak-flame-anim.is-lit .flame-spark {
+  animation: flame-spark 1.8s ease-out infinite;
+}
+
+.flame-spark.s1 {
+  left: 38%;
+}
+
+.flame-spark.s2 {
+  left: 58%;
+  animation-delay: 0.6s !important;
+}
+
+.flame-spark.s3 {
+  left: 48%;
+  animation-delay: 1.2s !important;
+}
+
+@keyframes flame-spark {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(6px, -58px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* Barras: dia com meta cumprida mostra um check no topo */
+.week-bar-fill.is-met {
+  background: var(--heat-3);
+}
+
+.week-bar.is-today .week-bar-fill.is-met {
+  background: var(--heat-3);
+}
+
+.week-bar-check {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: #1c140c;
+  color: var(--heat-3);
+}
+
+.week-bar-check svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Mapa: "meta cumprida" leva um check (não depende só do tom) */
+.heat-cell.lv-3 {
+  position: relative;
+}
+
+.heat-cell.lv-3::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: center / 70% no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c140c' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+
+@media (max-width: 1000px) {
+  .dashboard {
+    grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .dash-week {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-goal {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    justify-items: start;
+  }
+
+  .dash-goal .dash-label {
+    grid-column: 1 / -1;
+  }
+
+  .streak-flame-anim {
+    width: 60px;
+    height: 78px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flame-layer,
+  .flame-glow,
+  .flame-spark,
+  .goal-ring-check {
+    animation: none !important;
   }
 }

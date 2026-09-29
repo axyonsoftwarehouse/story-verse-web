@@ -77,6 +77,7 @@ import {
   setReadingGoalMinutes,
   takeShieldNotice,
   readingDays,
+  SHIELD_RULES,
   type ReadingDay,
   type ReadingEvents,
   type ReadingSummary,
@@ -476,6 +477,11 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
       <path d="m13.5 6.5 4 4" />
+    </svg>
+  ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
     </svg>
   ),
   close: (
@@ -1432,9 +1438,57 @@ function dayLevel(minutes: number, goal: number): 0 | 1 | 2 | 3 {
 const LEVEL_LABELS = ["Sem leitura", "Pouco", "Perto da meta", "Meta cumprida"] as const;
 const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
-function dayTitle(d: ReadingDay): string {
+function dayTitle(d: ReadingDay, goal?: number): string {
   const date = d.date.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
-  return d.state === "frozen" ? `${date}: salvo por escudo` : `${date}: ${d.minutes} min`;
+  if (d.state === "frozen") return `${date}: salvo por escudo`;
+  const met = goal !== undefined && d.minutes >= goal;
+  return `${date}: ${d.minutes} min${met ? " · meta cumprida ✓" : ""}`;
+}
+
+/**
+ * Chama animada da sequência: camadas (vermelho → laranja → amarelo → miolo claro) tremulando em
+ * ritmos diferentes, brilho pulsando e faíscas subindo. Apagada (cinza e parada) sem leitura hoje.
+ */
+function StreakFlame({ lit }: { lit: boolean }) {
+  return (
+    <span className={`streak-flame-anim ${lit ? "is-lit" : ""}`} aria-hidden="true">
+      <span className="flame-glow" />
+      <svg viewBox="0 0 64 84">
+        <defs>
+          <linearGradient id="flame-outer" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stopColor="#d9481c" />
+            <stop offset="1" stopColor="#f07a2a" />
+          </linearGradient>
+          <linearGradient id="flame-mid" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stopColor="#f4902c" />
+            <stop offset="1" stopColor="#ffc24a" />
+          </linearGradient>
+          <linearGradient id="flame-core" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stopColor="#ffe08a" />
+            <stop offset="1" stopColor="#fff7dc" />
+          </linearGradient>
+        </defs>
+        <path
+          className="flame-layer flame-outer"
+          fill="url(#flame-outer)"
+          d="M32 3c5 13 19 21 19 42 0 19-9 34-19 34S13 64 13 45c0-10 5-17 9-24 1 6 4 10 8 11-2-10-1-19 2-29z"
+        />
+        <path
+          className="flame-layer flame-mid"
+          fill="url(#flame-mid)"
+          d="M33 24c4 9 12 15 12 29 0 13-6 23-13 23s-13-10-13-23c0-7 3-12 6-16 1 4 3 7 6 7-1-7 0-14 2-20z"
+        />
+        <path
+          className="flame-layer flame-core"
+          fill="url(#flame-core)"
+          d="M32 46c3 5 7 9 7 17 0 7-3 12-7 12s-7-5-7-12c0-5 3-9 7-17z"
+        />
+      </svg>
+      <span className="flame-spark s1" />
+      <span className="flame-spark s2" />
+      <span className="flame-spark s3" />
+    </span>
+  );
 }
 
 /** Anel da meta de hoje (medidor: trilho e preenchimento do mesmo tom). */
@@ -1510,16 +1564,17 @@ function WeekBars({ days, goal }: { days: ReadingDay[]; goal: number }) {
               key={d.key}
               className={`week-bar ${today ? "is-today" : ""} ${d.state === "frozen" ? "is-frozen" : ""}`}
               tabIndex={0}
-              onPointerEnter={(e) => show(e, dayTitle(d))}
-              onFocus={(e) => show(e, dayTitle(d))}
+              onPointerEnter={(e) => show(e, dayTitle(d, goal))}
+              onFocus={(e) => show(e, dayTitle(d, goal))}
               onBlur={hide}
-              aria-label={dayTitle(d)}
+              aria-label={dayTitle(d, goal)}
             >
               <span
-                className="week-bar-fill"
+                className={`week-bar-fill ${d.minutes >= goal ? "is-met" : ""}`}
                 style={{ height: d.minutes > 0 ? `max(4px, ${pct(d.minutes)})` : 0, animationDelay: `${i * 60}ms` }}
               >
                 {label && d.minutes > 0 ? <span className="week-bar-value">{d.minutes}</span> : null}
+                {d.minutes >= goal ? <span className="week-bar-check">{Icon.check}</span> : null}
               </span>
             </div>
           );
@@ -1569,7 +1624,7 @@ function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: num
               key={d.key}
               className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)}`}
               style={{ animationDelay: `${Math.floor(i / 7) * 25}ms` }}
-              onPointerEnter={(e) => show(e, dayTitle(d))}
+              onPointerEnter={(e) => show(e, dayTitle(d, goal))}
             />
           ) : (
             <span key={`pad-${i}`} className="heat-cell is-pad" />
@@ -1584,7 +1639,7 @@ function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: num
           {([1, 2, 3] as const).map((lv) => (
             <span key={lv}>
               <i className={`heat-cell lv-${lv}`} />
-              {LEVEL_LABELS[lv]}
+              {lv === 3 ? "Meta cumprida ✓" : LEVEL_LABELS[lv]}
             </span>
           ))}
         </span>
@@ -1630,20 +1685,55 @@ function ReadingDashboard({
   ];
   return (
     <section className="dashboard" aria-label="Sua leitura">
-      <div className="dash-card dash-today">
+      <div className="dash-card dash-goal">
+        <span className="dash-label">Meta de hoje</span>
         <GoalRing minutes={summary.todayMinutes} goal={summary.goalMinutes} />
-        <div className="dash-streak">
+        {summary.todayMinutes >= summary.goalMinutes ? (
+          <span className="goal-caption is-done">
+            <span className="goal-ring-check">{Icon.check}</span>
+            Meta cumprida!
+          </span>
+        ) : (
+          <span className="goal-caption">
+            faltam {summary.goalMinutes - summary.todayMinutes} min
+          </span>
+        )}
+      </div>
+
+      <div className={`dash-card dash-streak ${summary.readToday ? "is-lit" : ""}`}>
+        <StreakFlame lit={summary.readToday} />
+        <div className="dash-streak-info">
           <span className="dash-label">Sequência</span>
-          <strong className={`dash-hero ${summary.readToday ? "is-lit" : ""}`}>
-            <span className="dash-flame" aria-hidden="true">🔥</span>
+          <strong className="dash-hero">
             <CountUp value={summary.streak} />
+            <small>{summary.streak === 1 ? "dia" : "dias"}</small>
           </strong>
           <span className="dash-sub">
-            {summary.streak === 1 ? "dia seguido" : "dias seguidos"} · recorde {totals.bestStreak}
+            {summary.readToday
+              ? "Você já leu hoje. O fogo está aceso!"
+              : summary.streak > 0
+                ? "Leia hoje para não apagar o fogo."
+                : "Leia um pouco hoje para acender o fogo."}
           </span>
-          {summary.shields > 0 ? (
-            <span className="dash-shield">🛡️ {summary.shields} {summary.shields === 1 ? "escudo" : "escudos"}</span>
-          ) : null}
+          <span className="dash-record">🏆 Recorde: {totals.bestStreak} {totals.bestStreak === 1 ? "dia" : "dias"}</span>
+          {(() => {
+            const { daysPerShield, maxShields } = SHIELD_RULES;
+            if (summary.shields >= maxShields) {
+              return <span className="dash-shield">🛡️ {summary.shields} escudos protegendo a sequência</span>;
+            }
+            const into = summary.streak % daysPerShield;
+            return (
+              <div className="dash-shield-progress" title="A cada 7 dias seguidos você ganha um escudo, que salva a sequência se um dia passar sem leitura.">
+                <span>
+                  🛡️ {summary.shields > 0 ? `${summary.shields} ${summary.shields === 1 ? "escudo" : "escudos"} · ` : ""}
+                  faltam {daysPerShield - into} {daysPerShield - into === 1 ? "dia" : "dias"} para o próximo
+                </span>
+                <span className="dash-shield-bar">
+                  <span style={{ width: `${(into / daysPerShield) * 100}%` }} />
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

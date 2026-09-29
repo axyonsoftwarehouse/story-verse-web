@@ -285,3 +285,6 @@ export function readingDays(n: number): ReadingDay[] {
     return { key, date, minutes: Math.floor((stats[key] ?? 0) / 60), state };
   });
 }
+
+/** Para o painel: de quantos em quantos dias se ganha um escudo e o máximo guardado. */
+export const SHIELD_RULES = { daysPerShield: DAYS_PER_SHIELD, maxShields: MAX_SHIELDS };
