@@ -15,6 +15,7 @@ export const EMAIL_OTP_ENABLED = import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED
 export type SupabaseUser = {
   id: string;
   email: string;
+  created_at?: string;
   user_metadata?: Record<string, unknown>;
 };
 
@@ -283,6 +284,17 @@ export async function requestPasswordReset(email: string): Promise<void> {
 /** Define a senha nova (logado pelo link de recuperação). */
 export async function updatePassword(session: SupabaseSession, password: string): Promise<void> {
   await authRequest("user", { password }, session.access_token, "PUT");
+}
+
+/** Nome e avatar do perfil (ficam em user_metadata na conta; o avatar é só um id, sem imagem). */
+export async function updateProfileData(
+  session: SupabaseSession,
+  data: { name?: string; avatar?: string | null },
+): Promise<SupabaseSession> {
+  const user = (await authRequest("user", { data }, session.access_token, "PUT")) as unknown as SupabaseUser;
+  const next = { ...session, user: { ...session.user, ...user } };
+  storeSession(next);
+  return next;
 }
 
 let restoreSessionRequest: Promise<SupabaseSession | null> | null = null;

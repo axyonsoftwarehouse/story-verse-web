@@ -62,3 +62,21 @@ export function splitByHighlights(text: string, marks: string[]): { text: string
   if (pos < text.length) out.push({ text: text.slice(pos), marked: false });
   return out;
 }
+
+/** Marcações de todos os livros (para o perfil), das mais recentes para as mais antigas. */
+export function allHighlights(): { bookId: string; highlights: Highlight[] }[] {
+  const prefix = KEY("");
+  const out: { bookId: string; highlights: Highlight[]; latest: number }[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      const bookId = key.slice(prefix.length);
+      const list = loadHighlights(bookId);
+      if (list.length) out.push({ bookId, highlights: list, latest: Math.max(...list.map((h) => h.createdAt ?? 0)) });
+    }
+  } catch {
+    // Sem armazenamento.
+  }
+  return out.sort((a, b) => b.latest - a.latest).map(({ bookId, highlights }) => ({ bookId, highlights }));
+}

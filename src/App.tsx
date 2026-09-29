@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
 import {
@@ -10,8 +11,10 @@ import {
 } from "./lib/ai";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
+import { finishedBooks, markBookFinished } from "./lib/finished";
 import { lookupWord, normalizeWord, type WordInfo } from "./lib/dictionary";
 import {
+  allHighlights,
   forgetHighlights,
   loadHighlights,
   MAX_HIGHLIGHT_CHARS,
@@ -50,6 +53,7 @@ import {
   hasAnyReading,
   lastReadDay,
   readingSummary,
+  readingTotals,
   reconcileStreak,
   setReadingGoalMinutes,
   takeShieldNotice,
@@ -96,6 +100,7 @@ import {
   storedAuthSession,
   resendSignupCode,
   requestPasswordReset,
+  updateProfileData,
   updatePassword,
   restoreAuthSession,
   signInWithPassword,
@@ -442,6 +447,12 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
       <path d="M16 3.5v3M14.5 5h3" />
+    </svg>
+  ),
+  pencil: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
     </svg>
   ),
   close: (
@@ -1055,6 +1066,536 @@ function ReminderSetup({ lastBook }: { lastBook?: LastBook }) {
   );
 }
 
+/** Nome mostrado no perfil: o do cadastro ou, sem ele, o começo do e-mail. */
+function displayNameOf(user: SupabaseUser): string {
+  const name = typeof user.user_metadata?.name === "string" ? user.user_metadata.name.trim() : "";
+  return name || user.email.split("@")[0];
+}
+
+const PROFILE_COLORS = ["#e4b86a", "#9bc4b5", "#d7a0b4", "#a8b8e0", "#c9a27e", "#b7c98a"];
+function profileColor(id: string): string {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return PROFILE_COLORS[h % PROFILE_COLORS.length];
+}
+
+function formatMinutes(total: number): string {
+  if (total < 60) return `${total} min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+function memberSince(iso?: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+/** Avatar escolhido (dos prontos) ou a inicial do nome sobre a cor da conta. */
+function UserAvatar({ user, className }: { user: SupabaseUser; className: string }) {
+  const avatar = findAvatar(user.user_metadata?.avatar);
+  return (
+    <span
+      className={`${className} ${avatar ? "has-art" : ""}`}
+      style={{ "--c": avatar?.color ?? profileColor(user.id) } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      {avatar ? <AvatarArt avatar={avatar} /> : displayNameOf(user).charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+/** Grade com os avatares prontos; salva na conta ao escolher. */
+function AvatarPicker({
+  session,
+  onSaved,
+  onClose,
+}: {
+  session: SupabaseSession;
+  onSaved: (session: SupabaseSession) => void;
+  onClose: () => void;
+}) {
+  const current = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
+  const [saving, setSaving] = useState<string | null | undefined>(undefined);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  async function choose(id: string | null) {
+    if (id === current) return onClose();
+    setSaving(id);
+    setError("");
+    try {
+      onSaved(await updateProfileData(session, { avatar: id }));
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar o avatar.");
+      setSaving(undefined);
+    }
+  }
+
+  const busy = saving !== undefined;
+  const initialUser = { ...session.user, user_metadata: { ...session.user.user_metadata, avatar: null } };
+  return (
+    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="auth-card avatar-picker" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
+        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
+          {Icon.close}
+        </button>
+        <h2 id="avatar-title">Escolha seu avatar</h2>
+        <p className="auth-subtitle">Ele aparece no seu perfil e no topo do app.</p>
+        <div className="avatar-grid" role="radiogroup" aria-label="Avatares">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={current === null}
+            className={`avatar-choice ${current === null ? "is-on" : ""}`}
+            onClick={() => void choose(null)}
+            disabled={busy}
+          >
+            <UserAvatar user={initialUser} className="avatar-choice-art" />
+            <span>{saving === null ? "Salvando…" : "Inicial"}</span>
+          </button>
+          {AVATARS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="radio"
+              aria-checked={current === a.id}
+              className={`avatar-choice ${current === a.id ? "is-on" : ""}`}
+              onClick={() => void choose(a.id)}
+              disabled={busy}
+            >
+              <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
+                <AvatarArt avatar={a} />
+              </span>
+              <span>{saving === a.id ? "Salvando…" : a.label}</span>
+            </button>
+          ))}
+        </div>
+        {error ? <p className="auth-error" role="alert">{error}</p> : null}
+      </section>
+    </div>
+  );
+}
+
+type ReadingPrefs = ReturnType<typeof loadPrefs>;
+
+/** Perfil: quem é o leitor, números da leitura, estante, marcações, preferências e conta. */
+function ProfilePage({
+  session,
+  onSessionChange,
+  onClose,
+  onLogout,
+  loggingOut,
+  onOpenBook,
+  onOpenHighlight,
+  prefs,
+  setPrefs,
+  lastBook,
+}: {
+  session: SupabaseSession;
+  onSessionChange: (session: SupabaseSession) => void;
+  onClose: () => void;
+  onLogout: () => void;
+  loggingOut: boolean;
+  onOpenBook: (book: Ebook) => void;
+  onOpenHighlight: (book: Ebook, h: Highlight) => void;
+  prefs: ReadingPrefs;
+  setPrefs: React.Dispatch<React.SetStateAction<ReadingPrefs>>;
+  lastBook?: LastBook;
+}) {
+  const user = session.user;
+  const name = displayNameOf(user);
+  const since = memberSince(user.created_at);
+
+  const [summary, setSummary] = useState(readingSummary);
+  const totals = useMemo(readingTotals, []);
+  const reading = useMemo(recentProgress, []);
+  const finished = useMemo(finishedBooks, []);
+  const [imported, setImported] = useState<Ebook[]>([]);
+  useEffect(() => {
+    void listLocalBooks().then(setImported).catch(() => {});
+  }, []);
+
+  // Livro de cada marcação: dos começados, terminados, importados ou da estante.
+  const bookById = useMemo(() => {
+    const map = new Map<string, Ebook>();
+    for (const b of featuredBooks) map.set(b.id, b);
+    for (const b of imported) map.set(b.id, b);
+    for (const f of finished) map.set(f.book.id, f.book);
+    for (const p of reading) map.set(p.book.id, p.book);
+    return map;
+  }, [imported, finished, reading]);
+
+  const marks = useMemo(
+    () =>
+      allHighlights()
+        .map(({ bookId, highlights }) => {
+          const groups = new Map<string, { first: Highlight; text: string }>();
+          for (const h of [...highlights].sort((a, b) => a.chapterIndex - b.chapterIndex || a.paragraph - b.paragraph)) {
+            const key = h.group ?? h.id;
+            const g = groups.get(key);
+            if (g) g.text = `${g.text} ${h.text}`;
+            else groups.set(key, { first: h, text: h.text });
+          }
+          return { book: bookById.get(bookId), items: [...groups.values()] };
+        })
+        .filter((m): m is { book: Ebook; items: { first: Highlight; text: string }[] } => Boolean(m.book)),
+    [bookById],
+  );
+  const markCount = marks.reduce((n, m) => n + m.items.length, 0);
+  const lendo = reading.filter((p) => !finished.some((f) => f.book.id === p.book.id));
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Nome
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(name);
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
+  async function saveName(e: React.FormEvent) {
+    e.preventDefault();
+    const next = nameDraft.trim().slice(0, 60);
+    if (!next) return setNameError("Informe um nome.");
+    setNameSaving(true);
+    setNameError("");
+    try {
+      onSessionChange(await updateProfileData(session, { name: next }));
+      setEditingName(false);
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : "Não foi possível salvar o nome.");
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
+  // Senha
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [pwState, setPwState] = useState<{ loading?: boolean; error?: string; ok?: string }>({});
+  async function savePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (pw.length < 6) return setPwState({ error: "A senha precisa ter pelo menos 6 caracteres." });
+    if (pw !== pwConfirm) return setPwState({ error: "As duas senhas não são iguais." });
+    setPwState({ loading: true });
+    try {
+      await updatePassword(session, pw);
+      setPw("");
+      setPwConfirm("");
+      setPwOpen(false);
+      setPwState({ ok: "Senha trocada." });
+    } catch (err) {
+      setPwState({ error: err instanceof Error ? err.message : "Não foi possível trocar a senha." });
+    }
+  }
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !editingName && !pickerOpen) onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, editingName, pickerOpen]);
+
+  const stats = [
+    { label: "Sequência atual", value: `${summary.streak} ${summary.streak === 1 ? "dia" : "dias"}` },
+    { label: "Recorde", value: `${totals.bestStreak} ${totals.bestStreak === 1 ? "dia" : "dias"}` },
+    { label: "Nesta semana", value: formatMinutes(totals.weekMinutes) },
+    { label: "Tempo lendo", value: formatMinutes(totals.totalMinutes) },
+    { label: "Livros terminados", value: String(finished.length) },
+    { label: "Trechos marcados", value: String(markCount) },
+  ];
+
+  const shelf = (items: { book: Ebook; sub: string; pct?: number }[], empty: string) =>
+    items.length === 0 ? (
+      <p className="profile-empty">{empty}</p>
+    ) : (
+      <div className="result-grid">
+        {items.map(({ book, sub, pct }) => (
+          <button key={book.id} type="button" className="result" onClick={() => onOpenBook(book)}>
+            <BookCover book={book} />
+            {pct !== undefined ? (
+              <span className="continue-bar" aria-hidden="true">
+                <span style={{ width: `${Math.max(pct, 3)}%` }} />
+              </span>
+            ) : null}
+            <strong>{book.title}</strong>
+            <span>{sub}</span>
+          </button>
+        ))}
+      </div>
+    );
+
+  return (
+    <div className="home profile">
+      {pickerOpen ? <AvatarPicker session={session} onSaved={onSessionChange} onClose={() => setPickerOpen(false)} /> : null}
+      <nav className="home-nav profile-nav">
+        <button type="button" className="btn" onClick={onClose}>
+          {Icon.back} Voltar
+        </button>
+      </nav>
+
+      <header className="profile-hero">
+        <button type="button" className="profile-avatar-btn" onClick={() => setPickerOpen(true)} aria-label="Trocar avatar">
+          <UserAvatar user={user} className="profile-avatar" />
+          <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
+        </button>
+        <div className="profile-id">
+          {editingName ? (
+            <form className="profile-name-form" onSubmit={saveName}>
+              <input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                maxLength={60}
+                autoFocus
+                aria-label="Seu nome"
+                disabled={nameSaving}
+              />
+              <button type="submit" className="btn btn-primary" disabled={nameSaving}>
+                {nameSaving ? "Salvando…" : "Salvar"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setEditingName(false);
+                  setNameDraft(name);
+                  setNameError("");
+                }}
+                disabled={nameSaving}
+              >
+                Cancelar
+              </button>
+            </form>
+          ) : (
+            <h1>
+              {name}
+              <button type="button" className="inline-link profile-edit" onClick={() => setEditingName(true)}>
+                Editar
+              </button>
+            </h1>
+          )}
+          {nameError ? <p className="auth-error" role="alert">{nameError}</p> : null}
+          <p>
+            {user.email}
+            {since ? ` · lendo no Storyverse desde ${since}` : ""}
+          </p>
+        </div>
+      </header>
+
+      <section className="profile-stats" aria-label="Sua leitura">
+        {stats.map((s) => (
+          <div key={s.label} className="profile-stat">
+            <strong>{s.value}</strong>
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </section>
+      <p className="profile-device-note">Os números e as marcações são deste aparelho.</p>
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Lendo agora</h2>
+        </div>
+        {shelf(
+          lendo.map((p) => {
+            const pct = Math.round(progressPct(p));
+            return { book: p.book, sub: `${p.chapterLabel} · ${pct}%`, pct };
+          }),
+          "Nenhum livro começado ainda.",
+        )}
+      </section>
+
+      {finished.length > 0 ? (
+        <section className="shelf">
+          <div className="shelf-head">
+            <h2>Terminados</h2>
+          </div>
+          {shelf(
+            finished.map((f) => ({
+              book: f.book,
+              sub: `Terminado em ${new Date(f.finishedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
+            })),
+            "",
+          )}
+        </section>
+      ) : null}
+
+      {imported.length > 0 ? (
+        <section className="shelf">
+          <div className="shelf-head">
+            <h2>Seus livros importados</h2>
+          </div>
+          {shelf(imported.map((b) => ({ book: b, sub: b.author })), "")}
+        </section>
+      ) : null}
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Marcações</h2>
+          <p>Os trechos que você destacou, de todos os livros.</p>
+        </div>
+        {marks.length === 0 ? (
+          <p className="profile-empty">
+            Selecione um trecho durante a leitura e toque em <strong>Marcar</strong> para guardar aqui.
+          </p>
+        ) : (
+          <div className="profile-marks">
+            {marks.map(({ book, items }) => (
+              <div key={book.id} className="profile-card profile-mark-book">
+                <h3>{book.title}</h3>
+                <ul className="marks-list">
+                  {items.map(({ first, text }) => (
+                    <li key={first.group ?? first.id}>
+                      <span className="marks-chapter">{first.chapterLabel}</span>
+                      <blockquote>{text}</blockquote>
+                      <div className="marks-actions">
+                        <button type="button" className="link-btn" onClick={() => onOpenHighlight(book, first)}>
+                          Abrir no trecho
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Preferências</h2>
+        </div>
+        <div className="profile-card profile-prefs">
+          <div className="profile-pref">
+            <span>Meta diária</span>
+            <div className="segmented" role="radiogroup" aria-label="Meta diária">
+              {GOAL_OPTIONS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={summary.goalMinutes === m}
+                  className={summary.goalMinutes === m ? "is-on" : ""}
+                  onClick={() => {
+                    setReadingGoalMinutes(m);
+                    setSummary(readingSummary());
+                  }}
+                >
+                  {m} min
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="profile-pref">
+            <span>Tema de leitura</span>
+            <div className="segmented" role="radiogroup" aria-label="Tema de leitura">
+              {(["night", "sepia"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={prefs.theme === t}
+                  className={prefs.theme === t ? "is-on" : ""}
+                  onClick={() => setPrefs((p) => ({ ...p, theme: t }))}
+                >
+                  {t === "night" ? "Noturno" : "Sépia"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="profile-pref">
+            <span>Luz noturna</span>
+            <div className="segmented" role="radiogroup" aria-label="Luz noturna">
+              {([0, 1, 2] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={prefs.nightLight === n}
+                  className={prefs.nightLight === n ? "is-on" : ""}
+                  onClick={() => setPrefs((p) => ({ ...p, nightLight: n }))}
+                >
+                  {NIGHT_LIGHT_LABELS[n].charAt(0).toUpperCase() + NIGHT_LIGHT_LABELS[n].slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ReminderSetup lastBook={lastBook} />
+        </div>
+      </section>
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Conta</h2>
+        </div>
+        <div className="profile-card profile-account">
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">E-mail</span>
+              <strong>{user.email}</strong>
+            </div>
+          </div>
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">Senha</span>
+              <strong>••••••••</strong>
+            </div>
+            {!pwOpen ? (
+              <button type="button" className="btn" onClick={() => { setPwOpen(true); setPwState({}); }}>
+                Trocar senha
+              </button>
+            ) : null}
+          </div>
+          {pwOpen ? (
+            <form className="auth-form profile-pw-form" onSubmit={savePassword}>
+              <label>
+                Senha nova
+                <PasswordInput value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={6} required disabled={pwState.loading} />
+              </label>
+              <label>
+                Repita a senha
+                <PasswordInput value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" minLength={6} required disabled={pwState.loading} />
+              </label>
+              {pwState.error ? <p className="auth-error" role="alert">{pwState.error}</p> : null}
+              <div className="profile-pw-actions">
+                <button type="button" className="btn" onClick={() => { setPwOpen(false); setPwState({}); }} disabled={pwState.loading}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={pwState.loading}>
+                  {pwState.loading ? "Salvando…" : "Salvar senha"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {pwState.ok ? <p className="auth-success" role="status">{pwState.ok}</p> : null}
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">Sessão</span>
+              <strong>Conectado neste aparelho</strong>
+            </div>
+            <button type="button" className="btn profile-logout" onClick={onLogout} disabled={loggingOut}>
+              {loggingOut ? "Saindo…" : "Sair da conta"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /** Sequência de dias lendo, semana, escudos, meta diária de minutos e lembrete. */
 function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
   const [summary, setSummary] = useState(readingSummary);
@@ -1660,6 +2201,9 @@ export function App() {
   const canRead = !loginRequired || !!authUser;
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  /** Aberto pelo perfil numa marcação: o livro abre direto nesse trecho. */
+  const openAtRef = useRef<{ bookId: string; chapterIndex: number; chapterLabel: string; paragraph: number } | null>(null);
 
   /** Chegou pelo link "esqueci minha senha": mostra a tela de senha nova. */
   const [passwordReset, setPasswordReset] = useState(false);
@@ -1764,6 +2308,7 @@ export function App() {
     } finally {
       setAuthSession(null);
       setAuthActionLoading(false);
+      setProfileOpen(false);
     }
   }
 
@@ -1912,7 +2457,17 @@ export function App() {
           : labels[saved.chapterIndex] === saved.chapterLabel
             ? saved.chapterIndex
             : labels.indexOf(saved.chapterLabel);
-        if (saved && savedIndex >= 0) {
+        const openAt = openAtRef.current?.bookId === book.id ? openAtRef.current : null;
+        openAtRef.current = null;
+        const openAtIndex = !openAt
+          ? -1
+          : labels[openAt.chapterIndex] === openAt.chapterLabel
+            ? openAt.chapterIndex
+            : labels.indexOf(openAt.chapterLabel);
+        if (openAt && openAtIndex >= 0) {
+          setChapterIndex(openAtIndex);
+          jumpToBlockRef.current = openAt.paragraph;
+        } else if (saved && savedIndex >= 0) {
           setChapterIndex(savedIndex);
           restoreScrollRef.current = saved.scrollRatio;
           // Quem volta para o meio do capítulo não precisa da dica de “meio de capítulo”.
@@ -2197,6 +2752,7 @@ export function App() {
     if (!el || el.scrollHeight < el.clientHeight * 1.5) return;
     finishedChaptersRef.current.add(key);
     if (chapterIndex >= chapters.length - 1) {
+      markBookFinished(book);
       setCelebration({ emoji: "🏆", title: `Você terminou “${book.title}”!`, text: "Que jornada. Conte para os personagens o que achou do final." });
     } else {
       setToast(`✓ ${currentChapter.label} concluído`);
@@ -2732,6 +3288,25 @@ export function App() {
         }
       : undefined;
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
+    if (profileOpen && authSession) {
+      return (
+        <ProfilePage
+          session={authSession}
+          onSessionChange={setAuthSession}
+          onClose={() => setProfileOpen(false)}
+          onLogout={() => void logout()}
+          loggingOut={authActionLoading}
+          onOpenBook={startBook}
+          onOpenHighlight={(b, h) => {
+            openAtRef.current = { bookId: b.id, chapterIndex: h.chapterIndex, chapterLabel: h.chapterLabel, paragraph: h.paragraph };
+            startBook(b);
+          }}
+          prefs={prefs}
+          setPrefs={setPrefs}
+          lastBook={lastBook}
+        />
+      );
+    }
     const heroBook = featuredBooks.find((b) => b.demo && b.characters?.length);
     const heroChar = heroBook?.characters?.[0];
     return (
@@ -2784,8 +3359,9 @@ export function App() {
               </button>
             ) : null}
             {!authEnabled ? null : authUser ? (
-              <button type="button" className="btn nav-account" onClick={() => void logout()} disabled={authActionLoading}>
-                {authActionLoading ? "Saindo..." : "Sair"}
+              <button type="button" className="btn nav-account" onClick={() => setProfileOpen(true)} aria-label="Abrir seu perfil">
+                <UserAvatar user={authUser} className="nav-avatar" />
+                <span className="nav-account-name">{displayNameOf(authUser).split(" ")[0]}</span>
               </button>
             ) : (
               <>
