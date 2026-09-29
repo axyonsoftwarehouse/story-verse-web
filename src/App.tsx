@@ -22,6 +22,7 @@ import {
   listSubmissions,
   matchesCommunitySearch,
   newBookLabel,
+  normalizeText,
   reviewSubmission,
   rightsLabel,
   RIGHTS_OPTIONS,
@@ -636,9 +637,12 @@ function Explore({
       .finally(() => setLoadingMore(false));
   };
 
+  const communityTitles = new Set(communityBooks.map((b) => normalizeText(b.title)));
   const shown = searching
     ? books
-    : suggestedBooks.filter((b) => language === "all" || b.textLanguage === language);
+    : suggestedBooks.filter(
+        (b) => (language === "all" || b.textLanguage === language) && !communityTitles.has(normalizeText(b.title)),
+      );
 
   const communityShown = communityBooks.filter(
     (b) => (language === "all" || b.textLanguage === language) && (!searching || matchesCommunitySearch(b, term)),
@@ -1628,6 +1632,96 @@ function ModerationPage({
         </ul>
       )}
     </div>
+  );
+}
+
+/** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
+function greetingNow(d = new Date()): string {
+  const h = d.getHours();
+  return h >= 5 && h < 12 ? "Bom dia" : h >= 12 && h < 18 ? "Boa tarde" : "Boa noite";
+}
+
+/**
+ * Estante em destaque para quem já está lendo: fileira que rola para o lado, com cartões
+ * compactos (capa, título, autor, personagens). A sinopse aparece ao passar o mouse.
+ */
+function FeaturedRow({
+  id,
+  title,
+  subtitle,
+  books,
+  progressById,
+  onOpen,
+}: {
+  id?: string;
+  title: string;
+  subtitle: string;
+  books: Ebook[];
+  progressById: Map<number, ReadingProgress>;
+  onOpen: (b: Ebook) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: false });
+  const updateEdges = useCallback(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    setEdges({ start: el.scrollLeft < 8, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 8 });
+  }, []);
+  useEffect(() => {
+    updateEdges();
+    window.addEventListener("resize", updateEdges);
+    return () => window.removeEventListener("resize", updateEdges);
+  }, [updateEdges]);
+  const scroll = (dir: 1 | -1) => {
+    const el = rowRef.current;
+    el?.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
+  };
+
+  return (
+    <section className="shelf featured-row" id={id}>
+      <div className="shelf-head">
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+        <div className="row-nav" aria-hidden="true">
+          <button type="button" className="icon-btn" onClick={() => scroll(-1)} disabled={edges.start} tabIndex={-1}>
+            {Icon.back}
+          </button>
+          <button type="button" className="icon-btn" onClick={() => scroll(1)} disabled={edges.end} tabIndex={-1}>
+            {Icon.next}
+          </button>
+        </div>
+      </div>
+      <div className="shelf-row" ref={rowRef} onScroll={updateEdges}>
+        {books.map((b) => {
+          const progress = progressById.get(b.gutenbergId);
+          const pct = progress ? Math.round(progressPct(progress)) : null;
+          return (
+            <button key={b.id} type="button" className="row-card" onClick={() => onOpen(b)} title={b.blurb}>
+              <BookCover book={b} />
+              {pct !== null ? (
+                <span className="continue-bar" aria-hidden="true">
+                  <span style={{ width: `${Math.max(pct, 3)}%` }} />
+                </span>
+              ) : null}
+              <strong>{b.title}</strong>
+              <span className="row-card-author">{b.author}</span>
+              {b.characters?.length ? (
+                <span className="row-card-cast">
+                  <span className="avatar-stack">
+                    {b.characters.slice(0, 3).map((c) => (
+                      <Avatar key={c.id} character={c} size="sm" bookTitle={b.title} />
+                    ))}
+                  </span>
+                  {pct !== null ? `${pct}% lido` : null}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -3855,8 +3949,10 @@ export function App() {
     }
     const heroBook = featuredBooks.find((b) => b.demo && b.characters?.length);
     const heroChar = heroBook?.characters?.[0];
+    /** Já entrou e pode ler: sem a apresentação do app, direto para os livros. */
+    const returning = Boolean(authUser) && canRead;
     return (
-      <div className="home" key={dataEpoch}>
+      <div className={`home ${returning ? "is-returning" : ""}`} key={dataEpoch}>
         {authModal ? (
           <AuthModal
             mode={authModal}
@@ -3969,6 +4065,34 @@ export function App() {
           </div>
         ) : null}
 
+        {returning ? (
+          <header className="welcome">
+            <span className="eyebrow">Storyverse</span>
+            <h1>
+              {greetingNow()}{authUser ? `, ${displayNameOf(authUser).split(" ")[0]}` : ""} <span aria-hidden="true">👋</span>
+            </h1>
+            <p>
+              {recent[0]
+                ? `Pronto para voltar a “${recent[0].book.title}”?`
+                : "Escolha um livro e comece a conversa com os personagens."}
+            </p>
+            <div className="welcome-actions">
+              {recent[0] ? (
+                <button type="button" className="btn btn-primary" onClick={() => startBook(recent[0].book)}>
+                  Continuar lendo
+                </button>
+              ) : (
+                <button type="button" className="btn btn-primary" onClick={() => goToHomeSection("destaques")}>
+                  Ver os destaques
+                </button>
+              )}
+              <button type="button" className="btn" onClick={() => goToHomeSection("acervo")}>
+                {Icon.search} Buscar no acervo
+              </button>
+            </div>
+          </header>
+        ) : (
+        <>
         <header className="hero">
           <div className="hero-copy">
             <span className="eyebrow">Leitura interativa</span>
@@ -4033,7 +4157,6 @@ export function App() {
           ) : null}
         </header>
 
-        <>
         <section className="steps" aria-label="Como funciona">
           <div className="step">
             <span className="step-n">1</span>
@@ -4051,6 +4174,8 @@ export function App() {
             <p>Pergunte, provoque, desabafe — eles sabem onde você parou e não dão spoiler.</p>
           </div>
         </section>
+        </>
+        )}
 
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
 
@@ -4086,6 +4211,19 @@ export function App() {
         {SHELVES.map((shelf, si) => {
           const books = featuredBooks.filter((b) => (b.shelf ?? "classicos") === shelf.id);
           if (books.length === 0) return null;
+          if (canRead) {
+            return (
+              <FeaturedRow
+                key={shelf.id}
+                id={si === 0 ? "destaques" : undefined}
+                title={shelf.title}
+                subtitle={shelf.subtitle}
+                books={books}
+                progressById={progressById}
+                onOpen={startBook}
+              />
+            );
+          }
           return (
             <section key={shelf.id} className="shelf" id={si === 0 ? "destaques" : undefined}>
               <div className="shelf-head">
@@ -4143,7 +4281,7 @@ export function App() {
           );
         })}
 
-        {communityBooks.length > 0 ? (
+        {communityBooks.some((b) => !isNewCommunityBook(b)) ? (
           <ProfileShelf
             title="Da comunidade"
             subtitle="Livros enviados por leitores e aprovados pela curadoria."
@@ -4207,7 +4345,6 @@ export function App() {
             Sobre nós
           </button>
         </footer>
-        </>
       </div>
     );
   }

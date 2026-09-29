@@ -274,6 +274,10 @@ export function newBookLabel(book: Ebook): string {
   return d === 0 ? "Novo · hoje" : d === 1 ? "Novo · ontem" : `Novo · há ${d} dias`;
 }
 
+export function normalizeText(text: string): string {
+  return normalize(text);
+}
+
 function normalize(text: string): string {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
