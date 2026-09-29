@@ -93,6 +93,7 @@ import {
   consumeAuthRedirect,
   EMAIL_OTP_ENABLED,
   refreshAuthSession,
+  storedAuthSession,
   resendSignupCode,
   requestPasswordReset,
   updatePassword,
@@ -414,6 +415,23 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="3" y="5" width="18" height="14" rx="2.5" />
       <path d="m4 7 8 6 8-6" />
+    </svg>
+  ),
+  calendar: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </svg>
+  ),
+  download: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" />
+    </svg>
+  ),
+  bell: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
     </svg>
   ),
   close: (
@@ -974,37 +992,55 @@ function ReminderSetup({ lastBook }: { lastBook?: LastBook }) {
 
   return (
     <div className="reminder">
-      <label className="reminder-time">
-        Todo dia às
-        <input
-          type="time"
-          value={prefs.time}
-          onChange={(e) => e.target.value && update({ ...prefs, time: e.target.value })}
-        />
-      </label>
-      <div className="reminder-actions">
-        <a className="btn" href={googleCalendarUrl(prefs.time, text)} target="_blank" rel="noreferrer">
-          Google Agenda
-        </a>
-        <button type="button" className="btn" onClick={() => downloadIcs(prefs.time, text)}>
-          iPhone / outro calendário
-        </button>
-      </div>
-      <p className="reminder-note">
-        O calendário do seu celular avisa todo dia no horário escolhido: <em>“{text.details}”</em>
-      </p>
-
-      {support === "supported" ? (
-        <button type="button" className={`btn reminder-push ${prefs.notifications ? "is-on" : ""}`} onClick={() => void toggleNotifications()}>
-          {prefs.notifications ? "🔔 Notificações ligadas — desligar" : "🔔 Receber notificações do app"}
-        </button>
-      ) : support === "install-first" ? (
+      <div className="reminder-when">
+        <span className="reminder-label">Lembrete diário</span>
+        <label className="reminder-time">
+          <span className="sr-only">Horário do lembrete</span>
+          <input
+            type="time"
+            value={prefs.time}
+            onChange={(e) => e.target.value && update({ ...prefs, time: e.target.value })}
+          />
+        </label>
         <p className="reminder-note">
-          <strong>Instale o app</strong> (botão “Instalar”) para receber também notificações automáticas quando você
-          esquecer de ler.
+          Você vai receber: <em>“{text.details}”</em>
         </p>
-      ) : null}
-      {status ? <p className="reminder-status" role="status">{status}</p> : null}
+      </div>
+
+      <div className="reminder-how">
+        <span className="reminder-label">Como avisar</span>
+        <div className="reminder-options">
+          <a className="reminder-option" href={googleCalendarUrl(prefs.time, text)} target="_blank" rel="noreferrer">
+            <span className="reminder-option-icon" aria-hidden="true">{Icon.calendar}</span>
+            <strong>Google Agenda</strong>
+            <span>Android e computador</span>
+          </a>
+          <button type="button" className="reminder-option" onClick={() => downloadIcs(prefs.time, text)}>
+            <span className="reminder-option-icon" aria-hidden="true">{Icon.download}</span>
+            <strong>Outro calendário</strong>
+            <span>iPhone, Outlook e Apple</span>
+          </button>
+          {support === "supported" ? (
+            <button
+              type="button"
+              className={`reminder-option ${prefs.notifications ? "is-on" : ""}`}
+              onClick={() => void toggleNotifications()}
+              aria-pressed={prefs.notifications}
+            >
+              <span className="reminder-option-icon" aria-hidden="true">{Icon.bell}</span>
+              <strong>{prefs.notifications ? "Notificações ligadas" : "Notificação do app"}</strong>
+              <span>{prefs.notifications ? "Toque para desligar" : "Avisa só se você esquecer"}</span>
+            </button>
+          ) : support === "install-first" ? (
+            <div className="reminder-option is-disabled">
+              <span className="reminder-option-icon" aria-hidden="true">{Icon.bell}</span>
+              <strong>Notificação do app</strong>
+              <span>Instale o app para ativar</span>
+            </div>
+          ) : null}
+        </div>
+        {status ? <p className="reminder-status" role="status">{status}</p> : null}
+      </div>
     </div>
   );
 }
@@ -1658,14 +1694,22 @@ export function App() {
   const [refreshRetry, setRefreshRetry] = useState(0);
   useEffect(() => {
     if (!authSession) return;
-    const refreshIn = Math.max(1000, authSession.expires_at * 1000 - Date.now() - 60_000);
+    // Nunca menos de 30 s entre renovações: mesmo com o relógio errado, não estoura o limite do Supabase.
+    const refreshIn = Math.max(30_000, authSession.expires_at * 1000 - Date.now() - 60_000);
     let retryTimer = 0;
     const onOnline = () => setRefreshRetry((n) => n + 1);
     const timer = window.setTimeout(() => {
+      // Outra aba já renovou? Usa a sessão dela em vez de renovar de novo.
+      const stored = storedAuthSession();
+      if (stored && stored.refresh_token !== authSession.refresh_token && stored.expires_at > authSession.expires_at) {
+        setAuthSession(stored);
+        return;
+      }
       void refreshAuthSession(authSession.refresh_token)
         .then((session) => setAuthSession(session))
         .catch((err: unknown) => {
-          // Sem internet: continua logado e tenta de novo quando a conexão voltar (ou em 1 min).
+          // Sem internet ou limite do Supabase: continua logado e tenta de novo quando a conexão
+          // voltar (ou em 1 min).
           if (err instanceof AuthNetworkError) {
             window.addEventListener("online", onOnline, { once: true });
             retryTimer = window.setTimeout(onOnline, 60_000);

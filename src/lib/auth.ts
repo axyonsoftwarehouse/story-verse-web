@@ -105,6 +105,10 @@ async function authRequest(
   if (/error sending .*email/i.test(serverMessage)) {
     throw new Error("Não conseguimos enviar o e-mail agora. Tente de novo em alguns minutos.");
   }
+  // Limite de requisições (429): espera e tenta depois, sem deslogar ninguém.
+  if (response.status === 429) {
+    throw new AuthNetworkError(describeAuthError(serverMessage || "too many requests"));
+  }
   // Supabase fora do ar também não é motivo para deslogar.
   if (response.status >= 500) {
     throw new AuthNetworkError("O serviço de autenticação está instável. Tente de novo em instantes.");
@@ -121,7 +125,11 @@ function makeSession(payload: AuthResponse): SupabaseSession | null {
   return {
     access_token: payload.access_token,
     refresh_token: payload.refresh_token,
-    expires_at: payload.expires_at ?? Math.floor(Date.now() / 1000) + (payload.expires_in ?? 3600),
+    // Pelo relógio do aparelho (expires_in): com o relógio adiantado, o expires_at do servidor
+    // parecia sempre vencido e o app renovava a sessão sem parar.
+    expires_at: payload.expires_in
+      ? Math.floor(Date.now() / 1000) + payload.expires_in
+      : payload.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
     user: payload.user,
   };
 }
@@ -169,6 +177,16 @@ export async function verifySignupCode(email: string, token: string): Promise<Su
 
 export async function resendSignupCode(email: string): Promise<void> {
   await authRequest("resend", { type: "signup", email });
+}
+
+/** Sessão guardada neste aparelho (pode ter sido renovada por outra aba). */
+export function storedAuthSession(): SupabaseSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as SupabaseSession) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
@@ -245,13 +263,11 @@ async function readAuthRedirect(): Promise<RedirectResult> {
   if (!access_token || !refresh_token) return null;
 
   const user = (await authRequest("user", undefined, access_token, "GET")) as unknown as SupabaseUser;
-  const expiresAt = Number(params.get("expires_at"));
+  const expiresIn = Number(params.get("expires_in"));
   const session: SupabaseSession = {
     access_token,
     refresh_token,
-    expires_at: Number.isFinite(expiresAt) && expiresAt > 0
-      ? expiresAt
-      : Math.floor(Date.now() / 1000) + Number(params.get("expires_in") ?? 3600),
+    expires_at: Math.floor(Date.now() / 1000) + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600),
     user,
   };
   storeSession(session);
