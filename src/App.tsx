@@ -1121,46 +1121,76 @@ function UserAvatar({ user, className }: { user: SupabaseUser; className: string
   );
 }
 
-/** Janela com os avatares prontos; a escolha entra no rascunho do perfil (salva no "Salvar alterações"). */
-function AvatarPicker({
-  user,
-  current,
-  onPick,
+/** Janela "Editar perfil": nome e avatar, com prévia e salvar na própria janela. */
+function EditProfileModal({
+  session,
+  onSaved,
   onClose,
 }: {
-  user: SupabaseUser;
-  current: string | null;
-  onPick: (id: string | null) => void;
+  session: SupabaseSession;
+  onSaved: (session: SupabaseSession) => void;
   onClose: () => void;
 }) {
+  const savedName = displayNameOf(session.user);
+  const savedAvatar = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
+  const [name, setName] = useState(savedName);
+  const [avatar, setAvatar] = useState<string | null>(savedAvatar);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const trimmed = name.trim().slice(0, 60);
+  const changed = trimmed !== savedName || avatar !== savedAvatar;
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !saving) onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, saving]);
 
-  const pick = (id: string | null) => {
-    onPick(id);
-    onClose();
-  };
-  const initialUser = { ...user, user_metadata: { ...user.user_metadata, avatar: null } };
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!trimmed) return setError("Informe um nome.");
+    if (!changed) return onClose();
+    setSaving(true);
+    setError("");
+    try {
+      onSaved(await updateProfileData(session, { name: trimmed, avatar }));
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
+      setSaving(false);
+    }
+  }
+
+  const preview: SupabaseUser = { ...session.user, user_metadata: { ...session.user.user_metadata, name: trimmed || savedName, avatar } };
+  const initialUser = { ...preview, user_metadata: { ...preview.user_metadata, avatar: null } };
   return (
-    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="auth-card avatar-picker" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
-        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
+    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose()}>
+      <form className="auth-card edit-profile" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title" onSubmit={save}>
+        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar" disabled={saving}>
           {Icon.close}
         </button>
-        <h2 id="avatar-title">Escolha seu avatar</h2>
-        <p className="auth-subtitle">Ele aparece no seu perfil e no topo do app.</p>
+        <h2 id="edit-profile-title">Editar perfil</h2>
+
+        <div className="edit-profile-preview">
+          <UserAvatar user={preview} className="profile-avatar" />
+        </div>
+
+        <label className="edit-profile-name">
+          <span>Nome</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" disabled={saving} />
+        </label>
+
+        <span className="edit-profile-label">Avatar</span>
         <div className="avatar-grid" role="radiogroup" aria-label="Avatares">
           <button
             type="button"
             role="radio"
-            aria-checked={current === null}
-            className={`avatar-choice ${current === null ? "is-on" : ""}`}
-            onClick={() => pick(null)}
+            aria-checked={avatar === null}
+            className={`avatar-choice ${avatar === null ? "is-on" : ""}`}
+            onClick={() => setAvatar(null)}
+            disabled={saving}
           >
             <UserAvatar user={initialUser} className="avatar-choice-art" />
             <span>Inicial</span>
@@ -1170,9 +1200,10 @@ function AvatarPicker({
               key={a.id}
               type="button"
               role="radio"
-              aria-checked={current === a.id}
-              className={`avatar-choice ${current === a.id ? "is-on" : ""}`}
-              onClick={() => pick(a.id)}
+              aria-checked={avatar === a.id}
+              className={`avatar-choice ${avatar === a.id ? "is-on" : ""}`}
+              onClick={() => setAvatar(a.id)}
+              disabled={saving}
             >
               <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
                 <AvatarArt avatar={a} />
@@ -1181,7 +1212,17 @@ function AvatarPicker({
             </button>
           ))}
         </div>
-      </section>
+
+        {error ? <p className="auth-error" role="alert">{error}</p> : null}
+        <div className="edit-profile-actions">
+          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving || !changed}>
+            {saving ? "Salvando…" : "Salvar"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -1265,8 +1306,7 @@ function ProfilePage({
   lastBook?: LastBook;
 }) {
   const user = session.user;
-  const savedName = displayNameOf(user);
-  const savedAvatar = findAvatar(user.user_metadata?.avatar)?.id ?? null;
+  const name = displayNameOf(user);
   const since = memberSince(user.created_at);
 
   const [summary, setSummary] = useState(readingSummary);
@@ -1278,32 +1318,23 @@ function ProfilePage({
     void listLocalBooks().then(setImported).catch(() => {});
   }, []);
 
-  // ---- Rascunho (só vale depois de salvar) ----
-  const [name, setName] = useState(savedName);
-  const [avatar, setAvatar] = useState<string | null>(savedAvatar);
+  // ---- Rascunho das preferências (só vale depois de salvar) ----
   const [goal, setGoal] = useState(summary.goalMinutes);
   const [theme, setTheme] = useState(prefs.theme);
   const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
   const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const nameBeforeEdit = useRef(savedName);
+  const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
 
-  const trimmedName = name.trim().slice(0, 60);
-  const accountDirty = trimmedName !== savedName || avatar !== savedAvatar;
   const dirty =
-    accountDirty ||
     goal !== summary.goalMinutes ||
     theme !== prefs.theme ||
     nightLight !== prefs.nightLight ||
     reminderTime !== loadReminderPrefs().time;
 
   function discard() {
-    setName(savedName);
-    setAvatar(savedAvatar);
     setGoal(summary.goalMinutes);
     setTheme(prefs.theme);
     setNightLight(prefs.nightLight);
@@ -1312,16 +1343,13 @@ function ProfilePage({
   }
 
   async function save() {
-    if (!trimmedName) return setSaveError("Informe um nome.");
     setSaving(true);
     setSaveError("");
     try {
-      if (accountDirty) onSessionChange(await updateProfileData(session, { name: trimmedName, avatar }));
       setReadingGoalMinutes(goal);
       setSummary(readingSummary());
       setPrefs((p) => ({ ...p, theme, nightLight }));
       saveReminderPrefs({ ...loadReminderPrefs(), time: reminderTime });
-      setName(trimmedName);
       setSavedFlash(true);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
@@ -1403,8 +1431,7 @@ function ProfilePage({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const previewUser: SupabaseUser = { ...user, user_metadata: { ...user.user_metadata, name: trimmedName || savedName, avatar } };
-  const previewAvatar = findAvatar(avatar);
+  const chosenAvatar = findAvatar(user.user_metadata?.avatar);
 
   const stats = [
     { icon: "🔥", label: "Sequência atual", value: `${summary.streak} ${summary.streak === 1 ? "dia" : "dias"}` },
@@ -1417,9 +1444,7 @@ function ProfilePage({
 
   return (
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
-      {pickerOpen ? (
-        <AvatarPicker user={previewUser} current={avatar} onPick={setAvatar} onClose={() => setPickerOpen(false)} />
-      ) : null}
+      {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
       <nav className="home-nav profile-nav">
         <button type="button" className="btn" onClick={leave}>
           {Icon.back} Voltar
@@ -1427,47 +1452,13 @@ function ProfilePage({
       </nav>
 
       <header className="profile-hero">
-        <div className="profile-hero-glow" style={{ "--c": previewAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
-        <button type="button" className="profile-avatar-btn" onClick={() => setPickerOpen(true)} aria-label="Trocar avatar">
-          <UserAvatar user={previewUser} className="profile-avatar" />
+        <div className="profile-hero-glow" style={{ "--c": chosenAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
+        <button type="button" className="profile-avatar-btn" onClick={() => setEditOpen(true)} aria-label="Editar perfil">
+          <UserAvatar user={user} className="profile-avatar" />
           <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
         </button>
         <div className="profile-id">
-          {editingName ? (
-            <input
-              className="profile-name-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={() => setEditingName(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") {
-                  setName(nameBeforeEdit.current);
-                  setEditingName(false);
-                }
-              }}
-              maxLength={60}
-              autoComplete="name"
-              aria-label="Seu nome"
-              autoFocus
-            />
-          ) : (
-            <h1>
-              <span>{trimmedName || savedName}</span>
-              <button
-                type="button"
-                className="profile-name-edit"
-                onClick={() => {
-                  nameBeforeEdit.current = name;
-                  setEditingName(true);
-                }}
-                aria-label="Editar nome"
-                title="Editar nome"
-              >
-                {Icon.pencil}
-              </button>
-            </h1>
-          )}
+          <h1>{name}</h1>
           <p>
             {user.email}
             {since ? ` · lendo no Storyverse desde ${since}` : ""}

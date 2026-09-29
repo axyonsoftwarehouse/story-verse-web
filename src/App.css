@@ -4571,62 +4571,75 @@
   transform: scale(1.1);
 }
 
-.avatar-picker {
-  width: min(100%, 460px);
+/* Janela "Editar perfil" */
+.edit-profile {
+  display: grid;
+  gap: 0.9rem;
+  width: min(100%, 480px);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-/* ---- Nome com lápis ao lado (edita ali mesmo) ---- */
-
-.profile-id h1 {
-  align-items: center;
-  column-gap: 0.55rem;
+.edit-profile h2 {
+  margin-bottom: 0;
 }
 
-.profile-name-edit {
+.edit-profile-preview {
   display: grid;
   place-items: center;
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  background: rgba(255, 248, 235, 0.04);
+  padding: 0.3rem 0;
+}
+
+.edit-profile-name {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.edit-profile-name > span,
+.edit-profile-label {
   color: var(--muted);
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.profile-name-edit svg {
-  width: 15px;
-  height: 15px;
+.edit-profile-label {
+  margin-bottom: -0.35rem;
 }
 
-.profile-name-edit:hover {
-  border-color: var(--accent-dim);
-  background: rgba(228, 184, 106, 0.08);
-  color: var(--accent);
-}
-
-.profile-name-input {
-  display: block;
-  width: min(100%, 460px);
-  margin: 0 0 0.3rem;
-  padding: 0.15rem 0.6rem;
-  border: 1px solid var(--accent-dim);
+.edit-profile-name input {
+  width: 100%;
+  height: 48px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: rgba(255, 248, 235, 0.05);
+  background: rgba(255, 248, 235, 0.04);
   color: var(--text);
   font: inherit;
   font-family: var(--font-read);
-  font-size: clamp(1.5rem, 5vw, 2.2rem);
-  font-weight: 500;
-  line-height: 1.25;
+  font-size: 1.15rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.profile-name-input:focus {
+.edit-profile-name input:focus {
   outline: none;
+  border-color: var(--accent-dim);
   box-shadow: 0 0 0 3px rgba(228, 184, 106, 0.12);
+}
+
+.edit-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+}
+
+@media (max-width: 480px) {
+  .edit-profile-actions .btn {
+    flex: 1;
+  }
 }
 
 .profile-id {
