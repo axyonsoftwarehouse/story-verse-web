@@ -125,6 +125,9 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 type ReadingTheme = "night" | "sepia";
 const FONT_SIZES = [0.95, 1.05, 1.17, 1.3];
 const PREFS_KEY = "storyverse:reading-prefs";
+/** Luz noturna: 0 desligada, 1 suave, 2 forte (filtro âmbar que corta a luz azul). */
+type NightLight = 0 | 1 | 2;
+const NIGHT_LIGHT_LABELS = ["desligada", "suave", "forte"] as const;
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -146,14 +149,15 @@ function initialThreadsFor(cast: StoryCharacter[]): Record<string, Msg[]> {
   return initial;
 }
 
-function loadPrefs(): { theme: ReadingTheme; fontStep: number; translate: boolean } {
+function loadPrefs(): { theme: ReadingTheme; fontStep: number; translate: boolean; nightLight: NightLight } {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) {
-      const p = JSON.parse(raw) as { theme?: string; fontStep?: number; translate?: boolean };
+      const p = JSON.parse(raw) as { theme?: string; fontStep?: number; translate?: boolean; nightLight?: number };
       return {
         theme: p.theme === "sepia" ? "sepia" : "night",
         translate: p.translate === true,
+        nightLight: p.nightLight === 1 || p.nightLight === 2 ? p.nightLight : 0,
         fontStep:
           typeof p.fontStep === "number" && p.fontStep >= 0 && p.fontStep < FONT_SIZES.length
             ? p.fontStep
@@ -163,7 +167,7 @@ function loadPrefs(): { theme: ReadingTheme; fontStep: number; translate: boolea
   } catch {
     // Sem armazenamento disponível: usa o padrão.
   }
-  return { theme: "night", fontStep: 1, translate: false };
+  return { theme: "night", fontStep: 1, translate: false, nightLight: 0 };
 }
 
 /** Toque (celular): o menu da seleção vai abaixo do trecho, longe do menu nativo do sistema. */
@@ -432,6 +436,12 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z" />
       <path d="M10 20.5a2 2 0 0 0 4 0" />
+    </svg>
+  ),
+  nightLight: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+      <path d="M16 3.5v3M14.5 5h3" />
     </svg>
   ),
   close: (
@@ -3059,6 +3069,8 @@ export function App() {
 
   return (
     <div className={`reader theme-${prefs.theme}`}>
+      {/* Por cima de tudo, sem pegar cliques: tira o azul da tela para ler à noite. */}
+      {prefs.nightLight ? <div className={`night-light night-light-${prefs.nightLight}`} aria-hidden="true" /> : null}
       <header className="reader-bar">
         <button type="button" className="icon-btn" onClick={leaveBook} aria-label="Voltar para a estante">
           {Icon.back}
@@ -3183,6 +3195,16 @@ export function App() {
             aria-label={prefs.theme === "night" ? "Mudar para modo sépia" : "Mudar para modo noturno"}
           >
             {prefs.theme === "night" ? Icon.sun : Icon.moon}
+          </button>
+          <button
+            type="button"
+            className={`icon-btn night-light-btn ${prefs.nightLight ? "is-on" : ""}`}
+            onClick={() => setPrefs((p) => ({ ...p, nightLight: ((p.nightLight + 1) % 3) as NightLight }))}
+            aria-label={`Luz noturna: ${NIGHT_LIGHT_LABELS[prefs.nightLight]}. Toque para mudar.`}
+            title={`Luz noturna: ${NIGHT_LIGHT_LABELS[prefs.nightLight]}`}
+          >
+            {Icon.nightLight}
+            {prefs.nightLight ? <span className="night-light-level" aria-hidden="true">{prefs.nightLight}</span> : null}
           </button>
         </div>
 
