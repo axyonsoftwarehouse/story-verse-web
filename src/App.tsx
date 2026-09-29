@@ -449,6 +449,12 @@ const Icon = {
       <path d="M16 3.5v3M14.5 5h3" />
     </svg>
   ),
+  pencil: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </svg>
+  ),
   close: (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <path d="M18 6L6 18M6 6l12 12" />
@@ -1115,6 +1121,71 @@ function UserAvatar({ user, className }: { user: SupabaseUser; className: string
   );
 }
 
+/** Janela com os avatares prontos; a escolha entra no rascunho do perfil (salva no "Salvar alterações"). */
+function AvatarPicker({
+  user,
+  current,
+  onPick,
+  onClose,
+}: {
+  user: SupabaseUser;
+  current: string | null;
+  onPick: (id: string | null) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const pick = (id: string | null) => {
+    onPick(id);
+    onClose();
+  };
+  const initialUser = { ...user, user_metadata: { ...user.user_metadata, avatar: null } };
+  return (
+    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="auth-card avatar-picker" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
+        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
+          {Icon.close}
+        </button>
+        <h2 id="avatar-title">Escolha seu avatar</h2>
+        <p className="auth-subtitle">Ele aparece no seu perfil e no topo do app.</p>
+        <div className="avatar-grid" role="radiogroup" aria-label="Avatares">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={current === null}
+            className={`avatar-choice ${current === null ? "is-on" : ""}`}
+            onClick={() => pick(null)}
+          >
+            <UserAvatar user={initialUser} className="avatar-choice-art" />
+            <span>Inicial</span>
+          </button>
+          {AVATARS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="radio"
+              aria-checked={current === a.id}
+              className={`avatar-choice ${current === a.id ? "is-on" : ""}`}
+              onClick={() => pick(a.id)}
+            >
+              <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
+                <AvatarArt avatar={a} />
+              </span>
+              <span>{a.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 type ReadingPrefs = ReturnType<typeof loadPrefs>;
 
 /** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
@@ -1214,6 +1285,7 @@ function ProfilePage({
   const [theme, setTheme] = useState(prefs.theme);
   const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
   const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -1343,6 +1415,9 @@ function ProfilePage({
 
   return (
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
+      {pickerOpen ? (
+        <AvatarPicker user={previewUser} current={avatar} onPick={setAvatar} onClose={() => setPickerOpen(false)} />
+      ) : null}
       <nav className="home-nav profile-nav">
         <button type="button" className="btn" onClick={leave}>
           {Icon.back} Voltar
@@ -1351,7 +1426,10 @@ function ProfilePage({
 
       <header className="profile-hero">
         <div className="profile-hero-glow" style={{ "--c": previewAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
-        <UserAvatar user={previewUser} className="profile-avatar" />
+        <button type="button" className="profile-avatar-btn" onClick={() => setPickerOpen(true)} aria-label="Trocar avatar">
+          <UserAvatar user={previewUser} className="profile-avatar" />
+          <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
+        </button>
         <div className="profile-id">
           <h1>{trimmedName || savedName}</h1>
           <p>
@@ -1382,38 +1460,6 @@ function ProfilePage({
             <span>Nome</span>
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
           </label>
-          <div className="profile-field">
-            <span>Avatar</span>
-            <div className="avatar-grid" role="radiogroup" aria-label="Avatar">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={avatar === null}
-                className={`avatar-choice ${avatar === null ? "is-on" : ""}`}
-                onClick={() => setAvatar(null)}
-                title="Inicial do nome"
-              >
-                <UserAvatar user={{ ...previewUser, user_metadata: { ...previewUser.user_metadata, avatar: null } }} className="avatar-choice-art" />
-                <span>Inicial</span>
-              </button>
-              {AVATARS.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={avatar === a.id}
-                  className={`avatar-choice ${avatar === a.id ? "is-on" : ""}`}
-                  onClick={() => setAvatar(a.id)}
-                  title={a.label}
-                >
-                  <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
-                    <AvatarArt avatar={a} />
-                  </span>
-                  <span>{a.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
