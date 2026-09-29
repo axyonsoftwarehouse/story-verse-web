@@ -296,7 +296,7 @@ export async function updatePassword(session: SupabaseSession, password: string)
 /** Nome e avatar do perfil (ficam em user_metadata na conta; o avatar é só um id, sem imagem). */
 export async function updateProfileData(
   session: SupabaseSession,
-  data: { name?: string; avatar?: string | null },
+  data: { name?: string; avatar?: string | null; photo?: string | null; cover?: string | null },
 ): Promise<SupabaseSession> {
   const user = (await authRequest("user", { data }, session.access_token, "PUT")) as unknown as SupabaseUser;
   const next = { ...session, user: { ...session.user, ...user } };

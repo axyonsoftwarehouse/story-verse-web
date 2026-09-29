@@ -5834,3 +5834,169 @@
     animation: none !important;
   }
 }
+
+/* ============ Foto de perfil e capa ============ */
+
+.has-photo {
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.has-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Capa no topo do perfil: imagem com um véu escuro para o texto continuar legível. */
+.profile-hero.has-cover {
+  min-height: 210px;
+  align-items: flex-end;
+  background-position: center;
+  background-size: cover;
+}
+
+.profile-hero.has-cover::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(180deg, rgba(12, 10, 8, 0.15) 0%, rgba(12, 10, 8, 0.55) 55%, rgba(12, 10, 8, 0.92) 100%);
+}
+
+.profile-hero.has-cover .profile-hero-glow {
+  display: none;
+}
+
+.profile-hero.has-cover .profile-id p {
+  color: var(--text-read);
+}
+
+/* Janela: capa com a foto por cima */
+.edit-cover {
+  position: relative;
+  display: grid;
+  min-height: 150px;
+  margin: 0 -0.2rem;
+  padding: 0.7rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse 70% 90% at 20% 0%, rgba(228, 184, 106, 0.14), transparent 65%),
+    rgba(255, 248, 235, 0.03);
+  background-position: center;
+  background-size: cover;
+}
+
+.edit-cover.has-cover {
+  border-style: solid;
+  border-color: var(--border);
+}
+
+.edit-cover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  align-self: start;
+}
+
+.edit-media-btn {
+  position: relative;
+  padding: 0.4rem 0.75rem;
+  background: rgba(12, 10, 8, 0.72);
+  font-size: 0.78rem;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+.edit-media-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.edit-media-btn input,
+.edit-photo-btn input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.edit-media-btn.is-disabled,
+.edit-photo-btn.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.edit-cover .edit-profile-preview {
+  position: relative;
+  justify-self: center;
+  align-self: end;
+  margin-bottom: -2.6rem;
+}
+
+.edit-cover .profile-avatar {
+  width: 88px;
+  height: 88px;
+  border: 3px solid var(--bg);
+  font-size: 2.4rem;
+}
+
+.edit-cover .profile-avatar.has-art svg {
+  width: 48px;
+  height: 48px;
+}
+
+.edit-photo-btn {
+  position: absolute;
+  right: -4px;
+  bottom: 2px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1c140c;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-out);
+}
+
+.edit-photo-btn:hover {
+  transform: scale(1.08);
+}
+
+.edit-photo-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.edit-photo-btn .spinner {
+  --r-border: rgba(28, 20, 12, 0.25);
+  --r-accent: #1c140c;
+  width: 16px;
+  height: 16px;
+}
+
+.edit-photo-row {
+  margin-top: 2.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* Celular: cabeçalho empilhado; com capa, foto e nome ficam embaixo à esquerda. */
+@media (max-width: 560px) {
+  .profile-hero.has-cover {
+    align-items: flex-start;
+    justify-content: flex-end;
+    min-height: 230px;
+  }
+
+  /* Empilhado, o "flex: 1" do bloco do nome esticava e prendia o texto no topo. */
+  .profile-hero .profile-id {
+    flex: 0 1 auto;
+  }
+}

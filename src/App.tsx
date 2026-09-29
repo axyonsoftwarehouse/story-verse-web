@@ -13,6 +13,7 @@ import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner } from "./lib/dataOwner";
 import { finishedBooks, markBookFinished } from "./lib/finished";
+import { prepareImage, removeProfileImage, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
   checkIsAdmin,
@@ -482,6 +483,12 @@ const Icon = {
   check: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  ),
+  camera: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" />
+      <circle cx="12" cy="12.5" r="3.5" />
     </svg>
   ),
   close: (
@@ -1283,8 +1290,24 @@ function memberSince(iso?: string): string | null {
 }
 
 /** Avatar escolhido (dos prontos) ou a inicial do nome sobre a cor da conta. */
+function metaString(user: SupabaseUser, key: string): string | null {
+  const v = user.user_metadata?.[key];
+  return typeof v === "string" && v ? v : null;
+}
+
+/** Foto enviada, senão o avatar pronto, senão a inicial do nome sobre a cor da conta. */
 function UserAvatar({ user, className }: { user: SupabaseUser; className: string }) {
+  const photo = metaString(user, "photo");
   const avatar = findAvatar(user.user_metadata?.avatar);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [photo]);
+  if (photo && !broken) {
+    return (
+      <span className={`${className} has-photo`} aria-hidden="true">
+        <img src={photo} alt="" onError={() => setBroken(true)} />
+      </span>
+    );
+  }
   return (
     <span
       className={`${className} ${avatar ? "has-art" : ""}`}
@@ -1296,7 +1319,10 @@ function UserAvatar({ user, className }: { user: SupabaseUser; className: string
   );
 }
 
-/** Janela "Editar perfil": nome e avatar, com prévia e salvar na própria janela. */
+/** Rascunho de uma imagem do perfil: a salva, uma nova (ainda não enviada) ou removida. */
+type ImageDraft = { url: string | null; blob: Blob | null };
+
+/** Janela "Editar perfil": capa, foto, nome e avatar, com prévia e salvar na própria janela. */
 function EditProfileModal({
   session,
   onSaved,
@@ -1308,12 +1334,24 @@ function EditProfileModal({
 }) {
   const savedName = displayNameOf(session.user);
   const savedAvatar = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
+  const savedPhoto = metaString(session.user, "photo");
+  const savedCover = metaString(session.user, "cover");
   const [name, setName] = useState(savedName);
   const [avatar, setAvatar] = useState<string | null>(savedAvatar);
+  const [photo, setPhoto] = useState<ImageDraft>({ url: savedPhoto, blob: null });
+  const [cover, setCover] = useState<ImageDraft>({ url: savedCover, blob: null });
+  const [preparing, setPreparing] = useState<MediaKind | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const trimmed = name.trim().slice(0, 60);
-  const changed = trimmed !== savedName || avatar !== savedAvatar;
+  const changed =
+    trimmed !== savedName ||
+    avatar !== savedAvatar ||
+    photo.blob !== null ||
+    photo.url !== savedPhoto ||
+    cover.blob !== null ||
+    cover.url !== savedCover;
+  const busy = saving || preparing !== null;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -1323,6 +1361,34 @@ function EditProfileModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose, saving]);
 
+  // Prévias locais (blob:) liberadas ao trocar ou fechar.
+  useEffect(() => () => void (photo.blob && photo.url && URL.revokeObjectURL(photo.url)), [photo]);
+  useEffect(() => () => void (cover.blob && cover.url && URL.revokeObjectURL(cover.url)), [cover]);
+
+  async function pick(kind: MediaKind, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError("");
+    setPreparing(kind);
+    try {
+      const blob = await prepareImage(file, kind);
+      const draft = { url: URL.createObjectURL(blob), blob };
+      if (kind === "avatar") setPhoto(draft);
+      else setCover(draft);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível usar esta imagem.");
+    } finally {
+      setPreparing(null);
+    }
+  }
+
+  /** Escolher avatar pronto (ou a inicial) tira a foto: a foto sempre tem prioridade. */
+  function chooseAvatar(id: string | null) {
+    setAvatar(id);
+    setPhoto({ url: null, blob: null });
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!trimmed) return setError("Informe um nome.");
@@ -1330,7 +1396,14 @@ function EditProfileModal({
     setSaving(true);
     setError("");
     try {
-      onSaved(await updateProfileData(session, { name: trimmed, avatar }));
+      const imageUrl = async (kind: MediaKind, draft: ImageDraft, saved: string | null) => {
+        if (draft.blob) return uploadProfileImage(session, kind, draft.blob);
+        if (!draft.url && saved) await removeProfileImage(session, kind);
+        return draft.url;
+      };
+      const photoUrl = await imageUrl("avatar", photo, savedPhoto);
+      const coverUrl = await imageUrl("cover", cover, savedCover);
+      onSaved(await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl }));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
@@ -1338,8 +1411,12 @@ function EditProfileModal({
     }
   }
 
-  const preview: SupabaseUser = { ...session.user, user_metadata: { ...session.user.user_metadata, name: trimmed || savedName, avatar } };
-  const initialUser = { ...preview, user_metadata: { ...preview.user_metadata, avatar: null } };
+  const preview: SupabaseUser = {
+    ...session.user,
+    user_metadata: { ...session.user.user_metadata, name: trimmed || savedName, avatar, photo: photo.url },
+  };
+  const initialUser = { ...preview, user_metadata: { ...preview.user_metadata, avatar: null, photo: null } };
+  const coverStyle = cover.url ? ({ backgroundImage: `url("${cover.url}")` } as React.CSSProperties) : undefined;
   return (
     <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose()}>
       <form className="auth-card edit-profile" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title" onSubmit={save}>
@@ -1348,8 +1425,36 @@ function EditProfileModal({
         </button>
         <h2 id="edit-profile-title">Editar perfil</h2>
 
-        <div className="edit-profile-preview">
-          <UserAvatar user={preview} className="profile-avatar" />
+        <div className={`edit-cover ${cover.url ? "has-cover" : ""}`} style={coverStyle}>
+          <div className="edit-cover-actions">
+            <label className={`btn edit-media-btn ${busy ? "is-disabled" : ""}`}>
+              {Icon.camera}
+              {preparing === "cover" ? "Preparando…" : cover.url ? "Trocar capa" : "Adicionar capa"}
+              <input type="file" accept="image/*" onChange={(e) => void pick("cover", e)} disabled={busy} />
+            </label>
+            {cover.url ? (
+              <button type="button" className="btn edit-media-btn" onClick={() => setCover({ url: null, blob: null })} disabled={busy}>
+                Remover
+              </button>
+            ) : null}
+          </div>
+          <div className="edit-profile-preview">
+            <UserAvatar user={preview} className="profile-avatar" />
+            <label className={`edit-photo-btn ${busy ? "is-disabled" : ""}`} title="Enviar foto de perfil">
+              {preparing === "avatar" ? <span className="spinner" aria-hidden="true" /> : Icon.camera}
+              <span className="sr-only">Enviar foto de perfil</span>
+              <input type="file" accept="image/*" onChange={(e) => void pick("avatar", e)} disabled={busy} />
+            </label>
+          </div>
+        </div>
+        <div className="edit-photo-row">
+          {photo.url ? (
+            <button type="button" className="inline-link" onClick={() => setPhoto({ url: null, blob: null })} disabled={busy}>
+              Remover foto de perfil
+            </button>
+          ) : (
+            <span>Toque na câmera para enviar uma foto, ou escolha um avatar abaixo.</span>
+          )}
         </div>
 
         <label className="edit-profile-name">
@@ -1362,10 +1467,10 @@ function EditProfileModal({
           <button
             type="button"
             role="radio"
-            aria-checked={avatar === null}
-            className={`avatar-choice ${avatar === null ? "is-on" : ""}`}
-            onClick={() => setAvatar(null)}
-            disabled={saving}
+            aria-checked={!photo.url && avatar === null}
+            className={`avatar-choice ${!photo.url && avatar === null ? "is-on" : ""}`}
+            onClick={() => chooseAvatar(null)}
+            disabled={busy}
           >
             <UserAvatar user={initialUser} className="avatar-choice-art" />
             <span>Inicial</span>
@@ -1375,10 +1480,10 @@ function EditProfileModal({
               key={a.id}
               type="button"
               role="radio"
-              aria-checked={avatar === a.id}
-              className={`avatar-choice ${avatar === a.id ? "is-on" : ""}`}
-              onClick={() => setAvatar(a.id)}
-              disabled={saving}
+              aria-checked={!photo.url && avatar === a.id}
+              className={`avatar-choice ${!photo.url && avatar === a.id ? "is-on" : ""}`}
+              onClick={() => chooseAvatar(a.id)}
+              disabled={busy}
             >
               <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
                 <AvatarArt avatar={a} />
@@ -1393,7 +1498,7 @@ function EditProfileModal({
           <button type="button" className="btn" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn-primary" disabled={saving || !changed}>
+          <button type="submit" className="btn btn-primary" disabled={busy || !changed}>
             {saving ? "Salvando…" : "Salvar"}
           </button>
         </div>
@@ -2325,7 +2430,10 @@ function ProfilePage({
         </button>
       </nav>
 
-      <header className="profile-hero">
+      <header
+        className={`profile-hero ${metaString(user, "cover") ? "has-cover" : ""}`}
+        style={metaString(user, "cover") ? ({ backgroundImage: `url("${metaString(user, "cover")}")` } as React.CSSProperties) : undefined}
+      >
         <div className="profile-hero-glow" style={{ "--c": chosenAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
         <button type="button" className="profile-avatar-btn" onClick={() => setEditOpen(true)} aria-label="Editar perfil">
           <UserAvatar user={user} className="profile-avatar" />
