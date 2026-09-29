@@ -449,12 +449,6 @@ const Icon = {
       <path d="M16 3.5v3M14.5 5h3" />
     </svg>
   ),
-  pencil: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
-      <path d="m13.5 6.5 4 4" />
-    </svg>
-  ),
   close: (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <path d="M18 6L6 18M6 6l12 12" />
@@ -981,13 +975,27 @@ function MyBooks({
 type LastBook = { title: string; chapterLabel?: string; character?: string };
 
 /** Lembrete diário: calendário (qualquer aparelho) e notificação (Android com o app instalado). */
-function ReminderSetup({ lastBook }: { lastBook?: LastBook }) {
-  const [prefs, setPrefs] = useState(loadReminderPrefs);
+function ReminderSetup({
+  lastBook,
+  time,
+  onTimeChange,
+}: {
+  lastBook?: LastBook;
+  /** No perfil o horário é rascunho: quem salva é o botão "Salvar alterações". */
+  time?: string;
+  onTimeChange?: (time: string) => void;
+}) {
+  const [savedPrefs, setPrefs] = useState(loadReminderPrefs);
+  const prefs = time ? { ...savedPrefs, time } : savedPrefs;
   const [status, setStatus] = useState<string | null>(null);
   const support = notificationSupport();
   const text = reminderText(lastBook);
 
   const update = (p: typeof prefs) => {
+    if (onTimeChange && p.time !== savedPrefs.time) {
+      onTimeChange(p.time);
+      p = { ...p, time: savedPrefs.time };
+    }
     setPrefs(p);
     saveReminderPrefs(p);
   };
@@ -1107,89 +1115,61 @@ function UserAvatar({ user, className }: { user: SupabaseUser; className: string
   );
 }
 
-/** Grade com os avatares prontos; salva na conta ao escolher. */
-function AvatarPicker({
-  session,
-  onSaved,
-  onClose,
+type ReadingPrefs = ReturnType<typeof loadPrefs>;
+
+/** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
+function ProfileShelf({
+  title,
+  items,
+  empty,
+  onOpen,
 }: {
-  session: SupabaseSession;
-  onSaved: (session: SupabaseSession) => void;
-  onClose: () => void;
+  title: string;
+  items: { book: Ebook; sub: string; pct?: number }[];
+  empty?: string;
+  onOpen: (book: Ebook) => void;
 }) {
-  const current = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
-  const [saving, setSaving] = useState<string | null | undefined>(undefined);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  async function choose(id: string | null) {
-    if (id === current) return onClose();
-    setSaving(id);
-    setError("");
-    try {
-      onSaved(await updateProfileData(session, { avatar: id }));
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar o avatar.");
-      setSaving(undefined);
-    }
-  }
-
-  const busy = saving !== undefined;
-  const initialUser = { ...session.user, user_metadata: { ...session.user.user_metadata, avatar: null } };
+  const [showAll, setShowAll] = useState(false);
+  if (items.length === 0 && !empty) return null;
+  const shown = showAll ? items : items.slice(0, CONTINUE_PREVIEW);
   return (
-    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="auth-card avatar-picker" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
-        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
-          {Icon.close}
-        </button>
-        <h2 id="avatar-title">Escolha seu avatar</h2>
-        <p className="auth-subtitle">Ele aparece no seu perfil e no topo do app.</p>
-        <div className="avatar-grid" role="radiogroup" aria-label="Avatares">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={current === null}
-            className={`avatar-choice ${current === null ? "is-on" : ""}`}
-            onClick={() => void choose(null)}
-            disabled={busy}
-          >
-            <UserAvatar user={initialUser} className="avatar-choice-art" />
-            <span>{saving === null ? "Salvando…" : "Inicial"}</span>
-          </button>
-          {AVATARS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              role="radio"
-              aria-checked={current === a.id}
-              className={`avatar-choice ${current === a.id ? "is-on" : ""}`}
-              onClick={() => void choose(a.id)}
-              disabled={busy}
-            >
-              <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
-                <AvatarArt avatar={a} />
-              </span>
-              <span>{saving === a.id ? "Salvando…" : a.label}</span>
+    <section className="shelf">
+      <div className="shelf-head">
+        <h2>{title}</h2>
+      </div>
+      {items.length === 0 ? (
+        <p className="profile-empty">{empty}</p>
+      ) : (
+        <div className="result-grid">
+          {shown.map(({ book, sub, pct }) => (
+            <button key={book.id} type="button" className="result" onClick={() => onOpen(book)}>
+              <BookCover book={book} />
+              {pct !== undefined ? (
+                <span className="continue-bar" aria-hidden="true">
+                  <span style={{ width: `${Math.max(pct, 3)}%` }} />
+                </span>
+              ) : null}
+              <strong>{book.title}</strong>
+              <span>{sub}</span>
             </button>
           ))}
         </div>
-        {error ? <p className="auth-error" role="alert">{error}</p> : null}
-      </section>
-    </div>
+      )}
+      {items.length > CONTINUE_PREVIEW ? (
+        <div className="shelf-more">
+          <button type="button" className="btn" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? "Mostrar menos" : `Ver todos (${items.length})`}
+          </button>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
-type ReadingPrefs = ReturnType<typeof loadPrefs>;
-
-/** Perfil: quem é o leitor, números da leitura, estante, marcações, preferências e conta. */
+/**
+ * Perfil: quem é o leitor, números da leitura, estante, marcações, preferências e conta.
+ * Nome, avatar e preferências são um rascunho até tocar em "Salvar alterações".
+ */
 function ProfilePage({
   session,
   onSessionChange,
@@ -1214,7 +1194,8 @@ function ProfilePage({
   lastBook?: LastBook;
 }) {
   const user = session.user;
-  const name = displayNameOf(user);
+  const savedName = displayNameOf(user);
+  const savedAvatar = findAvatar(user.user_metadata?.avatar)?.id ?? null;
   const since = memberSince(user.created_at);
 
   const [summary, setSummary] = useState(readingSummary);
@@ -1225,6 +1206,66 @@ function ProfilePage({
   useEffect(() => {
     void listLocalBooks().then(setImported).catch(() => {});
   }, []);
+
+  // ---- Rascunho (só vale depois de salvar) ----
+  const [name, setName] = useState(savedName);
+  const [avatar, setAvatar] = useState<string | null>(savedAvatar);
+  const [goal, setGoal] = useState(summary.goalMinutes);
+  const [theme, setTheme] = useState(prefs.theme);
+  const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
+  const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const trimmedName = name.trim().slice(0, 60);
+  const accountDirty = trimmedName !== savedName || avatar !== savedAvatar;
+  const dirty =
+    accountDirty ||
+    goal !== summary.goalMinutes ||
+    theme !== prefs.theme ||
+    nightLight !== prefs.nightLight ||
+    reminderTime !== loadReminderPrefs().time;
+
+  function discard() {
+    setName(savedName);
+    setAvatar(savedAvatar);
+    setGoal(summary.goalMinutes);
+    setTheme(prefs.theme);
+    setNightLight(prefs.nightLight);
+    setReminderTime(loadReminderPrefs().time);
+    setSaveError("");
+  }
+
+  async function save() {
+    if (!trimmedName) return setSaveError("Informe um nome.");
+    setSaving(true);
+    setSaveError("");
+    try {
+      if (accountDirty) onSessionChange(await updateProfileData(session, { name: trimmedName, avatar }));
+      setReadingGoalMinutes(goal);
+      setSummary(readingSummary());
+      setPrefs((p) => ({ ...p, theme, nightLight }));
+      saveReminderPrefs({ ...loadReminderPrefs(), time: reminderTime });
+      setName(trimmedName);
+      setSavedFlash(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!savedFlash) return;
+    const t = window.setTimeout(() => setSavedFlash(false), 2600);
+    return () => window.clearTimeout(t);
+  }, [savedFlash]);
+
+  function leave() {
+    if (dirty && !window.confirm("Sair sem salvar as alterações?")) return;
+    onClose();
+  }
 
   // Livro de cada marcação: dos começados, terminados, importados ou da estante.
   const bookById = useMemo(() => {
@@ -1255,30 +1296,7 @@ function ProfilePage({
   const markCount = marks.reduce((n, m) => n + m.items.length, 0);
   const lendo = reading.filter((p) => !finished.some((f) => f.book.id === p.book.id));
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  // Nome
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(name);
-  const [nameSaving, setNameSaving] = useState(false);
-  const [nameError, setNameError] = useState("");
-  async function saveName(e: React.FormEvent) {
-    e.preventDefault();
-    const next = nameDraft.trim().slice(0, 60);
-    if (!next) return setNameError("Informe um nome.");
-    setNameSaving(true);
-    setNameError("");
-    try {
-      onSessionChange(await updateProfileData(session, { name: next }));
-      setEditingName(false);
-    } catch (err) {
-      setNameError(err instanceof Error ? err.message : "Não foi possível salvar o nome.");
-    } finally {
-      setNameSaving(false);
-    }
-  }
-
-  // Senha
+  // ---- Senha (ação direta, com o próprio botão) ----
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState("");
   const [pwConfirm, setPwConfirm] = useState("");
@@ -1301,92 +1319,41 @@ function ProfilePage({
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !editingName && !pickerOpen) onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, editingName, pickerOpen]);
+  }, []);
+
+  // Fechar a aba ou recarregar com alterações pendentes: o navegador pergunta antes.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  const previewUser: SupabaseUser = { ...user, user_metadata: { ...user.user_metadata, name: trimmedName || savedName, avatar } };
+  const previewAvatar = findAvatar(avatar);
 
   const stats = [
-    { label: "Sequência atual", value: `${summary.streak} ${summary.streak === 1 ? "dia" : "dias"}` },
-    { label: "Recorde", value: `${totals.bestStreak} ${totals.bestStreak === 1 ? "dia" : "dias"}` },
-    { label: "Nesta semana", value: formatMinutes(totals.weekMinutes) },
-    { label: "Tempo lendo", value: formatMinutes(totals.totalMinutes) },
-    { label: "Livros terminados", value: String(finished.length) },
-    { label: "Trechos marcados", value: String(markCount) },
+    { icon: "🔥", label: "Sequência atual", value: `${summary.streak} ${summary.streak === 1 ? "dia" : "dias"}` },
+    { icon: "🏅", label: "Recorde", value: `${totals.bestStreak} ${totals.bestStreak === 1 ? "dia" : "dias"}` },
+    { icon: "📅", label: "Nesta semana", value: formatMinutes(totals.weekMinutes) },
+    { icon: "⏱️", label: "Tempo lendo", value: formatMinutes(totals.totalMinutes) },
+    { icon: "📚", label: "Livros terminados", value: String(finished.length) },
+    { icon: "✨", label: "Trechos marcados", value: String(markCount) },
   ];
 
-  const shelf = (items: { book: Ebook; sub: string; pct?: number }[], empty: string) =>
-    items.length === 0 ? (
-      <p className="profile-empty">{empty}</p>
-    ) : (
-      <div className="result-grid">
-        {items.map(({ book, sub, pct }) => (
-          <button key={book.id} type="button" className="result" onClick={() => onOpenBook(book)}>
-            <BookCover book={book} />
-            {pct !== undefined ? (
-              <span className="continue-bar" aria-hidden="true">
-                <span style={{ width: `${Math.max(pct, 3)}%` }} />
-              </span>
-            ) : null}
-            <strong>{book.title}</strong>
-            <span>{sub}</span>
-          </button>
-        ))}
-      </div>
-    );
-
   return (
-    <div className="home profile">
-      {pickerOpen ? <AvatarPicker session={session} onSaved={onSessionChange} onClose={() => setPickerOpen(false)} /> : null}
+    <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
       <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
+        <button type="button" className="btn" onClick={leave}>
           {Icon.back} Voltar
         </button>
       </nav>
 
       <header className="profile-hero">
-        <button type="button" className="profile-avatar-btn" onClick={() => setPickerOpen(true)} aria-label="Trocar avatar">
-          <UserAvatar user={user} className="profile-avatar" />
-          <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
-        </button>
+        <div className="profile-hero-glow" style={{ "--c": previewAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
+        <UserAvatar user={previewUser} className="profile-avatar" />
         <div className="profile-id">
-          {editingName ? (
-            <form className="profile-name-form" onSubmit={saveName}>
-              <input
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                maxLength={60}
-                autoFocus
-                aria-label="Seu nome"
-                disabled={nameSaving}
-              />
-              <button type="submit" className="btn btn-primary" disabled={nameSaving}>
-                {nameSaving ? "Salvando…" : "Salvar"}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setEditingName(false);
-                  setNameDraft(name);
-                  setNameError("");
-                }}
-                disabled={nameSaving}
-              >
-                Cancelar
-              </button>
-            </form>
-          ) : (
-            <h1>
-              {name}
-              <button type="button" className="inline-link profile-edit" onClick={() => setEditingName(true)}>
-                Editar
-              </button>
-            </h1>
-          )}
-          {nameError ? <p className="auth-error" role="alert">{nameError}</p> : null}
+          <h1>{trimmedName || savedName}</h1>
           <p>
             {user.email}
             {since ? ` · lendo no Storyverse desde ${since}` : ""}
@@ -1397,6 +1364,7 @@ function ProfilePage({
       <section className="profile-stats" aria-label="Sua leitura">
         {stats.map((s) => (
           <div key={s.label} className="profile-stat">
+            <span className="profile-stat-icon" aria-hidden="true">{s.icon}</span>
             <strong>{s.value}</strong>
             <span>{s.label}</span>
           </div>
@@ -1406,40 +1374,67 @@ function ProfilePage({
 
       <section className="shelf">
         <div className="shelf-head">
-          <h2>Lendo agora</h2>
+          <h2>Seu perfil</h2>
+          <p>Como você aparece no Storyverse.</p>
         </div>
-        {shelf(
-          lendo.map((p) => {
-            const pct = Math.round(progressPct(p));
-            return { book: p.book, sub: `${p.chapterLabel} · ${pct}%`, pct };
-          }),
-          "Nenhum livro começado ainda.",
-        )}
+        <div className="profile-card profile-edit-card">
+          <label className="profile-field">
+            <span>Nome</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
+          </label>
+          <div className="profile-field">
+            <span>Avatar</span>
+            <div className="avatar-grid" role="radiogroup" aria-label="Avatar">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={avatar === null}
+                className={`avatar-choice ${avatar === null ? "is-on" : ""}`}
+                onClick={() => setAvatar(null)}
+                title="Inicial do nome"
+              >
+                <UserAvatar user={{ ...previewUser, user_metadata: { ...previewUser.user_metadata, avatar: null } }} className="avatar-choice-art" />
+                <span>Inicial</span>
+              </button>
+              {AVATARS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={avatar === a.id}
+                  className={`avatar-choice ${avatar === a.id ? "is-on" : ""}`}
+                  onClick={() => setAvatar(a.id)}
+                  title={a.label}
+                >
+                  <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
+                    <AvatarArt avatar={a} />
+                  </span>
+                  <span>{a.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
-      {finished.length > 0 ? (
-        <section className="shelf">
-          <div className="shelf-head">
-            <h2>Terminados</h2>
-          </div>
-          {shelf(
-            finished.map((f) => ({
-              book: f.book,
-              sub: `Terminado em ${new Date(f.finishedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
-            })),
-            "",
-          )}
-        </section>
-      ) : null}
-
-      {imported.length > 0 ? (
-        <section className="shelf">
-          <div className="shelf-head">
-            <h2>Seus livros importados</h2>
-          </div>
-          {shelf(imported.map((b) => ({ book: b, sub: b.author })), "")}
-        </section>
-      ) : null}
+      <ProfileShelf
+        title="Lendo agora"
+        empty="Nenhum livro começado ainda."
+        onOpen={onOpenBook}
+        items={lendo.map((p) => {
+          const pct = Math.round(progressPct(p));
+          return { book: p.book, sub: `${p.chapterLabel} · ${pct}%`, pct };
+        })}
+      />
+      <ProfileShelf
+        title="Terminados"
+        onOpen={onOpenBook}
+        items={finished.map((f) => ({
+          book: f.book,
+          sub: `Terminado em ${new Date(f.finishedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
+        }))}
+      />
+      <ProfileShelf title="Seus livros importados" onOpen={onOpenBook} items={imported.map((b) => ({ book: b, sub: b.author }))} />
 
       <section className="shelf">
         <div className="shelf-head">
@@ -1483,17 +1478,7 @@ function ProfilePage({
             <span>Meta diária</span>
             <div className="segmented" role="radiogroup" aria-label="Meta diária">
               {GOAL_OPTIONS.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={summary.goalMinutes === m}
-                  className={summary.goalMinutes === m ? "is-on" : ""}
-                  onClick={() => {
-                    setReadingGoalMinutes(m);
-                    setSummary(readingSummary());
-                  }}
-                >
+                <button key={m} type="button" role="radio" aria-checked={goal === m} className={goal === m ? "is-on" : ""} onClick={() => setGoal(m)}>
                   {m} min
                 </button>
               ))}
@@ -1503,14 +1488,7 @@ function ProfilePage({
             <span>Tema de leitura</span>
             <div className="segmented" role="radiogroup" aria-label="Tema de leitura">
               {(["night", "sepia"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.theme === t}
-                  className={prefs.theme === t ? "is-on" : ""}
-                  onClick={() => setPrefs((p) => ({ ...p, theme: t }))}
-                >
+                <button key={t} type="button" role="radio" aria-checked={theme === t} className={theme === t ? "is-on" : ""} onClick={() => setTheme(t)}>
                   {t === "night" ? "Noturno" : "Sépia"}
                 </button>
               ))}
@@ -1520,20 +1498,13 @@ function ProfilePage({
             <span>Luz noturna</span>
             <div className="segmented" role="radiogroup" aria-label="Luz noturna">
               {([0, 1, 2] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.nightLight === n}
-                  className={prefs.nightLight === n ? "is-on" : ""}
-                  onClick={() => setPrefs((p) => ({ ...p, nightLight: n }))}
-                >
+                <button key={n} type="button" role="radio" aria-checked={nightLight === n} className={nightLight === n ? "is-on" : ""} onClick={() => setNightLight(n)}>
                   {NIGHT_LIGHT_LABELS[n].charAt(0).toUpperCase() + NIGHT_LIGHT_LABELS[n].slice(1)}
                 </button>
               ))}
             </div>
           </div>
-          <ReminderSetup lastBook={lastBook} />
+          <ReminderSetup lastBook={lastBook} time={reminderTime} onTimeChange={setReminderTime} />
         </div>
       </section>
 
@@ -1592,6 +1563,24 @@ function ProfilePage({
           </div>
         </div>
       </section>
+
+      {dirty ? (
+        <div className="profile-savebar" role="region" aria-label="Alterações não salvas">
+          <span>{saveError || "Você tem alterações não salvas."}</span>
+          <div>
+            <button type="button" className="btn" onClick={discard} disabled={saving}>
+              Descartar
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={saving}>
+              {saving ? "Salvando…" : "Salvar alterações"}
+            </button>
+          </div>
+        </div>
+      ) : savedFlash ? (
+        <div className="profile-savebar is-saved" role="status">
+          <span>✓ Alterações salvas</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -3271,8 +3260,9 @@ export function App() {
   if (authLoading && !book) {
     return (
       <main className="auth-loading" role="status" aria-live="polite">
-        <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
-        <p>Verificando sua sessão...</p>
+        <img className="auth-loading-logo" src="/icons/icon.svg" alt="" aria-hidden="true" />
+        <span className="spinner" aria-hidden="true" />
+        <p>Abrindo o Storyverse…</p>
       </main>
     );
   }

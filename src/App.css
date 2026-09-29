@@ -2117,12 +2117,22 @@
   color: var(--muted);
 }
 
-.auth-loading .wordmark-mark {
-  font-size: 1.8rem;
+.auth-loading {
+  --r-border: var(--border-strong);
+  --r-accent: var(--accent);
+  gap: 1.1rem;
+}
+
+.auth-loading-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px -10px rgba(228, 184, 106, 0.5);
 }
 
 .auth-loading p {
   margin: 0;
+  font-size: 0.9rem;
 }
 
 .auth-global-notice {
@@ -4043,10 +4053,32 @@
 }
 
 .profile-hero {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  margin: 0.5rem 0 1.75rem;
+  gap: 1.4rem;
+  margin: 0.25rem 0 1.5rem;
+  padding: 1.6rem 1.6rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: linear-gradient(165deg, rgba(40, 34, 28, 0.7), rgba(16, 13, 10, 0.8));
+}
+
+/* Brilho da cor do avatar atrás do cabeçalho (muda junto com a prévia). */
+.profile-hero-glow {
+  position: absolute;
+  inset: -40% auto auto -10%;
+  width: 60%;
+  height: 180%;
+  background: radial-gradient(closest-side, var(--c), transparent);
+  opacity: 0.16;
+  pointer-events: none;
+  transition: background 0.4s ease;
+}
+
+.profile-hero > :not(.profile-hero-glow) {
+  position: relative;
 }
 
 .profile-avatar {
@@ -4073,42 +4105,11 @@
   overflow-wrap: anywhere;
 }
 
-.profile-edit {
-  font-family: var(--font-ui);
-  font-size: 0.82rem;
-}
-
 .profile-id p {
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
-}
-
-.profile-name-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.profile-name-form input {
-  flex: 1 1 220px;
-  min-width: 0;
-  height: 44px;
-  padding: 0 0.9rem;
-  border: 1px solid var(--accent-dim);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 248, 235, 0.04);
-  color: var(--text);
-  font: inherit;
-  font-family: var(--font-read);
-  font-size: 1.2rem;
-}
-
-.profile-name-form input:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(228, 184, 106, 0.12);
 }
 
 .profile-stats {
@@ -4120,7 +4121,7 @@
 .profile-stat {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
   padding: 1rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -4348,49 +4349,6 @@
   color: rgba(22, 17, 12, 0.82);
 }
 
-.profile-avatar-btn {
-  position: relative;
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  cursor: pointer;
-}
-
-.profile-avatar-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-}
-
-.profile-avatar-edit {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--bg-deep);
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--accent);
-  transition: transform 0.15s var(--ease-out);
-}
-
-.profile-avatar-edit svg {
-  width: 13px;
-  height: 13px;
-}
-
-.profile-avatar-btn:hover .profile-avatar-edit {
-  transform: scale(1.1);
-}
-
-.avatar-picker {
-  width: min(100%, 460px);
-}
-
 .avatar-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4467,4 +4425,160 @@
 .avatar-choice-art svg {
   width: 28px;
   height: 28px;
+}
+
+/* ---- Perfil: edição com rascunho e barra de salvar ---- */
+
+.profile-avatar {
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.profile-stat-icon {
+  margin-bottom: 0.2rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.profile-edit-card {
+  display: grid;
+  gap: 1.3rem;
+}
+
+.profile-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.profile-field > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.profile-field input {
+  width: min(100%, 420px);
+  height: 48px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-read);
+  font-size: 1.15rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.profile-field input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(228, 184, 106, 0.12);
+}
+
+.profile-edit-card .avatar-grid {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.avatar-choice {
+  transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.15s var(--ease-out);
+}
+
+.avatar-choice:active {
+  transform: scale(0.96);
+}
+
+.avatar-choice.is-on .avatar-choice-art {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+.profile.has-savebar {
+  padding-bottom: 7rem;
+}
+
+.profile-savebar {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: min(calc(100vw - 32px), 640px);
+  padding: 0.7rem 0.7rem 0.7rem 1.1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-elevated);
+  animation: rise 0.25s var(--ease-out) both;
+}
+
+.profile-savebar > span {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-read);
+  font-size: 0.88rem;
+}
+
+.profile-savebar > div {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.profile-savebar.is-saved {
+  justify-content: center;
+  width: auto;
+  padding: 0.7rem 1.4rem;
+  border-color: var(--accent-2-dim);
+}
+
+.profile-savebar.is-saved > span {
+  flex: none;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .profile-edit-card .avatar-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .profile-hero {
+    padding: 1.3rem 1.1rem;
+  }
+
+  .profile-edit-card .avatar-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .profile-savebar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    padding: 0.8rem;
+    border-radius: 18px;
+  }
+
+  .profile-savebar > span {
+    text-align: center;
+  }
+
+  .profile-savebar > div .btn {
+    flex: 1;
+  }
+
+  .profile.has-savebar {
+    padding-bottom: 9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-savebar {
+    animation: none;
+  }
 }

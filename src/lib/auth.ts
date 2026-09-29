@@ -96,6 +96,8 @@ async function authRequest(
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
+      // Rede muito lenta não pode prender o app na tela de abertura.
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
     });
   } catch {
     throw new AuthNetworkError("Não foi possível conectar ao serviço de autenticação. Verifique sua conexão.");
