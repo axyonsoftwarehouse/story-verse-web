@@ -61,6 +61,12 @@ create index if not exists book_submissions_status_idx on public.book_submission
 
 alter table public.book_submissions enable row level security;
 
+-- Projetos novos do Supabase não liberam tabelas novas para a API: sem isto dá "permission
+-- denied". As regras (policies) abaixo continuam decidindo o que cada um vê e muda.
+grant select on public.book_submissions to anon, authenticated;
+grant insert, update, delete on public.book_submissions to authenticated;
+grant select on public.admins to authenticated;
+
 -- Qualquer pessoa vê os aprovados; quem enviou vê os seus; o admin vê todos.
 drop policy if exists "ver envios" on public.book_submissions;
 create policy "ver envios" on public.book_submissions

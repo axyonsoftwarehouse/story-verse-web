@@ -93,7 +93,10 @@ async function sb(
   }
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as { message?: string; msg?: string; error?: string };
-    throw new Error(friendly(payload.message ?? payload.msg ?? payload.error ?? `Erro ${res.status}`, res.status));
+    const message = payload.message ?? payload.msg ?? payload.error ?? `Erro ${res.status}`;
+    // A mensagem da tela é amigável; a original fica no console para diagnóstico.
+    console.warn(`[acervo] ${init.method ?? "GET"} ${path.split("?")[0]} → ${res.status}: ${message}`);
+    throw new Error(friendly(message, res.status));
   }
   return res;
 }
@@ -141,7 +144,8 @@ export async function submitBook(
   await sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, {
     method: "POST",
     session,
-    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    // Exatamente o tipo aceito pelo bucket (com ";charset" o Supabase pode recusar).
+    headers: { "Content-Type": "text/plain" },
     body: input.text,
   });
   try {

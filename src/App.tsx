@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
@@ -11,6 +11,7 @@ import {
 } from "./lib/ai";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
+import { activateDataOwner } from "./lib/dataOwner";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import {
   approvedCommunityBooks,
@@ -792,6 +793,7 @@ function MyBooks({
   const [author, setAuthor] = useState("");
   const [language, setLanguage] = useState<"pt" | "en">("pt");
   const [castText, setCastText] = useState("");
+  const [showAllBooks, setShowAllBooks] = useState(false);
   const [share, setShare] = useState(false);
   const [rights, setRights] = useState<Rights | null>(null);
   const [rightsNote, setRightsNote] = useState("");
@@ -925,7 +927,7 @@ function MyBooks({
           <strong>Importar meu livro</strong>
           <span>Fica só neste aparelho</span>
         </button>
-        {books.map((b) => (
+        {(showAllBooks ? books : books.slice(0, CONTINUE_PREVIEW)).map((b) => (
           <div key={b.gutenbergId} className="my-book">
             <button type="button" className="result" onClick={() => onOpen(b)}>
               <BookCover book={b} />
@@ -938,6 +940,13 @@ function MyBooks({
           </div>
         ))}
       </div>
+      {books.length > CONTINUE_PREVIEW ? (
+        <div className="shelf-more">
+          <button type="button" className="btn" onClick={() => setShowAllBooks((v) => !v)}>
+            {showAllBooks ? "Mostrar menos" : `Ver todos (${books.length})`}
+          </button>
+        </div>
+      ) : null}
 
       {open ? (
         <div className="import-overlay" onClick={close}>
@@ -2717,6 +2726,19 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUserId]);
 
+  /**
+   * Cada conta com os próprios dados de leitura neste aparelho: ao trocar de conta (ou sair), troca
+   * antes de desenhar a tela, para não aparecer nada da conta anterior nem por um instante.
+   */
+  const [dataEpoch, setDataEpoch] = useState(0);
+  useLayoutEffect(() => {
+    if (!authEnabled || authLoading) return;
+    if (activateDataOwner(authUserId ?? "anon")) {
+      setPrefs(loadPrefs());
+      setDataEpoch((n) => n + 1);
+    }
+  }, [authUserId, authLoading]);
+
   /** Sessão atual para o carregamento do texto (sem recarregar o livro quando o token renova). */
   const authSessionRef = useRef(authSession);
   authSessionRef.current = authSession;
@@ -3764,7 +3786,7 @@ export function App() {
     const heroBook = featuredBooks.find((b) => b.demo && b.characters?.length);
     const heroChar = heroBook?.characters?.[0];
     return (
-      <div className="home">
+      <div className="home" key={dataEpoch}>
         {authModal ? (
           <AuthModal
             mode={authModal}

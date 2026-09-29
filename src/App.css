@@ -4902,3 +4902,12 @@
   font-size: 0.84rem;
   font-weight: 700;
 }
+
+/* Fim do perfil: sem sobra depois do último cartão (a barra de salvar, quando aparece, tem o próprio espaço). */
+.profile {
+  padding-bottom: 1.75rem;
+}
+
+.profile > section.shelf:last-of-type {
+  margin-bottom: 0;
+}
