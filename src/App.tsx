@@ -2432,8 +2432,15 @@ function ProfilePage({
 
       <header
         className={`profile-hero ${metaString(user, "cover") ? "has-cover" : ""}`}
-        style={metaString(user, "cover") ? ({ backgroundImage: `url("${metaString(user, "cover")}")` } as React.CSSProperties) : undefined}
       >
+        {/* Capa: faixa dentro do cartão (fora da borda), que se dissolve no fundo. */}
+        {metaString(user, "cover") ? (
+          <div
+            className="profile-cover"
+            style={{ backgroundImage: `url("${metaString(user, "cover")}")` } as React.CSSProperties}
+            aria-hidden="true"
+          />
+        ) : null}
         <div className="profile-hero-glow" style={{ "--c": chosenAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
         <button type="button" className="profile-avatar-btn" onClick={() => setEditOpen(true)} aria-label="Editar perfil">
           <UserAvatar user={user} className="profile-avatar" />

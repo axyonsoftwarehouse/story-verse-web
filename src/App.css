@@ -5849,29 +5849,6 @@
   object-fit: cover;
 }
 
-/* Capa no topo do perfil: imagem com um véu escuro para o texto continuar legível. */
-.profile-hero.has-cover {
-  min-height: 210px;
-  align-items: flex-end;
-  background-position: center;
-  background-size: cover;
-}
-
-.profile-hero.has-cover::before {
-  position: absolute;
-  inset: 0;
-  content: "";
-  background: linear-gradient(180deg, rgba(12, 10, 8, 0.15) 0%, rgba(12, 10, 8, 0.55) 55%, rgba(12, 10, 8, 0.92) 100%);
-}
-
-.profile-hero.has-cover .profile-hero-glow {
-  display: none;
-}
-
-.profile-hero.has-cover .profile-id p {
-  color: var(--text-read);
-}
-
 /* Janela: capa com a foto por cima */
 .edit-cover {
   position: relative;
@@ -5987,12 +5964,49 @@
   text-align: center;
 }
 
-/* Celular: cabeçalho empilhado; com capa, foto e nome ficam embaixo à esquerda. */
+/* ============ Capa do perfil: faixa no topo do cartão ============
+ * A imagem fica dentro da borda (posicionada no padding box), então a borda continua neutra;
+ * embaixo ela se dissolve no fundo do cartão e a foto de perfil fica sobreposta.
+ */
+
+.profile-hero.has-cover {
+  align-items: flex-end;
+  padding-top: clamp(120px, 16vw, 170px);
+}
+
+.profile-cover {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: clamp(150px, 20vw, 210px);
+  background-position: center;
+  background-size: cover;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  pointer-events: none;
+}
+
+.profile-hero.has-cover .profile-hero-glow {
+  display: none;
+}
+
+.profile-hero.has-cover .profile-avatar {
+  box-shadow: 0 0 0 4px var(--bg), 0 12px 30px -10px rgba(0, 0, 0, 0.7);
+}
+
+/* O botão do lápis e o nome ficam acima da imagem. */
+.profile-hero > .profile-cover {
+  position: absolute;
+}
+
 @media (max-width: 560px) {
+  /* Empilhado: "flex-end" viraria "à direita"; foto e nome ficam à esquerda. */
   .profile-hero.has-cover {
     align-items: flex-start;
-    justify-content: flex-end;
-    min-height: 230px;
+    padding-top: 96px;
+  }
+
+  .profile-cover {
+    height: 150px;
   }
 
   /* Empilhado, o "flex: 1" do bloco do nome esticava e prendia o texto no topo. */
