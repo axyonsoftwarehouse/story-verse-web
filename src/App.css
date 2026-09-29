@@ -5773,32 +5773,13 @@
   }
 }
 
-/* Barras: dia com meta cumprida mostra um check no topo */
+/* Barras: dia com meta cumprida fica no dourado claro */
 .week-bar-fill.is-met {
   background: var(--heat-3);
 }
 
 .week-bar.is-today .week-bar-fill.is-met {
   background: var(--heat-3);
-}
-
-.week-bar-check {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  translate: -50% 0;
-  border-radius: 50%;
-  background: #1c140c;
-  color: var(--heat-3);
-}
-
-.week-bar-check svg {
-  width: 10px;
-  height: 10px;
 }
 
 /* Mapa: "meta cumprida" leva um check (não depende só do tom) */

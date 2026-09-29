@@ -1574,7 +1574,6 @@ function WeekBars({ days, goal }: { days: ReadingDay[]; goal: number }) {
                 style={{ height: d.minutes > 0 ? `max(4px, ${pct(d.minutes)})` : 0, animationDelay: `${i * 60}ms` }}
               >
                 {label && d.minutes > 0 ? <span className="week-bar-value">{d.minutes}</span> : null}
-                {d.minutes >= goal ? <span className="week-bar-check">{Icon.check}</span> : null}
               </span>
             </div>
           );
