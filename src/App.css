@@ -468,12 +468,12 @@
   line-height: 1.55;
 }
 
+/* Título e, logo abaixo, o subtítulo (antes o subtítulo ia para o canto direito). */
 .shelf-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
   margin-bottom: 1.6rem;
 }
 
@@ -4963,9 +4963,13 @@
 }
 
 /* Estante em fileira: rola para o lado, com cartões compactos. */
+/* Fileira: título e subtítulo à esquerda, setas à direita. */
 .featured-row .shelf-head {
+  flex-direction: row;
+  justify-content: space-between;
   align-items: flex-end;
   flex-wrap: nowrap;
+  gap: 1rem;
 }
 
 .featured-row .shelf-head > div:first-child {
