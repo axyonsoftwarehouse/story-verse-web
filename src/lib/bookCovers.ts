@@ -61,7 +61,35 @@ type Doc = {
   editions?: { docs?: { cover_i?: number; language?: string[] }[] };
 };
 
+/**
+ * Títulos com cara de nome de arquivo ("Autora - Série X - 01 - Título", "Título - Vol 1"):
+ * além do título inteiro, tenta as partes separadas por " - ", sem "Vol 1", números e parênteses.
+ */
+export function titleCandidates(title: string): string[] {
+  const clean = (t: string) =>
+    t
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+      .replace(/\b(vol(ume)?|livro|book|tomo|parte)\.?\s*\d+\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .replace(/[\s\-–—|]+$/, "")
+      .trim();
+  const parts = title
+    .split(/\s+[-–—|]\s+/)
+    .map(clean)
+    .filter((p) => p.length >= 3 && !/^\d+$/.test(p) && !/^s[ée]rie\b/i.test(p));
+  const out = [title.trim(), clean(title), parts[parts.length - 1], parts[0]].filter((t): t is string => Boolean(t));
+  return [...new Set(out)].slice(0, 3);
+}
+
 async function search(title: string, author: string, lang: string): Promise<string | null> {
+  for (const [i, candidate] of titleCandidates(title).entries()) {
+    const found = await searchOne(candidate, author, lang, i > 0);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function searchOne(title: string, author: string, lang: string, cleaned: boolean): Promise<string | null> {
   const lastName = author.split(/\s+/).filter(Boolean).pop() ?? "";
   const params = new URLSearchParams({
     title,
@@ -69,7 +97,8 @@ async function search(title: string, author: string, lang: string): Promise<stri
     fields: "title,cover_i,editions,editions.cover_i,editions.language",
     lang: lang === "pt" ? "pt" : "en",
   });
-  if (lastName && !/informado/i.test(author)) params.set("author", lastName);
+  // Título "limpo" de nome de arquivo: o autor salvo costuma ser quem digitalizou; busca sem ele.
+  if (!cleaned && lastName && !/informado/i.test(author)) params.set("author", lastName);
   const res = await fetch(`${SEARCH_URL}?${params}`, {
     signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
   });
@@ -84,7 +113,7 @@ async function search(title: string, author: string, lang: string): Promise<stri
   }
   // Tradução sem capa (ex.: "As Minas de Salomão"): busca livre por título + autor e aceita a
   // edição original do mesmo autor ("King Solomon's Mines", de Haggard).
-  if (!lastName || /informado/i.test(author)) return null;
+  if (cleaned || !lastName || /informado/i.test(author)) return null;
   const loose = new URLSearchParams({ q: `${title} ${lastName}`, limit: "5", fields: "title,author_name,cover_i", lang: params.get("lang") ?? "en" });
   const res2 = await fetch(`${SEARCH_URL}?${loose}`, {
     signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
@@ -125,7 +154,11 @@ export function knownCover(title: string, author: string): string | null | undef
   return entry.url;
 }
 
+/** Título padrão de importação ("Meu livro") não identifica livro nenhum: não busca capa. */
+const GENERIC_TITLES = new Set(["meu livro", "livro", "sem titulo", "untitled", "documento", "texto"]);
+
 export function findOpenLibraryCover(title: string, author: string, lang: string): Promise<string | null> {
+  if (GENERIC_TITLES.has(normalize(title))) return Promise.resolve(null);
   const key = normalize(`${title}|${author}`);
   const known = knownCover(title, author);
   if (known !== undefined) return Promise.resolve(known);
@@ -150,4 +183,28 @@ export function findOpenLibraryCover(title: string, author: string, lang: string
 /** A capa encontrada falhou ao carregar: esquece para não insistir nela. */
 export function forgetCover(title: string, author: string) {
   writeCache(normalize(`${title}|${author}`), { url: null, at: Date.now() });
+}
+
+export type PublicationInfo = { title: string; authors: string[]; year: number };
+
+/**
+ * Para a moderação: o livro mais provável na Open Library e o ano da primeira publicação.
+ * Serve de alerta (obra recente = provavelmente com direitos autorais), não de prova.
+ */
+export async function lookupPublication(title: string): Promise<PublicationInfo | null> {
+  for (const candidate of titleCandidates(title)) {
+    const params = new URLSearchParams({ title: candidate, limit: "5", fields: "title,author_name,first_publish_year" });
+    try {
+      const res = await fetch(`${SEARCH_URL}?${params}`, {
+        signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
+      });
+      if (!res.ok) continue;
+      const { docs = [] } = (await res.json()) as { docs?: { title?: string; author_name?: string[]; first_publish_year?: number }[] };
+      const hit = docs.find((d) => d.title && d.first_publish_year && sameTitle(candidate, d.title));
+      if (hit?.title && hit.first_publish_year) return { title: hit.title, authors: hit.author_name ?? [], year: hit.first_publish_year };
+    } catch {
+      // Sem resposta: tenta o próximo título (ou fica sem alerta).
+    }
+  }
+  return null;
 }

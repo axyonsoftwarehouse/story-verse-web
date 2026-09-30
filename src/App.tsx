@@ -12,7 +12,7 @@ import {
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner } from "./lib/dataOwner";
-import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers";
+import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
 import { prepareImage, removeProfileImage, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
@@ -2065,6 +2065,38 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
   );
 }
 
+/** Ano a partir do qual a obra quase certamente ainda tem direitos autorais (autor vivo ou morto há < 70 anos). */
+const LIKELY_PROTECTED_AFTER = 1955;
+
+/** Alerta da moderação: obra publicada recentemente (pela Open Library) provavelmente é protegida. */
+function RightsAlert({ title }: { title: string }) {
+  const [info, setInfo] = useState<PublicationInfo | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    void lookupPublication(title).then((r) => alive && setInfo(r));
+    return () => {
+      alive = false;
+    };
+  }, [title]);
+  if (info === undefined) return <p className="rights-alert is-checking">Conferindo a obra na Open Library…</p>;
+  if (!info) return <p className="rights-alert is-unknown">Não encontramos esta obra na Open Library. Confira os direitos antes de aprovar.</p>;
+  const by = info.authors.slice(0, 2).join(", ");
+  if (info.year > LIKELY_PROTECTED_AFTER) {
+    return (
+      <p className="rights-alert is-danger" role="alert">
+        ⚠️ <strong>Possível obra protegida:</strong> “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}. Obras
+        recentes quase sempre têm direitos autorais — só aprove com autorização do autor ou da editora.
+      </p>
+    );
+  }
+  return (
+    <p className="rights-alert is-ok">
+      “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}: pode ser domínio público (confira a data de
+      morte do autor: mais de 70 anos).
+    </p>
+  );
+}
+
 /** Moderação (só admin): aprovar ou recusar envios e tirar livros do acervo. */
 function ModerationPage({
   session,
@@ -2190,6 +2222,7 @@ function ModerationPage({
                   <strong>{rightsLabel(s.rights)}</strong>
                   {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
                 </p>
+                <RightsAlert title={s.title} />
                 {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
               </div>
 
