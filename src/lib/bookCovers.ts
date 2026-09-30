@@ -126,7 +126,7 @@ async function searchOne(title: string, author: string, lang: string, cleaned: b
 }
 
 // Fila simples: no máximo MAX_PARALLEL buscas de uma vez; o mesmo livro vira uma busca só.
-const pending = new Map<string, Promise<string | null>>();
+const pending = new Map<string, Promise<string | null | undefined>>();
 let running = 0;
 const queue: (() => void)[] = [];
 
@@ -157,7 +157,11 @@ export function knownCover(title: string, author: string): string | null | undef
 /** Título padrão de importação ("Meu livro") não identifica livro nenhum: não busca capa. */
 const GENERIC_TITLES = new Set(["meu livro", "livro", "sem titulo", "untitled", "documento", "texto"]);
 
-export function findOpenLibraryCover(title: string, author: string, lang: string): Promise<string | null> {
+/**
+ * Capa pela Open Library: string = achou, null = não existe, undefined = falhou agora (rede,
+ * demora) — nesse caso quem chamou tenta de novo depois.
+ */
+export function findOpenLibraryCover(title: string, author: string, lang: string): Promise<string | null | undefined> {
   if (GENERIC_TITLES.has(normalize(title))) return Promise.resolve(null);
   const key = normalize(`${title}|${author}`);
   const known = knownCover(title, author);
@@ -165,14 +169,14 @@ export function findOpenLibraryCover(title: string, author: string, lang: string
   let p = pending.get(key);
   if (!p) {
     p = runQueued(() => search(title, author, lang))
-      .then((url) => {
+      .then((url): string | null | undefined => {
         writeCache(key, { url, at: Date.now() });
         return url;
       })
       // Sem internet ou Open Library fora: não guarda, tenta de novo outra hora.
       .catch((err: unknown) => {
         console.warn(`[capas] ${title}: ${err instanceof Error ? err.message : err}`);
-        return null;
+        return undefined;
       })
       .finally(() => pending.delete(key));
     pending.set(key, p);
@@ -191,7 +195,32 @@ export type PublicationInfo = { title: string; authors: string[]; year: number }
  * Para a moderação: o livro mais provável na Open Library e o ano da primeira publicação.
  * Serve de alerta (obra recente = provavelmente com direitos autorais), não de prova.
  */
-export async function lookupPublication(title: string): Promise<PublicationInfo | null> {
+export async function lookupPublication(title: string, author = ""): Promise<PublicationInfo | null> {
+  const found = await lookupByTitle(title);
+  if (found) return found;
+  // Título traduzido que a Open Library só tem no original ("Harry Potter e a Pedra Filosofal"):
+  // busca título + sobrenome do autor e aceita a obra desse autor.
+  const lastName = author.split(/[\s,&]+/).filter((w) => w.length > 2).pop();
+  if (!lastName || /informado/i.test(author)) return null;
+  for (const candidate of titleCandidates(title).slice(0, 2)) {
+    const params = new URLSearchParams({ q: `${candidate} ${lastName}`, limit: "5", fields: "title,author_name,first_publish_year" });
+    try {
+      const res = await fetch(`${SEARCH_URL}?${params}`, {
+        signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
+      });
+      if (!res.ok) continue;
+      const { docs = [] } = (await res.json()) as { docs?: { title?: string; author_name?: string[]; first_publish_year?: number }[] };
+      const wanted = normalize(lastName);
+      const hit = docs.find((d) => d.first_publish_year && d.author_name?.some((a) => normalize(a).split(" ").includes(wanted)));
+      if (hit?.title && hit.first_publish_year) return { title: hit.title, authors: hit.author_name ?? [], year: hit.first_publish_year };
+    } catch {
+      // Sem resposta: tenta o próximo.
+    }
+  }
+  return null;
+}
+
+async function lookupByTitle(title: string): Promise<PublicationInfo | null> {
   for (const candidate of titleCandidates(title)) {
     const params = new URLSearchParams({ title: candidate, limit: "5", fields: "title,author_name,first_publish_year" });
     try {

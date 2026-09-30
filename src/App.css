@@ -6251,3 +6251,22 @@
   background: rgba(155, 196, 181, 0.07);
   color: var(--accent-2);
 }
+
+.rights-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+  color: var(--text-read);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.rights-confirm input {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  margin: 0.15rem 0 0;
+  accent-color: var(--danger);
+}

@@ -51,6 +51,8 @@ export type Submission = {
   review_note: string | null;
   reviewed_at: string | null;
   created_at: string;
+  /** Capa escolhida na aprovação (Open Library): o app não precisa buscar na hora de mostrar. */
+  cover_url?: string | null;
 };
 
 const BUCKET = "community-books";
@@ -121,6 +123,7 @@ export function submissionToEbook(s: Submission): Ebook {
     textLanguage: s.language,
     source: "community",
     communityPath: s.text_path,
+    ...(s.cover_url ? { coverUrl: s.cover_url } : {}),
     ...(s.reviewed_at ? { publishedAt: s.reviewed_at } : {}),
     ...(characters.length > 0 ? { characters } : {}),
   };
@@ -211,13 +214,26 @@ export async function reviewSubmission(
   id: string,
   status: "approved" | "rejected",
   note?: string,
+  coverUrl?: string | null,
 ): Promise<Submission> {
-  const res = await sb(`/rest/v1/book_submissions?id=eq.${id}`, {
-    method: "PATCH",
-    session,
-    headers: { "Content-Type": "application/json", Prefer: "return=representation" },
-    body: JSON.stringify({ status, review_note: note?.trim().slice(0, 500) || null, reviewed_at: new Date().toISOString() }),
-  });
+  const fields: Record<string, unknown> = { status, review_note: note?.trim().slice(0, 500) || null, reviewed_at: new Date().toISOString() };
+  if (coverUrl) fields.cover_url = coverUrl;
+  const send = (body: Record<string, unknown>) =>
+    sb(`/rest/v1/book_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify(body),
+    });
+  let res: Response;
+  try {
+    res = await send(fields);
+  } catch (err) {
+    // Banco sem a coluna cover_url (script ainda não rodado): aprova sem gravar a capa.
+    if (!("cover_url" in fields) || !/cover_url/i.test(err instanceof Error ? err.message : "")) throw err;
+    delete fields.cover_url;
+    res = await send(fields);
+  }
   const rows = (await res.json()) as Submission[];
   // Sem linha de volta = a regra do banco não deixou (não é admin).
   if (rows.length === 0) throw new Error("Sem permissão para revisar envios.");

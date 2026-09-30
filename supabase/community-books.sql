@@ -57,6 +57,9 @@ create table if not exists public.book_submissions (
   created_at timestamptz not null default now()
 );
 
+-- Capa escolhida na aprovação (o app mostra direto, sem buscar na hora).
+alter table public.book_submissions add column if not exists cover_url text check (char_length(cover_url) <= 300);
+
 create index if not exists book_submissions_status_idx on public.book_submissions (status, reviewed_at desc);
 
 alter table public.book_submissions enable row level security;

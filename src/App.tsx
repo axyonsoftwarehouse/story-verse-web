@@ -405,12 +405,20 @@ function BookCover({ book }: { book: Ebook }) {
     const el = ref.current;
     if (!el) return;
     let alive = true;
+    let tries = 0;
+    let again: number | undefined;
     const lookup = () =>
-      void findOpenLibraryCover(book.title, book.author, book.textLanguage).then((url) => alive && setOlUrl(url));
+      void findOpenLibraryCover(book.title, book.author, book.textLanguage).then((url) => {
+        if (!alive) return;
+        if (url !== undefined) return setOlUrl(url);
+        // Falhou agora (rede, demora): tenta de novo sozinho em vez de ficar com a genérica.
+        if (++tries <= 2) again = window.setTimeout(lookup, tries === 1 ? 4000 : 12000);
+      });
     if (typeof IntersectionObserver === "undefined") {
       lookup();
       return () => {
         alive = false;
+        window.clearTimeout(again);
       };
     }
     const io = new IntersectionObserver(
@@ -426,6 +434,7 @@ function BookCover({ book }: { book: Ebook }) {
     io.observe(el);
     return () => {
       alive = false;
+      window.clearTimeout(again);
       io.disconnect();
     };
   }, [needsFallback, olUrl, book.title, book.author, book.textLanguage]);
@@ -2084,15 +2093,19 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
 const LIKELY_PROTECTED_AFTER = 1955;
 
 /** Alerta da moderação: obra publicada recentemente (pela Open Library) provavelmente é protegida. */
-function RightsAlert({ title }: { title: string }) {
+function RightsAlert({ title, author, onProtected }: { title: string; author?: string | null; onProtected?: (flag: boolean) => void }) {
   const [info, setInfo] = useState<PublicationInfo | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
-    void lookupPublication(title).then((r) => alive && setInfo(r));
+    void lookupPublication(title, author ?? "").then((r) => {
+      if (!alive) return;
+      setInfo(r);
+      onProtected?.(Boolean(r && r.year > LIKELY_PROTECTED_AFTER));
+    });
     return () => {
       alive = false;
     };
-  }, [title]);
+  }, [title, author]);
   if (info === undefined) return <p className="rights-alert is-checking">Conferindo a obra na Open Library…</p>;
   if (!info) return <p className="rights-alert is-unknown">Não encontramos esta obra na Open Library. Confira os direitos antes de aprovar.</p>;
   const by = info.authors.slice(0, 2).join(", ");
@@ -2139,11 +2152,21 @@ function ModerationPage({
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar os envios."));
   }, [session]);
 
+  /** Envios que a Open Library indica como obra recente (provavelmente protegida). */
+  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
+  /** Autorização confirmada pelo admin para aprovar mesmo assim. */
+  const [authorized, setAuthorized] = useState<Record<string, boolean>>({});
+
   async function approve(s: Submission) {
+    if (flagged[s.id] && !authorized[s.id]) {
+      return setError("Obra provavelmente protegida: confirme que tem autorização do autor ou da editora antes de aprovar.");
+    }
     setBusyId(s.id);
     setError("");
     try {
-      const updated = await reviewSubmission(session, s.id, "approved");
+      // Capa encontrada agora fica gravada no livro (não precisa buscar ao mostrar).
+      const cover = await findOpenLibraryCover(s.title, s.author ?? "", s.language).catch(() => undefined);
+      const updated = await reviewSubmission(session, s.id, "approved", undefined, cover ?? null);
       setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
       setApproved((list) => [updated, ...(list ?? [])]);
     } catch (err) {
@@ -2237,7 +2260,19 @@ function ModerationPage({
                   <strong>{rightsLabel(s.rights)}</strong>
                   {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
                 </p>
-                <RightsAlert title={s.title} />
+                <RightsAlert title={s.title} author={s.author} onProtected={(flag) => setFlagged((m) => ({ ...m, [s.id]: flag }))} />
+                {tab === "pending" && flagged[s.id] ? (
+                  <label className="rights-confirm">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(authorized[s.id])}
+                      onChange={(e) => setAuthorized((m) => ({ ...m, [s.id]: e.target.checked }))}
+                    />
+                    <span>
+                      Tenho autorização por escrito do autor ou da editora para distribuir esta obra no Storyverse.
+                    </span>
+                  </label>
+                ) : null}
                 {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
               </div>
 
@@ -2270,7 +2305,13 @@ function ModerationPage({
                       <button type="button" className="btn profile-logout" onClick={() => setRejecting({ id: s.id, note: "" })} disabled={busyId === s.id}>
                         Recusar
                       </button>
-                      <button type="button" className="btn btn-primary" onClick={() => void approve(s)} disabled={busyId === s.id}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => void approve(s)}
+                        disabled={busyId === s.id || (flagged[s.id] && !authorized[s.id])}
+                        title={flagged[s.id] && !authorized[s.id] ? "Confirme a autorização para aprovar" : undefined}
+                      >
                         {busyId === s.id ? "Aprovando…" : "Aprovar"}
                       </button>
                     </>
