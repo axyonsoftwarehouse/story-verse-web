@@ -12,7 +12,9 @@ import {
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner } from "./lib/dataOwner";
+import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers";
 import { finishedBooks, markBookFinished } from "./lib/finished";
+import { watchPresence } from "./lib/presence";
 import { prepareImage, removeProfileImage, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
@@ -364,13 +366,54 @@ function Avatar({
 }
 
 /** Capa real do Gutenberg; se não houver (ou falhar), desenha uma capa tipográfica. */
+/**
+ * Capa do livro: a própria (Gutenberg ou do arquivo importado); sem ela, ou se não carregar, a da
+ * Open Library pelo título e autor (buscada só quando o livro aparece na tela); por último, a
+ * capa tipográfica desenhada pelo app.
+ */
 function BookCover({ book }: { book: Ebook }) {
   const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
   const [useCoverMirror, setUseCoverMirror] = useState(false);
+  const [olUrl, setOlUrl] = useState<string | null | undefined>(() => knownCover(book.title, book.author));
+  const [olStatus, setOlStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setStatus("loading");
     setUseCoverMirror(false);
-  }, [book.gutenbergId, book.coverUrl]);
+    setOlUrl(knownCover(book.title, book.author));
+    setOlStatus("loading");
+  }, [book.gutenbergId, book.coverUrl, book.title, book.author]);
+
+  const needsFallback = !book.coverUrl || status === "failed";
+  useEffect(() => {
+    if (!needsFallback || olUrl !== undefined) return;
+    const el = ref.current;
+    if (!el) return;
+    let alive = true;
+    const lookup = () =>
+      void findOpenLibraryCover(book.title, book.author, book.textLanguage).then((url) => alive && setOlUrl(url));
+    if (typeof IntersectionObserver === "undefined") {
+      lookup();
+      return () => {
+        alive = false;
+      };
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          lookup();
+        }
+      },
+      // Folga lateral: nas fileiras que rolam para o lado, já busca os próximos livros.
+      { rootMargin: "300px 900px" },
+    );
+    io.observe(el);
+    return () => {
+      alive = false;
+      io.disconnect();
+    };
+  }, [needsFallback, olUrl, book.title, book.author, book.textLanguage]);
 
   const coverSrc =
     useCoverMirror && book.coverUrl?.startsWith("/gutenberg/")
@@ -378,7 +421,7 @@ function BookCover({ book }: { book: Ebook }) {
       : book.coverUrl;
 
   return (
-    <div className="cover">
+    <div className="cover" ref={ref}>
       {book.coverUrl && status !== "failed" ? (
         <img
           className={`cover-photo ${status === "loaded" ? "is-loaded" : ""}`}
@@ -393,6 +436,24 @@ function BookCover({ book }: { book: Ebook }) {
               return;
             }
             setStatus("failed");
+          }}
+        />
+      ) : needsFallback && olUrl && olStatus !== "failed" ? (
+        <img
+          className={`cover-photo ${olStatus === "loaded" ? "is-loaded" : ""}`}
+          src={olUrl}
+          alt=""
+          loading="lazy"
+          onLoad={(e) => {
+            // A Open Library devolve uma imagem de 1 px quando a capa não existe.
+            if (e.currentTarget.naturalWidth < 10) {
+              forgetCover(book.title, book.author);
+              setOlStatus("failed");
+            } else setOlStatus("loaded");
+          }}
+          onError={() => {
+            forgetCover(book.title, book.author);
+            setOlStatus("failed");
           }}
         />
       ) : null}
@@ -1631,119 +1692,192 @@ function GoalRing({ minutes, goal }: { minutes: number; goal: number }) {
   );
 }
 
-/** Dica flutuante dos gráficos (acompanha a marca sob o dedo/mouse). */
-function useChartTip() {
-  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
-  const show = (e: React.PointerEvent | React.FocusEvent, text: string) => {
-    const el = e.currentTarget as Element;
-    const box = el.closest(".dash-card")?.getBoundingClientRect();
-    const r = el.getBoundingClientRect();
-    if (box) setTip({ x: r.left + r.width / 2 - box.left, y: r.top - box.top, text });
-  };
-  const node = tip ? (
-    <div className="chart-tip" style={{ left: tip.x, top: tip.y }} role="status">
-      {tip.text}
-    </div>
-  ) : null;
-  return { show, hide: () => setTip(null), node };
+/**
+ * Dia escolhido num gráfico: ao passar o mouse ou tocar, o detalhe aparece no topo do cartão
+ * (sem caixinha flutuando por cima das barras). Tocar de novo no mesmo dia solta.
+ */
+function useDayPick() {
+  const [picked, setPicked] = useState<string | null>(null);
+  const lastPointer = useRef("mouse");
+  const bind = (key: string) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      lastPointer.current = e.pointerType;
+    },
+    // Mouse: passar por cima já mostra; clicar só confirma.
+    onPointerEnter: (e: React.PointerEvent) => e.pointerType === "mouse" && setPicked(key),
+    // Toque: um toque mostra, outro toque no mesmo dia solta.
+    onClick: () => (lastPointer.current === "mouse" ? setPicked(key) : setPicked((k) => (k === key ? null : key))),
+    // Teclado (Tab): o foco mostra o dia. Foco vindo do toque não conta (senão o toque desfazia).
+    onFocus: (e: React.FocusEvent) => e.currentTarget.matches(":focus-visible") && setPicked(key),
+  });
+  return { picked, bind, clear: () => setPicked(null) };
+}
+
+function DayDetail({ day, goal }: { day: ReadingDay; goal: number }) {
+  const date = day.date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+  return (
+    <span className="day-detail" role="status">
+      <strong>{date}</strong>
+      {day.state === "frozen" ? " · salvo por escudo 🛡️" : ` · ${day.minutes} min`}
+      {day.state !== "frozen" && day.minutes >= goal ? <span className="day-detail-met"> · meta ✓</span> : null}
+    </span>
+  );
 }
 
 /** Barras dos últimos 7 dias; hoje em destaque e linha tracejada da meta. */
-function WeekBars({ days, goal }: { days: ReadingDay[]; goal: number }) {
-  const { show, hide, node } = useChartTip();
+function WeekBars({ days, goal, total }: { days: ReadingDay[]; goal: number; total: string }) {
+  const { picked, bind, clear } = useDayPick();
+  const pickedDay = days.find((d) => d.key === picked);
   const top = Math.max(...days.map((d) => d.minutes));
   // Folga acima da meta e da maior barra (o número dela fica por cima, dentro do gráfico).
   const max = Math.max(goal * 1.25, top * 1.18, 1);
   const pct = (m: number) => `${(m / max) * 100}%`;
   return (
-    <div className="week-bars-wrap">
-      <div className="week-plot" onPointerLeave={hide}>
-        <div className="week-goal-line" style={{ bottom: pct(goal) }}>
-          <span>meta {goal} min</span>
-        </div>
-        {days.map((d, i) => {
-          const today = i === days.length - 1;
-          const label = today || (d.minutes === top && top > 0);
-          return (
-            <div
-              key={d.key}
-              className={`week-bar ${today ? "is-today" : ""} ${d.state === "frozen" ? "is-frozen" : ""}`}
-              tabIndex={0}
-              onPointerEnter={(e) => show(e, dayTitle(d, goal))}
-              onFocus={(e) => show(e, dayTitle(d, goal))}
-              onBlur={hide}
-              aria-label={dayTitle(d, goal)}
-            >
-              <span
-                className={`week-bar-fill ${d.minutes >= goal ? "is-met" : ""}`}
-                style={{ height: d.minutes > 0 ? `max(4px, ${pct(d.minutes)})` : 0, animationDelay: `${i * 60}ms` }}
+    <>
+      <div className="dash-card-head">
+        <span className="dash-label">Últimos 7 dias</span>
+        {pickedDay ? <DayDetail day={pickedDay} goal={goal} /> : <span className="dash-sub">{total} no total</span>}
+      </div>
+      <div className="week-bars-wrap">
+        <div className="week-plot" onPointerLeave={(e) => e.pointerType === "mouse" && clear()}>
+          <div className="week-goal-line" style={{ bottom: pct(goal) }}>
+            <span>meta {goal} min</span>
+          </div>
+          {days.map((d, i) => {
+            const today = i === days.length - 1;
+            const label = today || (d.minutes === top && top > 0);
+            return (
+              <button
+                type="button"
+                key={d.key}
+                className={`week-bar ${today ? "is-today" : ""} ${d.state === "frozen" ? "is-frozen" : ""} ${picked === d.key ? "is-picked" : ""}`}
+                aria-label={dayTitle(d, goal)}
+                aria-pressed={picked === d.key}
+                {...bind(d.key)}
               >
-                {label && d.minutes > 0 ? <span className="week-bar-value">{d.minutes}</span> : null}
-              </span>
-            </div>
-          );
-        })}
+                <span
+                  className={`week-bar-fill ${d.minutes >= goal ? "is-met" : ""}`}
+                  style={{ height: d.minutes > 0 ? `max(4px, ${pct(d.minutes)})` : 0, animationDelay: `${i * 60}ms` }}
+                >
+                  {label && d.minutes > 0 ? <span className="week-bar-value">{d.minutes}</span> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="week-days" aria-hidden="true">
+          {days.map((d, i) => (
+            <span key={d.key} className={i === days.length - 1 ? "is-today" : picked === d.key ? "is-picked" : ""}>
+              {i === days.length - 1 ? "hoje" : WEEKDAY_SHORT[d.date.getDay()]}
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="week-days" aria-hidden="true">
-        {days.map((d, i) => (
-          <span key={d.key} className={i === days.length - 1 ? "is-today" : ""}>
-            {i === days.length - 1 ? "hoje" : WEEKDAY_SHORT[d.date.getDay()]}
-          </span>
-        ))}
-      </div>
-      {node}
-    </div>
+    </>
   );
 }
 
-/** Mapa de constância: um quadrado por dia, semanas em colunas (como o GitHub). */
+/** Calendário de constância: semanas em colunas, meses em cima e dias da semana ao lado. */
 const HEAT_CELL = 14;
 const HEAT_GAP = 4;
+const HEAT_LABEL_W = 30;
+const HEAT_WEEKDAYS = ["", "seg", "", "qua", "", "sex", ""];
 
 function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: number }) {
-  const { show, hide, node } = useChartTip();
+  const { picked, bind, clear } = useDayPick();
   // Quantas semanas cabem na largura (quadrados de tamanho fixo): ~1 ano no computador.
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [weeks, setWeeks] = useState(18);
+  const [weeks, setWeeks] = useState(16);
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const fit = () => setWeeks(Math.max(8, Math.min(53, Math.floor((el.clientWidth + HEAT_GAP) / (HEAT_CELL + HEAT_GAP)))));
+    const fit = () =>
+      setWeeks(Math.max(8, Math.min(53, Math.floor((el.clientWidth - HEAT_LABEL_W + HEAT_GAP) / (HEAT_CELL + HEAT_GAP)))));
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
   // Colunas = semanas começando no domingo; a última termina hoje.
-  const today = allDays[allDays.length - 1].date;
-  const days = allDays.slice(-((weeks - 1) * 7 + today.getDay() + 1));
-  const cells: (ReadingDay | null)[] = days;
+  const today = allDays[allDays.length - 1];
+  const days = allDays.slice(-((weeks - 1) * 7 + today.date.getDay() + 1));
+  const pickedDay = days.find((d) => d.key === picked);
   const readCount = days.filter((d) => d.minutes > 0).length;
+  const metCount = days.filter((d) => d.minutes >= goal).length;
+
+  // Nome do mês em cima da primeira semana em que ele aparece.
+  const months: { col: number; label: string }[] = [];
+  for (let col = 0; col * 7 < days.length; col++) {
+    const first = days[col * 7].date;
+    const prev = col > 0 ? days[(col - 1) * 7].date : null;
+    if (!prev || prev.getMonth() !== first.getMonth()) {
+      // Mês que começou no meio da primeira coluna: o nome vai na seguinte (não fica cortado).
+      if (col === 0 && first.getDate() > 7) continue;
+      months.push({ col, label: first.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "") });
+    }
+  }
+
   return (
-    <div className="heatmap-wrap" ref={wrapRef}>
-      <div className="heatmap" onPointerLeave={hide} aria-hidden="true">
-        {cells.map((d, i) =>
-          d ? (
-            <span
-              key={d.key}
-              className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)}`}
-              style={{ animationDelay: `${Math.floor(i / 7) * 25}ms` }}
-              onPointerEnter={(e) => show(e, dayTitle(d, goal))}
-            />
-          ) : (
-            <span key={`pad-${i}`} className="heat-cell is-pad" />
-          ),
+    <>
+      <div className="dash-card-head heat-head">
+        <span className="dash-label">Constância</span>
+        {pickedDay ? (
+          <DayDetail day={pickedDay} goal={goal} />
+        ) : (
+          <span className="heat-summary">
+            <span>
+              <strong>{readCount}</strong> {readCount === 1 ? "dia lido" : "dias lidos"}
+            </span>
+            <span>
+              <strong>{metCount}</strong> {metCount === 1 ? "meta cumprida" : "metas cumpridas"} ✓
+            </span>
+            <span className="heat-summary-range">últimas {weeks} semanas</span>
+          </span>
         )}
       </div>
+      <div className="heatmap-wrap" ref={wrapRef} onPointerLeave={(e) => e.pointerType === "mouse" && clear()}>
+        <div className="heat-months" aria-hidden="true" style={{ marginLeft: HEAT_LABEL_W }}>
+          {months.map((m) => (
+            <span key={m.col} style={{ left: m.col * (HEAT_CELL + HEAT_GAP) }}>
+              {m.label}
+            </span>
+          ))}
+        </div>
+        <div className="heat-body">
+          <div className="heat-weekdays" aria-hidden="true">
+            {HEAT_WEEKDAYS.map((w, i) => (
+              <span key={i}>{w}</span>
+            ))}
+          </div>
+          <div className="heatmap">
+            {days.map((d, i) => (
+              <button
+                type="button"
+                key={d.key}
+                className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)} ${
+                  d.key === today.key ? "is-today" : ""
+                } ${picked === d.key ? "is-picked" : ""}`}
+                style={{ animationDelay: `${Math.floor(i / 7) * 25}ms` }}
+                aria-label={dayTitle(d, goal)}
+                aria-pressed={picked === d.key}
+                tabIndex={-1}
+                {...bind(d.key)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="heatmap-foot">
-        <span>
-          {readCount} {readCount === 1 ? "dia" : "dias"} com leitura nas últimas {weeks} semanas
-        </span>
+        <span className="heat-tip">Toque num dia (ou passe o mouse) para ver quanto leu.</span>
         <span className="heat-legend" aria-hidden="true">
+          <span>
+            <i className="heat-cell lv-0" />
+            Sem leitura
+          </span>
           {([1, 2, 3] as const).map((lv) => (
             <span key={lv}>
               <i className={`heat-cell lv-${lv}`} />
-              {lv === 3 ? "Meta cumprida ✓" : LEVEL_LABELS[lv]}
+              {lv === 3 ? "Meta cumprida" : LEVEL_LABELS[lv]}
             </span>
           ))}
         </span>
@@ -1762,8 +1896,7 @@ function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: num
             ))}
         </tbody>
       </table>
-      {node}
-    </div>
+    </>
   );
 }
 
@@ -1842,17 +1975,10 @@ function ReadingDashboard({
       </div>
 
       <div className="dash-card dash-week">
-        <div className="dash-card-head">
-          <span className="dash-label">Últimos 7 dias</span>
-          <span className="dash-sub">{formatMinutes(totals.weekMinutes)} no total</span>
-        </div>
-        <WeekBars days={week} goal={summary.goalMinutes} />
+        <WeekBars days={week} goal={summary.goalMinutes} total={formatMinutes(totals.weekMinutes)} />
       </div>
 
       <div className="dash-card dash-heat">
-        <div className="dash-card-head">
-          <span className="dash-label">Constância</span>
-        </div>
         <ReadingHeatmap days={history} goal={summary.goalMinutes} />
       </div>
 
@@ -2111,6 +2237,17 @@ function ModerationPage({
       )}
     </div>
   );
+}
+
+/** Quantas pessoas estão na sala agora (null enquanto conecta ou sem Realtime). */
+function usePresenceCount(room: string | null, who: string | undefined): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    setCount(null);
+    if (!room) return;
+    return watchPresence(room, who, setCount);
+  }, [room, who]);
+  return count;
 }
 
 /** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
@@ -3367,6 +3504,9 @@ export function App() {
    * antes de desenhar a tela, para não aparecer nada da conta anterior nem por um instante.
    */
   const [dataEpoch, setDataEpoch] = useState(0);
+  const onlineCount = usePresenceCount(authEnabled ? "app" : null, authUserId);
+  const bookRoomId = book?.id;
+  const readingHere = usePresenceCount(authEnabled && bookRoomId ? `book:${bookRoomId}` : null, authUserId);
   useLayoutEffect(() => {
     if (!authEnabled || authLoading) return;
     if (activateDataOwner(authUserId ?? "anon")) {
@@ -4451,6 +4591,13 @@ export function App() {
             Storyverse
           </span>
           <div className="home-nav-actions">
+            {onlineCount !== null && onlineCount > 0 ? (
+              <span className="online-pill" title="Pessoas com o Storyverse aberto agora" role="status">
+                <span className="online-dot" aria-hidden="true" />
+                <strong>{onlineCount}</strong>
+                <span className="online-label">{onlineCount === 1 ? "online" : "online agora"}</span>
+              </span>
+            ) : null}
             <span className="status" title="Mostra se o chat usa IA em tempo real ou respostas de demonstração.">
               <span className="status-dot" aria-hidden="true" />
               {providerLabel}
@@ -4840,6 +4987,12 @@ export function App() {
             {book.author}
             {currentChapter ? ` · ${currentChapter.label}` : ""}
           </span>
+          {readingHere !== null && readingHere > 1 ? (
+            <span className="reading-here" role="status">
+              <span className="online-dot" aria-hidden="true" />
+              você e mais {readingHere - 1} {readingHere - 1 === 1 ? "pessoa lendo" : "pessoas lendo"} agora
+            </span>
+          ) : null}
         </div>
 
         {chapters.length > 1 ? (
