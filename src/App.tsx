@@ -451,10 +451,9 @@ function BookCover({ book }: { book: Ebook }) {
               setOlStatus("failed");
             } else setOlStatus("loaded");
           }}
-          onError={() => {
-            forgetCover(book.title, book.author);
-            setOlStatus("failed");
-          }}
+          // Falha de rede: só esta vez fica a capa desenhada (sem esquecer a capa: no próximo
+          // carregamento tenta de novo). Esquecer é só para a imagem vazia acima.
+          onError={() => setOlStatus("failed")}
         />
       ) : null}
       <div className="cover-frame">
@@ -1740,9 +1739,7 @@ function WeekBars({ days, goal, total }: { days: ReadingDay[]; goal: number; tot
       </div>
       <div className="week-bars-wrap">
         <div className="week-plot" onPointerLeave={(e) => e.pointerType === "mouse" && clear()}>
-          <div className="week-goal-line" style={{ bottom: pct(goal) }}>
-            <span>meta {goal} min</span>
-          </div>
+          <div className="week-goal-line" style={{ bottom: pct(goal) }} aria-hidden="true" />
           {days.map((d, i) => {
             const today = i === days.length - 1;
             const label = today || (d.minutes === top && top > 0);
@@ -1771,6 +1768,11 @@ function WeekBars({ days, goal, total }: { days: ReadingDay[]; goal: number; tot
               {i === days.length - 1 ? "hoje" : WEEKDAY_SHORT[d.date.getDay()]}
             </span>
           ))}
+        </div>
+        {/* Legenda fora do gráfico: o texto na linha passava por cima das barras. */}
+        <div className="week-legend">
+          <span className="week-legend-line" aria-hidden="true" />
+          meta de {goal} min por dia
         </div>
       </div>
     </>

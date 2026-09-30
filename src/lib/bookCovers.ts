@@ -5,7 +5,8 @@
  */
 
 const SEARCH_URL = "https://openlibrary.org/search.json";
-const CACHE_KEY = "storyverse:ol-covers";
+// v2: a versão anterior guardava como "sem capa" falhas passageiras de carregamento.
+const CACHE_KEY = "storyverse:ol-covers-v2";
 const MISS_TTL = 7 * 86_400_000;
 /** Buscas ao mesmo tempo (a Open Library é gratuita; não vale sobrecarregar). */
 const MAX_PARALLEL = 2;

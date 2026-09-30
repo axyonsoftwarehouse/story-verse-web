@@ -5264,15 +5264,6 @@
   pointer-events: none;
 }
 
-/* À esquerda: a barra de hoje (à direita) leva o número em cima e bateria no texto. */
-.week-goal-line span {
-  position: absolute;
-  left: 0;
-  bottom: 3px;
-  color: var(--muted);
-  font-size: 0.66rem;
-}
-
 .week-bar {
   display: flex;
   justify-content: center;
@@ -6213,4 +6204,19 @@
     animation: none;
     opacity: 0;
   }
+}
+
+/* Legenda da meta embaixo das barras (tracinho igual à linha do gráfico) */
+.week-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.week-legend-line {
+  width: 18px;
+  border-top: 1px dashed rgba(228, 184, 106, 0.7);
 }
