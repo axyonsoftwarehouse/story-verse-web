@@ -12,9 +12,11 @@ import {
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner } from "./lib/dataOwner";
+import { pullAndMerge, pushIfChanged, resetSync, startAutoPush } from "./lib/cloudSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
+import { pushLayer, removeLayer } from "./lib/backStack";
 import { prepareImage, removeProfileImage, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
@@ -2274,6 +2276,26 @@ function ModerationPage({
   );
 }
 
+/**
+ * Enquanto `open`, o botão voltar do celular fecha esta tela/janela (chama `close`) em vez de
+ * sair do app. Fechada pelo próprio app, o passo sai do histórico sozinho.
+ */
+function useBackClose(open: boolean, close: () => void) {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!open) return;
+    let closedByBack = false;
+    const id = pushLayer(() => {
+      closedByBack = true;
+      closeRef.current();
+    });
+    return () => {
+      if (!closedByBack) removeLayer(id);
+    };
+  }, [open]);
+}
+
 /** Quantas pessoas estão na sala agora (null enquanto conecta ou sem Realtime). */
 function usePresenceCount(room: string | null, who: string | undefined): number | null {
   const [count, setCount] = useState<number | null>(null);
@@ -2483,6 +2505,7 @@ function ProfilePage({
   const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
   const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
   const [editOpen, setEditOpen] = useState(false);
+  useBackClose(editOpen, () => setEditOpen(false));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -3550,6 +3573,28 @@ export function App() {
     }
   }, [authUserId, authLoading]);
 
+  // Nuvem: ao entrar, junta os dados da conta com os do aparelho (depois da troca de dono acima).
+  useEffect(() => {
+    if (!authEnabled || authLoading) return;
+    const session = authSessionRef.current;
+    if (!session) return resetSync();
+    let alive = true;
+    void pullAndMerge(session)
+      .then((changed) => {
+        if (alive && changed) {
+          setPrefs(loadPrefs());
+          setDataEpoch((n) => n + 1);
+        }
+      })
+      .catch(() => {
+        // Sem a tabela ou sem internet: segue só com os dados do aparelho.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [authUserId, authLoading]);
+  useEffect(() => (authEnabled ? startAutoPush(() => authSessionRef.current) : undefined), []);
+
   /** Sessão atual para o carregamento do texto (sem recarregar o livro quando o token renova). */
   const authSessionRef = useRef(authSession);
   authSessionRef.current = authSession;
@@ -3559,6 +3604,8 @@ export function App() {
     setAuthActionLoading(true);
     setAuthNotice(null);
     try {
+      // Antes de sair, guarda na nuvem o que ainda não foi enviado.
+      await pushIfChanged(authSession).catch(() => {});
       await signOut(authSession);
     } catch (err) {
       setAuthNotice({ text: err instanceof Error ? `Sessão encerrada neste dispositivo. ${err.message}` : "Sessão encerrada neste dispositivo." });
@@ -4539,6 +4586,16 @@ export function App() {
     e.preventDefault();
     void sendMessage(input);
   }
+
+  // Botão voltar do celular: fecha o que estiver aberto por cima, na ordem em que foi aberto.
+  useBackClose(Boolean(book), leaveBook);
+  useBackClose(profileOpen, () => setProfileOpen(false));
+  useBackClose(moderationOpen, () => setModerationOpen(false));
+  useBackClose(authModal !== null, () => setAuthModal(null));
+  useBackClose(aboutOpen, () => setAboutOpen(false));
+  useBackClose(importRequest !== null, () => setImportRequest(null));
+  useBackClose(chatOpen, () => setChatOpen(false));
+  useBackClose(highlightsOpen, () => setHighlightsOpen(false));
 
   if (authLoading && !book) {
     return (

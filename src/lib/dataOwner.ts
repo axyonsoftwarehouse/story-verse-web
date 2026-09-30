@@ -27,7 +27,7 @@ const USER_KEYS = new Set([
 ]);
 const USER_PREFIXES = ["storyverse:highlights:", "storyverse:chat:"];
 
-function isUserKey(key: string): boolean {
+export function isUserKey(key: string): boolean {
   return USER_KEYS.has(key) || USER_PREFIXES.some((p) => key.startsWith(p));
 }
 

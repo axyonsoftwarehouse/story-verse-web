@@ -12,10 +12,11 @@
  */
 // Mudar a versão faz quem já tem o app baixar de novo a página e os ícones. Livros e imagens
 // (capas, retratos) ficam em caches sem versão: continuam guardados entre atualizações.
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL = `storyverse-shell-${VERSION}`;
 const BOOKS = "storyverse-books-v1";
-const IMAGES = "storyverse-images-v1";
+// v2: a v1 chegou a guardar páginas de erro (HTML) no lugar de capas, que ficavam quebradas.
+const IMAGES = "storyverse-images-v2";
 const MAX_BOOKS = 30;
 const MAX_IMAGES = 200;
 
@@ -34,7 +35,11 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((k) => k.startsWith("storyverse-shell-") && k !== SHELL).map((k) => caches.delete(k)),
+          keys
+            .filter(
+              (k) => (k.startsWith("storyverse-shell-") && k !== SHELL) || (k.startsWith("storyverse-images-") && k !== IMAGES),
+            )
+            .map((k) => caches.delete(k)),
         ),
       )
       .then(() => self.clients.claim()),
@@ -72,18 +77,29 @@ async function cacheFirst(request, cacheName, max) {
   return res;
 }
 
+/** Só conta como imagem o que é imagem: com rede instável o proxy às vezes devolve HTML de erro. */
+function isImage(res) {
+  if (res.type === "opaque") return true; // outro domínio (ex.: archive.org): não dá para ver o tipo
+  return res.ok && (res.headers.get("content-type") ?? "").startsWith("image/");
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(IMAGES);
-  const hit = await cache.match(request);
+  let hit = await cache.match(request);
+  if (hit && !isImage(hit)) {
+    // Guardado errado (versão antiga): descarta e busca de novo.
+    await cache.delete(request);
+    hit = undefined;
+  }
   const update = fetch(request)
     .then((res) => {
-      if (res.ok || res.type === "opaque") {
+      if (isImage(res)) {
         cache.put(request, res.clone());
         trim(IMAGES, MAX_IMAGES);
       }
       return res;
     })
-    .catch(() => hit);
+    .catch(() => hit ?? Response.error());
   return hit ?? update;
 }
 
