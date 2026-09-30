@@ -11,7 +11,41 @@ let deferred: InstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
+const INSTALLED_KEY = "storyverse:app-installed";
+
+/**
+ * Já tem o app: aberto como app, instalado por este aparelho antes, ou o Chrome confirma
+ * (getInstalledRelatedApps, pelo "related_applications" do manifesto). Aí o botão não aparece —
+ * o Chrome às vezes oferece instalar de novo quando o link abre no navegador.
+ */
+let installed =
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    (() => {
+      try {
+        return localStorage.getItem(INSTALLED_KEY) === "1";
+      } catch {
+        return false;
+      }
+    })());
+
+function markInstalled() {
+  installed = true;
+  try {
+    localStorage.setItem(INSTALLED_KEY, "1");
+  } catch {
+    // Sem armazenamento: só não lembra.
+  }
+  notify();
+}
+
 if (typeof window !== "undefined") {
+  const nav = navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> };
+  void nav
+    .getInstalledRelatedApps?.()
+    .then((apps) => apps.length > 0 && markInstalled())
+    .catch(() => undefined);
   // O evento chega cedo, antes do React montar: fica guardado aqui.
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
@@ -20,7 +54,7 @@ if (typeof window !== "undefined") {
   });
   window.addEventListener("appinstalled", () => {
     deferred = null;
-    notify();
+    markInstalled();
   });
 }
 
@@ -76,13 +110,14 @@ export function useInstallPrompt(): { install: (() => Promise<void>) | null } {
       listeners.delete(l);
     };
   }, []);
-  if (!deferred) return { install: null };
+  if (!deferred || installed) return { install: null };
   return {
     install: async () => {
       const e = deferred;
       if (!e) return;
       await e.prompt();
-      await e.userChoice.catch(() => undefined);
+      const choice = await e.userChoice.catch(() => undefined);
+      if (choice?.outcome === "accepted") markInstalled();
       deferred = null;
       notify();
     },

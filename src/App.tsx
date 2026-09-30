@@ -378,13 +378,26 @@ function BookCover({ book }: { book: Ebook }) {
   const [useCoverMirror, setUseCoverMirror] = useState(false);
   const [olUrl, setOlUrl] = useState<string | null | undefined>(() => knownCover(book.title, book.author));
   const [olStatus, setOlStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  /** Nova tentativa depois de uma falha (rede móvel instável): 1,5 s e depois 4 s. */
+  const [retry, setRetry] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setStatus("loading");
     setUseCoverMirror(false);
     setOlUrl(knownCover(book.title, book.author));
     setOlStatus("loading");
+    setRetry(0);
   }, [book.gutenbergId, book.coverUrl, book.title, book.author]);
+  const retryTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(retryTimer.current), []);
+  /** Falhou: tenta de novo (até 2 vezes, pulando o cache) antes de ficar com a capa desenhada. */
+  const retryOr = (giveUp: () => void) => {
+    if (retry >= 2) return giveUp();
+    window.clearTimeout(retryTimer.current);
+    retryTimer.current = window.setTimeout(() => setRetry((n) => n + 1), retry === 0 ? 1500 : 4000);
+  };
+  const withRetry = (src: string | undefined) =>
+    src && retry > 0 ? `${src}${src.includes("?") ? "&" : "?"}tentativa=${retry}` : src;
 
   const needsFallback = !book.coverUrl || status === "failed";
   useEffect(() => {
@@ -427,7 +440,7 @@ function BookCover({ book }: { book: Ebook }) {
       {book.coverUrl && status !== "failed" ? (
         <img
           className={`cover-photo ${status === "loaded" ? "is-loaded" : ""}`}
-          src={coverSrc}
+          src={withRetry(coverSrc)}
           alt=""
           loading="lazy"
           onLoad={() => setStatus("loaded")}
@@ -437,13 +450,13 @@ function BookCover({ book }: { book: Ebook }) {
               setStatus("loading");
               return;
             }
-            setStatus("failed");
+            retryOr(() => setStatus("failed"));
           }}
         />
       ) : needsFallback && olUrl && olStatus !== "failed" ? (
         <img
           className={`cover-photo ${olStatus === "loaded" ? "is-loaded" : ""}`}
-          src={olUrl}
+          src={withRetry(olUrl)}
           alt=""
           loading="lazy"
           onLoad={(e) => {
@@ -455,7 +468,7 @@ function BookCover({ book }: { book: Ebook }) {
           }}
           // Falha de rede: só esta vez fica a capa desenhada (sem esquecer a capa: no próximo
           // carregamento tenta de novo). Esquecer é só para a imagem vazia acima.
-          onError={() => setOlStatus("failed")}
+          onError={() => retryOr(() => setOlStatus("failed"))}
         />
       ) : null}
       <div className="cover-frame">
@@ -4683,7 +4696,7 @@ export function App() {
             Storyverse
           </span>
           <div className="home-nav-actions">
-            {onlineCount !== null && onlineCount > 0 ? (
+            {authUser && onlineCount !== null && onlineCount > 0 ? (
               <span className="online-pill" title="Pessoas com o Storyverse aberto agora" role="status">
                 <span className="online-dot" aria-hidden="true" />
                 <strong>{onlineCount}</strong>
