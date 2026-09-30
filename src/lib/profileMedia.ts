@@ -9,10 +9,13 @@ import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
 const BUCKET = "profile-media";
 
 export type MediaKind = "avatar" | "cover";
+/** Capa de livro (retrato 2:3), enviada junto com o livro importado. */
+export type ImageKind = MediaKind | "book";
 
-const SIZES: Record<MediaKind, { width: number; height: number }> = {
+const SIZES: Record<ImageKind, { width: number; height: number }> = {
   avatar: { width: 256, height: 256 },
   cover: { width: 1500, height: 500 },
+  book: { width: 400, height: 600 },
 };
 
 /** Fotos maiores que isso nem são abertas (evita travar o celular). */
@@ -42,7 +45,7 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
  * Recorta no centro (preenchendo o formato, como `object-fit: cover`) e comprime.
  * WebP quando o navegador sabe gerar; senão JPEG (Safari antigo devolve PNG para WebP).
  */
-export async function prepareImage(file: File, kind: MediaKind): Promise<Blob> {
+export async function prepareImage(file: File, kind: ImageKind): Promise<Blob> {
   if (!file.type.startsWith("image/")) throw new Error("Escolha um arquivo de imagem.");
   if (file.size > MAX_INPUT_BYTES) throw new Error("Imagem grande demais (máximo de 25 MB).");
   const img = await loadImage(file);
@@ -117,5 +120,31 @@ export async function removeProfileImage(session: SupabaseSession, kind: MediaKi
     // Já não existia: tudo bem.
     if (err instanceof Error && /not found/i.test(err.message)) return;
     throw err;
+  });
+}
+
+/**
+ * Capa de um livro enviado ao acervo: fica na pasta da pessoa (profile-media/<id>/livros/…),
+ * pública como as fotos de perfil. Devolve o endereço para gravar no envio.
+ */
+export async function uploadBookCover(session: SupabaseSession, image: Blob): Promise<string> {
+  const path = `${session.user.id}/livros/${crypto.randomUUID()}`;
+  await storage(path, {
+    method: "POST",
+    session,
+    body: image,
+    headers: { "Content-Type": image.type, "cache-control": "max-age=31536000" },
+  });
+  const { url } = supabaseConfig();
+  return `${url}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
+/** Blob → endereço data: (capa de livro importado só no aparelho, guardada junto com o livro). */
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
   });
 }

@@ -17,7 +17,7 @@ import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type 
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
 import { pushLayer, removeLayer } from "./lib/backStack";
-import { prepareImage, removeProfileImage, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
+import { blobToDataUrl, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
   checkIsAdmin,
@@ -963,6 +963,26 @@ function MyBooks({
   const [language, setLanguage] = useState<"pt" | "en">("pt");
   const [castText, setCastText] = useState("");
   const [showAllBooks, setShowAllBooks] = useState(false);
+  /** Capa escolhida pela pessoa (opcional): vale para o livro dela e, se sugerir, para o acervo. */
+  const [customCover, setCustomCover] = useState<{ blob: Blob; url: string } | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  useEffect(() => () => void (customCover && URL.revokeObjectURL(customCover.url)), [customCover]);
+
+  async function pickCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCoverBusy(true);
+    setError(null);
+    try {
+      const blob = await prepareImage(file, "book");
+      setCustomCover({ blob, url: URL.createObjectURL(blob) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível usar esta imagem.");
+    } finally {
+      setCoverBusy(false);
+    }
+  }
   const [share, setShare] = useState(false);
   const [rights, setRights] = useState<Rights | null>(null);
   const [rightsNote, setRightsNote] = useState("");
@@ -985,6 +1005,7 @@ function MyBooks({
     setAuthor("");
     setCastText("");
     setShare(false);
+    setCustomCover(null);
     setRights(null);
     setRightsNote("");
     setAgree(false);
@@ -1026,6 +1047,7 @@ function MyBooks({
     if (share && !agree) return setError("Confirme a declaração de direitos para enviar ao acervo.");
     const id = newLocalBookId();
     const bookTitle = title.trim() || "Meu livro";
+    const chosenCover = customCover ? await blobToDataUrl(customCover.blob).catch(() => null) : null;
     const characters = castFromNames(bookTitle, castText);
     const book: Ebook = {
       id: `local-${-id}`,
@@ -1033,8 +1055,8 @@ function MyBooks({
       title: bookTitle,
       author: author.trim() || "Autor não informado",
       genre: "Meu livro",
-      // Capa: a do catálogo (livro escolhido em "Fora do acervo") ou a que veio no arquivo.
-      ...((hint?.coverUrl ?? parsed.cover) ? { coverUrl: hint?.coverUrl ?? parsed.cover } : {}),
+      // Capa: a escolhida pela pessoa, a do catálogo ("Fora do acervo") ou a que veio no arquivo.
+      ...((chosenCover ?? hint?.coverUrl ?? parsed.cover) ? { coverUrl: chosenCover ?? hint?.coverUrl ?? parsed.cover } : {}),
       textLanguage: language,
       source: "local",
       // Sem nomes digitados, a IA sugere o elenco ao abrir o livro (uma vez só).
@@ -1044,7 +1066,14 @@ function MyBooks({
     try {
       // Envia primeiro: se falhar, nada fica pela metade e dá para tentar de novo.
       if (share && session && rights) {
+        // Capa escolhida vai para o Storage (a do arquivo, se tiver, também serve).
+        const sharedCover = customCover
+          ? await uploadBookCover(session, customCover.blob)
+          : hint?.coverUrl && hint.coverUrl.startsWith("/ol-covers/")
+            ? hint.coverUrl
+            : null;
         await submitBook(session, {
+          coverUrl: sharedCover,
           title: book.title,
           author: author.trim(),
           language,
@@ -1174,6 +1203,37 @@ function MyBooks({
                   />
                   <small>Em branco, a IA escolhe os personagens principais quando você abrir o livro.</small>
                 </label>
+                <div className="field cover-field">
+                  <span>Capa (opcional)</span>
+                  <div className="cover-pick">
+                    <div className="cover-pick-preview">
+                      {customCover || hint?.coverUrl || parsed.cover ? (
+                        <img src={customCover?.url ?? hint?.coverUrl ?? parsed.cover} alt="" />
+                      ) : (
+                        <span>Sem capa</span>
+                      )}
+                    </div>
+                    <div className="cover-pick-actions">
+                      <label className={`btn ${coverBusy ? "is-disabled" : ""}`}>
+                        {Icon.camera}
+                        {coverBusy ? "Preparando…" : customCover ? "Trocar imagem" : "Escolher imagem"}
+                        <input type="file" accept="image/*" onChange={(e) => void pickCover(e)} disabled={coverBusy || saving} />
+                      </label>
+                      {customCover ? (
+                        <button type="button" className="inline-link" onClick={() => setCustomCover(null)} disabled={saving}>
+                          Tirar a imagem escolhida
+                        </button>
+                      ) : null}
+                      <small>
+                        {customCover
+                          ? "Esta capa aparece no seu livro e, se você sugerir para o acervo, lá também."
+                          : parsed.cover || hint?.coverUrl
+                            ? "Usando a capa que veio com o livro. Pode trocar por outra imagem."
+                            : "Sem imagem, o app desenha uma capa ou busca uma na Open Library."}
+                      </small>
+                    </div>
+                  </div>
+                </div>
               </>
             ) : null}
 
@@ -2165,7 +2225,7 @@ function ModerationPage({
     setError("");
     try {
       // Capa encontrada agora fica gravada no livro (não precisa buscar ao mostrar).
-      const cover = await findOpenLibraryCover(s.title, s.author ?? "", s.language).catch(() => undefined);
+      const cover = s.cover_url ?? (await findOpenLibraryCover(s.title, s.author ?? "", s.language).catch(() => undefined));
       const updated = await reviewSubmission(session, s.id, "approved", undefined, cover ?? null);
       setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
       setApproved((list) => [updated, ...(list ?? [])]);
@@ -4662,7 +4722,13 @@ export function App() {
   }
 
   if (!book) {
-    const recent = recentProgress();
+    // Cópia do livro guardada no progresso pode estar velha (sem a capa achada depois): usa a
+    // versão atual quando o livro é do acervo fixo ou da comunidade.
+    const currentBook = new Map<string, Ebook>([...featuredBooks, ...communityBooks].map((b) => [b.id, b]));
+    const recent = recentProgress().map((p) => {
+      const now = currentBook.get(p.book.id);
+      return now && now.coverUrl !== p.book.coverUrl ? { ...p, book: { ...p.book, coverUrl: now.coverUrl } } : p;
+    });
     const summary = readingSummary();
     const lastBook = recent[0]
       ? {

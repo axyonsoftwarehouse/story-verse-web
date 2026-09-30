@@ -140,6 +140,8 @@ export async function submitBook(
     characters: string;
     submitterName: string;
     text: string;
+    /** Capa escolhida por quem enviou (opcional). */
+    coverUrl?: string | null;
   },
 ): Promise<Submission> {
   const bytes = new Blob([input.text]).size;
@@ -152,12 +154,13 @@ export async function submitBook(
     headers: { "Content-Type": "text/plain" },
     body: input.text,
   });
-  try {
-    const res = await sb("/rest/v1/book_submissions", {
+  const insert = (withCover: boolean) =>
+    sb("/rest/v1/book_submissions", {
       method: "POST",
       session,
       headers: { "Content-Type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify({
+        ...(withCover && input.coverUrl ? { cover_url: input.coverUrl } : {}),
         user_id: session.user.id,
         submitter_name: input.submitterName.slice(0, 60),
         title: input.title.slice(0, 120),
@@ -170,6 +173,15 @@ export async function submitBook(
         char_count: input.text.length,
       }),
     });
+  try {
+    let res: Response;
+    try {
+      res = await insert(true);
+    } catch (err) {
+      // Banco ainda sem a coluna cover_url: envia sem a capa (o admin acha uma ao aprovar).
+      if (!input.coverUrl || !/cover_url/i.test(err instanceof Error ? err.message : "")) throw err;
+      res = await insert(false);
+    }
     const [row] = (await res.json()) as Submission[];
     approvedCache = null;
     return row;
