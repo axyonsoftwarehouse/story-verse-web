@@ -147,13 +147,6 @@ export async function submitBook(
   const bytes = new Blob([input.text]).size;
   if (bytes > MAX_COMMUNITY_BYTES) throw new Error("O texto do livro é grande demais (máximo de 10 MB).");
   const path = `${session.user.id}/${crypto.randomUUID()}.txt`;
-  await sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, {
-    method: "POST",
-    session,
-    // Exatamente o tipo aceito pelo bucket (com ";charset" o Supabase pode recusar).
-    headers: { "Content-Type": "text/plain" },
-    body: input.text,
-  });
   const insert = (withCover: boolean) =>
     sb("/rest/v1/book_submissions", {
       method: "POST",
@@ -174,6 +167,13 @@ export async function submitBook(
       }),
     });
   try {
+    await sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, {
+      method: "POST",
+      session,
+      // Exatamente o tipo aceito pelo bucket (com ";charset" o Supabase pode recusar).
+      headers: { "Content-Type": "text/plain" },
+      body: input.text,
+    });
     let res: Response;
     try {
       res = await insert(true);
@@ -186,8 +186,10 @@ export async function submitBook(
     approvedCache = null;
     return row;
   } catch (err) {
-    // Sem o registro, o arquivo não serve para nada.
+    // Sem o registro, o texto e a capa enviada não servem para nada.
     void sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+    const cover = uploadedCoverPath(input.coverUrl);
+    if (cover) void sb(`/storage/v1/object/profile-media/${encodePath(cover)}`, { method: "DELETE", session }).catch(() => {});
     throw err;
   }
 }
@@ -253,10 +255,23 @@ export async function reviewSubmission(
   return rows[0];
 }
 
-/** Apaga o envio e o arquivo (admin: qualquer um; quem enviou: só os em análise). */
+const COVER_PREFIX = "/storage/v1/object/public/profile-media/";
+
+/** Caminho da capa no Storage, se ela foi enviada pelo app (capas da Open Library não). */
+function uploadedCoverPath(coverUrl: string | null | undefined): string | null {
+  if (!coverUrl) return null;
+  const at = coverUrl.indexOf(COVER_PREFIX);
+  if (at < 0 || !coverUrl.startsWith(supabaseConfig().url)) return null;
+  const path = decodeURIComponent(coverUrl.slice(at + COVER_PREFIX.length).split("?")[0]);
+  return path.split("/")[1] === "livros" ? path : null;
+}
+
+/** Apaga o envio, o texto e a capa enviada (admin: qualquer um; quem enviou: só os em análise). */
 export async function deleteSubmission(session: SupabaseSession, s: Submission): Promise<void> {
   await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, { method: "DELETE", session });
   await sb(`/storage/v1/object/${BUCKET}/${encodePath(s.text_path)}`, { method: "DELETE", session }).catch(() => {});
+  const cover = uploadedCoverPath(s.cover_url);
+  if (cover) await sb(`/storage/v1/object/profile-media/${encodePath(cover)}`, { method: "DELETE", session }).catch(() => {});
   approvedCache = null;
 }
 

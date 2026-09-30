@@ -137,5 +137,12 @@ create policy "apagar texto do livro" on storage.objects
     )
   );
 
+-- Capa enviada junto com o livro (profile-media/<id>/livros/…): o admin também pode apagar,
+-- para não sobrar imagem quando o envio é removido. Fotos de perfil continuam só do dono.
+drop policy if exists "admin apaga capa de livro" on storage.objects;
+create policy "admin apaga capa de livro" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'profile-media' and (storage.foldername(name))[2] = 'livros' and public.is_admin());
+
 -- Confere: deve aparecer o e-mail do admin.
 select u.email as admin from public.admins a join auth.users u on u.id = a.user_id;
