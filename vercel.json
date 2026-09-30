@@ -6,6 +6,8 @@
     { "source": "/gutenberg-search", "destination": "https://www.gutenberg.org/ebooks/search.opds/" },
     { "source": "/gutenberg/:path*", "destination": "https://www.gutenberg.org/:path*" },
     { "source": "/gutenberg-mirror/:path*", "destination": "https://aleph.pglaf.org/:path*" },
+    { "source": "/openlibrary/:path*", "destination": "https://openlibrary.org/:path*" },
+    { "source": "/ol-covers/:path*", "destination": "https://covers.openlibrary.org/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

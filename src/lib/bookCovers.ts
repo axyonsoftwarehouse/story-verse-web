@@ -1,12 +1,15 @@
+import { openLibraryCoverUrl } from "./openLibrary";
+
 /**
  * Capa de reserva pela Open Library: para livro sem capa própria (ou cuja capa não carregou),
  * busca pelo título + autor e usa a capa da edição encontrada. O resultado fica guardado no
  * aparelho (também quando não acha nada, por uma semana) para não buscar de novo.
  */
 
-const SEARCH_URL = "https://openlibrary.org/search.json";
-// v2: a versão anterior guardava como "sem capa" falhas passageiras de carregamento.
-const CACHE_KEY = "storyverse:ol-covers-v2";
+/** Pelo próprio domínio (vercel.json / vite.config.ts): chamar openlibrary.org direto falhava. */
+const SEARCH_URL = "/openlibrary/search.json";
+// v3: capas pelo próprio domínio (/ol-covers); v1 ainda guardava falhas passageiras como "sem capa".
+const CACHE_KEY = "storyverse:ol-covers-v3";
 const MISS_TTL = 7 * 86_400_000;
 /** Buscas ao mesmo tempo (a Open Library é gratuita; não vale sobrecarregar). */
 const MAX_PARALLEL = 2;
@@ -49,7 +52,7 @@ function sameTitle(wanted: string, found: string): boolean {
   return a.length > 0 && (b === a || b.startsWith(a) || a.startsWith(b));
 }
 
-const coverUrl = (id: number) => `https://covers.openlibrary.org/b/id/${id}-M.jpg`;
+const coverUrl = openLibraryCoverUrl;
 
 type Doc = {
   title?: string;

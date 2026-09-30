@@ -110,9 +110,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (
-    // Capas da Open Library ficam fora: elas redirecionam para o archive.org e, interceptadas
-    // aqui, uma falha virava erro na <img>. O cache HTTP do navegador já guarda essas imagens.
+    // Capas da Open Library vêm pelo próprio domínio (/ol-covers): direto do covers.openlibrary.org
+    // o navegador às vezes bloqueava ou perdia a conexão.
     (sameOrigin && /^\/gutenberg\/cache\/epub\/\d+\/.*\.jpg$/.test(url.pathname)) ||
+    (sameOrigin && url.pathname.startsWith("/ol-covers/")) ||
     // Retratos dos personagens: gerados uma vez, guardados para sempre (e para ler offline).
     url.hostname === "image.pollinations.ai" ||
     url.hostname === "upload.wikimedia.org" ||

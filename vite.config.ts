@@ -33,6 +33,19 @@ const gutenbergProxy: Record<string, ProxyOptions> = {
     agent,
     rewrite: (path) => path.replace(/^\/gutenberg-mirror/, ""),
   },
+  /** Busca da Open Library pelo próprio domínio: chamada direta do navegador falhava (CORS/rede). */
+  "/openlibrary/": {
+    target: "https://openlibrary.org",
+    changeOrigin: true,
+    agent,
+    rewrite: (path) => path.replace(/^\/openlibrary/, ""),
+  },
+  "/ol-covers/": {
+    target: "https://covers.openlibrary.org",
+    changeOrigin: true,
+    agent,
+    rewrite: (path) => path.replace(/^\/ol-covers/, ""),
+  },
 };
 
 export default defineConfig({
