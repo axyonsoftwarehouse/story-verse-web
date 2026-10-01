@@ -29,6 +29,7 @@ import {
   newBookLabel,
   normalizeText,
   reviewSubmission,
+  changeSubmissionCover,
   rightsLabel,
   RIGHTS_OPTIONS,
   submissionToEbook,
@@ -2210,6 +2211,7 @@ function ModerationPage({
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<{ id: string; note: string } | null>(null);
+  const [coverBusyId, setCoverBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -2257,6 +2259,25 @@ function ModerationPage({
       setError(err instanceof Error ? err.message : "Não foi possível recusar.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  /** Troca a capa por uma imagem do aparelho (mesmo recorte 400×600 da importação). */
+  async function changeCover(s: Submission, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCoverBusyId(s.id);
+    setError("");
+    try {
+      const updated = await changeSubmissionCover(session, s, await prepareImage(file, "book"));
+      const swap = (list: Submission[] | null) => list?.map((x) => (x.id === s.id ? updated : x)) ?? null;
+      setPending(swap);
+      setApproved(swap);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível trocar a capa.");
+    } finally {
+      setCoverBusyId(null);
     }
   }
 
@@ -2315,34 +2336,44 @@ function ModerationPage({
         <ul className="submission-list">
           {list?.map((s) => (
             <li key={s.id} className="profile-card moderation-item">
-              <div className="submission-main">
-                <strong>{s.title}</strong>
-                <span>
-                  {s.author || "Autor não informado"} · {s.language === "en" ? "Inglês" : "Português"}
-                  {s.char_count ? ` · ${pagesOf(s.char_count)}` : ""}
-                </span>
-                <span>
-                  Enviado por {s.submitter_name || "leitor"} em {formatDate(s.created_at)}
-                  {s.reviewed_at && tab === "approved" ? ` · publicado em ${formatDate(s.reviewed_at)}` : ""}
-                </span>
-                <p className="moderation-rights">
-                  <strong>{rightsLabel(s.rights)}</strong>
-                  {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
-                </p>
-                <RightsAlert title={s.title} author={s.author} onProtected={(flag) => setFlagged((m) => ({ ...m, [s.id]: flag }))} />
-                {tab === "pending" && flagged[s.id] ? (
-                  <label className="rights-confirm">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(authorized[s.id])}
-                      onChange={(e) => setAuthorized((m) => ({ ...m, [s.id]: e.target.checked }))}
-                    />
-                    <span>
-                      Tenho autorização por escrito do autor ou da editora para distribuir esta obra no Storyverse.
-                    </span>
+              <div className="moderation-body">
+                <div className="moderation-cover">
+                  <BookCover book={submissionToEbook(s)} />
+                  <label className={`btn moderation-cover-btn ${coverBusyId === s.id ? "is-disabled" : ""}`}>
+                    {Icon.camera}
+                    {coverBusyId === s.id ? "Enviando…" : "Trocar capa"}
+                    <input type="file" accept="image/*" onChange={(e) => void changeCover(s, e)} disabled={coverBusyId === s.id} />
                   </label>
-                ) : null}
-                {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
+                </div>
+                <div className="submission-main">
+                  <strong>{s.title}</strong>
+                  <span>
+                    {s.author || "Autor não informado"} · {s.language === "en" ? "Inglês" : "Português"}
+                    {s.char_count ? ` · ${pagesOf(s.char_count)}` : ""}
+                  </span>
+                  <span>
+                    Enviado por {s.submitter_name || "leitor"} em {formatDate(s.created_at)}
+                    {s.reviewed_at && tab === "approved" ? ` · publicado em ${formatDate(s.reviewed_at)}` : ""}
+                  </span>
+                  <p className="moderation-rights">
+                    <strong>{rightsLabel(s.rights)}</strong>
+                    {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
+                  </p>
+                  <RightsAlert title={s.title} author={s.author} onProtected={(flag) => setFlagged((m) => ({ ...m, [s.id]: flag }))} />
+                  {tab === "pending" && flagged[s.id] ? (
+                    <label className="rights-confirm">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(authorized[s.id])}
+                        onChange={(e) => setAuthorized((m) => ({ ...m, [s.id]: e.target.checked }))}
+                      />
+                      <span>
+                        Tenho autorização por escrito do autor ou da editora para distribuir esta obra no Storyverse.
+                      </span>
+                    </label>
+                  ) : null}
+                  {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
+                </div>
               </div>
 
               {rejecting?.id === s.id ? (

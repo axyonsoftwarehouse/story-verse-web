@@ -291,6 +291,40 @@ export async function setSubmissionCover(session: SupabaseSession, id: string, c
   approvedCache = null;
 }
 
+/**
+ * Admin troca a capa de um envio (em análise ou publicado) por uma imagem nova: sobe para o Storage,
+ * grava no envio e apaga a capa enviada antes, se havia. Capa enviada pelo app não é mais trocada
+ * pela sincronização de quem enviou.
+ */
+export async function changeSubmissionCover(session: SupabaseSession, s: Submission, image: Blob): Promise<Submission> {
+  const url = await uploadBookCover(session, image);
+  const dropNew = () => {
+    const path = uploadedCoverPath(url);
+    if (path) void sb(`/storage/v1/object/profile-media/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+  };
+  let rows: Submission[];
+  try {
+    const res = await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ cover_url: url }),
+    });
+    rows = (await res.json()) as Submission[];
+  } catch (err) {
+    dropNew();
+    throw err;
+  }
+  if (rows.length === 0) {
+    dropNew();
+    throw new Error("Sem permissão para trocar a capa.");
+  }
+  const old = uploadedCoverPath(s.cover_url);
+  if (old) void sb(`/storage/v1/object/profile-media/${encodePath(old)}`, { method: "DELETE", session }).catch(() => {});
+  approvedCache = null;
+  return rows[0];
+}
+
 const sameTitle = (a: string, b: string) => normalize(a).trim() === normalize(b).trim();
 
 /**

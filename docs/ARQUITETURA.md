@@ -250,6 +250,11 @@ flowchart TD
   PATCH --> ALL[Aparece para todos]
 ```
 
+Na Moderação, cada envio (em análise ou publicado) mostra a capa atual e o botão **Trocar capa**:
+o admin escolhe uma imagem do aparelho, ela é recortada em 400×600, sobe para
+`profile-media/<uid do admin>/livros/<uuid>` (`changeSubmissionCover`) e substitui `cover_url`. A
+capa enviada antes é apagada. Capa enviada pelo app não é trocada pela sincronização de quem enviou.
+
 > **Regra do projeto:** só entram obras em domínio público, do próprio autor ou com licença livre.
 > Obras protegidas são recusadas ou removidas, nunca ajustadas para aparecer.
 
