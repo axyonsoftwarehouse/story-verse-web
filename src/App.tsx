@@ -375,6 +375,13 @@ function Avatar({
  * capa tipográfica desenhada pelo app.
  */
 function BookCover({ book }: { book: Ebook }) {
+  // Outro livro ou outra capa: começa do zero (a key recria o estado já no primeiro desenho).
+  // Zerar num useEffect falhava no refresh do celular: a imagem do cache carregava antes do efeito
+  // rodar, o efeito voltava para "carregando" e a capa ficava invisível.
+  return <BookCoverImage key={`${book.gutenbergId}|${book.coverUrl ?? ""}|${book.title}|${book.author}`} book={book} />;
+}
+
+function BookCoverImage({ book }: { book: Ebook }) {
   const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
   const [useCoverMirror, setUseCoverMirror] = useState(false);
   const [olUrl, setOlUrl] = useState<string | null | undefined>(() => knownCover(book.title, book.author));
@@ -382,13 +389,6 @@ function BookCover({ book }: { book: Ebook }) {
   /** Nova tentativa depois de uma falha (rede móvel instável): 1,5 s e depois 4 s. */
   const [retry, setRetry] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    setStatus("loading");
-    setUseCoverMirror(false);
-    setOlUrl(knownCover(book.title, book.author));
-    setOlStatus("loading");
-    setRetry(0);
-  }, [book.gutenbergId, book.coverUrl, book.title, book.author]);
   const retryTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(retryTimer.current), []);
   /** Falhou: tenta de novo (até 2 vezes, pulando o cache) antes de ficar com a capa desenhada. */
@@ -397,8 +397,9 @@ function BookCover({ book }: { book: Ebook }) {
     window.clearTimeout(retryTimer.current);
     retryTimer.current = window.setTimeout(() => setRetry((n) => n + 1), retry === 0 ? 1500 : 4000);
   };
+  // Imagem guardada no próprio endereço (data:/blob:) não aceita "?tentativa" no fim.
   const withRetry = (src: string | undefined) =>
-    src && retry > 0 ? `${src}${src.includes("?") ? "&" : "?"}tentativa=${retry}` : src;
+    src && retry > 0 && !/^(data|blob):/.test(src) ? `${src}${src.includes("?") ? "&" : "?"}tentativa=${retry}` : src;
 
   const needsFallback = !book.coverUrl || status === "failed";
   useEffect(() => {
