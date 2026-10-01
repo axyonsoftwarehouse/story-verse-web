@@ -17,7 +17,7 @@ import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type 
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
 import { pushLayer, removeLayer } from "./lib/backStack";
-import { blobToDataUrl, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
+import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
   checkIsAdmin,
@@ -33,6 +33,7 @@ import {
   RIGHTS_OPTIONS,
   submissionToEbook,
   submitBook,
+  syncSubmissionCovers,
   type Rights,
   type Submission,
 } from "./lib/community";
@@ -1066,13 +1067,15 @@ function MyBooks({
     try {
       // Envia primeiro: se falhar, nada fica pela metade e dá para tentar de novo.
       if (share && session && rights) {
-        // Capa escolhida vai para o Storage (a do arquivo, se tiver, também serve).
+        // A mesma capa de "Seus livros": a escolhida ou a do arquivo sobem para o Storage.
         const sharedCover = customCover
           ? await uploadBookCover(session, customCover.blob)
-          : hint?.coverUrl && hint.coverUrl.startsWith("/ol-covers/")
+          : hint?.coverUrl && !hint.coverUrl.startsWith("data:") && hint.coverUrl.length <= 300
             ? hint.coverUrl
-            : null;
-        await submitBook(session, {
+            : parsed.cover
+              ? await uploadBookCover(session, await dataUrlToBlob(parsed.cover))
+              : null;
+        const submission = await submitBook(session, {
           coverUrl: sharedCover,
           title: book.title,
           author: author.trim(),
@@ -1083,6 +1086,7 @@ function MyBooks({
           submitterName: displayNameOf(session.user),
           text: withoutImageMarkers(parsed.text),
         });
+        book.submissionId = submission.id;
         onSubmitted?.();
       }
       await saveLocalBook(book, parsed.text, parsed.images);
@@ -3810,6 +3814,19 @@ export function App() {
       alive = false;
     };
   }, [book, authUserId, communityTick]);
+  /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
+  useEffect(() => {
+    const session = authSessionRef.current;
+    if (!authEnabled || !session) return;
+    let alive = true;
+    void listLocalBooks()
+      .then((local) => (local.length > 0 ? syncSubmissionCovers(session, local) : 0))
+      .then((changed) => alive && changed > 0 && setCommunityTick((n) => n + 1))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [authUserId]);
   /** Livro que acabou de sair de "Continue lendo" (dá para desfazer por alguns segundos). */
   const [continueUndo, setContinueUndo] = useState<ReadingProgress | null>(null);
   useEffect(() => {

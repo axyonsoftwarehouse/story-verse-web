@@ -86,6 +86,31 @@ drop policy if exists "admin revisa" on public.book_submissions;
 create policy "admin revisa" on public.book_submissions
   for update using (public.is_admin()) with check (public.is_admin());
 
+-- Quem enviou troca só a capa do próprio envio, e só por uma imagem da própria pasta no Storage
+-- (profile-media/<id>/livros/…): assim a capa do acervo é a mesma de "Seus livros".
+create or replace function public.set_submission_cover(submission_id uuid, new_cover text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new_cover is null or char_length(new_cover) > 300
+     or position('/storage/v1/object/public/profile-media/' || auth.uid()::text || '/livros/' in new_cover) = 0 then
+    raise exception 'capa inválida';
+  end if;
+  update public.book_submissions
+     set cover_url = new_cover
+   where id = submission_id and user_id = auth.uid() and status <> 'rejected';
+  if not found then
+    raise exception 'envio não encontrado';
+  end if;
+end;
+$$;
+
+revoke execute on function public.set_submission_cover(uuid, text) from public, anon;
+grant execute on function public.set_submission_cover(uuid, text) to authenticated;
+
 -- Admin remove qualquer um; quem enviou pode desistir enquanto está em análise.
 drop policy if exists "remover envio" on public.book_submissions;
 create policy "remover envio" on public.book_submissions

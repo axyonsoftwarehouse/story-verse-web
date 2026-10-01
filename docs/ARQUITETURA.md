@@ -191,14 +191,18 @@ flowchart TD
 
   SHARE -- não --> SAVE
   SHARE -- sim --> R[Declara direitos:<br/>domínio público · sou o autor · licença livre]
-  R --> UPC[Sobe capa: profile-media/uid/livros/uuid]
+  R --> UPC[Sobe a mesma capa de Seus livros<br/>escolhida ou do arquivo: profile-media/uid/livros/uuid]
   UPC --> UPT[Sobe texto: community-books/uid/uuid.txt]
   UPT --> INS[INSERT book_submissions<br/>status = pending]
   INS -->|falhou| CLEAN[Apaga texto e capa enviados]
   INS -->|ok| SAVE
 
-  SAVE[Salva no IndexedDB com o dono da conta<br/>capa como data URL] --> OPEN[Abre o livro]
+  SAVE[Salva no IndexedDB com o dono da conta<br/>capa como data URL · submissionId] --> OPEN[Abre o livro]
 ```
+
+Ao entrar, `syncSubmissionCovers` confere os envios da pessoa: se a capa do acervo não foi enviada
+pelo app (vazia ou da Open Library) e o livro em "Seus livros" tem capa, sobe essa capa e grava no
+envio pela função `set_submission_cover`. Assim "Novidades" e "Da comunidade" mostram a mesma capa.
 
 Remover um livro de "Seus livros" apaga **só a cópia do aparelho** (texto, progresso, marcações,
 chat). Um envio ao acervo continua existindo.
@@ -473,7 +477,9 @@ erDiagram
 | `book_submissions` | aprovados: todos; os seus; admin: todos | logado, em nome próprio, como `pending` | só admin | admin; quem enviou enquanto `pending` |
 | `reading_state` | só o dono | só o dono | só o dono | — |
 
-Função `public.is_admin()` (`security definer`), liberada para `anon` e `authenticated`. Tabelas
+Função `public.is_admin()` (`security definer`), liberada para `anon` e `authenticated`.
+Função `public.set_submission_cover(id, url)` (`security definer`, só `authenticated`): quem enviou
+troca a capa do próprio envio, só por uma imagem em `profile-media/<uid>/livros/`. Tabelas
 novas precisam de `GRANT` para a API: está nos scripts.
 
 ---
@@ -498,6 +504,10 @@ Regras:
 
 O app reduz as imagens antes de subir: perfil ~20 KB, capa de livro ~20–40 KB, capa do perfil
 ~100 KB.
+
+O banco guarda só os dados (envios, progresso): `cover_url` tem no máximo 300 caracteres, então
+imagem nunca vai para o banco. Arquivos ficam no Storage. O painel de uso do Supabase mostra em GB
+e atualiza com atraso, então alguns MB aparecem como "0 GB".
 
 ---
 

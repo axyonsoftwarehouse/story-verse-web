@@ -139,6 +139,11 @@ export async function uploadBookCover(session: SupabaseSession, image: Blob): Pr
   return `${url}/storage/v1/object/public/${BUCKET}/${path}`;
 }
 
+/** Endereço data: → Blob (capa que veio dentro do EPUB/PDF, para subir ao Storage). */
+export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  return (await fetch(dataUrl)).blob();
+}
+
 /** Blob → endereço data: (capa de livro importado só no aparelho, guardada junto com o livro). */
 export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

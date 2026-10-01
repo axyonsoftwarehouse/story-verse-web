@@ -1,6 +1,7 @@
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
 import { castFromNames } from "./cast";
+import { dataUrlToBlob, uploadBookCover } from "./profileMedia";
 
 /**
  * Acervo da comunidade (Supabase): leitores enviam o texto de um livro com a declaração de
@@ -264,6 +265,63 @@ function uploadedCoverPath(coverUrl: string | null | undefined): string | null {
   if (at < 0 || !coverUrl.startsWith(supabaseConfig().url)) return null;
   const path = decodeURIComponent(coverUrl.slice(at + COVER_PREFIX.length).split("?")[0]);
   return path.split("/")[1] === "livros" ? path : null;
+}
+
+/**
+ * Troca a capa de um envio. Quem enviou usa a função set_submission_cover (só aceita capa da própria
+ * pasta no Storage); sem ela no banco, o PATCH direto funciona para o admin.
+ */
+export async function setSubmissionCover(session: SupabaseSession, id: string, coverUrl: string): Promise<void> {
+  try {
+    await sb("/rest/v1/rpc/set_submission_cover", {
+      method: "POST",
+      session,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submission_id: id, new_cover: coverUrl }),
+    });
+  } catch (err) {
+    const res = await sb(`/rest/v1/book_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ cover_url: coverUrl }),
+    }).catch(() => null);
+    if (!res || ((await res.json()) as unknown[]).length === 0) throw err;
+  }
+  approvedCache = null;
+}
+
+const sameTitle = (a: string, b: string) => normalize(a).trim() === normalize(b).trim();
+
+/**
+ * A capa do acervo segue a de "Seus livros": para cada envio da pessoa cuja capa não foi enviada
+ * pelo app (vazia ou achada na Open Library), sobe a capa do livro importado e grava no envio.
+ * Livros importados antes do `submissionId` são achados pelo título. Devolve quantas trocou.
+ */
+export async function syncSubmissionCovers(session: SupabaseSession, localBooks: Ebook[]): Promise<number> {
+  const mine = await listSubmissions(session, "mine");
+  let changed = 0;
+  for (const s of mine) {
+    if (s.status === "rejected" || uploadedCoverPath(s.cover_url)) continue;
+    const local =
+      localBooks.find((b) => b.submissionId === s.id) ??
+      localBooks.find((b) => !b.submissionId && sameTitle(b.title, s.title));
+    const cover = local?.coverUrl;
+    if (!cover || cover === s.cover_url) continue;
+    if (!cover.startsWith("data:") && cover.length > 300) continue;
+    let url: string | null = null;
+    try {
+      url = cover.startsWith("data:") ? await uploadBookCover(session, await dataUrlToBlob(cover)) : cover;
+      await setSubmissionCover(session, s.id, url);
+      changed++;
+    } catch (err) {
+      // Sem gravar no envio, a imagem enviada não serve para nada.
+      const orphan = uploadedCoverPath(url);
+      if (orphan) void sb(`/storage/v1/object/profile-media/${encodePath(orphan)}`, { method: "DELETE", session }).catch(() => {});
+      console.warn(`[acervo] capa de "${s.title}" não sincronizada:`, err);
+    }
+  }
+  return changed;
 }
 
 /** Apaga o envio, o texto e a capa enviada (admin: qualquer um; quem enviou: só os em análise). */
