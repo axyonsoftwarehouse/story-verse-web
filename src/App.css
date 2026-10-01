@@ -4920,15 +4920,29 @@
 
 .explore-community {
   margin: 0.4rem 0 1.6rem;
+  padding: 1rem 1rem 1.2rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(228, 184, 106, 0.07), rgba(228, 184, 106, 0.02));
+}
+
+.explore-community-head {
+  margin: 0 0 1rem;
 }
 
 .explore-community h3 {
-  margin: 0 0 0.8rem;
+  margin: 0;
   color: var(--accent);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.explore-community-head p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 /* Mesmo respiro entre estantes seguidas (antes ficavam coladas: título encostado no fim da anterior). */

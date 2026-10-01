@@ -828,9 +828,13 @@ function Explore({
         </>
       ) : null}
 
-      {!onlyCommunity && searching && communityShown.length > 0 ? (
+      {/* Em "Todo o acervo" os livros da comunidade vêm em destaque no topo, com ou sem busca. */}
+      {!onlyCommunity && communityShown.length > 0 ? (
         <div className="explore-community">
-          <h3>Da comunidade</h3>
+          <div className="explore-community-head">
+            <h3>Da comunidade</h3>
+            <p>Enviados por leitores e aprovados pela curadoria.</p>
+          </div>
           {communityGrid(communityShown)}
         </div>
       ) : null}
