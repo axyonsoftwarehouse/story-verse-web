@@ -128,4 +128,15 @@ class ApiApplicationTests {
 				.andExpect(jsonPath("$.title").value("Busca inválida"));
 	}
 
+	@Test
+	void unexpectedErrorsAreLoggedButNotExposedToClients() throws Exception {
+		when(openLibrary.search("failing query"))
+				.thenThrow(new IllegalStateException("private internal detail"));
+
+		mockMvc.perform(get("/api/v1/external-books").param("q", "failing query"))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.title").value("Erro interno"))
+				.andExpect(jsonPath("$.detail").value("Não foi possível concluir a solicitação."));
+	}
+
 }

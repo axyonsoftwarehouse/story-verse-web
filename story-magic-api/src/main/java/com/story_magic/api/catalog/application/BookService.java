@@ -7,16 +7,15 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.story_magic.api.catalog.domain.Book;
-import com.story_magic.api.catalog.infrastructure.InMemoryBookRepository;
 import com.story_magic.api.integrations.gutenberg.BookContentProvider;
 
 @Service
 public class BookService {
 
-	private final InMemoryBookRepository repository;
+	private final BookCatalogRepository repository;
 	private final BookContentProvider contentProvider;
 
-	public BookService(InMemoryBookRepository repository, BookContentProvider contentProvider) {
+	public BookService(BookCatalogRepository repository, BookContentProvider contentProvider) {
 		this.repository = repository;
 		this.contentProvider = contentProvider;
 	}

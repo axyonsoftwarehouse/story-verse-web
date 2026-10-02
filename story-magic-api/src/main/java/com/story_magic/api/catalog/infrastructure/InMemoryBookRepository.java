@@ -5,10 +5,11 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.story_magic.api.catalog.application.BookCatalogRepository;
 import com.story_magic.api.catalog.domain.Book;
 
 @Repository
-public class InMemoryBookRepository {
+public class InMemoryBookRepository implements BookCatalogRepository {
 
 	private final List<Book> books = List.of(
 			book(74475, "A Escrava Isaura", "Bernardo Guimarães", "Romance", "pt", "pt",
@@ -23,10 +24,12 @@ public class InMemoryBookRepository {
 					"Um jovem advogado viaja à Transilvânia para fechar negócio com um conde recluso.")
 	);
 
+	@Override
 	public List<Book> findAll() {
 		return books;
 	}
 
+	@Override
 	public Optional<Book> findById(String id) {
 		return books.stream()
 				.filter(book -> book.id().equals(id))
