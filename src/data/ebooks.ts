@@ -1,4 +1,5 @@
 import { coverUrlFor } from "../lib/gutenberg";
+import { openLibraryCoverUrl } from "../lib/openLibrary";
 import type { Ebook, StoryCharacter } from "./types";
 
 /** Instrução comum a todos os personagens escritos à mão. */
@@ -13,11 +14,27 @@ function cast(list: CharacterDraft[]): StoryCharacter[] {
 /** Livros cuja capa no Gutenberg é só a genérica gerada automaticamente: usam a capa do app. */
 const GENERIC_GUTENBERG_COVERS = new Set([16425, 42942, 22015, 28341]);
 
+/**
+ * Capa da Open Library (id da capa) para os livros acima: fixa aqui, sem buscar na hora — a
+ * busca pelo navegador às vezes falha e a capa voltava a ser a desenhada.
+ */
+const OPEN_LIBRARY_COVER_IDS: Record<number, number> = {
+  16425: 7149114, // Amor de Perdição
+  42942: 5258699, // O Primo Basílio
+  22015: 8665393, // As Minas de Salomão (King Solomon's Mines)
+  28341: 8198811, // Da Terra à Lua
+};
+
 function gutenberg(
   id: number,
   book: Omit<Ebook, "id" | "gutenbergId" | "coverUrl">,
 ): Ebook {
-  const coverUrl = GENERIC_GUTENBERG_COVERS.has(id) ? undefined : coverUrlFor(id);
+  const ol = OPEN_LIBRARY_COVER_IDS[id];
+  const coverUrl = ol
+    ? openLibraryCoverUrl(ol)
+    : GENERIC_GUTENBERG_COVERS.has(id)
+      ? undefined
+      : coverUrlFor(id);
   return { ...book, id: `gb-${id}`, gutenbergId: id, coverUrl };
 }
 

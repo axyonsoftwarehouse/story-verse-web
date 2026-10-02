@@ -15,6 +15,7 @@ export const EMAIL_OTP_ENABLED = import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED
 export type SupabaseUser = {
   id: string;
   email: string;
+  created_at?: string;
   user_metadata?: Record<string, unknown>;
 };
 
@@ -52,6 +53,11 @@ function authConfig() {
     throw new Error("A URL do Supabase é inválida ou não usa uma conexão segura.");
   }
   return { url, anonKey };
+}
+
+/** Endereço e chave pública do Supabase, para as outras chamadas (banco e arquivos). */
+export function supabaseConfig() {
+  return authConfig();
 }
 
 function describeAuthError(message: string): string {
@@ -95,6 +101,8 @@ async function authRequest(
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
+      // Rede muito lenta não pode prender o app na tela de abertura.
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
     });
   } catch {
     throw new AuthNetworkError("Não foi possível conectar ao serviço de autenticação. Verifique sua conexão.");
@@ -104,6 +112,10 @@ async function authRequest(
   // Falha no SMTP configurado no Supabase (vem como 500, mas não é o serviço fora do ar).
   if (/error sending .*email/i.test(serverMessage)) {
     throw new Error("Não conseguimos enviar o e-mail agora. Tente de novo em alguns minutos.");
+  }
+  // Limite de requisições (429): espera e tenta depois, sem deslogar ninguém.
+  if (response.status === 429) {
+    throw new AuthNetworkError(describeAuthError(serverMessage || "too many requests"));
   }
   // Supabase fora do ar também não é motivo para deslogar.
   if (response.status >= 500) {
@@ -121,7 +133,11 @@ function makeSession(payload: AuthResponse): SupabaseSession | null {
   return {
     access_token: payload.access_token,
     refresh_token: payload.refresh_token,
-    expires_at: payload.expires_at ?? Math.floor(Date.now() / 1000) + (payload.expires_in ?? 3600),
+    // Pelo relógio do aparelho (expires_in): com o relógio adiantado, o expires_at do servidor
+    // parecia sempre vencido e o app renovava a sessão sem parar.
+    expires_at: payload.expires_in
+      ? Math.floor(Date.now() / 1000) + payload.expires_in
+      : payload.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
     user: payload.user,
   };
 }
@@ -169,6 +185,16 @@ export async function verifySignupCode(email: string, token: string): Promise<Su
 
 export async function resendSignupCode(email: string): Promise<void> {
   await authRequest("resend", { type: "signup", email });
+}
+
+/** Sessão guardada neste aparelho (pode ter sido renovada por outra aba). */
+export function storedAuthSession(): SupabaseSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as SupabaseSession) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
@@ -245,13 +271,11 @@ async function readAuthRedirect(): Promise<RedirectResult> {
   if (!access_token || !refresh_token) return null;
 
   const user = (await authRequest("user", undefined, access_token, "GET")) as unknown as SupabaseUser;
-  const expiresAt = Number(params.get("expires_at"));
+  const expiresIn = Number(params.get("expires_in"));
   const session: SupabaseSession = {
     access_token,
     refresh_token,
-    expires_at: Number.isFinite(expiresAt) && expiresAt > 0
-      ? expiresAt
-      : Math.floor(Date.now() / 1000) + Number(params.get("expires_in") ?? 3600),
+    expires_at: Math.floor(Date.now() / 1000) + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600),
     user,
   };
   storeSession(session);
@@ -267,6 +291,17 @@ export async function requestPasswordReset(email: string): Promise<void> {
 /** Define a senha nova (logado pelo link de recuperação). */
 export async function updatePassword(session: SupabaseSession, password: string): Promise<void> {
   await authRequest("user", { password }, session.access_token, "PUT");
+}
+
+/** Nome e avatar do perfil (ficam em user_metadata na conta; o avatar é só um id, sem imagem). */
+export async function updateProfileData(
+  session: SupabaseSession,
+  data: { name?: string; avatar?: string | null; photo?: string | null; cover?: string | null },
+): Promise<SupabaseSession> {
+  const user = (await authRequest("user", { data }, session.access_token, "PUT")) as unknown as SupabaseUser;
+  const next = { ...session, user: { ...session.user, ...user } };
+  storeSession(next);
+  return next;
 }
 
 let restoreSessionRequest: Promise<SupabaseSession | null> | null = null;

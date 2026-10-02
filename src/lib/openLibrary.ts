@@ -7,7 +7,8 @@
 /** Dados de um livro para preencher o formulário de importação. */
 export type BookHint = { title: string; author: string; year?: number; coverUrl?: string };
 
-const SEARCH_URL = "https://openlibrary.org/search.json";
+/** Pelo próprio domínio (vercel.json / vite.config.ts): chamar openlibrary.org direto falhava. */
+const SEARCH_URL = "/openlibrary/search.json";
 const FIELDS = [
   "key",
   "title",
@@ -35,7 +36,12 @@ type OpenLibraryDoc = {
   editions?: { docs?: { title?: string; language?: string[]; cover_i?: number }[] };
 };
 
-const coverUrl = (id: number) => `https://covers.openlibrary.org/b/id/${id}-M.jpg`;
+/**
+ * Capa da Open Library pelo próprio domínio (vercel.json / vite.config.ts): direto do
+ * covers.openlibrary.org o navegador às vezes bloqueia ou perde a conexão, e a capa sumia.
+ */
+export const openLibraryCoverUrl = (id: number) => `/ol-covers/b/id/${id}-M.jpg`;
+const coverUrl = openLibraryCoverUrl;
 
 const cache = new Map<string, BookHint[]>();
 

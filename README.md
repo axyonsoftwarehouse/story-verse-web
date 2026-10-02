@@ -27,7 +27,7 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 - **Conversa salva por livro**: ao voltar, os personagens lembram do que foi dito (botão para recomeçar a conversa).
 - **Card para compartilhar**: uma fala do personagem (com a pergunta do leitor) ou uma citação do livro vira uma imagem 1080×1350 pronta para Stories, TikTok e WhatsApp, gerada no navegador.
 - **Conta e sessão**: cadastro e login por e-mail e senha via Supabase Auth; login, renovação da sessão e logout gerenciados pelo Supabase. A verificação OTP de seis dígitos está implementada, mas desativada por padrão e pode ser habilitada depois. Leitura e importações continuam guardadas no aparelho.
-- **Limite de 30 mensagens por dia** por navegador, para proteger a cota das chaves de IA (`DAILY_MESSAGE_LIMIT` em `src/lib/usageLimit.ts`).
+- **Limite de 50 mensagens por dia** por navegador, para proteger a cota das chaves de IA (`DAILY_MESSAGE_LIMIT` em `src/lib/usageLimit.ts`).
 - **Ouvir em voz alta**: lê o capítulo com a voz do próprio aparelho, destacando o parágrafo, com velocidade ajustável e continuação automática no próximo capítulo.
 - **Marcações e citações favoritas**: selecione um trecho e toque em *Destacar*; o painel de marcações leva de volta ao trecho e compartilha como imagem.
 - **Significado da palavra**: selecione uma palavra — em inglês, mostra a tradução e a definição do Wiktionary; em português, a definição do Wikcionário.

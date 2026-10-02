@@ -45,12 +45,24 @@ body {
   font-family: var(--font-ui);
   color: var(--text);
   background-color: var(--bg-deep);
+}
+
+/*
+ * Fundo em camada fixa própria: com background-attachment: fixed, o celular redesenhava a tela
+ * inteira a cada quadro da rolagem (páginas longas, como o perfil, ficavam travando).
+ */
+body::before {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
   background-image:
     radial-gradient(ellipse 100% 70% at 50% -25%, rgba(120, 80, 50, 0.2), transparent 52%),
     radial-gradient(ellipse 50% 45% at 100% 0%, rgba(90, 120, 100, 0.12), transparent 45%),
     radial-gradient(ellipse 40% 35% at 0% 100%, rgba(140, 100, 60, 0.1), transparent 48%),
     linear-gradient(175deg, var(--bg) 0%, var(--bg-deep) 100%);
-  background-attachment: fixed;
+  transform: translateZ(0);
 }
 
 #root {

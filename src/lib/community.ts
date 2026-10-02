@@ -1,0 +1,427 @@
+import type { Ebook } from "../data/types";
+import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { castFromNames } from "./cast";
+import { dataUrlToBlob, uploadBookCover } from "./profileMedia";
+
+/**
+ * Acervo da comunidade (Supabase): leitores enviam o texto de um livro com a declaração de
+ * direitos, o admin aprova e ele aparece para todos. As regras de quem vê, envia e aprova estão
+ * no banco (supabase/community-books.sql), não só na tela.
+ */
+
+export type Rights = "public_domain" | "own_work" | "free_license";
+
+export const RIGHTS_OPTIONS: { id: Rights; label: string; hint: string; placeholder: string }[] = [
+  {
+    id: "public_domain",
+    label: "É domínio público",
+    hint: "O autor morreu há mais de 70 anos (ex.: Machado de Assis, Alencar, Eça).",
+    placeholder: "Ex.: Aluísio Azevedo morreu em 1913",
+  },
+  {
+    id: "own_work",
+    label: "Sou o autor",
+    hint: "O livro é seu e você quer divulgá-lo aqui.",
+    placeholder: "Ex.: link do seu perfil de autor ou da obra",
+  },
+  {
+    id: "free_license",
+    label: "Tem licença livre",
+    hint: "Creative Commons ou outra licença que permita redistribuir.",
+    placeholder: "Ex.: CC BY 4.0 — link da licença",
+  },
+];
+
+export function rightsLabel(r: Rights): string {
+  return RIGHTS_OPTIONS.find((o) => o.id === r)?.label ?? r;
+}
+
+export type Submission = {
+  id: string;
+  user_id: string;
+  submitter_name: string | null;
+  title: string;
+  author: string | null;
+  language: "pt" | "en";
+  rights: Rights;
+  rights_note: string | null;
+  characters: string | null;
+  text_path: string;
+  char_count: number | null;
+  status: "pending" | "approved" | "rejected";
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  /** Capa escolhida na aprovação (Open Library): o app não precisa buscar na hora de mostrar. */
+  cover_url?: string | null;
+};
+
+const BUCKET = "community-books";
+/** Mesmo limite do bucket no Supabase. */
+export const MAX_COMMUNITY_BYTES = 10 * 1024 * 1024;
+
+function friendly(message: string, status: number): string {
+  const m = message.toLowerCase();
+  if ((m.includes("relation") && m.includes("does not exist")) || m.includes("bucket not found") || m.includes("could not find the table")) {
+    return "O acervo da comunidade ainda não foi configurado no Supabase.";
+  }
+  if (m.includes("row-level security") || m.includes("permission") || status === 403) return "Sem permissão para fazer isso.";
+  if (m.includes("payload too large") || m.includes("exceeded the maximum") || status === 413) {
+    return "O texto do livro é grande demais (máximo de 10 MB).";
+  }
+  if (status === 401) return "Sua sessão expirou. Entre de novo.";
+  return message;
+}
+
+async function sb(
+  path: string,
+  init: { method?: string; body?: BodyInit; headers?: Record<string, string>; session?: SupabaseSession | null } = {},
+): Promise<Response> {
+  const { url, anonKey } = supabaseConfig();
+  let res: Response;
+  try {
+    res = await fetch(`${url}${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        apikey: anonKey,
+        // Sem sessão vai só a chave pública (a chave nova sb_publishable_ não é um token).
+        ...(init.session ? { Authorization: `Bearer ${init.session.access_token}` } : {}),
+        ...init.headers,
+      },
+      body: init.body,
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(30_000) : undefined,
+    });
+  } catch {
+    throw new AuthNetworkError("Sem conexão com o servidor. Tente de novo.");
+  }
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => ({}))) as { message?: string; msg?: string; error?: string };
+    const message = payload.message ?? payload.msg ?? payload.error ?? `Erro ${res.status}`;
+    // A mensagem da tela é amigável; a original fica no console para diagnóstico.
+    console.warn(`[acervo] ${init.method ?? "GET"} ${path.split("?")[0]} → ${res.status}: ${message}`);
+    throw new Error(friendly(message, res.status));
+  }
+  return res;
+}
+
+const encodePath = (path: string) => path.split("/").map(encodeURIComponent).join("/");
+
+/** Número estável para o livro (progresso, traduções e elenco usam `gutenbergId`). */
+function numericId(uuid: string): number {
+  let h = 0;
+  for (const ch of uuid) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return 1_000_000_000 + (h % 900_000_000);
+}
+
+export function submissionToEbook(s: Submission): Ebook {
+  const characters = s.characters ? castFromNames(s.title, s.characters) : [];
+  return {
+    id: `cm-${s.id}`,
+    gutenbergId: numericId(s.id),
+    title: s.title,
+    author: s.author || "Autor não informado",
+    genre: "Da comunidade",
+    textLanguage: s.language,
+    source: "community",
+    communityPath: s.text_path,
+    ...(s.cover_url ? { coverUrl: s.cover_url } : {}),
+    ...(s.reviewed_at ? { publishedAt: s.reviewed_at } : {}),
+    ...(characters.length > 0 ? { characters } : {}),
+  };
+}
+
+export async function submitBook(
+  session: SupabaseSession,
+  input: {
+    title: string;
+    author: string;
+    language: "pt" | "en";
+    rights: Rights;
+    rightsNote: string;
+    characters: string;
+    submitterName: string;
+    text: string;
+    /** Capa escolhida por quem enviou (opcional). */
+    coverUrl?: string | null;
+  },
+): Promise<Submission> {
+  const bytes = new Blob([input.text]).size;
+  if (bytes > MAX_COMMUNITY_BYTES) throw new Error("O texto do livro é grande demais (máximo de 10 MB).");
+  const path = `${session.user.id}/${crypto.randomUUID()}.txt`;
+  const insert = (withCover: boolean) =>
+    sb("/rest/v1/book_submissions", {
+      method: "POST",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({
+        ...(withCover && input.coverUrl ? { cover_url: input.coverUrl } : {}),
+        user_id: session.user.id,
+        submitter_name: input.submitterName.slice(0, 60),
+        title: input.title.slice(0, 120),
+        author: input.author.slice(0, 120) || null,
+        language: input.language,
+        rights: input.rights,
+        rights_note: input.rightsNote.trim().slice(0, 500) || null,
+        characters: input.characters.trim().slice(0, 600) || null,
+        text_path: path,
+        char_count: input.text.length,
+      }),
+    });
+  try {
+    await sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, {
+      method: "POST",
+      session,
+      // Exatamente o tipo aceito pelo bucket (com ";charset" o Supabase pode recusar).
+      headers: { "Content-Type": "text/plain" },
+      body: input.text,
+    });
+    let res: Response;
+    try {
+      res = await insert(true);
+    } catch (err) {
+      // Banco ainda sem a coluna cover_url: envia sem a capa (o admin acha uma ao aprovar).
+      if (!input.coverUrl || !/cover_url/i.test(err instanceof Error ? err.message : "")) throw err;
+      res = await insert(false);
+    }
+    const [row] = (await res.json()) as Submission[];
+    approvedCache = null;
+    return row;
+  } catch (err) {
+    // Sem o registro, o texto e a capa enviada não servem para nada.
+    void sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+    const cover = uploadedCoverPath(input.coverUrl);
+    if (cover) void sb(`/storage/v1/object/profile-media/${encodePath(cover)}`, { method: "DELETE", session }).catch(() => {});
+    throw err;
+  }
+}
+
+export async function listSubmissions(
+  session: SupabaseSession | null,
+  which: "mine" | "pending" | "approved",
+): Promise<Submission[]> {
+  const query =
+    which === "mine"
+      ? `user_id=eq.${session?.user.id ?? ""}&order=created_at.desc`
+      : which === "pending"
+        ? "status=eq.pending&order=created_at.asc"
+        : "status=eq.approved&order=reviewed_at.desc.nullslast";
+  const res = await sb(`/rest/v1/book_submissions?select=*&${query}`, { session });
+  return (await res.json()) as Submission[];
+}
+
+let approvedCache: { key: string; books: Promise<Ebook[]> } | null = null;
+
+/** Livros aprovados (estante "Da comunidade"). Guardado por sessão para não buscar a cada tela. */
+export function approvedCommunityBooks(session: SupabaseSession | null): Promise<Ebook[]> {
+  const key = session?.user.id ?? "anon";
+  if (approvedCache?.key !== key) {
+    const books = listSubmissions(session, "approved").then((rows) => rows.map(submissionToEbook));
+    books.catch(() => {
+      approvedCache = null;
+    });
+    approvedCache = { key, books };
+  }
+  return approvedCache.books;
+}
+
+export async function reviewSubmission(
+  session: SupabaseSession,
+  id: string,
+  status: "approved" | "rejected",
+  note?: string,
+  coverUrl?: string | null,
+): Promise<Submission> {
+  const fields: Record<string, unknown> = { status, review_note: note?.trim().slice(0, 500) || null, reviewed_at: new Date().toISOString() };
+  if (coverUrl) fields.cover_url = coverUrl;
+  const send = (body: Record<string, unknown>) =>
+    sb(`/rest/v1/book_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify(body),
+    });
+  let res: Response;
+  try {
+    res = await send(fields);
+  } catch (err) {
+    // Banco sem a coluna cover_url (script ainda não rodado): aprova sem gravar a capa.
+    if (!("cover_url" in fields) || !/cover_url/i.test(err instanceof Error ? err.message : "")) throw err;
+    delete fields.cover_url;
+    res = await send(fields);
+  }
+  const rows = (await res.json()) as Submission[];
+  // Sem linha de volta = a regra do banco não deixou (não é admin).
+  if (rows.length === 0) throw new Error("Sem permissão para revisar envios.");
+  approvedCache = null;
+  return rows[0];
+}
+
+const COVER_PREFIX = "/storage/v1/object/public/profile-media/";
+
+/** Caminho da capa no Storage, se ela foi enviada pelo app (capas da Open Library não). */
+function uploadedCoverPath(coverUrl: string | null | undefined): string | null {
+  if (!coverUrl) return null;
+  const at = coverUrl.indexOf(COVER_PREFIX);
+  if (at < 0 || !coverUrl.startsWith(supabaseConfig().url)) return null;
+  const path = decodeURIComponent(coverUrl.slice(at + COVER_PREFIX.length).split("?")[0]);
+  return path.split("/")[1] === "livros" ? path : null;
+}
+
+/**
+ * Troca a capa de um envio. Quem enviou usa a função set_submission_cover (só aceita capa da própria
+ * pasta no Storage); sem ela no banco, o PATCH direto funciona para o admin.
+ */
+export async function setSubmissionCover(session: SupabaseSession, id: string, coverUrl: string): Promise<void> {
+  try {
+    await sb("/rest/v1/rpc/set_submission_cover", {
+      method: "POST",
+      session,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submission_id: id, new_cover: coverUrl }),
+    });
+  } catch (err) {
+    const res = await sb(`/rest/v1/book_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ cover_url: coverUrl }),
+    }).catch(() => null);
+    if (!res || ((await res.json()) as unknown[]).length === 0) throw err;
+  }
+  approvedCache = null;
+}
+
+/**
+ * Admin troca a capa de um envio (em análise ou publicado) por uma imagem nova: sobe para o Storage,
+ * grava no envio e apaga a capa enviada antes, se havia. Capa enviada pelo app não é mais trocada
+ * pela sincronização de quem enviou.
+ */
+export async function changeSubmissionCover(session: SupabaseSession, s: Submission, image: Blob): Promise<Submission> {
+  const url = await uploadBookCover(session, image);
+  const dropNew = () => {
+    const path = uploadedCoverPath(url);
+    if (path) void sb(`/storage/v1/object/profile-media/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+  };
+  let rows: Submission[];
+  try {
+    const res = await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ cover_url: url }),
+    });
+    rows = (await res.json()) as Submission[];
+  } catch (err) {
+    dropNew();
+    throw err;
+  }
+  if (rows.length === 0) {
+    dropNew();
+    throw new Error("Sem permissão para trocar a capa.");
+  }
+  const old = uploadedCoverPath(s.cover_url);
+  if (old) void sb(`/storage/v1/object/profile-media/${encodePath(old)}`, { method: "DELETE", session }).catch(() => {});
+  approvedCache = null;
+  return rows[0];
+}
+
+const sameTitle = (a: string, b: string) => normalize(a).trim() === normalize(b).trim();
+
+/**
+ * A capa do acervo segue a de "Seus livros": para cada envio da pessoa cuja capa não foi enviada
+ * pelo app (vazia ou achada na Open Library), sobe a capa do livro importado e grava no envio.
+ * Livros importados antes do `submissionId` são achados pelo título. Devolve quantas trocou.
+ */
+export async function syncSubmissionCovers(session: SupabaseSession, localBooks: Ebook[]): Promise<number> {
+  const mine = await listSubmissions(session, "mine");
+  let changed = 0;
+  for (const s of mine) {
+    if (s.status === "rejected" || uploadedCoverPath(s.cover_url)) continue;
+    const local =
+      localBooks.find((b) => b.submissionId === s.id) ??
+      localBooks.find((b) => !b.submissionId && sameTitle(b.title, s.title));
+    const cover = local?.coverUrl;
+    if (!cover || cover === s.cover_url) continue;
+    if (!cover.startsWith("data:") && cover.length > 300) continue;
+    let url: string | null = null;
+    try {
+      url = cover.startsWith("data:") ? await uploadBookCover(session, await dataUrlToBlob(cover)) : cover;
+      await setSubmissionCover(session, s.id, url);
+      changed++;
+    } catch (err) {
+      // Sem gravar no envio, a imagem enviada não serve para nada.
+      const orphan = uploadedCoverPath(url);
+      if (orphan) void sb(`/storage/v1/object/profile-media/${encodePath(orphan)}`, { method: "DELETE", session }).catch(() => {});
+      console.warn(`[acervo] capa de "${s.title}" não sincronizada:`, err);
+    }
+  }
+  return changed;
+}
+
+/** Apaga o envio, o texto e a capa enviada (admin: qualquer um; quem enviou: só os em análise). */
+export async function deleteSubmission(session: SupabaseSession, s: Submission): Promise<void> {
+  await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, { method: "DELETE", session });
+  await sb(`/storage/v1/object/${BUCKET}/${encodePath(s.text_path)}`, { method: "DELETE", session }).catch(() => {});
+  const cover = uploadedCoverPath(s.cover_url);
+  if (cover) await sb(`/storage/v1/object/profile-media/${encodePath(cover)}`, { method: "DELETE", session }).catch(() => {});
+  approvedCache = null;
+}
+
+export async function fetchCommunityText(session: SupabaseSession | null, path: string): Promise<string> {
+  const res = await sb(`/storage/v1/object/authenticated/${BUCKET}/${encodePath(path)}`, { session });
+  return res.text();
+}
+
+/** Pergunta ao banco (função is_admin); qualquer erro conta como "não é admin". */
+export async function checkIsAdmin(session: SupabaseSession): Promise<boolean> {
+  try {
+    const res = await sb("/rest/v1/rpc/is_admin", {
+      method: "POST",
+      session,
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    return (await res.json()) === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Dias que um livro aprovado fica em "Novidades". */
+export const NEW_BOOK_DAYS = 7;
+
+/** Dias desde a aprovação, ou null se não é livro da comunidade aprovado. */
+export function daysSincePublished(book: Ebook, now = Date.now()): number | null {
+  if (book.source !== "community" || !book.publishedAt) return null;
+  const t = new Date(book.publishedAt).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((now - t) / 86_400_000));
+}
+
+export function isNewCommunityBook(book: Ebook): boolean {
+  const d = daysSincePublished(book);
+  return d !== null && d < NEW_BOOK_DAYS;
+}
+
+/** "Novo · hoje", "Novo · ontem", "Novo · há 3 dias". */
+export function newBookLabel(book: Ebook): string {
+  const d = daysSincePublished(book) ?? 0;
+  return d === 0 ? "Novo · hoje" : d === 1 ? "Novo · ontem" : `Novo · há ${d} dias`;
+}
+
+export function normalizeText(text: string): string {
+  return normalize(text);
+}
+
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/** Busca por título ou autor, sem acento e sem diferenciar maiúsculas (todas as palavras). */
+export function matchesCommunitySearch(book: Ebook, term: string): boolean {
+  const hay = normalize(`${book.title} ${book.author}`);
+  return normalize(term)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => hay.includes(w));
+}

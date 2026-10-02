@@ -1,4 +1,5 @@
 import type { Ebook } from "../data/types";
+import { currentDataOwner, legacyDataOwner } from "./dataOwner";
 
 /**
  * Livros que o leitor importou. Ficam só neste navegador (IndexedDB): o arquivo nunca sai do
@@ -14,6 +15,8 @@ type StoredBook = {
   importedAt: number;
   /** Ilustrações do livro (marcadas no texto como "[[img:<id>]]"). */
   images?: Record<string, Blob>;
+  /** Conta que importou (sem ele: de antes da separação por conta, ver dataOwner.ts). */
+  owner?: string;
 };
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -57,7 +60,14 @@ export function isLocalBook(book: Ebook): boolean {
 export async function saveLocalBook(book: Ebook, text: string, images?: Record<string, Blob>): Promise<void> {
   try {
     await run("readwrite", (s) =>
-      s.put({ id: book.gutenbergId, book, text, importedAt: Date.now(), images } satisfies StoredBook),
+      s.put({
+        id: book.gutenbergId,
+        book,
+        text,
+        importedAt: Date.now(),
+        images,
+        ...(currentDataOwner() ? { owner: currentDataOwner() ?? undefined } : {}),
+      } satisfies StoredBook),
     );
   } catch (e) {
     if (e instanceof DOMException && e.name === "QuotaExceededError") {
@@ -90,7 +100,13 @@ export async function loadLocalBookImages(
 export async function listLocalBooks(): Promise<Ebook[]> {
   try {
     const all = await run<StoredBook[]>("readonly", (s) => s.getAll());
-    return all.sort((a, b) => b.importedAt - a.importedAt).map((b) => b.book);
+    // Só os da conta em uso neste aparelho.
+    const owner = currentDataOwner();
+    const legacy = legacyDataOwner();
+    return all
+      .filter((b) => (b.owner ?? legacy) === owner)
+      .sort((a, b) => b.importedAt - a.importedAt)
+      .map((b) => b.book);
   } catch {
     return [];
   }

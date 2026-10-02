@@ -222,3 +222,69 @@ export function lastReadDay(): string | null {
 export function hasAnyReading(): boolean {
   return Object.values(read()).some((s) => s >= MIN_SECONDS_FOR_STREAK);
 }
+
+export type ReadingTotals = {
+  totalMinutes: number;
+  weekMinutes: number;
+  daysRead: number;
+  /** Maior sequência já feita (dias salvos por escudo mantêm, mas não somam, como na atual). */
+  bestStreak: number;
+};
+
+/** Números do perfil: tempo total, da semana, dias com leitura e recorde de sequência. */
+export function readingTotals(): ReadingTotals {
+  const stats = read();
+  const meta = readMeta();
+  const now = new Date();
+  let totalSeconds = 0;
+  let weekSeconds = 0;
+  const weekStart = dayKey(daysAgo(6, now));
+  for (const [day, seconds] of Object.entries(stats)) {
+    totalSeconds += seconds;
+    if (day >= weekStart) weekSeconds += seconds;
+  }
+  const days = Object.keys(stats)
+    .filter((d) => stats[d] >= MIN_SECONDS_FOR_STREAK)
+    .sort();
+  const frozen = new Set(meta.frozen);
+  let best = 0;
+  let run = 0;
+  let prev: string | null = null;
+  // Percorre os dias em ordem; um buraco só de dias com escudo não quebra a sequência.
+  for (const day of days) {
+    if (prev) {
+      const cursor = new Date(`${prev}T12:00:00`);
+      cursor.setDate(cursor.getDate() + 1);
+      while (dayKey(cursor) < day && frozen.has(dayKey(cursor))) cursor.setDate(cursor.getDate() + 1);
+      run = dayKey(cursor) === day ? run + 1 : 1;
+    } else {
+      run = 1;
+    }
+    best = Math.max(best, run);
+    prev = day;
+  }
+  return {
+    totalMinutes: Math.floor(totalSeconds / 60),
+    weekMinutes: Math.floor(weekSeconds / 60),
+    daysRead: days.length,
+    bestStreak: Math.max(best, computeStreak(stats, meta, now)),
+  };
+}
+
+export type ReadingDay = { key: string; date: Date; minutes: number; state: DayState };
+
+/** Últimos `n` dias (do mais antigo para hoje), com os minutos lidos — para os gráficos do perfil. */
+export function readingDays(n: number): ReadingDay[] {
+  const stats = read();
+  const meta = readMeta();
+  const now = new Date();
+  return Array.from({ length: n }, (_, i) => {
+    const date = daysAgo(n - 1 - i, now);
+    const key = dayKey(date);
+    const state: DayState = readOn(stats, date) ? "read" : meta.frozen.includes(key) ? "frozen" : "missed";
+    return { key, date, minutes: Math.floor((stats[key] ?? 0) / 60), state };
+  });
+}
+
+/** Para o painel: de quantos em quantos dias se ganha um escudo e o máximo guardado. */
+export const SHIELD_RULES = { daysPerShield: DAYS_PER_SHIELD, maxShields: MAX_SHIELDS };

@@ -3,7 +3,7 @@
  * de quem manda mensagem sem parar. Não é uma trava de segurança: as chaves `VITE_*` continuam
  * visíveis no navegador (a trava de verdade precisa de uma função no servidor).
  */
-export const DAILY_MESSAGE_LIMIT = 30;
+export const DAILY_MESSAGE_LIMIT = 50;
 const KEY = "storyverse:usage";
 
 type Usage = { day: string; count: number };
