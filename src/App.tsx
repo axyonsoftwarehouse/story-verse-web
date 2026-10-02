@@ -12,7 +12,8 @@ import {
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner } from "./lib/dataOwner";
-import { pullAndMerge, pushIfChanged, resetSync, startAutoPush } from "./lib/cloudSync";
+import { startAutoSync, syncNow } from "./lib/cloudSync";
+import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
@@ -128,6 +129,7 @@ import {
   consumeAuthRedirect,
   EMAIL_OTP_ENABLED,
   refreshAuthSession,
+  refreshProfile,
   storedAuthSession,
   resendSignupCode,
   requestPasswordReset,
@@ -934,7 +936,7 @@ function Explore({
   );
 }
 
-/** Livros do próprio leitor (.epub, .pdf, .txt): lidos e guardados só neste aparelho. */
+/** Livros do próprio leitor (.epub, .pdf, .txt): com conta, vão para os outros aparelhos dela. */
 function MyBooks({
   onOpen,
   onRemoved,
@@ -1107,7 +1109,8 @@ function MyBooks({
   }
 
   async function remove(b: Ebook) {
-    if (!window.confirm(`Remover “${b.title}” deste aparelho? O progresso de leitura também será apagado.`)) {
+    const where = session ? "de todos os aparelhos da sua conta" : "deste aparelho";
+    if (!window.confirm(`Remover “${b.title}” ${where}? O progresso de leitura também será apagado.`)) {
       return;
     }
     await deleteLocalBook(b.gutenbergId).catch(() => undefined);
@@ -1133,7 +1136,7 @@ function MyBooks({
             <span className="import-formats">EPUB · PDF · TXT</span>
           </div>
           <strong>Importar meu livro</strong>
-          <span>Fica só neste aparelho</span>
+          <span>{session ? "Em todos os seus aparelhos" : "Fica só neste aparelho"}</span>
         </button>
         {(showAllBooks ? books : books.slice(0, CONTINUE_PREVIEW)).map((b) => (
           <div key={b.gutenbergId} className="my-book">
@@ -2805,7 +2808,7 @@ function ProfilePage({
       </header>
 
       <ReadingDashboard summary={summary} totals={totals} finishedCount={finished.length} markCount={markCount} />
-      <p className="profile-device-note">Os números e as marcações são deste aparelho.</p>
+      <p className="profile-device-note">Os números, as marcações e os livros são da sua conta: aparecem igual na Web e no app.</p>
 
       <ProfileShelf
         title="Lendo agora"
@@ -3727,19 +3730,38 @@ export function App() {
     }
   }, [authUserId, authLoading]);
 
-  // Nuvem: ao entrar, junta os dados da conta com os do aparelho (depois da troca de dono acima).
+  /**
+   * Nuvem: a mesma conta na Web e no app instalado. Ao entrar (depois da troca de dono acima),
+   * ao voltar para o app e de tempos em tempos, junta os dados da conta com os do aparelho, envia
+   * e baixa os livros importados e atualiza o perfil.
+   */
+  const syncAccount = useCallback(async (session: SupabaseSession, opts: { keepalive: boolean; resume: boolean }) => {
+    let changed = await syncNow(session, { keepalive: opts.keepalive });
+    if (opts.keepalive) return changed;
+    const books = await syncBooks(session).catch(() => ({ local: false, library: false }));
+    // A lista da conta mudou (livro enviado ou removido): manda já para os outros aparelhos.
+    if (books.library) changed = (await syncNow(session).catch(() => false)) || changed;
+    if (opts.resume) {
+      void refreshProfile(session)
+        .then((next) => next !== session && authSessionRef.current?.user.id === next.user.id && setAuthSession(next))
+        .catch(() => {});
+    }
+    return changed || books.local;
+  }, []);
+  const applyRemoteData = useCallback(() => {
+    setPrefs(loadPrefs());
+    // A tela inicial é redesenhada com os dados novos: sem pular para o topo.
+    const y = window.scrollY;
+    setDataEpoch((n) => n + 1);
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  }, []);
   useEffect(() => {
     if (!authEnabled || authLoading) return;
     const session = authSessionRef.current;
-    if (!session) return resetSync();
+    if (!session) return;
     let alive = true;
-    void pullAndMerge(session)
-      .then((changed) => {
-        if (alive && changed) {
-          setPrefs(loadPrefs());
-          setDataEpoch((n) => n + 1);
-        }
-      })
+    void syncAccount(session, { keepalive: false, resume: true })
+      .then((changed) => alive && changed && applyRemoteData())
       .catch(() => {
         // Sem a tabela ou sem internet: segue só com os dados do aparelho.
       });
@@ -3747,7 +3769,10 @@ export function App() {
       alive = false;
     };
   }, [authUserId, authLoading]);
-  useEffect(() => (authEnabled ? startAutoPush(() => authSessionRef.current) : undefined), []);
+  useEffect(
+    () => (authEnabled ? startAutoSync(() => authSessionRef.current, syncAccount, applyRemoteData) : undefined),
+    [syncAccount, applyRemoteData],
+  );
 
   /** Sessão atual para o carregamento do texto (sem recarregar o livro quando o token renova). */
   const authSessionRef = useRef(authSession);
@@ -3759,7 +3784,7 @@ export function App() {
     setAuthNotice(null);
     try {
       // Antes de sair, guarda na nuvem o que ainda não foi enviado.
-      await pushIfChanged(authSession).catch(() => {});
+      await syncNow(authSession).catch(() => {});
       await signOut(authSession);
     } catch (err) {
       setAuthNotice({ text: err instanceof Error ? `Sessão encerrada neste dispositivo. ${err.message}` : "Sessão encerrada neste dispositivo." });
@@ -5509,7 +5534,7 @@ export function App() {
                   <p className="the-end">Fim — mas a conversa continua ao lado.</p>
                 )}
                 {isLocalBook(book) ? (
-                  <span className="source-link">Livro importado · guardado só neste aparelho</span>
+                  <span className="source-link">Livro importado · {authSession ? "guardado na sua conta" : "guardado só neste aparelho"}</span>
                 ) : book.source === "community" ? (
                   <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
                 ) : (
