@@ -24,6 +24,7 @@ const USER_KEYS = new Set([
   "storyverse:reading-prefs",
   "storyverse:voice-prefs",
   "storyverse:chat-index",
+  "storyverse:library",
 ]);
 const USER_PREFIXES = ["storyverse:highlights:", "storyverse:chat:"];
 

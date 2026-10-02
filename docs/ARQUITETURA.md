@@ -302,36 +302,58 @@ Caches que não são pessoais (traduções, retratos, elenco) são compartilhado
 
 ### Sincronização — `cloudSync.ts` + tabela `reading_state`
 
+A Web e o app instalado são a mesma conta: o que muda num aparece no outro.
+
 ```mermaid
 sequenceDiagram
-  participant A as App
+  participant A as Aparelho
   participant DB as reading_state
 
-  A->>DB: GET (ao entrar)
-  DB-->>A: data jsonb
-  A->>A: mergeKey por chave, sem apagar nada
+  A->>DB: GET data, updated_at
+  DB-->>A: dados da nuvem
+  A->>A: junção em 3 vias (aparelho × nuvem × base)
   A->>A: grava o resultado no localStorage
-
-  loop a cada 30 s (se mudou)
-    A->>DB: UPSERT data
+  A->>DB: PATCH ... where updated_at = o lido
+  alt outro aparelho gravou no meio
+    DB-->>A: 0 linhas
+    A->>DB: baixa e junta de novo (até 3 vezes)
+  else gravou
+    A->>A: base = resultado
   end
-  Note over A,DB: Também envia ao esconder o app,<br/>ao fechar (keepalive) e antes de sair da conta.<br/>Nunca envia antes de baixar: aparelho novo e vazio não apaga a nuvem.
+  Note over A,DB: Roda ao entrar, a cada 30 s com o app na tela, ao voltar para o app,<br/>ao voltar a internet, ao esconder/fechar (keepalive) e antes de sair da conta.<br/>Sempre baixa antes de gravar: aparelho novo e vazio não apaga a nuvem.
 ```
 
-Regras de junção:
+A **base** (`storyverse:sync-base:<uid>`, só no aparelho) é a última versão em que aparelho e
+nuvem concordavam. Só o lado que mudou desde ela vale — assim a preferência trocada na Web chega
+ao celular e o que foi apagado num lado (marcação, conversa, "Continue lendo") some no outro.
+Quando os dois lados mudaram a mesma chave:
 
 | Chave | Como junta |
 |---|---|
-| `reading-progress` | por livro, fica o lido mais recentemente (`updatedAt`) |
+| `reading-progress` | por livro (3 vias); mexido nos dois: o lido mais recentemente (`updatedAt`) |
+| `finished-books` | por livro (3 vias); mexido nos dois: a primeira data |
+| `library` | por livro importado (3 vias); mexido nos dois: o que aconteceu por último |
+| `highlights:*` | por marcação (3 vias, pelo id) |
 | `reading-stats` | por dia, o maior número de minutos |
 | `streak-meta` | escudos: o maior; dias salvos: união |
-| `finished-books` | todos, com a primeira data |
-| `highlights:*` | todas as marcações (pelo id) |
 | `chat:*` | a conversa mais recente |
 | preferências (tema, meta, lembrete, voz…) | vale a deste aparelho |
 
-Os **arquivos** dos livros importados não sobem (são grandes). Ao reinstalar, volta tudo menos o
-texto importado.
+Nome e fotos do perfil ficam na conta (`user_metadata` e bucket `profile-media`); ao voltar para
+o app, `refreshProfile` busca o perfil atual (a sessão guardada tinha uma cópia antiga).
+
+### Livros importados — `bookSync.ts` + bucket `user-books`
+
+A lista (`storyverse:library`: `importedAt`, `uploadedAt`, `deletedAt`) vai junto com os outros
+dados. Depois de cada sincronização:
+
+- livro daqui sem `uploadedAt` → sobe `user-books/<uid>/<id>.json.gz` (livro, texto, capa e
+  ilustrações em gzip) e marca `uploadedAt`;
+- livro na lista com `uploadedAt` que não está aqui → baixa e guarda no IndexedDB;
+- livro com `deletedAt` → sai do IndexedDB daqui e do Storage (fica na lista como removido, para
+  os outros aparelhos também removerem).
+
+Livros importados antes disso entram na lista na primeira sincronização.
 
 ---
 
@@ -495,6 +517,7 @@ novas precisam de `GRANT` para a API: está nos scripts.
 |---|---|---|---|---|
 | `community-books` | não | 10 MB | `text/plain` | `<uid>/<uuid>.txt` |
 | `profile-media` | sim | 2 MB | WebP, JPEG, PNG | `<uid>/avatar` · `<uid>/cover` · `<uid>/livros/<uuid>` |
+| `user-books` | não | 50 MB | `application/gzip` | `<uid>/<id>.json.gz` (só o dono lê, envia e apaga) |
 
 Regras:
 
@@ -587,7 +610,8 @@ esses sites não liberam CORS, ou são bloqueados pelo navegador (ORB).
 | `lib/community.ts` | envios, aprovação, acervo da comunidade, Novidades |
 | `lib/profileMedia.ts` | reduzir imagem e subir/apagar no Storage |
 | `lib/bookCovers.ts`, `openLibrary.ts` | capas e ano de publicação (Open Library) |
-| `lib/cloudSync.ts` | sincronização com `reading_state` |
+| `lib/cloudSync.ts` | sincronização com `reading_state` (junção em 3 vias) |
+| `lib/bookSync.ts` | livros importados entre aparelhos (bucket `user-books`) |
 | `lib/dataOwner.ts` | separação de dados por conta no aparelho |
 | `lib/localBooks.ts`, `importBook.ts` | livros importados (IndexedDB) e leitura de .txt/.epub/.pdf |
 | `lib/gutenberg.ts`, `chapters.ts` | busca/baixa do Gutenberg e divisão em capítulos |
@@ -616,4 +640,5 @@ esses sites não liberam CORS, ou são bloqueados pelo navegador (ORB).
    1. `supabase/community-books.sql` (admins, envios, bucket de textos)
    2. `supabase/profile-media.sql` (bucket de fotos)
    3. `supabase/reading-state.sql` (sincronização)
+   4. `supabase/user-books.sql` (livros importados entre aparelhos)
 7. Na Vercel: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`, depois fazer um novo deploy.

@@ -22,7 +22,7 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 - **Chat com os personagens**, com troca de personagem, sugestões de perguntas para começar e animação de "digitando".
 - **Personagens gerados por IA** para qualquer livro do acervo que não esteja nos destaques.
 - **Livros fora do acervo**: na busca, livros famosos que ainda têm direitos autorais (ex.: *Crepúsculo*) aparecem com capa, autor e ano, vindos do catálogo aberto da [Open Library](https://openlibrary.org) (só os dados do livro, nunca o texto), com um botão que abre a importação já preenchida.
-- **Importar meu livro** (.epub, .pdf ou .txt): o arquivo é lido e guardado só no navegador do leitor (IndexedDB), sem servidor e sem IA. Os personagens podem ser digitados na importação; em branco, a IA sugere o elenco ao abrir o livro. Livros com DRM e PDFs escaneados (sem texto) não abrem.
+- **Importar meu livro** (.epub, .pdf ou .txt): o arquivo é lido no navegador do leitor (IndexedDB), sem IA; com conta, vai também para a nuvem da conta e aparece nos outros aparelhos (Web e app). Os personagens podem ser digitados na importação; em branco, a IA sugere o elenco ao abrir o livro. Livros com DRM e PDFs escaneados (sem texto) não abrem.
 - **Layout responsivo**: no celular, o chat vira um painel deslizante aberto por um botão flutuante.
 - **Conversa salva por livro**: ao voltar, os personagens lembram do que foi dito (botão para recomeçar a conversa).
 - **Card para compartilhar**: uma fala do personagem (com a pergunta do leitor) ou uma citação do livro vira uma imagem 1080×1350 pronta para Stories, TikTok e WhatsApp, gerada no navegador.
