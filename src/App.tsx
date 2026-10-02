@@ -2624,6 +2624,7 @@ function ProfilePage({
   prefs,
   setPrefs,
   lastBook,
+  isAvailable,
   isAdmin,
   onOpenModeration,
 }: {
@@ -2637,6 +2638,8 @@ function ProfilePage({
   prefs: ReadingPrefs;
   setPrefs: React.Dispatch<React.SetStateAction<ReadingPrefs>>;
   lastBook?: LastBook;
+  /** Livro ainda existe para esta conta (ver `bookAvailable`). */
+  isAvailable: (book: Ebook) => boolean;
   isAdmin?: boolean;
   onOpenModeration?: () => void;
 }) {
@@ -2646,7 +2649,7 @@ function ProfilePage({
 
   const [summary, setSummary] = useState(readingSummary);
   const totals = useMemo(readingTotals, []);
-  const reading = useMemo(recentProgress, []);
+  const reading = useMemo(() => recentProgress().filter((p) => isAvailable(p.book)), [isAvailable]);
   const finished = useMemo(finishedBooks, []);
   const [imported, setImported] = useState<Ebook[]>([]);
   useEffect(() => {
@@ -3089,6 +3092,18 @@ type Celebration = { emoji: string; title: string; text?: string };
 
 /** Quantos livros "Continue lendo" mostra antes de "Ver todos". */
 const CONTINUE_PREVIEW = 4;
+
+/**
+ * O livro ainda pode ser aberto por esta conta? Importado: precisa estar em "Seus livros" neste
+ * aparelho. Da comunidade: precisa continuar aprovado no acervo. Do Gutenberg: sempre.
+ * Enquanto a lista ainda não chegou (ou falhou, sem internet), não esconde o da comunidade;
+ * o importado só aparece depois de conferido (o navegador responde na hora).
+ */
+function bookAvailable(b: Ebook, known: { localIds: Set<number> | null; communityIds: Set<string> | null }): boolean {
+  if (isLocalBook(b)) return known.localIds?.has(b.gutenbergId) ?? false;
+  if (b.source === "community") return known.communityIds?.has(b.id) ?? true;
+  return true;
+}
 
 /** Livros começados, para retomar do ponto onde o leitor parou: os 4 mais recentes e "Ver todos". */
 function ContinueReading({
@@ -3839,17 +3854,45 @@ export function App() {
 
   const [prefs, setPrefs] = useState(loadPrefs);
   /** Redesenha a página inicial quando um livro importado é removido (sai de "Continue lendo"). */
-  const [, setHomeTick] = useState(0);
+  const [homeTick, setHomeTick] = useState(0);
+  /** Ids da comunidade aprovados agora (`null`: lista ainda não veio ou falhou — não esconde nada). */
+  const [communityIds, setCommunityIds] = useState<Set<string> | null>(null);
   useEffect(() => {
     if (!authEnabled || book) return;
     let alive = true;
     void approvedCommunityBooks(authSessionRef.current)
-      .then((list) => alive && setCommunityBooks(list))
-      .catch(() => alive && setCommunityBooks([]));
+      .then((list) => {
+        if (!alive) return;
+        setCommunityBooks(list);
+        setCommunityIds(new Set(list.map((b) => b.id)));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCommunityBooks([]);
+        setCommunityIds(null);
+      });
     return () => {
       alive = false;
     };
   }, [book, authUserId, communityTick]);
+  /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
+  const [localIds, setLocalIds] = useState<Set<number> | null>(null);
+  useEffect(() => {
+    // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
+    if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
+    if (book) return;
+    let alive = true;
+    void listLocalBooks()
+      .then((list) => alive && setLocalIds(new Set(list.map((b) => b.gutenbergId))))
+      .catch(() => alive && setLocalIds(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [book, authUserId, dataEpoch, homeTick]);
+  const isAvailable = useCallback(
+    (b: Ebook) => bookAvailable(b, { localIds, communityIds }),
+    [localIds, communityIds],
+  );
   /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
   useEffect(() => {
     const session = authSessionRef.current;
@@ -3884,7 +3927,7 @@ export function App() {
   /** Dados para a notificação diária do Android (o service worker não lê o localStorage). */
   useEffect(() => {
     if (book) return;
-    const recent = recentProgress()[0];
+    const recent = recentProgress().find((p) => isAvailable(p.book));
     void syncEngagementState({
       streak: readingSummary().streak,
       lastReadDay: lastReadDay(),
@@ -3892,7 +3935,7 @@ export function App() {
         ? { title: recent.book.title, chapterLabel: recent.chapterLabel, character: lastCharacter(recent.book.id) }
         : undefined,
     });
-  }, [book]);
+  }, [book, isAvailable]);
   useEffect(() => {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
@@ -4778,7 +4821,8 @@ export function App() {
     // Cópia do livro guardada no progresso pode estar velha (sem a capa achada depois): usa a
     // versão atual quando o livro é do acervo fixo ou da comunidade.
     const currentBook = new Map<string, Ebook>([...featuredBooks, ...communityBooks].map((b) => [b.id, b]));
-    const recent = recentProgress().map((p) => {
+    // Só livros que ainda dá para abrir: removido de "Seus livros" ou tirado do acervo sai daqui.
+    const recent = recentProgress().filter((p) => isAvailable(p.book)).map((p) => {
       const now = currentBook.get(p.book.id);
       return now && now.coverUrl !== p.book.coverUrl ? { ...p, book: { ...p.book, coverUrl: now.coverUrl } } : p;
     });
@@ -4821,6 +4865,7 @@ export function App() {
           prefs={prefs}
           setPrefs={setPrefs}
           lastBook={lastBook}
+          isAvailable={isAvailable}
         />
       );
     }
