@@ -22,7 +22,7 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 - **Chat com os personagens**, com troca de personagem, sugestões de perguntas para começar e animação de "digitando".
 - **Personagens gerados por IA** para qualquer livro do acervo que não esteja nos destaques.
 - **Livros fora do acervo**: na busca, livros famosos que ainda têm direitos autorais (ex.: *Crepúsculo*) aparecem com capa, autor e ano, vindos do catálogo aberto da [Open Library](https://openlibrary.org) (só os dados do livro, nunca o texto), com um botão que abre a importação já preenchida.
-- **Importar meu livro** (.epub, .pdf ou .txt): o arquivo é lido e guardado só no navegador do leitor (IndexedDB), sem servidor e sem IA. Os personagens podem ser digitados na importação; em branco, a IA sugere o elenco ao abrir o livro. Livros com DRM e PDFs escaneados (sem texto) não abrem.
+- **Importar meu livro** (.epub, .pdf ou .txt): o arquivo é lido no navegador do leitor (IndexedDB), sem IA; com conta, vai também para a nuvem da conta e aparece nos outros aparelhos (Web e app). Os personagens podem ser digitados na importação; em branco, a IA sugere o elenco ao abrir o livro. Livros com DRM e PDFs escaneados (sem texto) não abrem.
 - **Layout responsivo**: no celular, o chat vira um painel deslizante aberto por um botão flutuante.
 - **Conversa salva por livro**: ao voltar, os personagens lembram do que foi dito (botão para recomeçar a conversa).
 - **Card para compartilhar**: uma fala do personagem (com a pergunta do leitor) ou uma citação do livro vira uma imagem 1080×1350 pronta para Stories, TikTok e WhatsApp, gerada no navegador.
@@ -45,18 +45,19 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 
 | Camada | Tecnologia |
 |---|---|
-| Interface | React 18 + TypeScript |
-| Build e servidor de desenvolvimento | Vite 5 |
-| Hospedagem | Vercel (site estático + rewrites) |
-| Autenticação | Supabase Auth (REST, direto do cliente; sem backend próprio) |
-| Catálogo de livros | Busca do próprio [gutenberg.org](https://www.gutenberg.org) (feed OPDS), pelo mesmo proxy dos textos |
-| Texto dos livros | Project Gutenberg, via proxy (`/gutenberg` e `/gutenberg-mirror`) |
-| IA principal | [Groq](https://console.groq.com) (`openai/gpt-oss-120b`, `gpt-oss-20b`, `qwen3.8-27b`) |
-| IA de reserva | [Google Gemini](https://aistudio.google.com) (`gemini-3.5-flash-lite`, `gemini-flash-lite-latest`) |
-| IA de reserva opcional | [OpenRouter](https://openrouter.ai) |
+| Frontend | React 18 + TypeScript |
+| Build e servidor de desenvolvimento do frontend | Vite 5 |
+| API backend | Java + Spring Boot (`story-magic-api/`) |
+| Hospedagem do frontend | Vercel (site estático + rewrites) |
+| Autenticação | Supabase Auth (REST, direto do cliente) |
+| Catálogo e conteúdo no frontend atual | [Project Gutenberg](https://www.gutenberg.org), via proxy (`/gutenberg` e `/gutenberg-mirror`) |
+| Metadados externos no frontend atual | [Open Library](https://openlibrary.org) |
+| IA no frontend atual | [Groq](https://console.groq.com), [Google Gemini](https://aistudio.google.com) e [OpenRouter](https://openrouter.ai) |
 | Fontes | Literata (leitura) e Plus Jakarta Sans (interface), do Google Fonts |
 
-O app não mantém backend próprio. O Supabase Auth gerencia contas e sessões; livros importados, progresso, conversas e preferências de leitura continuam no navegador. A interface não usa bibliotecas de componentes.
+O frontend e a API são módulos independentes, com builds, dependências e processos de execução separados. A API Spring Boot oferece endpoints REST para catálogo, conteúdo público do Gutenberg e busca de metadados na Open Library. **O frontend ainda não está conectado a esses endpoints** e continua chamando diretamente os serviços identificados como atuais na tabela. Valores de configuração com prefixo `VITE_` são incluídos no bundle e não podem ser tratados como segredos privados. O Supabase Auth gerencia contas e sessões; livros importados, progresso, conversas e preferências continuam no navegador. A API não persiste usuários nem dados de leitura. A interface não usa bibliotecas de componentes.
+
+Consulte [`ARCHITECTURE.md`](ARCHITECTURE.md) para os limites entre os módulos e as regras para futuras integrações, e [`story-magic-api/README.md`](story-magic-api/README.md) para executar e usar a API.
 
 ### Estrutura
 
@@ -90,6 +91,11 @@ public/
 ├── sw.js                   Service worker (offline)
 ├── manifest.webmanifest    Manifesto do app instalável
 └── icons/                  Ícones do app
+story-magic-api/
+├── pom.xml                 Build Maven independente do backend
+├── Dockerfile              Imagem de produção
+├── render.yaml             Blueprint de hospedagem always-on
+└── src/                    API Spring Boot, integrações e testes
 ```
 
 ## Regras de negócio

@@ -12,7 +12,8 @@ import {
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner } from "./lib/dataOwner";
-import { pullAndMerge, pushIfChanged, resetSync, startAutoPush } from "./lib/cloudSync";
+import { startAutoSync, syncNow } from "./lib/cloudSync";
+import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
@@ -128,6 +129,7 @@ import {
   consumeAuthRedirect,
   EMAIL_OTP_ENABLED,
   refreshAuthSession,
+  refreshProfile,
   storedAuthSession,
   resendSignupCode,
   requestPasswordReset,
@@ -934,7 +936,7 @@ function Explore({
   );
 }
 
-/** Livros do próprio leitor (.epub, .pdf, .txt): lidos e guardados só neste aparelho. */
+/** Livros do próprio leitor (.epub, .pdf, .txt): com conta, vão para os outros aparelhos dela. */
 function MyBooks({
   onOpen,
   onRemoved,
@@ -1107,7 +1109,8 @@ function MyBooks({
   }
 
   async function remove(b: Ebook) {
-    if (!window.confirm(`Remover “${b.title}” deste aparelho? O progresso de leitura também será apagado.`)) {
+    const where = session ? "de todos os aparelhos da sua conta" : "deste aparelho";
+    if (!window.confirm(`Remover “${b.title}” ${where}? O progresso de leitura também será apagado.`)) {
       return;
     }
     await deleteLocalBook(b.gutenbergId).catch(() => undefined);
@@ -1133,7 +1136,7 @@ function MyBooks({
             <span className="import-formats">EPUB · PDF · TXT</span>
           </div>
           <strong>Importar meu livro</strong>
-          <span>Fica só neste aparelho</span>
+          <span>{session ? "Em todos os seus aparelhos" : "Fica só neste aparelho"}</span>
         </button>
         {(showAllBooks ? books : books.slice(0, CONTINUE_PREVIEW)).map((b) => (
           <div key={b.gutenbergId} className="my-book">
@@ -2624,6 +2627,7 @@ function ProfilePage({
   prefs,
   setPrefs,
   lastBook,
+  isAvailable,
   isAdmin,
   onOpenModeration,
 }: {
@@ -2637,6 +2641,8 @@ function ProfilePage({
   prefs: ReadingPrefs;
   setPrefs: React.Dispatch<React.SetStateAction<ReadingPrefs>>;
   lastBook?: LastBook;
+  /** Livro ainda existe para esta conta (ver `bookAvailable`). */
+  isAvailable: (book: Ebook) => boolean;
   isAdmin?: boolean;
   onOpenModeration?: () => void;
 }) {
@@ -2646,7 +2652,7 @@ function ProfilePage({
 
   const [summary, setSummary] = useState(readingSummary);
   const totals = useMemo(readingTotals, []);
-  const reading = useMemo(recentProgress, []);
+  const reading = useMemo(() => recentProgress().filter((p) => isAvailable(p.book)), [isAvailable]);
   const finished = useMemo(finishedBooks, []);
   const [imported, setImported] = useState<Ebook[]>([]);
   useEffect(() => {
@@ -2805,7 +2811,7 @@ function ProfilePage({
       </header>
 
       <ReadingDashboard summary={summary} totals={totals} finishedCount={finished.length} markCount={markCount} />
-      <p className="profile-device-note">Os números e as marcações são deste aparelho.</p>
+      <p className="profile-device-note">Os números, as marcações e os livros são da sua conta: aparecem igual na Web e no app.</p>
 
       <ProfileShelf
         title="Lendo agora"
@@ -3089,6 +3095,18 @@ type Celebration = { emoji: string; title: string; text?: string };
 
 /** Quantos livros "Continue lendo" mostra antes de "Ver todos". */
 const CONTINUE_PREVIEW = 4;
+
+/**
+ * O livro ainda pode ser aberto por esta conta? Importado: precisa estar em "Seus livros" neste
+ * aparelho. Da comunidade: precisa continuar aprovado no acervo. Do Gutenberg: sempre.
+ * Enquanto a lista ainda não chegou (ou falhou, sem internet), não esconde o da comunidade;
+ * o importado só aparece depois de conferido (o navegador responde na hora).
+ */
+function bookAvailable(b: Ebook, known: { localIds: Set<number> | null; communityIds: Set<string> | null }): boolean {
+  if (isLocalBook(b)) return known.localIds?.has(b.gutenbergId) ?? false;
+  if (b.source === "community") return known.communityIds?.has(b.id) ?? true;
+  return true;
+}
 
 /** Livros começados, para retomar do ponto onde o leitor parou: os 4 mais recentes e "Ver todos". */
 function ContinueReading({
@@ -3727,19 +3745,38 @@ export function App() {
     }
   }, [authUserId, authLoading]);
 
-  // Nuvem: ao entrar, junta os dados da conta com os do aparelho (depois da troca de dono acima).
+  /**
+   * Nuvem: a mesma conta na Web e no app instalado. Ao entrar (depois da troca de dono acima),
+   * ao voltar para o app e de tempos em tempos, junta os dados da conta com os do aparelho, envia
+   * e baixa os livros importados e atualiza o perfil.
+   */
+  const syncAccount = useCallback(async (session: SupabaseSession, opts: { keepalive: boolean; resume: boolean }) => {
+    let changed = await syncNow(session, { keepalive: opts.keepalive });
+    if (opts.keepalive) return changed;
+    const books = await syncBooks(session).catch(() => ({ local: false, library: false }));
+    // A lista da conta mudou (livro enviado ou removido): manda já para os outros aparelhos.
+    if (books.library) changed = (await syncNow(session).catch(() => false)) || changed;
+    if (opts.resume) {
+      void refreshProfile(session)
+        .then((next) => next !== session && authSessionRef.current?.user.id === next.user.id && setAuthSession(next))
+        .catch(() => {});
+    }
+    return changed || books.local;
+  }, []);
+  const applyRemoteData = useCallback(() => {
+    setPrefs(loadPrefs());
+    // A tela inicial é redesenhada com os dados novos: sem pular para o topo.
+    const y = window.scrollY;
+    setDataEpoch((n) => n + 1);
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  }, []);
   useEffect(() => {
     if (!authEnabled || authLoading) return;
     const session = authSessionRef.current;
-    if (!session) return resetSync();
+    if (!session) return;
     let alive = true;
-    void pullAndMerge(session)
-      .then((changed) => {
-        if (alive && changed) {
-          setPrefs(loadPrefs());
-          setDataEpoch((n) => n + 1);
-        }
-      })
+    void syncAccount(session, { keepalive: false, resume: true })
+      .then((changed) => alive && changed && applyRemoteData())
       .catch(() => {
         // Sem a tabela ou sem internet: segue só com os dados do aparelho.
       });
@@ -3747,7 +3784,10 @@ export function App() {
       alive = false;
     };
   }, [authUserId, authLoading]);
-  useEffect(() => (authEnabled ? startAutoPush(() => authSessionRef.current) : undefined), []);
+  useEffect(
+    () => (authEnabled ? startAutoSync(() => authSessionRef.current, syncAccount, applyRemoteData) : undefined),
+    [syncAccount, applyRemoteData],
+  );
 
   /** Sessão atual para o carregamento do texto (sem recarregar o livro quando o token renova). */
   const authSessionRef = useRef(authSession);
@@ -3759,7 +3799,7 @@ export function App() {
     setAuthNotice(null);
     try {
       // Antes de sair, guarda na nuvem o que ainda não foi enviado.
-      await pushIfChanged(authSession).catch(() => {});
+      await syncNow(authSession).catch(() => {});
       await signOut(authSession);
     } catch (err) {
       setAuthNotice({ text: err instanceof Error ? `Sessão encerrada neste dispositivo. ${err.message}` : "Sessão encerrada neste dispositivo." });
@@ -3839,17 +3879,45 @@ export function App() {
 
   const [prefs, setPrefs] = useState(loadPrefs);
   /** Redesenha a página inicial quando um livro importado é removido (sai de "Continue lendo"). */
-  const [, setHomeTick] = useState(0);
+  const [homeTick, setHomeTick] = useState(0);
+  /** Ids da comunidade aprovados agora (`null`: lista ainda não veio ou falhou — não esconde nada). */
+  const [communityIds, setCommunityIds] = useState<Set<string> | null>(null);
   useEffect(() => {
     if (!authEnabled || book) return;
     let alive = true;
     void approvedCommunityBooks(authSessionRef.current)
-      .then((list) => alive && setCommunityBooks(list))
-      .catch(() => alive && setCommunityBooks([]));
+      .then((list) => {
+        if (!alive) return;
+        setCommunityBooks(list);
+        setCommunityIds(new Set(list.map((b) => b.id)));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCommunityBooks([]);
+        setCommunityIds(null);
+      });
     return () => {
       alive = false;
     };
   }, [book, authUserId, communityTick]);
+  /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
+  const [localIds, setLocalIds] = useState<Set<number> | null>(null);
+  useEffect(() => {
+    // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
+    if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
+    if (book) return;
+    let alive = true;
+    void listLocalBooks()
+      .then((list) => alive && setLocalIds(new Set(list.map((b) => b.gutenbergId))))
+      .catch(() => alive && setLocalIds(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [book, authUserId, dataEpoch, homeTick]);
+  const isAvailable = useCallback(
+    (b: Ebook) => bookAvailable(b, { localIds, communityIds }),
+    [localIds, communityIds],
+  );
   /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
   useEffect(() => {
     const session = authSessionRef.current;
@@ -3884,7 +3952,7 @@ export function App() {
   /** Dados para a notificação diária do Android (o service worker não lê o localStorage). */
   useEffect(() => {
     if (book) return;
-    const recent = recentProgress()[0];
+    const recent = recentProgress().find((p) => isAvailable(p.book));
     void syncEngagementState({
       streak: readingSummary().streak,
       lastReadDay: lastReadDay(),
@@ -3892,7 +3960,7 @@ export function App() {
         ? { title: recent.book.title, chapterLabel: recent.chapterLabel, character: lastCharacter(recent.book.id) }
         : undefined,
     });
-  }, [book]);
+  }, [book, isAvailable]);
   useEffect(() => {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
@@ -4778,7 +4846,8 @@ export function App() {
     // Cópia do livro guardada no progresso pode estar velha (sem a capa achada depois): usa a
     // versão atual quando o livro é do acervo fixo ou da comunidade.
     const currentBook = new Map<string, Ebook>([...featuredBooks, ...communityBooks].map((b) => [b.id, b]));
-    const recent = recentProgress().map((p) => {
+    // Só livros que ainda dá para abrir: removido de "Seus livros" ou tirado do acervo sai daqui.
+    const recent = recentProgress().filter((p) => isAvailable(p.book)).map((p) => {
       const now = currentBook.get(p.book.id);
       return now && now.coverUrl !== p.book.coverUrl ? { ...p, book: { ...p.book, coverUrl: now.coverUrl } } : p;
     });
@@ -4821,6 +4890,7 @@ export function App() {
           prefs={prefs}
           setPrefs={setPrefs}
           lastBook={lastBook}
+          isAvailable={isAvailable}
         />
       );
     }
@@ -5509,7 +5579,7 @@ export function App() {
                   <p className="the-end">Fim — mas a conversa continua ao lado.</p>
                 )}
                 {isLocalBook(book) ? (
-                  <span className="source-link">Livro importado · guardado só neste aparelho</span>
+                  <span className="source-link">Livro importado · {authSession ? "guardado na sua conta" : "guardado só neste aparelho"}</span>
                 ) : book.source === "community" ? (
                   <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
                 ) : (

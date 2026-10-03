@@ -304,7 +304,26 @@ export async function updateProfileData(
   return next;
 }
 
-let restoreSessionRequest: Promise<SupabaseSession | null> | null = null;
+/**
+ * Perfil atual da conta no servidor. A sessão guarda uma cópia do perfil; sem isto, o nome ou a
+ * foto trocados em outro aparelho só apareceriam aqui ao entrar de novo. Devolve a mesma sessão
+ * se nada mudou.
+ */
+export async function refreshProfile(session: SupabaseSession): Promise<SupabaseSession> {
+  const user = (await authRequest("user", undefined, session.access_token, "GET")) as unknown as SupabaseUser;
+  if (!user?.id || user.id !== session.user.id) return session;
+  if (JSON.stringify(user.user_metadata ?? {}) === JSON.stringify(session.user.user_metadata ?? {}) && user.email === session.user.email) {
+    return session;
+  }
+  // Pela sessão guardada: se ela foi renovada enquanto isto rodava, não volta o token antigo.
+  const base = storedAuthSession() ?? session;
+  if (base.user.id !== session.user.id) return session;
+  const next = { ...base, user: { ...base.user, ...user } };
+  storeSession(next);
+  return next;
+}
+
+let restoreSessionRequest:Promise<SupabaseSession | null> | null = null;
 
 export function restoreAuthSession(): Promise<SupabaseSession | null> {
   if (!restoreSessionRequest) {
