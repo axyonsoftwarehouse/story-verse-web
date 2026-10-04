@@ -21,6 +21,9 @@ const SIZES: Record<ImageKind, { width: number; height: number }> = {
 /** Fotos maiores que isso nem são abertas (evita travar o celular). */
 export const MAX_INPUT_BYTES = 25 * 1024 * 1024;
 
+/** Imagem com dimensão absurda (poucos bytes, muitos pixels) estouraria o canvas ao desenhar. */
+const MAX_DIMENSION = 12_000;
+
 function loadImage(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -49,6 +52,9 @@ export async function prepareImage(file: File, kind: ImageKind): Promise<Blob> {
   if (!file.type.startsWith("image/")) throw new Error("Escolha um arquivo de imagem.");
   if (file.size > MAX_INPUT_BYTES) throw new Error("Imagem grande demais (máximo de 25 MB).");
   const img = await loadImage(file);
+  if (img.naturalWidth > MAX_DIMENSION || img.naturalHeight > MAX_DIMENSION) {
+    throw new Error("Imagem com dimensões grandes demais.");
+  }
   const { width, height } = SIZES[kind];
   const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight);
   const w = Math.min(width, Math.round(img.naturalWidth * scale));
