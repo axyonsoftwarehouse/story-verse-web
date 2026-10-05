@@ -50,6 +50,9 @@ const gutenbergProxy: Record<string, ProxyOptions> = {
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? "dev"),
+  },
   server: { proxy: gutenbergProxy },
   preview: { proxy: gutenbergProxy },
 });

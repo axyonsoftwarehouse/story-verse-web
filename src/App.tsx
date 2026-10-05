@@ -11,7 +11,7 @@ import {
 } from "./lib/ai";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
-import { activateDataOwner } from "./lib/dataOwner";
+import { activateDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
@@ -90,7 +90,38 @@ import {
   type ReadingEvents,
   type ReadingSummary,
   type ReadingTotals,
+  dayKey,
+  streakRescue,
+  weekStartDate,
 } from "./lib/readingStats";
+import {
+  autoFreezeEnabled,
+  checkStreakFreeze,
+  claimReadingRewards,
+  diamondEntryLabel,
+  fetchDiamondHistory,
+  fetchSpinStatus,
+  fetchWallet,
+  rescueStreak,
+  setAutoFreezeEnabled,
+  spinDailyWheel,
+  SPIN_SEGMENTS,
+  takeSpinOffer,
+  type DiamondEntry,
+  type FreezeOutcome,
+  type SpinResult,
+  type Wallet,
+} from "./lib/diamonds";
+import {
+  fetchRanking,
+  fetchRankingProfile,
+  PLACE_MEDALS,
+  reportReading,
+  setRankingHidden,
+  takeWeeklyAwards,
+  type RankEntry,
+  type RankingProfile,
+} from "./lib/ranking";
 import {
   disableDailyNotifications,
   downloadIcs,
@@ -1454,24 +1485,48 @@ function metaString(user: SupabaseUser, key: string): string | null {
 
 /** Foto enviada, senão o avatar pronto, senão a inicial do nome sobre a cor da conta. */
 function UserAvatar({ user, className }: { user: SupabaseUser; className: string }) {
-  const photo = metaString(user, "photo");
-  const avatar = findAvatar(user.user_metadata?.avatar);
+  return (
+    <PersonAvatar
+      id={user.id}
+      name={displayNameOf(user)}
+      avatar={user.user_metadata?.avatar}
+      photo={metaString(user, "photo")}
+      className={className}
+    />
+  );
+}
+
+/** O mesmo avatar para quem não é a conta atual (ex.: leitores do ranking). */
+function PersonAvatar({
+  id,
+  name,
+  avatar: avatarId,
+  photo,
+  className,
+}: {
+  id: string;
+  name: string;
+  avatar: unknown;
+  photo: string | null;
+  className: string;
+}) {
+  const avatar = findAvatar(avatarId);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [photo]);
   if (photo && !broken) {
     return (
       <span className={`${className} has-photo`} aria-hidden="true">
-        <img src={photo} alt="" onError={() => setBroken(true)} />
+        <img src={photo} alt="" loading="lazy" onError={() => setBroken(true)} />
       </span>
     );
   }
   return (
     <span
       className={`${className} ${avatar ? "has-art" : ""}`}
-      style={{ "--c": avatar?.color ?? profileColor(user.id) } as React.CSSProperties}
+      style={{ "--c": avatar?.color ?? profileColor(id) } as React.CSSProperties}
       aria-hidden="true"
     >
-      {avatar ? <AvatarArt avatar={avatar} /> : displayNameOf(user).charAt(0).toUpperCase()}
+      {avatar ? <AvatarArt avatar={avatar} /> : name.charAt(0).toUpperCase()}
     </span>
   );
 }
@@ -1700,9 +1755,14 @@ function dayLevel(minutes: number, goal: number): 0 | 1 | 2 | 3 {
 const LEVEL_LABELS = ["Sem leitura", "Pouco", "Perto da meta", "Meta cumprida"] as const;
 const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
+/** Dia sem leitura que manteve a sequência: por escudo (grátis) ou com diamantes. */
+function savedLabel(d: { bought: boolean }): string {
+  return d.bought ? "salvo com diamantes" : "salvo por escudo";
+}
+
 function dayTitle(d: ReadingDay, goal?: number): string {
   const date = d.date.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
-  if (d.state === "frozen") return `${date}: salvo por escudo`;
+  if (d.state === "frozen") return `${date}: ${savedLabel(d)}`;
   const met = goal !== undefined && d.minutes >= goal;
   return `${date}: ${d.minutes} min${met ? " · meta cumprida ✓" : ""}`;
 }
@@ -1814,7 +1874,7 @@ function DayDetail({ day, goal }: { day: ReadingDay; goal: number }) {
   return (
     <span className="day-detail" role="status">
       <strong>{date}</strong>
-      {day.state === "frozen" ? " · salvo por escudo 🛡️" : ` · ${day.minutes} min`}
+      {day.state === "frozen" ? ` · ${savedLabel(day)} ${day.bought ? "💎" : "🛡️"}` : ` · ${day.minutes} min`}
       {day.state !== "frozen" && day.minutes >= goal ? <span className="day-detail-met"> · meta ✓</span> : null}
     </span>
   );
@@ -1990,7 +2050,7 @@ function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: num
             .map((d) => (
               <tr key={d.key}>
                 <th>{d.date.toLocaleDateString("pt-BR")}</th>
-                <td>{d.state === "frozen" ? "salvo por escudo" : `${d.minutes} min`}</td>
+                <td>{d.state === "frozen" ? savedLabel(d) : `${d.minutes} min`}</td>
               </tr>
             ))}
         </tbody>
@@ -2195,6 +2255,669 @@ function RightsAlert({ title, author, onProtected }: { title: string; author?: s
       “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}: pode ser domínio público (confira a data de
       morte do autor: mais de 70 anos).
     </p>
+  );
+}
+
+/** Desenho da roleta: 8 fatias com os prêmios, a de cima é a sorteada. */
+function SpinWheel({ angle, spinning, onStop }: { angle: number; spinning: boolean; onStop: () => void }) {
+  const n = SPIN_SEGMENTS.length;
+  const seg = 360 / n;
+  const point = (deg: number, r: number) => {
+    const rad = (deg * Math.PI) / 180;
+    return `${100 + r * Math.sin(rad)} ${100 - r * Math.cos(rad)}`;
+  };
+  return (
+    <div className="spin-wheel-wrap">
+      <span className="spin-pointer" aria-hidden="true" />
+      <svg
+        className={`spin-wheel ${spinning ? "is-spinning" : ""}`}
+        viewBox="0 0 200 200"
+        style={{ transform: `rotate(${angle}deg)` }}
+        onTransitionEnd={onStop}
+        aria-hidden="true"
+      >
+        {SPIN_SEGMENTS.map((value, i) => {
+          const a = i * seg;
+          const mid = a + seg / 2;
+          return (
+            <g key={i}>
+              <path d={`M100 100 L${point(a, 96)} A96 96 0 0 1 ${point(a + seg, 96)} Z`} className={`spin-slice is-${i % 2 ? "b" : "a"} ${value >= 10 ? "is-big" : ""}`} />
+              <text
+                x="100"
+                y="34"
+                className="spin-label"
+                transform={`rotate(${mid} 100 100)`}
+                textAnchor="middle"
+                dominantBaseline="middle"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
+        <circle cx="100" cy="100" r="16" className="spin-hub" />
+        <circle cx="100" cy="100" r="5" className="spin-hub-dot" />
+      </svg>
+    </div>
+  );
+}
+
+/** Roleta diária: um giro por dia, o prêmio vem do banco e a roleta para nele. */
+function DailySpinModal({
+  session,
+  onClose,
+  onWon,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onWon: (result: SpinResult) => void;
+}) {
+  const [phase, setPhase] = useState<"ready" | "spinning" | "done">("ready");
+  const [result, setResult] = useState<SpinResult | null>(null);
+  const [angle, setAngle] = useState(0);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && phase !== "spinning") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, phase]);
+
+  function finish(r: SpinResult) {
+    setPhase("done");
+    onWon(r);
+  }
+
+  async function spin() {
+    setPhase("spinning");
+    setError("");
+    try {
+      const r = await spinDailyWheel(session);
+      setResult(r);
+      const seg = 360 / SPIN_SEGMENTS.length;
+      const matches = SPIN_SEGMENTS.flatMap((v, i) => (v === r.prize ? [i] : []));
+      const idx = matches[Math.floor(Math.random() * matches.length)] ?? 0;
+      const stop = 360 - (idx * seg + seg / 2);
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (!r.is_new || reduced) {
+        // Já tinha girado (outro aparelho) ou sem animação: mostra direto o resultado.
+        setAngle(stop);
+        finish(r);
+      } else {
+        setAngle(360 * 6 + stop);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível girar a roleta.");
+      setPhase("ready");
+    }
+  }
+
+  return (
+    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
+      <section className="spin-dialog" role="dialog" aria-modal="true" aria-labelledby="spin-title">
+        <button type="button" className="auth-close spin-close" onClick={onClose} disabled={phase === "spinning"} aria-label="Fechar roleta">
+          {Icon.close}
+        </button>
+        <h2 id="spin-title">Roleta diária</h2>
+        <p className="spin-sub">
+          {phase === "done" && result
+            ? result.is_new
+              ? "Volte amanhã para girar de novo."
+              : "Você já girou hoje. Volte amanhã!"
+            : "Um giro por dia, de 1 a 20 💎."}
+        </p>
+
+        <SpinWheel angle={angle} spinning={phase === "spinning"} onStop={() => result && phase === "spinning" && finish(result)} />
+
+        <div className="spin-foot" aria-live="polite">
+          {phase === "done" && result ? (
+            <>
+              <strong className="spin-prize">+{result.prize} 💎</strong>
+              <span className="spin-balance">Saldo: {result.balance}</span>
+              <button type="button" className="btn btn-primary" onClick={onClose}>
+                Boa!
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-primary spin-go" disabled={phase === "spinning"} onClick={() => void spin()}>
+              {phase === "spinning" ? "Girando…" : "Girar"}
+            </button>
+          )}
+          {error ? <p className="auth-error" role="alert">{error}</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** Loja: saldo de diamantes, o Salva-ofensiva, como ganhar e o extrato. */
+function DiamondShopPage({
+  session,
+  onClose,
+  onStreakSaved,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onStreakSaved: () => void;
+}) {
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [history, setHistory] = useState<DiamondEntry[] | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [auto, setAuto] = useState(autoFreezeEnabled);
+  const [rescue, setRescue] = useState(streakRescue);
+  const [showAll, setShowAll] = useState(false);
+  const [spin, setSpin] = useState<{ spun_today: boolean; prize: number | null } | null>(null);
+  const [spinOpen, setSpinOpen] = useState(false);
+
+  const load = useCallback(() => {
+    return Promise.all([fetchWallet(session), fetchDiamondHistory(session), fetchSpinStatus(session).catch(() => null)])
+      .then(([w, h, sp]) => {
+        setWallet(w);
+        setHistory(h);
+        setSpin(sp);
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar seus diamantes."));
+  }, [session]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    void load();
+  }, [load]);
+
+  async function saveStreak() {
+    if (!rescue) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await rescueStreak(session, rescue);
+      setNotice(`Sequência salva: ${r.streak} ${r.streak === 1 ? "dia" : "dias"} 🔥`);
+      setRescue(null);
+      onStreakSaved();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a sequência.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const price = wallet?.freeze_price ?? 0;
+  const cost = rescue && rescue.paidDays.length > 0 ? rescue.paidDays.length * price : 0;
+  const short = wallet ? Math.max(0, cost - wallet.balance) : 0;
+  const shown = showAll ? history : history?.slice(0, 5);
+
+  return (
+    <div className="home profile shop">
+      {spinOpen ? (
+        <DailySpinModal
+          session={session}
+          onClose={() => setSpinOpen(false)}
+          onWon={(r) => {
+            setSpin({ spun_today: true, prize: r.prize });
+            void load();
+          }}
+        />
+      ) : null}
+      <nav className="home-nav profile-nav">
+        <button type="button" className="btn" onClick={onClose}>
+          {Icon.back} Voltar
+        </button>
+      </nav>
+
+      <header className="shop-hero" aria-live="polite">
+        <span className="shop-hero-gem" aria-hidden="true">
+          💎
+        </span>
+        <strong>{wallet ? wallet.balance : "–"}</strong>
+        <span>diamantes</span>
+      </header>
+
+      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
+      {notice ? <p className="shop-notice" role="status">{notice}</p> : null}
+
+      {wallet === null && !error ? (
+        <div className="page-status">
+          <span className="spinner" aria-hidden="true" />
+          Carregando…
+        </div>
+      ) : wallet ? (
+        <>
+          <section className="shop-card" aria-label="Roleta diária">
+            <div className="shop-card-row">
+              <span className="shop-card-icon" aria-hidden="true">
+                🎡
+              </span>
+              <span className="shop-card-title">
+                <strong>Roleta diária</strong>
+                <span>{spin?.spun_today ? `Hoje: +${spin.prize} 💎 · volte amanhã` : "Um giro grátis por dia"}</span>
+              </span>
+              <button type="button" className="btn btn-primary" disabled={!spin || spin.spun_today} onClick={() => setSpinOpen(true)}>
+                {spin?.spun_today ? "Amanhã" : "Girar"}
+              </button>
+            </div>
+          </section>
+
+          <section
+            className="shop-card"
+            aria-label="Salva-ofensiva"
+            title={`Mantém a sequência num dia sem leitura. Os escudos grátis são usados antes. Até ${wallet.freezes_per_week} por semana.`}
+          >
+            <div className="shop-card-row">
+              <span className="shop-card-icon" aria-hidden="true">
+                🧊
+              </span>
+              <span className="shop-card-title">
+                <strong>Salva-ofensiva</strong>
+                <span>{price} 💎 por dia perdido</span>
+              </span>
+              <span className="shop-chip" aria-label={`${wallet.freezes_this_week} de ${wallet.freezes_per_week} usados nesta semana`}>
+                {wallet.freezes_this_week}/{wallet.freezes_per_week} na semana
+              </span>
+            </div>
+
+            {rescue && cost > 0 ? (
+              <div className="shop-rescue">
+                <span>
+                  🔥 Sequência de <strong>{rescue.streak} {rescue.streak === 1 ? "dia" : "dias"}</strong> quebrou
+                </span>
+                <button type="button" className="btn btn-primary" disabled={busy || short > 0} onClick={() => void saveStreak()}>
+                  {busy ? "Salvando…" : short > 0 ? `Faltam ${short} 💎` : `Salvar · ${cost} 💎`}
+                </button>
+              </div>
+            ) : null}
+
+            <label className="shop-switch">
+              <span>Usar automaticamente</span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={auto}
+                onChange={(e) => {
+                  setAuto(e.target.checked);
+                  setAutoFreezeEnabled(e.target.checked);
+                }}
+              />
+            </label>
+          </section>
+
+          <h2 className="shop-section-title" id="shop-earn">
+            Como ganhar
+          </h2>
+          <ul className="shop-earn" aria-labelledby="shop-earn">
+            <li>
+              <span aria-hidden="true">🎡</span>
+              <span>Roleta diária</span>
+              <strong>até +20</strong>
+            </li>
+            <li>
+              <span aria-hidden="true">📖</span>
+              <span>{wallet.goal_minutes} min lidos no dia</span>
+              <strong>+{wallet.goal_reward}</strong>
+            </li>
+            <li>
+              <span aria-hidden="true">🏆</span>
+              <span>Pódio da semana</span>
+              <strong>até +50</strong>
+            </li>
+          </ul>
+
+          <section className="shop-history" aria-labelledby="shop-history">
+            <h2 className="shop-section-title" id="shop-history">
+              Extrato
+            </h2>
+            {shown && shown.length > 0 ? (
+              <>
+                <ol>
+                  {shown.map((e, i) => (
+                    <li key={`${e.reason}-${e.ref}-${i}`}>
+                      <span>{diamondEntryLabel(e)}</span>
+                      <strong className={e.amount > 0 ? "is-in" : "is-out"}>{e.amount > 0 ? `+${e.amount}` : e.amount}</strong>
+                    </li>
+                  ))}
+                </ol>
+                {!showAll && history && history.length > 5 ? (
+                  <button type="button" className="inline-link" onClick={() => setShowAll(true)}>
+                    Ver tudo
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <p className="profile-empty">Nada por aqui ainda. Gire a roleta para ganhar os primeiros!</p>
+            )}
+          </section>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Aviso na tela inicial: a sequência quebrou (oferta) ou foi salva com diamantes. */
+function FreezeNudge({
+  outcome,
+  busy,
+  onSave,
+  onOpenShop,
+  onClose,
+}: {
+  outcome: FreezeOutcome;
+  busy: boolean;
+  onSave: () => void;
+  onOpenShop: () => void;
+  onClose: () => void;
+}) {
+  const close = (
+    <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar aviso">
+      {Icon.close}
+    </button>
+  );
+  if (outcome.kind === "saved") {
+    return (
+      <div className="nudge nudge-diamond" role="status">
+        <span className="nudge-emoji" aria-hidden="true">
+          🧊
+        </span>
+        <div>
+          <strong>
+            Sequência salva: {outcome.streak} {outcome.streak === 1 ? "dia" : "dias"}
+          </strong>
+          <span>Salva-ofensiva usado · −{outcome.spent} 💎</span>
+        </div>
+        {close}
+      </div>
+    );
+  }
+  const { rescue, wallet, reason } = outcome;
+  const cost = rescue.paidDays.length * wallet.freeze_price;
+  return (
+    <div className="nudge nudge-diamond" role="status">
+      <span className="nudge-emoji" aria-hidden="true">
+        💔
+      </span>
+      <div>
+        <strong>
+          Sua sequência de {rescue.streak} {rescue.streak === 1 ? "dia" : "dias"} quebrou
+        </strong>
+        <span>
+          {reason === "manual"
+            ? "Dá para salvar com o Salva-ofensiva."
+            : reason === "limit"
+              ? "Limite da semana atingido."
+              : `Faltam ${Math.max(0, cost - wallet.balance)} 💎 para salvar.`}
+        </span>
+      </div>
+      {reason === "manual" ? (
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>
+          {busy ? "Salvando…" : `Salvar · ${cost} 💎`}
+        </button>
+      ) : reason === "no-balance" ? (
+        <button type="button" className="btn" onClick={onOpenShop}>
+          Loja
+        </button>
+      ) : null}
+      {close}
+    </div>
+  );
+}
+
+function ordinal(place: number): string {
+  return `${place}º`;
+}
+
+/** Quanto falta para a semana do ranking acabar (domingo à meia-noite). */
+function weekCountdown(now = new Date()): string {
+  const end = weekStartDate(now);
+  end.setDate(end.getDate() + 7);
+  const days = Math.ceil((end.getTime() - now.getTime()) / 86_400_000);
+  return days <= 1 ? "termina hoje à meia-noite" : `termina em ${days} dias`;
+}
+
+function weekRangeLabel(offset: 0 | -1): string {
+  const start = weekStartDate();
+  start.setDate(start.getDate() + 7 * offset);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+/** Ranking semanal: pódio dos 3 que mais leram, a lista dos demais e a sua posição. */
+function RankingPage({
+  session,
+  onClose,
+  onOpenShop,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onOpenShop: () => void;
+}) {
+  const [tab, setTab] = useState<0 | -1>(0);
+  const [lists, setLists] = useState<Partial<Record<0 | -1, RankEntry[]>>>({});
+  const [profile, setProfile] = useState<RankingProfile | null>(null);
+  const [error, setError] = useState("");
+  const [savingHidden, setSavingHidden] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (lists[tab]) return;
+    let alive = true;
+    setError("");
+    // Envia os minutos de agora antes de buscar: a sua posição já sai atualizada.
+    const ready = tab === 0 ? reportReading(session).catch(() => {}) : Promise.resolve();
+    void ready
+      .then(() => Promise.all([fetchRanking(session, tab), fetchRankingProfile(session)]))
+      .then(([list, p]) => {
+        if (!alive) return;
+        setLists((l) => ({ ...l, [tab]: list }));
+        setProfile(p);
+      })
+      .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : "Não foi possível carregar o ranking."));
+    return () => {
+      alive = false;
+    };
+    // Recarrega ao trocar de aba ou depois de mudar a visibilidade (que limpa as listas).
+  }, [tab, session, lists]);
+
+  async function toggleHidden(hidden: boolean) {
+    setSavingHidden(true);
+    setError("");
+    try {
+      await setRankingHidden(session, hidden);
+      setProfile((p) => ({ diamonds: p?.diamonds ?? 0, hidden }));
+      setLists({});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+    } finally {
+      setSavingHidden(false);
+    }
+  }
+
+  const list = lists[tab] ?? null;
+  const podium = list?.filter((e) => e.place <= 3) ?? [];
+  const me = list?.find((e) => e.is_me) ?? null;
+  const above = me && me.place > 1 ? list?.find((e) => e.place === me.place - 1) : undefined;
+  // O banco manda até 50 do topo; se você está mais abaixo, sua linha vem separada no fim.
+  const rest = list?.filter((e) => e.place > 3 && e.place <= 50) ?? [];
+  const meOutside = me && me.place > 50 ? me : null;
+  const current = tab === 0;
+
+  return (
+    <div className="home profile moderation ranking">
+      <nav className="home-nav profile-nav">
+        <button type="button" className="btn" onClick={onClose}>
+          {Icon.back} Voltar
+        </button>
+        {profile ? (
+          <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
+            <span aria-hidden="true">💎</span> <strong>{profile.diamonds}</strong>
+            <span className="sr-only"> diamantes</span>
+          </button>
+        ) : null}
+      </nav>
+      <header className="moderation-head">
+        <span className="eyebrow">Ranking semanal · {weekRangeLabel(tab)}</span>
+        <h1>{current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
+        <p>
+          Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham 50,
+          30 e 20 💎.
+        </p>
+      </header>
+
+      <div className="segmented moderation-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 0} className={tab === 0 ? "is-on" : ""} onClick={() => setTab(0)}>
+          Esta semana
+        </button>
+        <button type="button" role="tab" aria-selected={tab === -1} className={tab === -1 ? "is-on" : ""} onClick={() => setTab(-1)}>
+          Semana passada
+        </button>
+      </div>
+
+      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
+
+      {list === null && !error ? (
+        <div className="page-status">
+          <span className="spinner" aria-hidden="true" />
+          Carregando ranking…
+        </div>
+      ) : list ? (
+        <>
+          <div className={`ranking-me ${me ? "has-place" : ""}`} role="status">
+            {profile?.hidden ? (
+              <span>Você está escondido do ranking. Ative “Aparecer no ranking” abaixo para concorrer ao pódio.</span>
+            ) : me ? (
+              <>
+                <span className="ranking-me-place" aria-hidden="true">
+                  {me.place <= 3 ? PLACE_MEDALS[me.place as 1 | 2 | 3] : ordinal(me.place)}
+                </span>
+                <span>
+                  <strong>
+                    Você {current ? "está" : "ficou"} em {ordinal(me.place)} lugar · {formatMinutes(me.minutes)}
+                  </strong>
+                  {current && above ? (
+                    <small>
+                      Faltam {formatMinutes(above.minutes - me.minutes + 1)} de leitura para passar{" "}
+                      {above.name.split(" ")[0]}.
+                    </small>
+                  ) : current && me.place === 1 ? (
+                    <small>Você está na frente. Continue lendo para manter o ouro!</small>
+                  ) : null}
+                </span>
+              </>
+            ) : (
+              <span>
+                {current
+                  ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
+                  : "Você não entrou no ranking da semana passada."}
+              </span>
+            )}
+          </div>
+
+          {list.length === 0 ? (
+            <p className="profile-empty moderation-empty">
+              {current ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚" : "Ninguém leu na semana passada."}
+            </p>
+          ) : (
+            <ol className="podium" aria-label="Pódio">
+              {/* Ordem visual de pódio: prata, ouro, bronze. */}
+              {[2, 1, 3].map((place) => {
+                const e = podium.find((p) => p.place === place);
+                return (
+                  <li
+                    key={place}
+                    className={["podium-spot", `is-${place}`, e?.is_me ? "is-me" : "", e ? "" : "is-empty"].filter(Boolean).join(" ")}
+                  >
+                    {e ? (
+                      <>
+                        <span className="podium-avatar">
+                          <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" />
+                          <span className="podium-medal" aria-hidden="true">
+                            {PLACE_MEDALS[place as 1 | 2 | 3]}
+                          </span>
+                        </span>
+                        <strong className="podium-name">{e.is_me ? "Você" : e.name}</strong>
+                        <span className="podium-minutes">{formatMinutes(e.minutes)}</span>
+                      </>
+                    ) : (
+                      <span className="podium-name is-muted">Vaga aberta</span>
+                    )}
+                    <span className="podium-block">
+                      <span className="sr-only">Lugar </span>
+                      {place}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          {rest.length > 0 || meOutside ? (
+            <ol className="ranking-list" aria-label="Demais leitores">
+              {rest.map((e) => (
+                <RankingRow key={e.user_id} entry={e} />
+              ))}
+              {meOutside ? (
+                <>
+                  <li className="ranking-gap" aria-hidden="true">
+                    ⋯
+                  </li>
+                  <RankingRow entry={meOutside} />
+                </>
+              ) : null}
+            </ol>
+          ) : null}
+        </>
+      ) : null}
+
+      {profile ? (
+        <label className="ranking-visibility">
+          <input
+            type="checkbox"
+            checked={!profile.hidden}
+            disabled={savingHidden}
+            onChange={(e) => void toggleHidden(!e.target.checked)}
+          />
+          <span>
+            <strong>Aparecer no ranking</strong>
+            <small>Outros leitores veem só seu nome, avatar e minutos lidos na semana.</small>
+          </span>
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function RankingRow({ entry }: { entry: RankEntry }) {
+  return (
+    <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`}>
+      <span className="ranking-place">{ordinal(entry.place)}</span>
+      <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" />
+      <span className="ranking-name">{entry.is_me ? `${entry.name} (você)` : entry.name}</span>
+      <span className="ranking-minutes">{formatMinutes(entry.minutes)}</span>
+    </li>
+  );
+}
+
+/** Convite na tela inicial para abrir o ranking da semana. */
+function RankingTeaser({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" className="ranking-teaser" onClick={onOpen}>
+      <span className="ranking-teaser-icon" aria-hidden="true">
+        🏆
+      </span>
+      <span className="ranking-teaser-text">
+        <strong>Ranking da semana</strong>
+        <span>Veja quem mais leu desde segunda e em que lugar você está. O pódio ganha diamantes.</span>
+      </span>
+      <span className="ranking-teaser-go" aria-hidden="true">
+        {Icon.next}
+      </span>
+    </button>
   );
 }
 
@@ -2630,6 +3353,7 @@ function ProfilePage({
   isAvailable,
   isAdmin,
   onOpenModeration,
+  onOpenShop,
 }: {
   session: SupabaseSession;
   onSessionChange: (session: SupabaseSession) => void;
@@ -2645,8 +3369,21 @@ function ProfilePage({
   isAvailable: (book: Ebook) => boolean;
   isAdmin?: boolean;
   onOpenModeration?: () => void;
+  onOpenShop: () => void;
 }) {
   const user = session.user;
+  const [diamonds, setDiamonds] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchWallet(session)
+      .then((w) => alive && setDiamonds(w.balance))
+      .catch(() => {
+        // Sem a loja no Supabase ou sem internet: o botão mostra só "Loja".
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session]);
   const name = displayNameOf(user);
   const since = memberSince(user.created_at);
 
@@ -2779,9 +3516,13 @@ function ProfilePage({
   return (
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
       {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
-      <nav className="home-nav profile-nav">
+      <nav className="home-nav profile-nav nav-split">
         <button type="button" className="btn" onClick={leave}>
           {Icon.back} Voltar
+        </button>
+        <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
+          <span aria-hidden="true">💎</span> <strong>{diamonds ?? "–"}</strong>
+          <span className="sr-only"> diamantes</span> · Loja
         </button>
       </nav>
 
@@ -3039,9 +3780,9 @@ function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
           <li
             key={i}
             className={[`is-${d.state}`, d.today ? "is-today" : ""].filter(Boolean).join(" ")}
-            aria-label={`${d.today ? "Hoje" : d.label}: ${d.state === "read" ? "leu" : d.state === "frozen" ? "salvo por escudo" : "não leu"}`}
+            aria-label={`${d.today ? "Hoje" : d.label}: ${d.state === "read" ? "leu" : d.state === "frozen" ? savedLabel(d) : "não leu"}`}
           >
-            {d.state === "frozen" ? "🛡️" : d.label}
+            {d.state === "frozen" ? (d.bought ? "💎" : "🛡️") : d.label}
           </li>
         ))}
       </ol>
@@ -3619,6 +4360,13 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [moderationOpen, setModerationOpen] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
+  const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
+  const [freezeBusy, setFreezeBusy] = useState(false);
+  /** Roleta diária aberta (sozinha na primeira visita do dia, se ainda não girou). */
+  const [spinOpen, setSpinOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
@@ -3739,10 +4487,15 @@ export function App() {
   const readingHere = usePresenceCount(authEnabled && bookRoomId ? `book:${bookRoomId}` : null, authUserId);
   useLayoutEffect(() => {
     if (!authEnabled || authLoading) return;
-    if (activateDataOwner(authUserId ?? "anon")) {
+    let alive = true;
+    void activateDataOwner(authUserId ?? "anon").then((changed) => {
+      if (!alive || !changed) return;
       setPrefs(loadPrefs());
       setDataEpoch((n) => n + 1);
-    }
+    });
+    return () => {
+      alive = false;
+    };
   }, [authUserId, authLoading]);
 
   /**
@@ -3752,7 +4505,14 @@ export function App() {
    */
   const syncAccount = useCallback(async (session: SupabaseSession, opts: { keepalive: boolean; resume: boolean }) => {
     let changed = await syncNow(session, { keepalive: opts.keepalive });
+    // Minutos da semana para o ranking (sem o ranking configurado no Supabase, segue sem ele).
+    const reported = await reportReading(session, { keepalive: opts.keepalive }).catch(() => false);
     if (opts.keepalive) return changed;
+    // Leitura do dia que rende diamantes: pede a recompensa e avisa.
+    if (reported) {
+      const gained = await claimReadingRewards(session).catch(() => 0);
+      if (gained > 0) setToast(`+${gained} 💎 pela leitura de hoje`);
+    }
     const books = await syncBooks(session).catch(() => ({ local: false, library: false }));
     // A lista da conta mudou (livro enviado ou removido): manda já para os outros aparelhos.
     if (books.library) changed = (await syncNow(session).catch(() => false)) || changed;
@@ -3775,8 +4535,23 @@ export function App() {
     const session = authSessionRef.current;
     if (!session) return;
     let alive = true;
-    void syncAccount(session, { keepalive: false, resume: true })
-      .then((changed) => alive && changed && applyRemoteData())
+    void dataOwnerReady()
+      .then(() => {
+        if (!alive) return false;
+        return syncAccount(session, { keepalive: false, resume: true });
+      })
+      .then(async (changed) => {
+        if (!alive) return;
+        if (changed) applyRemoteData();
+        const outcome = await checkStreakFreeze(session).catch(() => null);
+        if (!alive) return;
+        if (outcome) {
+          setFreezeOutcome(outcome);
+          if (outcome.kind === "saved") setDataEpoch((n) => n + 1);
+        }
+        const spin = await fetchSpinStatus(session).catch(() => null);
+        if (alive && spin && !spin.spun_today && takeSpinOffer(dayKey())) setSpinOpen(true);
+      })
       .catch(() => {
         // Sem a tabela ou sem internet: segue só com os dados do aparelho.
       });
@@ -3833,6 +4608,35 @@ export function App() {
     const t = window.setTimeout(() => setCelebration(null), 4200);
     return () => window.clearTimeout(t);
   }, [celebration]);
+  /** Semana do ranking fechada: parabéns para quem ficou no pódio (uma vez só, ao abrir o app). */
+  useEffect(() => {
+    if (!authEnabled || !authSession) return;
+    let alive = true;
+    const session = authSession;
+    // Depois da sincronização de abertura, que envia os minutos do fim da semana.
+    const t = window.setTimeout(() => {
+      void takeWeeklyAwards(session)
+        .then((awards) => {
+          const last = awards[awards.length - 1];
+          if (!alive || !last) return;
+          const total = awards.reduce((sum, a) => sum + a.diamonds, 0);
+          setCelebration({
+            emoji: PLACE_MEDALS[last.place],
+            title: `Você ficou em ${last.place}º lugar no ranking da semana!`,
+            text: `${formatMinutes(last.minutes)} de leitura. Você ganhou ${total} 💎. Parabéns!`,
+          });
+        })
+        .catch(() => {
+          // Sem o ranking no Supabase ou sem internet: tenta de novo na próxima abertura.
+        });
+    }, 3000);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+    // Só quando troca de usuário (não a cada renovação do token).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUserId]);
   /** Ao abrir o app: escudos salvam a sequência de ontem, se preciso (aviso uma vez por dia). */
   const [shieldNotice, setShieldNotice] = useState<number | null>(shieldNoticeOnLoad);
   /** Capítulos já comemorados nesta visita (para não repetir a cada rolagem). */
@@ -4826,6 +5630,9 @@ export function App() {
   useBackClose(Boolean(book), leaveBook);
   useBackClose(profileOpen, () => setProfileOpen(false));
   useBackClose(moderationOpen, () => setModerationOpen(false));
+  useBackClose(rankingOpen, () => setRankingOpen(false));
+  useBackClose(shopOpen, () => setShopOpen(false));
+  useBackClose(spinOpen, () => setSpinOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
   useBackClose(aboutOpen, () => setAboutOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
@@ -4872,11 +5679,27 @@ export function App() {
         />
       );
     }
+    if (shopOpen && authSession) {
+      return (
+        <DiamondShopPage
+          session={authSession}
+          onClose={() => setShopOpen(false)}
+          onStreakSaved={() => {
+            setFreezeOutcome(null);
+            setDataEpoch((n) => n + 1);
+          }}
+        />
+      );
+    }
+    if (rankingOpen && authSession) {
+      return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
+    }
     if (profileOpen && authSession) {
       return (
         <ProfilePage
           isAdmin={isAdmin}
           onOpenModeration={() => setModerationOpen(true)}
+          onOpenShop={() => setShopOpen(true)}
           session={authSession}
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
@@ -4975,6 +5798,13 @@ export function App() {
         ) : null}
 
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
+        {spinOpen && authSession ? (
+          <DailySpinModal
+            session={authSession}
+            onClose={() => setSpinOpen(false)}
+            onWon={(r) => r.is_new && setToast(`+${r.prize} 💎 na roleta`)}
+          />
+        ) : null}
 
         {install ? (
           // No celular o convite fica aqui, fora do topo (lá não cabe junto com "Importar livro").
@@ -4984,6 +5814,27 @@ export function App() {
               Instalar
             </button>
           </div>
+        ) : null}
+
+        {freezeOutcome && authSession ? (
+          <FreezeNudge
+            outcome={freezeOutcome}
+            busy={freezeBusy}
+            onClose={() => setFreezeOutcome(null)}
+            onOpenShop={() => setShopOpen(true)}
+            onSave={() => {
+              if (freezeOutcome.kind !== "offer") return;
+              const { rescue, wallet } = freezeOutcome;
+              setFreezeBusy(true);
+              rescueStreak(authSession, rescue)
+                .then((r) => {
+                  setFreezeOutcome({ kind: "saved", streak: r.streak, spent: rescue.paidDays.length * wallet.freeze_price, balance: r.balance });
+                  setDataEpoch((n) => n + 1);
+                })
+                .catch((err: unknown) => setToast(err instanceof Error ? err.message : "Não foi possível salvar a sequência."))
+                .finally(() => setFreezeBusy(false));
+            }}
+          />
         ) : null}
 
         {shieldNotice !== null ? (
@@ -5132,6 +5983,8 @@ export function App() {
         )}
 
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
+
+        {authSession ? <RankingTeaser onOpen={() => setRankingOpen(true)} /> : null}
 
         {recent.length > 0 || continueUndo ? (
           <ContinueReading

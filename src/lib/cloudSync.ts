@@ -1,5 +1,6 @@
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
 import { currentDataOwner, isUserKey } from "./dataOwner";
+import { captureError } from "./telemetry";
 
 /**
  * Dados de leitura da conta na nuvem (tabela reading_state, ver supabase/reading-state.sql):
@@ -187,9 +188,9 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
     for (const [d, s] of Object.entries(a)) out[d] = Math.max(s, out[d] ?? 0);
     return JSON.stringify(out);
   }
-  // Escudos: o maior; dias salvos por escudo: todos.
+  // Escudos: o maior; dias salvos (por escudo ou diamantes): todos.
   if (key === "storyverse:streak-meta") {
-    const a = l as { shields?: number; frozen?: string[]; awardedAt?: number; shieldNoticeDay?: string };
+    const a = l as { shields?: number; frozen?: string[]; awardedAt?: number; shieldNoticeDay?: string; bought?: string[] };
     const c = r as typeof a;
     return JSON.stringify({
       ...c,
@@ -197,6 +198,7 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
       shields: Math.max(a.shields ?? 0, c.shields ?? 0),
       frozen: [...new Set([...(c.frozen ?? []), ...(a.frozen ?? [])])],
       awardedAt: Math.max(a.awardedAt ?? 0, c.awardedAt ?? 0),
+      bought: [...new Set([...(c.bought ?? []), ...(a.bought ?? [])])],
     });
   }
   // Preferências (tema, meta, lembrete, voz…) mudadas nos dois ao mesmo tempo: vale a daqui.
@@ -235,12 +237,18 @@ async function rest(session: SupabaseSession, path: string, init: { method?: str
       body: init.body,
       keepalive: init.keepalive,
     });
-  } catch {
+  } catch (error) {
+    captureError("sync-network", error, { path: path.split("?")[0] });
     throw new AuthNetworkError("Sem conexão para sincronizar.");
   }
   if (!res.ok && res.status !== 409) {
     const payload = (await res.json().catch(() => ({}))) as { message?: string };
     console.warn(`[sync] ${init.method ?? "GET"} ${path.split("?")[0]} → ${res.status}: ${payload.message ?? ""}`);
+    captureError("sync-http", new Error(payload.message ?? `Erro ${res.status}`), {
+      status: res.status,
+      method: init.method ?? "GET",
+      path: path.split("?")[0],
+    });
     throw new Error(payload.message ?? `Erro ${res.status}`);
   }
   return res;
@@ -344,7 +352,9 @@ export function startAutoSync(
     if (!s) return;
     void sync(s, { keepalive, resume: reason === "resume" })
       .then((changed) => changed && !keepalive && onRemoteChange(reason))
-      .catch(() => {});
+      .catch((error) => {
+        captureError("sync", error, { reason, keepalive });
+      });
   };
   const timer = window.setInterval(() => document.visibilityState === "visible" && run("interval"), SYNC_EVERY_MS);
   const onVisibility = () => (document.visibilityState === "hidden" ? run("interval", true) : run("resume"));

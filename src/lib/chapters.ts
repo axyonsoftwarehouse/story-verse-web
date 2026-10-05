@@ -69,7 +69,7 @@ function splitByParagraphs(text: string, size: number): string[] {
   const parts: string[] = [];
   let rest = text;
   while (rest.length > size * 1.3) {
-    let cut = rest.indexOf("\n\n", size);
+    const cut = rest.indexOf("\n\n", size);
     if (cut < 0) break;
     parts.push(rest.slice(0, cut).trim());
     rest = rest.slice(cut).trim();

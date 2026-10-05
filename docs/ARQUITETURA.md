@@ -94,6 +94,10 @@ flowchart TD
   HOME --> SEARCH[Busca no acervo<br/>Gutenberg + comunidade]
   HOME --> IMPORT[Importar livro]
   HOME --> PROFILE[Perfil]
+  HOME --> RANK[Ranking semanal<br/>pódio · lista · sua posição]
+  PROFILE --> SHOP[Loja de diamantes<br/>saldo · roleta · Salva-ofensiva · extrato]
+  HOME --> SPIN[Roleta diária<br/>abre na 1ª visita do dia]
+  RANK --> SHOP
   HOME --> READER[Leitor]
   SEARCH --> READER
   IMPORT --> READER
@@ -459,6 +463,12 @@ erDiagram
   AUTH_USERS ||--o| ADMINS : "é admin"
   AUTH_USERS ||--o{ BOOK_SUBMISSIONS : "envia"
   AUTH_USERS ||--o| READING_STATE : "sincroniza"
+  AUTH_USERS ||--o{ READING_DAYS : "lê por dia"
+  AUTH_USERS ||--o| RANKING_PROFILES : "aparece no ranking"
+  WEEKLY_CLOSINGS ||--o{ WEEKLY_AWARDS : "pódio"
+  AUTH_USERS ||--o| DIAMOND_WALLETS : "saldo"
+  AUTH_USERS ||--o{ DIAMOND_LEDGER : "extrato"
+  AUTH_USERS ||--o{ STREAK_FREEZES : "dias salvos"
 
   AUTH_USERS {
     uuid id PK
@@ -491,6 +501,47 @@ erDiagram
     jsonb data "chaves do localStorage da conta"
     timestamptz updated_at
   }
+  READING_DAYS {
+    uuid user_id PK,FK
+    date day PK
+    int seconds "0 a 43200 (12 h)"
+    timestamptz updated_at
+  }
+  RANKING_PROFILES {
+    uuid user_id PK,FK
+    text name "copiado do perfil"
+    text avatar
+    text photo "só profile-media"
+    bool hidden
+  }
+  WEEKLY_CLOSINGS {
+    date week_start PK "segunda-feira"
+    timestamptz closed_at
+  }
+  WEEKLY_AWARDS {
+    date week_start PK,FK
+    uuid user_id PK,FK
+    smallint place "1 a 3"
+    int minutes
+    int diamonds "50 · 30 · 20"
+    timestamptz seen_at
+  }
+  DIAMOND_WALLETS {
+    uuid user_id PK,FK
+    int balance ">= 0"
+  }
+  DIAMOND_LEDGER {
+    bigint id PK
+    uuid user_id FK
+    int amount "+ ganha · - gasta"
+    int balance_after
+    text reason "ranking | reading_goal | streak_freeze | daily_spin | purchase | adjustment"
+    text ref "único por conta + motivo"
+  }
+  STREAK_FREEZES {
+    uuid user_id PK,FK
+    date day PK
+  }
 ```
 
 Índice: `book_submissions (status, reviewed_at desc)`. Todas as chaves estrangeiras usam
@@ -503,11 +554,32 @@ erDiagram
 | `admins` | só a própria linha | — | — | — |
 | `book_submissions` | aprovados: todos; os seus; admin: todos | logado, em nome próprio, como `pending` | só admin | admin; quem enviou enquanto `pending` |
 | `reading_state` | só o dono | só o dono | só o dono | — |
+| `reading_days`, `ranking_profiles`, `weekly_closings`, `weekly_awards` | só pelas funções do ranking | só pelas funções | só pelas funções | — |
+| `diamond_wallets`, `diamond_ledger`, `streak_freezes` | só pelas funções dos diamantes | só pelas funções | só pelas funções | — |
 
 Função `public.is_admin()` (`security definer`), liberada para `anon` e `authenticated`.
 Função `public.set_submission_cover(id, url)` (`security definer`, só `authenticated`): quem enviou
 troca a capa do próprio envio, só por uma imagem em `profile-media/<uid>/livros/`. Tabelas
 novas precisam de `GRANT` para a API: está nos scripts.
+
+**Ranking semanal** (`supabase/weekly-ranking.sql`, só `authenticated`): `report_reading(dias)`
+grava os segundos lidos por dia (o maior valor enviado, até 12 h por dia, só na semana ainda
+aberta) e copia nome e avatar do perfil; `weekly_ranking(semana, limite)` devolve o topo e a
+linha de quem pede; `my_weekly_awards()` fecha a semana passada (uma vez só, 1 h depois de
+domingo, horário de Brasília), grava o pódio, soma os diamantes e devolve os pódios ainda não
+vistos; `mark_awards_seen()`, `my_ranking_profile()` e `set_ranking_hidden(bool)` completam.
+Os minutos são contados no aparelho: o teto por dia limita, mas não impede, números inflados.
+
+**Diamantes** (`supabase/diamonds.sql`, só `authenticated`): o saldo só muda por
+`apply_diamonds` (interna), que trava a carteira (`for update`) e grava no extrato com
+motivo + referência únicos — pedido repetido ou simultâneo não ganha nem gasta em dobro.
+`my_wallet()` (saldo, uso da semana e regras), `my_diamond_history(limite)`,
+`claim_reading_rewards()` (2 💎 por dia com 10 min lidos, pelos minutos de `reading_days`),
+`use_streak_freeze(dias)` (Salva-ofensiva: 10 💎 por dia, até 3 dias para trás, 2 por semana,
+tudo ou nada, recusa dia com leitura registrada), `my_streak_freezes()`, `daily_spin_status()` e
+`spin_daily_wheel()` (roleta: um giro por dia, prêmio de 1 a 20 💎 sorteado no banco). Regras em
+`diamond_rules()`. Compras (`purchase`) ainda não existem: a validação do recibo das lojas fica
+numa Edge Function com a chave de serviço.
 
 ---
 
@@ -549,7 +621,9 @@ e atualiza com atraso, então alguns MB aparecem como "0 GB".
 | `data-owner`, `data-legacy-owner` | conta ativa / dona dos dados antigos | — | não |
 | `vault:<uid>` | cofre das outras contas | — | não |
 | `reading-progress` | onde parou em cada livro | sim | sim |
-| `reading-stats`, `streak-meta`, `reading-goal` | minutos, sequência, meta | sim | sim |
+| `reading-stats`, `streak-meta`, `reading-goal` | minutos, sequência (dias salvos por escudo ou diamantes), meta | sim | sim |
+| `auto-freeze` | usar diamantes sozinho quando a sequência quebrar | sim | sim |
+| `spin-offered` | dia em que a roleta já abriu sozinha | sim | sim |
 | `finished-books` | livros terminados | sim | sim |
 | `highlights:<livro>` | marcações | sim | sim |
 | `chat:<livro>`, `chat-index`, `last-character` | conversas | sim | sim |
@@ -621,6 +695,9 @@ esses sites não liberam CORS, ou são bloqueados pelo navegador (ORB).
 | `lib/portraits.ts` | retratos dos personagens |
 | `lib/translate.ts`, `dictionary.ts`, `speech.ts` | tradução, dicionário, voz |
 | `lib/presence.ts` | contagem de pessoas online |
+| `lib/ranking.ts` | ranking semanal: envio dos minutos e pódio |
+| `lib/diamonds.ts` | saldo, extrato, recompensa por leitura, roleta diária e Salva-ofensiva |
+| `lib/rpc.ts` | chamada às funções do banco (Supabase RPC) |
 | `lib/pwa.ts`, `public/sw.js`, `manifest.webmanifest` | instalação e offline |
 | `lib/reminders.ts` | lembretes (agenda e notificação) |
 | `lib/backStack.ts` | botão voltar |
@@ -641,4 +718,6 @@ esses sites não liberam CORS, ou são bloqueados pelo navegador (ORB).
    2. `supabase/profile-media.sql` (bucket de fotos)
    3. `supabase/reading-state.sql` (sincronização)
    4. `supabase/user-books.sql` (livros importados entre aparelhos)
+   5. `supabase/diamonds.sql` (carteira, extrato e Salva-ofensiva)
+   6. `supabase/weekly-ranking.sql` (ranking semanal e pódio; depois de `diamonds.sql`)
 7. Na Vercel: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`, depois fazer um novo deploy.
