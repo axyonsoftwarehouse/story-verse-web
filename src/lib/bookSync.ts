@@ -1,6 +1,8 @@
-import { gunzipSync, gzipSync, strFromU8, strToU8 } from "fflate";
+import { gzipSync, strToU8 } from "fflate";
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { currentDataOwner } from "./dataOwner";
+import { gunzipToString } from "./safeUnzip";
 import {
   deleteLocalBook,
   getLocalRecord,
@@ -20,6 +22,9 @@ import {
  */
 
 const BUCKET = "user-books";
+
+/** Teto do texto descomprimido do livro, para um gzip bomb não estourar a memória do aparelho. */
+const MAX_UNPACKED_BYTES = 64 * 1024 * 1024;
 
 type Packed = {
   v: 1;
@@ -41,12 +46,17 @@ async function storage(session: SupabaseSession, path: string, init: { method?: 
       headers: { apikey: anonKey, Authorization: `Bearer ${session.access_token}`, ...init.headers },
       body: init.body,
     });
-  } catch {
+  } catch (error) {
+    captureError("books-network", error, { path });
     throw new AuthNetworkError("Sem conexão para sincronizar os livros.");
   }
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
     console.warn(`[livros] ${init.method ?? "GET"} ${path} → ${res.status}: ${payload.message ?? payload.error ?? ""}`);
+    captureError("books-http", new Error(payload.message ?? payload.error ?? `Erro ${res.status}`), {
+      status: res.status,
+      method: init.method ?? "GET",
+    });
     throw new Error(payload.message ?? `Erro ${res.status}`);
   }
   return res;
@@ -70,19 +80,22 @@ async function pack(record: StoredBook): Promise<Uint8Array> {
 }
 
 async function unpack(bytes: Uint8Array): Promise<StoredBook> {
-  const p = JSON.parse(strFromU8(gunzipSync(bytes))) as Packed;
+  const p = JSON.parse(gunzipToString(bytes, MAX_UNPACKED_BYTES)) as Packed;
   const images = p.images
     ? Object.fromEntries(await Promise.all(Object.entries(p.images).map(async ([k, url]) => [k, await (await fetch(url)).blob()] as const)))
     : undefined;
   return { id: p.book.gutenbergId, book: p.book, text: p.text, importedAt: p.importedAt, ...(images ? { images } : {}) };
 }
 
-let running: Promise<{ local: boolean; library: boolean }> | null = null;
+let running: { userId: string; promise: Promise<{ local: boolean; library: boolean }> } | null = null;
 
 async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean; library: boolean }> {
+  const owner = session.user.id;
+  // Os dados em uso neste aparelho passaram a ser de outra conta (saiu ou trocou): não mistura.
+  if (currentDataOwner() !== owner) return { local: false, library: false };
   let local = false;
   let library = false;
-  const records = await listLocalRecords();
+  const records = await listLocalRecords(owner);
   const here = new Map(records.map((r) => [String(r.id), r]));
 
   // Livros importados antes da sincronização entram na lista da conta.
@@ -101,7 +114,7 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
       if (isRemoved(entry)) {
         // Removido em algum aparelho: sai daqui e do Storage.
         if (here.has(key)) {
-          await deleteLocalBook(id, { everywhere: false });
+          await deleteLocalBook(id, { everywhere: false }, owner);
           local = true;
         }
         if (entry.uploadedAt && !entry.purgedAt) {
@@ -124,12 +137,13 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
         const res = await storage(session, `authenticated/${BUCKET}/${encodePath(pathOf(session, id))}`);
         const downloaded = await unpack(new Uint8Array(await res.arrayBuffer()));
         // Removido aqui enquanto baixava: não traz de volta.
-        if (isRemoved(readLibrary()[key] ?? entry) || (await getLocalRecord(id))) continue;
-        await putLocalRecord(downloaded);
+        if (isRemoved(readLibrary()[key] ?? entry) || (await getLocalRecord(id, owner))) continue;
+        await putLocalRecord(downloaded, owner);
         local = true;
       }
-    } catch {
+    } catch (error) {
       // Um livro com problema (sem espaço, rede) não impede os outros; tenta de novo depois.
+      captureError("books-item", error, { id: key });
     }
   }
   return { local, library };
@@ -141,9 +155,11 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
  * `library`: a lista da conta mudou (precisa sincronizar de novo para os outros verem).
  */
 export function syncBooks(session: SupabaseSession): Promise<{ local: boolean; library: boolean }> {
-  if (running) return running;
-  running = syncBooksOnce(session).finally(() => {
-    running = null;
+  const userId = session.user.id;
+  if (running?.userId === userId) return running.promise;
+  const promise = syncBooksOnce(session).finally(() => {
+    if (running?.promise === promise) running = null;
   });
-  return running;
+  running = { userId, promise };
+  return promise;
 }

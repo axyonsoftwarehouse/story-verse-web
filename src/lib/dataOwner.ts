@@ -50,11 +50,13 @@ export function legacyDataOwner(): string | null {
   return safeGet(LEGACY_OWNER_KEY);
 }
 
-/**
- * Deixa em uso os dados de `owner` (id da conta ou "anon"). Devolve true se trocou — aí a tela
- * precisa ler tudo de novo.
- */
-export function activateDataOwner(owner: string): boolean {
+const LOCK_NAME = "storyverse:data-owner";
+
+let pending: Promise<boolean> | null = null;
+let pendingOwner: string | null = null;
+
+/** Troca síncrona dos dados em uso. Roda sempre dentro do lock (ver activateDataOwner). */
+function swapOwner(owner: string): boolean {
   try {
     const current = localStorage.getItem(OWNER_KEY);
     if (current === owner) return false;
@@ -91,4 +93,39 @@ export function activateDataOwner(owner: string): boolean {
     // Sem espaço para o cofre: não troca nada (melhor que perder dados).
     return false;
   }
+}
+
+/**
+ * Duas abas abertas podem trocar de conta ao mesmo tempo (a sessão é a mesma no navegador). O
+ * lock do navegador serializa a troca entre as abas e a fila abaixo a serializa dentro da aba,
+ * para o snapshot/apagar/restaurar do localStorage nunca se entrelaçar.
+ */
+function withLock<T>(fn: () => T): Promise<T> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (!locks?.request) return Promise.resolve().then(fn);
+  return locks.request(LOCK_NAME, () => fn());
+}
+
+/**
+ * Deixa em uso os dados de `owner` (id da conta ou "anon"). Resolve `true` se trocou — aí a tela
+ * precisa ler tudo de novo. Chamadas concorrentes para o mesmo dono esperam a mesma troca.
+ */
+export function activateDataOwner(owner: string): Promise<boolean> {
+  if (pending && pendingOwner === owner) return pending;
+  const run = () => withLock(() => swapOwner(owner));
+  const promise = pending ? pending.then(run, run) : run();
+  pending = promise;
+  pendingOwner = owner;
+  void promise.finally(() => {
+    if (pending === promise) {
+      pending = null;
+      pendingOwner = null;
+    }
+  });
+  return promise;
+}
+
+/** A troca de dono em andamento (para o sync esperar antes de mexer nos dados). */
+export function dataOwnerReady(): Promise<unknown> {
+  return pending ?? Promise.resolve();
 }

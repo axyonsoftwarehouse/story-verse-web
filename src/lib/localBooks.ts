@@ -6,9 +6,14 @@ import { currentDataOwner, legacyDataOwner } from "./dataOwner";
  * porque um livro inteiro passa do limite dele). Com conta, a lista vai para a nuvem junto com
  * os outros dados ("storyverse:library") e os arquivos vão para o Storage (bookSync.ts): o livro
  * importado na Web aparece no app e vice-versa.
+ *
+ * Cada registro é chaveado por dono + id (`<dono>\u0000<id>`): duas contas no mesmo aparelho
+ * podem ter o mesmo livro sem uma sobrescrever ou ler o da outra. Registros de antes da
+ * separação por conta são migrados na abertura do banco (v1 → v2).
  */
 const DB_NAME = "storyverse-books";
 const STORE = "books";
+const OWNER_INDEX = "owner";
 
 export type StoredBook = {
   id: number;
@@ -21,12 +26,58 @@ export type StoredBook = {
   owner?: string;
 };
 
+type StoredBookRow = StoredBook & { key: string };
+
+const OWNER_SEP = "\u0000";
+
+/** Chave primária do registro: dono + id, para não colidir entre contas no mesmo aparelho. */
+function keyOf(owner: string, id: number): string {
+  return `${owner}${OWNER_SEP}${id}`;
+}
+
+/** Dono dos dados em uso neste aparelho ("anon" quando não há conta). */
+function activeOwner(): string {
+  return currentDataOwner() ?? "anon";
+}
+
 let dbPromise: Promise<IDBDatabase> | null = null;
+
+function createStore(db: IDBDatabase): void {
+  db.createObjectStore(STORE, { keyPath: "key" }).createIndex(OWNER_INDEX, "owner");
+}
 
 function openDb(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "id" });
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = (event) => {
+      const db = req.result;
+      if (event.oldVersion < 1) {
+        createStore(db);
+        return;
+      }
+      if (event.oldVersion < 2) {
+        const tx = req.transaction;
+        if (!tx) return;
+        const old = tx.objectStore(STORE);
+        const rows: StoredBook[] = [];
+        old.openCursor().onsuccess = function () {
+          const cursor = this.result;
+          if (cursor) {
+            rows.push(cursor.value as StoredBook);
+            cursor.continue();
+            return;
+          }
+          db.deleteObjectStore(STORE);
+          createStore(db);
+          const store = tx.objectStore(STORE);
+          const legacy = legacyDataOwner();
+          for (const row of rows) {
+            const owner = row.owner ?? legacy ?? "anon";
+            store.put({ ...row, owner, key: keyOf(owner, row.id) });
+          }
+        };
+      }
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {
       dbPromise = null;
@@ -49,10 +100,11 @@ function run<T>(mode: IDBTransactionMode, op: (s: IDBObjectStore) => IDBRequest<
 
 /**
  * Livros importados usam `gutenbergId` negativo: assim progresso, traduções e elenco guardados
- * funcionam igual aos do acervo, sem colidir com os números do Gutenberg.
+ * funcionam igual aos do acervo, sem colidir com os números do Gutenberg. O sufixo aleatório
+ * evita dois livros importados no mesmo milissegundo com o mesmo id.
  */
 export function newLocalBookId(): number {
-  return -Date.now();
+  return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
 }
 
 export function isLocalBook(book: Ebook): boolean {
@@ -87,35 +139,34 @@ export function updateLibrary(id: number, change: (e: LibraryEntry | undefined) 
 
 export const isRemoved = (e: LibraryEntry) => (e.deletedAt ?? 0) >= e.importedAt;
 
-/** Grava o registro como está (livro baixado de outro aparelho). */
-export async function putLocalRecord(record: StoredBook): Promise<void> {
-  await run("readwrite", (s) => s.put({ ...record, ...(currentDataOwner() ? { owner: currentDataOwner() ?? undefined } : {}) }));
+/** Grava o registro como está (livro baixado de outro aparelho) para o dono indicado. */
+export async function putLocalRecord(record: StoredBook, owner = activeOwner()): Promise<void> {
+  await run("readwrite", (s) => s.put({ ...record, owner, key: keyOf(owner, record.id) } satisfies StoredBookRow));
 }
 
-export async function getLocalRecord(id: number): Promise<StoredBook | undefined> {
-  return run<StoredBook | undefined>("readonly", (s) => s.get(id));
+export async function getLocalRecord(id: number, owner = activeOwner()): Promise<StoredBook | undefined> {
+  return run<StoredBook | undefined>("readonly", (s) => s.get(keyOf(owner, id)));
 }
 
 /** Registros dos livros da conta em uso neste aparelho. */
-export async function listLocalRecords(): Promise<StoredBook[]> {
-  const all = await run<StoredBook[]>("readonly", (s) => s.getAll());
-  const owner = currentDataOwner();
-  const legacy = legacyDataOwner();
-  return all.filter((b) => (b.owner ?? legacy) === owner);
+export async function listLocalRecords(owner = activeOwner()): Promise<StoredBook[]> {
+  return run<StoredBook[]>("readonly", (s) => s.index(OWNER_INDEX).getAll(owner));
 }
 
 export async function saveLocalBook(book: Ebook, text: string, images?: Record<string, Blob>): Promise<void> {
   const importedAt = Date.now();
+  const owner = activeOwner();
   try {
     await run("readwrite", (s) =>
       s.put({
+        key: keyOf(owner, book.gutenbergId),
         id: book.gutenbergId,
         book,
         text,
         importedAt,
         images,
-        ...(currentDataOwner() ? { owner: currentDataOwner() ?? undefined } : {}),
-      } satisfies StoredBook),
+        owner,
+      } satisfies StoredBookRow),
     );
     updateLibrary(book.gutenbergId, () => ({ importedAt }));
   } catch (e) {
@@ -126,8 +177,8 @@ export async function saveLocalBook(book: Ebook, text: string, images?: Record<s
   }
 }
 
-export async function loadLocalBookText(id: number): Promise<string> {
-  const stored = await run<StoredBook | undefined>("readonly", (s) => s.get(id));
+export async function loadLocalBookText(id: number, owner = activeOwner()): Promise<string> {
+  const stored = await run<StoredBook | undefined>("readonly", (s) => s.get(keyOf(owner, id)));
   if (!stored) {
     throw new Error("Este livro não está mais neste aparelho. Importe o arquivo de novo.");
   }
@@ -137,8 +188,9 @@ export async function loadLocalBookText(id: number): Promise<string> {
 /** Ilustrações do livro como endereços para <img> (chame `revoke` ao fechar o livro). */
 export async function loadLocalBookImages(
   id: number,
+  owner = activeOwner(),
 ): Promise<{ urls: Record<string, string>; revoke: () => void }> {
-  const stored = await run<StoredBook | undefined>("readonly", (s) => s.get(id)).catch(() => undefined);
+  const stored = await run<StoredBook | undefined>("readonly", (s) => s.get(keyOf(owner, id))).catch(() => undefined);
   const urls = Object.fromEntries(
     Object.entries(stored?.images ?? {}).map(([key, blob]) => [key, URL.createObjectURL(blob)]),
   );
@@ -158,7 +210,11 @@ export async function listLocalBooks(): Promise<Ebook[]> {
 }
 
 /** Remove o livro deste aparelho e, com `everywhere`, dos outros aparelhos da conta. */
-export async function deleteLocalBook(id: number, opts: { everywhere?: boolean } = { everywhere: true }): Promise<void> {
-  await run("readwrite", (s) => s.delete(id));
+export async function deleteLocalBook(
+  id: number,
+  opts: { everywhere?: boolean } = { everywhere: true },
+  owner = activeOwner(),
+): Promise<void> {
+  await run("readwrite", (s) => s.delete(keyOf(owner, id)));
   if (opts.everywhere) updateLibrary(id, (e) => ({ ...(e ?? { importedAt: 0 }), deletedAt: Date.now() }));
 }
