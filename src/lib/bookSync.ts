@@ -1,7 +1,7 @@
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from "fflate";
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
-import { captureError } from "./telemetry";
+import { currentDataOwner } from "./dataOwner";
 import {
   deleteLocalBook,
   getLocalRecord,
@@ -83,12 +83,15 @@ async function unpack(bytes: Uint8Array): Promise<StoredBook> {
   return { id: p.book.gutenbergId, book: p.book, text: p.text, importedAt: p.importedAt, ...(images ? { images } : {}) };
 }
 
-let running: Promise<{ local: boolean; library: boolean }> | null = null;
+let running: { userId: string; promise: Promise<{ local: boolean; library: boolean }> } | null = null;
 
 async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean; library: boolean }> {
+  const owner = session.user.id;
+  // Os dados em uso neste aparelho passaram a ser de outra conta (saiu ou trocou): não mistura.
+  if (currentDataOwner() !== owner) return { local: false, library: false };
   let local = false;
   let library = false;
-  const records = await listLocalRecords();
+  const records = await listLocalRecords(owner);
   const here = new Map(records.map((r) => [String(r.id), r]));
 
   // Livros importados antes da sincronização entram na lista da conta.
@@ -107,7 +110,7 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
       if (isRemoved(entry)) {
         // Removido em algum aparelho: sai daqui e do Storage.
         if (here.has(key)) {
-          await deleteLocalBook(id, { everywhere: false });
+          await deleteLocalBook(id, { everywhere: false }, owner);
           local = true;
         }
         if (entry.uploadedAt && !entry.purgedAt) {
@@ -130,8 +133,8 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
         const res = await storage(session, `authenticated/${BUCKET}/${encodePath(pathOf(session, id))}`);
         const downloaded = await unpack(new Uint8Array(await res.arrayBuffer()));
         // Removido aqui enquanto baixava: não traz de volta.
-        if (isRemoved(readLibrary()[key] ?? entry) || (await getLocalRecord(id))) continue;
-        await putLocalRecord(downloaded);
+        if (isRemoved(readLibrary()[key] ?? entry) || (await getLocalRecord(id, owner))) continue;
+        await putLocalRecord(downloaded, owner);
         local = true;
       }
     } catch (error) {
@@ -148,9 +151,11 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
  * `library`: a lista da conta mudou (precisa sincronizar de novo para os outros verem).
  */
 export function syncBooks(session: SupabaseSession): Promise<{ local: boolean; library: boolean }> {
-  if (running) return running;
-  running = syncBooksOnce(session).finally(() => {
-    running = null;
+  const userId = session.user.id;
+  if (running?.userId === userId) return running.promise;
+  const promise = syncBooksOnce(session).finally(() => {
+    if (running?.promise === promise) running = null;
   });
-  return running;
+  running = { userId, promise };
+  return promise;
 }
