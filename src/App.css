@@ -6786,3 +6786,152 @@
     animation: none;
   }
 }
+
+/* ---- Diamantes: loja e Salva-ofensiva ---- */
+
+.nav-split {
+  justify-content: space-between;
+}
+
+button.ranking-diamonds {
+  cursor: pointer;
+}
+
+.nudge-diamond {
+  border-color: var(--accent-2-dim);
+  background: linear-gradient(120deg, rgba(155, 196, 181, 0.16), rgba(228, 184, 106, 0.05));
+}
+
+.shop-balance {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem !important;
+  color: var(--text) !important;
+  font-family: var(--font-read);
+  font-size: 2.4rem;
+}
+
+.shop-balance strong {
+  font-weight: 600;
+}
+
+.shop-notice {
+  margin: 0 0 1rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--accent-2-dim);
+  border-radius: var(--radius-sm);
+  background: rgba(155, 196, 181, 0.1);
+  color: var(--text);
+}
+
+.shop-item,
+.shop-earn {
+  max-width: 640px;
+  margin: 0 auto 1rem;
+}
+
+.shop-item {
+  display: flex;
+  gap: 1rem;
+}
+
+.shop-item-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.shop-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.shop h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.08rem;
+}
+
+.shop-item-body p,
+.shop-earn li {
+  margin: 0 0 0.6rem;
+  color: var(--text-read);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.shop-item-meta {
+  color: var(--muted) !important;
+  font-size: 0.84rem !important;
+}
+
+.shop-rescue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 0.4rem 0 0.8rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  background: rgba(228, 184, 106, 0.08);
+  font-size: 0.9rem;
+}
+
+.shop-rescue small {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+
+.shop-auto {
+  margin: 0.6rem 0 0;
+}
+
+.shop-earn ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shop-history {
+  max-width: 640px;
+  margin: 1.6rem auto 2rem;
+}
+
+.shop-entry {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.shop-entry-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shop-entry-label small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.shop-entry-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.shop-entry-amount.is-in {
+  color: var(--accent-2);
+}
+
+.shop-entry-amount.is-out {
+  color: var(--danger);
+}
+
+@media (max-width: 480px) {
+  .shop-item {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .shop-balance {
+    font-size: 2rem;
+  }
+}

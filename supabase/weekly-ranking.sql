@@ -2,7 +2,7 @@
 -- com os 3 primeiros, aviso para quem ficou no pódio e diamantes de recompensa. Ver src/lib/ranking.ts.
 --
 -- Como usar: Supabase › SQL Editor › New query › cole este arquivo inteiro › Run.
--- Pode rodar de novo sem problema.
+-- Pode rodar de novo sem problema. Rode DEPOIS de supabase/diamonds.sql (a carteira de diamantes).
 --
 -- Ninguém lê nem grava estas tabelas direto pela API: tudo passa pelas funções abaixo, que só
 -- deixam cada pessoa informar os próprios minutos (com teto por dia) e só mostram nome, avatar e
@@ -21,14 +21,13 @@ create table if not exists public.reading_days (
   primary key (user_id, day)
 );
 
--- O que aparece no ranking (nome e avatar copiados do perfil) e o saldo de diamantes.
+-- O que aparece no ranking (nome e avatar copiados do perfil).
 create table if not exists public.ranking_profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   name text not null,
   avatar text,
   photo text,
   hidden boolean not null default false,
-  diamonds integer not null default 0 check (diamonds >= 0),
   updated_at timestamptz not null default now()
 );
 
@@ -48,6 +47,11 @@ create table if not exists public.weekly_awards (
   seen_at timestamptz,
   primary key (week_start, user_id)
 );
+
+-- Versão anterior guardava os diamantes aqui: passam para a carteira (pelo pódio de cada
+-- semana, sem repetir) e a coluna sai.
+select public.apply_diamonds(a.user_id, a.diamonds, 'ranking', a.week_start::text) from public.weekly_awards a;
+alter table public.ranking_profiles drop column if exists diamonds;
 
 alter table public.reading_days enable row level security;
 alter table public.ranking_profiles enable row level security;
@@ -115,10 +119,9 @@ begin
   select p_week, r.user_id, r.place, r.minutes, (array[50, 30, 20])[r.place]
   from public.ranking_for_week(p_week, 3, null) r
   where r.place <= 3;
-  update public.ranking_profiles p
-  set diamonds = p.diamonds + a.diamonds
+  perform public.apply_diamonds(a.user_id, a.diamonds, 'ranking', p_week::text)
   from public.weekly_awards a
-  where a.week_start = p_week and a.user_id = p.user_id;
+  where a.week_start = p_week;
 end;
 $$;
 
@@ -194,9 +197,10 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(p.hidden, false), coalesce(p.diamonds, 0)
+  select coalesce(p.hidden, false), coalesce(w.balance, 0)
   from (select auth.uid() as uid) me
   left join public.ranking_profiles p on p.user_id = me.uid
+  left join public.diamond_wallets w on w.user_id = me.uid
   where me.uid is not null;
 $$;
 

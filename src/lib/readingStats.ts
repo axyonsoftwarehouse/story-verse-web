@@ -5,6 +5,7 @@
  *
  * Escudo (como o "protetor de ofensiva" do Duolingo): a cada 7 dias seguidos o leitor ganha um
  * (máximo 2). Se um dia passar sem leitura, um escudo é gasto sozinho e a sequência continua.
+ * Sem escudo suficiente, o Salva-ofensiva (pago em diamantes, ver diamonds.ts) salva o resto.
  */
 const KEY = "storyverse:reading-stats";
 const GOAL_KEY = "storyverse:reading-goal";
@@ -27,6 +28,8 @@ type Meta = {
   awardedAt: number;
   /** Último dia em que o aviso "um escudo salvou sua sequência" foi mostrado. */
   shieldNoticeDay?: string;
+  /** Dos dias salvos, os que foram salvos com diamantes (Salva-ofensiva), para o selo 💎. */
+  bought?: string[];
 };
 
 export function dayKey(d = new Date()): string {
@@ -67,6 +70,7 @@ function write(key: string, value: unknown) {
 }
 
 const readOn = (stats: Stats, d: Date) => (stats[dayKey(d)] ?? 0) >= MIN_SECONDS_FOR_STREAK;
+const isBought = (meta: Meta, key: string) => meta.bought?.includes(key) ?? false;
 
 /** Dias seguidos com leitura (ou salvos por escudo), terminando hoje ou ontem. */
 function computeStreak(stats: Stats, meta: Meta, now = new Date()): number {
@@ -185,8 +189,8 @@ export type ReadingSummary = {
   streak: number;
   readToday: boolean;
   shields: number;
-  /** Últimos 7 dias, do mais antigo para hoje. */
-  week: { label: string; state: DayState; today: boolean }[];
+  /** Últimos 7 dias, do mais antigo para hoje. `bought`: salvo com diamantes. */
+  week: { label: string; state: DayState; today: boolean; bought: boolean }[];
 };
 
 const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -198,7 +202,7 @@ export function readingSummary(): ReadingSummary {
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = daysAgo(6 - i, now);
     const state: DayState = readOn(stats, d) ? "read" : meta.frozen.includes(dayKey(d)) ? "frozen" : "missed";
-    return { label: WEEKDAYS[d.getDay()], state, today: i === 6 };
+    return { label: WEEKDAYS[d.getDay()], state, today: i === 6, bought: state === "frozen" && isBought(meta, dayKey(d)) };
   });
   return {
     todayMinutes: Math.floor((stats[dayKey(now)] ?? 0) / 60),
@@ -271,7 +275,7 @@ export function readingTotals(): ReadingTotals {
   };
 }
 
-export type ReadingDay = { key: string; date: Date; minutes: number; state: DayState };
+export type ReadingDay = { key: string; date: Date; minutes: number; state: DayState; bought: boolean };
 
 /** Últimos `n` dias (do mais antigo para hoje), com os minutos lidos — para os gráficos do perfil. */
 export function readingDays(n: number): ReadingDay[] {
@@ -282,7 +286,7 @@ export function readingDays(n: number): ReadingDay[] {
     const date = daysAgo(n - 1 - i, now);
     const key = dayKey(date);
     const state: DayState = readOn(stats, date) ? "read" : meta.frozen.includes(key) ? "frozen" : "missed";
-    return { key, date, minutes: Math.floor((stats[key] ?? 0) / 60), state };
+    return { key, date, minutes: Math.floor((stats[key] ?? 0) / 60), state, bought: state === "frozen" && isBought(meta, key) };
   });
 }
 
@@ -305,4 +309,66 @@ export function weekStartDate(now = new Date()): Date {
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d;
+}
+
+/** Até quantos dias para trás dá para salvar a sequência (o banco aceita até 3). */
+const RESCUE_DAYS = 3;
+
+export type StreakRescue = {
+  /** Dias sem leitura, de ontem para trás, que quebraram a sequência. */
+  days: string[];
+  /** Os que os escudos grátis cobrem (os mais antigos). */
+  shieldDays: string[];
+  /** Os que precisam do Salva-ofensiva (diamantes). */
+  paidDays: string[];
+  /** Tamanho da sequência se for salva. */
+  streak: number;
+};
+
+/**
+ * Sequência quebrada que ainda dá para salvar: houve sequência antes de 1 a 3 dias sem leitura
+ * (terminando ontem) e os escudos não bastaram. Null se não há nada a salvar.
+ */
+export function streakRescue(): StreakRescue | null {
+  const stats = read();
+  const meta = readMeta();
+  const now = new Date();
+  const missed: string[] = [];
+  let cursor = daysAgo(1, now);
+  while (!readOn(stats, cursor) && !meta.frozen.includes(dayKey(cursor)) && missed.length <= RESCUE_DAYS) {
+    missed.push(dayKey(cursor));
+    cursor = daysAgo(1, cursor);
+  }
+  if (missed.length === 0 || missed.length > RESCUE_DAYS) return null;
+  const hadStreak = readOn(stats, cursor) || meta.frozen.includes(dayKey(cursor));
+  if (!hadStreak) return null;
+  const days = [...missed].sort();
+  const shields = Math.min(meta.shields, days.length);
+  return {
+    days,
+    shieldDays: days.slice(0, shields),
+    paidDays: days.slice(shields),
+    streak: computeStreak(stats, { ...meta, frozen: [...meta.frozen, ...days] }, now),
+  };
+}
+
+/** Aplica o salvamento (depois que o banco cobrou os dias pagos). Devolve a sequência. */
+export function applyStreakRescue(rescue: StreakRescue): number {
+  const meta = readMeta();
+  meta.frozen = [...new Set([...meta.frozen, ...rescue.days])];
+  meta.shields = Math.max(0, meta.shields - rescue.shieldDays.length);
+  meta.bought = [...new Set([...(meta.bought ?? []), ...rescue.paidDays])];
+  write(META_KEY, meta);
+  return computeStreak(read(), meta);
+}
+
+/** Dias salvos com diamantes em outro aparelho (vindos do banco). Diz se mudou algo. */
+export function mergeBoughtFreezes(days: string[]): boolean {
+  const meta = readMeta();
+  const missing = days.filter((d) => !meta.frozen.includes(d) || !isBought(meta, d));
+  if (missing.length === 0) return false;
+  meta.frozen = [...new Set([...meta.frozen, ...days])];
+  meta.bought = [...new Set([...(meta.bought ?? []), ...days])];
+  write(META_KEY, meta);
+  return true;
 }
