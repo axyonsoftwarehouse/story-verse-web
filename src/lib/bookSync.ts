@@ -3,6 +3,7 @@ import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
 import { currentDataOwner } from "./dataOwner";
 import { gunzipToString } from "./safeUnzip";
+import { captureError } from "./telemetry";
 import {
   deleteLocalBook,
   getLocalRecord,

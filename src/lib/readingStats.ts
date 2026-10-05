@@ -288,3 +288,21 @@ export function readingDays(n: number): ReadingDay[] {
 
 /** Para o painel: de quantos em quantos dias se ganha um escudo e o máximo guardado. */
 export const SHIELD_RULES = { daysPerShield: DAYS_PER_SHIELD, maxShields: MAX_SHIELDS };
+
+/** Segundos lidos em cada um dos últimos `n` dias (só os que têm leitura), para o ranking semanal. */
+export function recentReadingSeconds(n: number): Record<string, number> {
+  const stats = read();
+  const from = dayKey(daysAgo(n - 1));
+  const out: Record<string, number> = {};
+  for (const [day, seconds] of Object.entries(stats)) {
+    if (day >= from && seconds > 0) out[day] = Math.round(seconds);
+  }
+  return out;
+}
+
+/** Segunda-feira da semana atual (o ranking vai de segunda a domingo). */
+export function weekStartDate(now = new Date()): Date {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
