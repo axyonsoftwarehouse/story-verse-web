@@ -2945,11 +2945,19 @@
 }
 
 .nav-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   flex-shrink: 0;
   padding: 0.5rem 0.95rem;
   font-size: 0.85rem;
   border-color: var(--accent-dim);
   color: var(--accent);
+}
+
+.nav-install svg {
+  width: 16px;
+  height: 16px;
 }
 
 @media (max-width: 860px) {
@@ -3239,7 +3247,16 @@
 }
 
 @media (max-width: 560px) {
+  /* No celular o convite é o banner; fechado ele, fica só o ícone no topo. */
+  .nav-install.has-banner {
+    display: none;
+  }
+
   .nav-install {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .nav-install-label {
     display: none;
   }
 
@@ -3261,6 +3278,11 @@
     flex-shrink: 0;
     padding: 0.45rem 0.9rem;
     font-size: 0.82rem;
+  }
+
+  .install-banner .install-banner-close {
+    flex-shrink: 0;
+    margin-left: -0.3rem;
   }
 }
 
@@ -7196,4 +7218,112 @@ button.ranking-diamonds {
   .spin-wheel.is-spinning {
     transition: none;
   }
+}
+
+/* ---- Baixar app ---- */
+
+.install-dialog {
+  max-height: min(90vh, 720px);
+  overflow-y: auto;
+}
+
+.install-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.7);
+}
+
+.install-stores {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.install-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+}
+
+.install-now svg {
+  width: 18px;
+  height: 18px;
+}
+
+.install-steps {
+  width: 100%;
+  text-align: left;
+}
+
+.install-steps .shop-section-title {
+  display: block;
+  margin: 0 0 0.5rem;
+}
+
+.install-steps ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.install-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-read);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  counter-increment: step;
+}
+
+.install-steps li::before {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: rgba(228, 184, 106, 0.14);
+  color: var(--accent);
+  content: counter(step);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.install-steps li svg {
+  width: 16px;
+  height: 16px;
+  margin-left: 0.2rem;
+  vertical-align: -3px;
+}
+
+.install-other {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.install-other summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.install-other[open] summary {
+  margin-bottom: 0.9rem;
+}
+
+.install-copy {
+  width: 100%;
 }

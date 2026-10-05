@@ -136,7 +136,7 @@ import {
   sendTestNotification,
   syncEngagementState,
 } from "./lib/reminders";
-import { useInstallPrompt, useUpdateReady } from "./lib/pwa";
+import { installPlatform, storeLinks, useAppInstall, useUpdateReady, type InstallPlatform } from "./lib/pwa";
 import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
   listVoices,
@@ -4266,6 +4266,184 @@ function NewPasswordModal({ session, onDone }: { session: SupabaseSession; onDon
   );
 }
 
+/** Passo a passo para instalar o site como app, por aparelho. */
+const INSTALL_STEPS: Record<InstallPlatform, { label: string; steps: React.ReactNode[] }> = {
+  ios: {
+    label: "iPhone e iPad",
+    steps: [
+      <>
+        No Safari, toque em <strong>Compartilhar</strong> {Icon.share}
+      </>,
+      <>
+        Escolha <strong>Adicionar à Tela de Início</strong>
+      </>,
+      <>
+        Toque em <strong>Adicionar</strong>
+      </>,
+    ],
+  },
+  android: {
+    label: "Android",
+    steps: [
+      <>
+        Toque no menu <strong>⋮</strong> do navegador
+      </>,
+      <>
+        Escolha <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>
+      </>,
+      <>
+        Confirme em <strong>Instalar</strong>
+      </>,
+    ],
+  },
+  desktop: {
+    label: "Computador (Chrome ou Edge)",
+    steps: [
+      <>
+        Clique no ícone de instalar, no fim da barra de endereço
+      </>,
+      <>
+        Ou abra o menu <strong>⋮</strong> / <strong>···</strong> e procure <strong>Instalar Storyverse</strong>
+      </>,
+    ],
+  },
+  "mac-safari": {
+    label: "Mac (Safari)",
+    steps: [
+      <>
+        No menu <strong>Arquivo</strong>, escolha <strong>Adicionar ao Dock</strong>
+      </>,
+    ],
+  },
+  "firefox-desktop": {
+    label: "Firefox no computador",
+    steps: [
+      <>O Firefox no computador não instala sites como app.</>,
+      <>
+        Abra o Storyverse no <strong>Chrome</strong> ou no <strong>Edge</strong>, ou instale no celular
+      </>,
+    ],
+  },
+};
+
+/** "Baixar app": lojas (se houver), o botão nativo do navegador ou o passo a passo do aparelho. */
+function InstallAppDialog({ install, onClose }: { install: (() => Promise<void>) | null; onClose: () => void }) {
+  const platform = useMemo(() => installPlatform(), []);
+  const stores = useMemo(() => storeLinks(), []);
+  const [copied, setCopied] = useState(false);
+  const here = INSTALL_STEPS[platform];
+  const others = (Object.keys(INSTALL_STEPS) as InstallPlatform[]).filter(
+    (p) => p !== platform && p !== "firefox-desktop" && !(platform === "firefox-desktop" && p === "desktop"),
+  );
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="spin-dialog install-dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
+        <button type="button" className="auth-close spin-close" onClick={onClose} aria-label="Fechar">
+          {Icon.close}
+        </button>
+        <img className="install-icon" src="/icons/icon-192.png" alt="" width={64} height={64} />
+        <h2 id="install-title">Baixe o Storyverse</h2>
+        <p className="spin-sub">Grátis. Abre em tela cheia e funciona sem internet.</p>
+
+        {stores.android || stores.ios ? (
+          <div className="install-stores">
+            {stores.android && platform !== "ios" ? (
+              <a className="btn btn-primary" href={stores.android} target="_blank" rel="noopener noreferrer">
+                Google Play
+              </a>
+            ) : null}
+            {stores.ios && platform !== "android" ? (
+              <a className="btn btn-primary" href={stores.ios} target="_blank" rel="noopener noreferrer">
+                App Store
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+
+        {install ? (
+          <button
+            type="button"
+            className="btn btn-primary install-now"
+            onClick={() => {
+              void install().finally(onClose);
+            }}
+          >
+            {Icon.download} Instalar agora
+          </button>
+        ) : (
+          <div className="install-steps">
+            <span className="shop-section-title">{here.label}</span>
+            <ol>
+              {here.steps.map((step, i) => (
+                <li key={i}>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        <details className="install-other">
+          <summary>Instalar em outro aparelho</summary>
+          {others.map((p) => (
+            <div key={p} className="install-steps">
+              <span className="shop-section-title">{INSTALL_STEPS[p].label}</span>
+              <ol>
+                {INSTALL_STEPS[p].steps.map((step, i) => (
+                  <li key={i}>
+                  <span>{step}</span>
+                </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+          <button type="button" className="btn install-copy" onClick={() => void copyLink()}>
+            {copied ? "Link copiado ✓" : "Copiar link do site"}
+          </button>
+        </details>
+      </section>
+    </div>
+  );
+}
+
+const INSTALL_BANNER_KEY = "storyverse:install-banner-hidden";
+/** Fechado no celular, o convite volta depois de 14 dias (o botão do topo continua lá). */
+const INSTALL_BANNER_PAUSE = 14 * 24 * 60 * 60 * 1000;
+
+function installBannerHidden(): boolean {
+  try {
+    return Date.now() - Number(localStorage.getItem(INSTALL_BANNER_KEY) ?? 0) < INSTALL_BANNER_PAUSE;
+  } catch {
+    return false;
+  }
+}
+
+function hideInstallBanner() {
+  try {
+    localStorage.setItem(INSTALL_BANNER_KEY, String(Date.now()));
+  } catch {
+    // Sem armazenamento: some só nesta visita.
+  }
+}
+
 function AboutDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -4743,7 +4921,10 @@ export function App() {
     return () => window.clearTimeout(t);
   }, [continueUndo]);
   const [importRequest, setImportRequest] = useState<BookHint | Record<string, never> | null>(null);
-  const { install } = useInstallPrompt();
+  const { install, installed } = useAppInstall();
+  /** Janela "Baixar app" (passo a passo quando o navegador não tem o botão de instalar). */
+  const [installOpen, setInstallOpen] = useState(false);
+  const [installBannerOff, setInstallBannerOff] = useState(installBannerHidden);
   const updateReady = useUpdateReady();
   const updateBanner = updateReady ? (
     <div className="update-banner" role="status">
@@ -5635,6 +5816,7 @@ export function App() {
   useBackClose(spinOpen, () => setSpinOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
   useBackClose(aboutOpen, () => setAboutOpen(false));
+  useBackClose(installOpen, () => setInstallOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
   useBackClose(chatOpen, () => setChatOpen(false));
   useBackClose(highlightsOpen, () => setHighlightsOpen(false));
@@ -5760,9 +5942,15 @@ export function App() {
               <span className="status-dot" aria-hidden="true" />
               {providerLabel}
             </span>
-            {install ? (
-              <button type="button" className="btn nav-install" onClick={() => void install()}>
-                Instalar app
+            {!installed ? (
+              <button
+                type="button"
+                className={`btn nav-install ${installBannerOff ? "" : "has-banner"}`}
+                onClick={() => setInstallOpen(true)}
+                aria-label="Baixar app"
+              >
+                {Icon.download}
+                <span className="nav-install-label">Baixar app</span>
               </button>
             ) : null}
             {canRead ? (
@@ -5806,12 +5994,25 @@ export function App() {
           />
         ) : null}
 
-        {install ? (
+        {installOpen ? <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} /> : null}
+
+        {!installed && !installBannerOff ? (
           // No celular o convite fica aqui, fora do topo (lá não cabe junto com "Importar livro").
           <div className="install-banner">
-            <span>Instale o Storyverse no celular: abre em tela cheia e funciona sem internet.</span>
-            <button type="button" className="btn btn-primary" onClick={() => void install()}>
-              Instalar
+            <span>Baixe o app do Storyverse: abre em tela cheia e funciona sem internet.</span>
+            <button type="button" className="btn btn-primary" onClick={() => setInstallOpen(true)}>
+              Baixar
+            </button>
+            <button
+              type="button"
+              className="icon-btn install-banner-close"
+              onClick={() => {
+                hideInstallBanner();
+                setInstallBannerOff(true);
+              }}
+              aria-label="Fechar convite"
+            >
+              {Icon.close}
             </button>
           </div>
         ) : null}
