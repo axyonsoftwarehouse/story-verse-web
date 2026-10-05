@@ -132,3 +132,33 @@ export function setAutoFreezeEnabled(on: boolean) {
     // Sem armazenamento.
   }
 }
+
+/** Prêmios possíveis da roleta (o sorteio é no banco; isto é só o desenho das fatias). */
+export const SPIN_SEGMENTS = [1, 5, 2, 10, 1, 3, 2, 20] as const;
+
+export type SpinResult = { prize: number; is_new: boolean; balance: number };
+
+/** Já girou hoje? (e quanto ganhou). */
+export async function fetchSpinStatus(session: SupabaseSession): Promise<{ spun_today: boolean; prize: number | null }> {
+  const rows = (await call<{ spun_today: boolean; prize: number | null }[]>(session, "daily_spin_status")) ?? [];
+  return rows[0] ?? { spun_today: false, prize: null };
+}
+
+export async function spinDailyWheel(session: SupabaseSession): Promise<SpinResult> {
+  const rows = (await call<SpinResult[]>(session, "spin_daily_wheel")) ?? [];
+  if (!rows[0]) throw new Error("Não foi possível girar a roleta.");
+  return rows[0];
+}
+
+const SPIN_OFFER_KEY = "storyverse:spin-offered";
+
+/** A roleta abre sozinha uma vez por dia neste aparelho; depois fica na loja. */
+export function takeSpinOffer(today: string): boolean {
+  try {
+    if (localStorage.getItem(SPIN_OFFER_KEY) === today) return false;
+    localStorage.setItem(SPIN_OFFER_KEY, today);
+    return true;
+  } catch {
+    return false;
+  }
+}

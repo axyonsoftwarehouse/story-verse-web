@@ -25,12 +25,16 @@ create table if not exists public.diamond_ledger (
   user_id uuid not null references auth.users (id) on delete cascade,
   amount integer not null check (amount <> 0),
   balance_after integer not null check (balance_after >= 0),
-  reason text not null check (reason in ('ranking', 'reading_goal', 'streak_freeze', 'purchase', 'adjustment')),
+  reason text not null,
   ref text not null,
   created_at timestamptz not null default now(),
   unique (user_id, reason, ref)
 );
 create index if not exists diamond_ledger_user_recent on public.diamond_ledger (user_id, created_at desc);
+-- Motivos aceitos (recriado a cada execução, para incluir motivos novos em bancos já criados).
+alter table public.diamond_ledger drop constraint if exists diamond_ledger_reason_check;
+alter table public.diamond_ledger add constraint diamond_ledger_reason_check
+  check (reason in ('ranking', 'reading_goal', 'streak_freeze', 'daily_spin', 'purchase', 'adjustment'));
 
 -- Dias salvos com diamantes (a sequência continua, mas o dia não conta como lido).
 create table if not exists public.streak_freezes (
@@ -229,6 +233,63 @@ begin
 end;
 $$;
 
+-- Roleta diária: um giro por dia (horário de Brasília). O prêmio é sorteado aqui, nunca no app.
+-- Chances: 1 💎 35% · 2 💎 30% · 3 💎 18% · 5 💎 12% · 10 💎 4% · 20 💎 1% (média ≈ 2,7 por dia).
+create or replace function public.daily_spin_status()
+returns table (spun_today boolean, prize integer)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select l.amount is not null, l.amount
+  from (select auth.uid() as uid) me
+  left join public.diamond_ledger l
+    on l.user_id = me.uid and l.reason = 'daily_spin'
+   and l.ref = ((now() at time zone 'America/Sao_Paulo')::date)::text
+  where me.uid is not null;
+$$;
+
+-- Gira a roleta. Se já girou hoje (outro aparelho, dois toques), devolve o prêmio de hoje sem
+-- pagar de novo (is_new = false).
+create or replace function public.spin_daily_wheel()
+returns table (prize integer, is_new boolean, balance integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  uid uuid := auth.uid();
+  today text := ((now() at time zone 'America/Sao_Paulo')::date)::text;
+  r double precision := random();
+  won integer;
+  bal integer;
+begin
+  if uid is null then
+    raise exception 'Entre na sua conta para girar a roleta.';
+  end if;
+  won := case
+    when r < 0.35 then 1
+    when r < 0.65 then 2
+    when r < 0.83 then 3
+    when r < 0.95 then 5
+    when r < 0.99 then 10
+    else 20
+  end;
+  bal := public.apply_diamonds(uid, won, 'daily_spin', today);
+  if bal is not null then
+    return query select won, true, bal;
+    return;
+  end if;
+  return query
+    select l.amount, false, w.balance
+    from public.diamond_ledger l
+    join public.diamond_wallets w on w.user_id = l.user_id
+    where l.user_id = uid and l.reason = 'daily_spin' and l.ref = today;
+end;
+$$;
+
 -- Funções internas não ficam expostas na API; as demais só para quem entrou.
 revoke execute on function public.apply_diamonds(uuid, integer, text, text) from public, anon, authenticated;
 revoke execute on function public.my_wallet() from public, anon;
@@ -242,6 +303,10 @@ grant execute on function public.my_diamond_history(integer) to authenticated;
 grant execute on function public.my_streak_freezes() to authenticated;
 grant execute on function public.use_streak_freeze(date[]) to authenticated;
 grant execute on function public.claim_reading_rewards() to authenticated;
+revoke execute on function public.daily_spin_status() from public, anon;
+revoke execute on function public.spin_daily_wheel() from public, anon;
+grant execute on function public.daily_spin_status() to authenticated;
+grant execute on function public.spin_daily_wheel() to authenticated;
 
 -- Confere: deve aparecer o preço do salva-ofensiva (10) e o limite por semana (2).
 select freeze_price, freezes_per_week, goal_minutes, goal_reward from public.diamond_rules();

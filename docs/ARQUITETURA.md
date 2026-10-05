@@ -95,7 +95,8 @@ flowchart TD
   HOME --> IMPORT[Importar livro]
   HOME --> PROFILE[Perfil]
   HOME --> RANK[Ranking semanal<br/>pódio · lista · sua posição]
-  PROFILE --> SHOP[Loja de diamantes<br/>saldo · Salva-ofensiva · extrato]
+  PROFILE --> SHOP[Loja de diamantes<br/>saldo · roleta · Salva-ofensiva · extrato]
+  HOME --> SPIN[Roleta diária<br/>abre na 1ª visita do dia]
   RANK --> SHOP
   HOME --> READER[Leitor]
   SEARCH --> READER
@@ -534,7 +535,7 @@ erDiagram
     uuid user_id FK
     int amount "+ ganha · - gasta"
     int balance_after
-    text reason "ranking | reading_goal | streak_freeze | purchase | adjustment"
+    text reason "ranking | reading_goal | streak_freeze | daily_spin | purchase | adjustment"
     text ref "único por conta + motivo"
   }
   STREAK_FREEZES {
@@ -575,7 +576,8 @@ motivo + referência únicos — pedido repetido ou simultâneo não ganha nem g
 `my_wallet()` (saldo, uso da semana e regras), `my_diamond_history(limite)`,
 `claim_reading_rewards()` (2 💎 por dia com 10 min lidos, pelos minutos de `reading_days`),
 `use_streak_freeze(dias)` (Salva-ofensiva: 10 💎 por dia, até 3 dias para trás, 2 por semana,
-tudo ou nada, recusa dia com leitura registrada) e `my_streak_freezes()`. Regras em
+tudo ou nada, recusa dia com leitura registrada), `my_streak_freezes()`, `daily_spin_status()` e
+`spin_daily_wheel()` (roleta: um giro por dia, prêmio de 1 a 20 💎 sorteado no banco). Regras em
 `diamond_rules()`. Compras (`purchase`) ainda não existem: a validação do recibo das lojas fica
 numa Edge Function com a chave de serviço.
 
@@ -621,6 +623,7 @@ e atualiza com atraso, então alguns MB aparecem como "0 GB".
 | `reading-progress` | onde parou em cada livro | sim | sim |
 | `reading-stats`, `streak-meta`, `reading-goal` | minutos, sequência (dias salvos por escudo ou diamantes), meta | sim | sim |
 | `auto-freeze` | usar diamantes sozinho quando a sequência quebrar | sim | sim |
+| `spin-offered` | dia em que a roleta já abriu sozinha | sim | sim |
 | `finished-books` | livros terminados | sim | sim |
 | `highlights:<livro>` | marcações | sim | sim |
 | `chat:<livro>`, `chat-index`, `last-character` | conversas | sim | sim |
@@ -693,7 +696,7 @@ esses sites não liberam CORS, ou são bloqueados pelo navegador (ORB).
 | `lib/translate.ts`, `dictionary.ts`, `speech.ts` | tradução, dicionário, voz |
 | `lib/presence.ts` | contagem de pessoas online |
 | `lib/ranking.ts` | ranking semanal: envio dos minutos e pódio |
-| `lib/diamonds.ts` | saldo, extrato, recompensa por leitura e Salva-ofensiva |
+| `lib/diamonds.ts` | saldo, extrato, recompensa por leitura, roleta diária e Salva-ofensiva |
 | `lib/rpc.ts` | chamada às funções do banco (Supabase RPC) |
 | `lib/pwa.ts`, `public/sw.js`, `manifest.webmanifest` | instalação e offline |
 | `lib/reminders.ts` | lembretes (agenda e notificação) |

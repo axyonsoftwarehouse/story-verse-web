@@ -90,6 +90,7 @@ import {
   type ReadingEvents,
   type ReadingSummary,
   type ReadingTotals,
+  dayKey,
   streakRescue,
   weekStartDate,
 } from "./lib/readingStats";
@@ -99,11 +100,16 @@ import {
   claimReadingRewards,
   diamondEntryLabel,
   fetchDiamondHistory,
+  fetchSpinStatus,
   fetchWallet,
   rescueStreak,
   setAutoFreezeEnabled,
+  spinDailyWheel,
+  SPIN_SEGMENTS,
+  takeSpinOffer,
   type DiamondEntry,
   type FreezeOutcome,
+  type SpinResult,
   type Wallet,
 } from "./lib/diamonds";
 import {
@@ -2252,6 +2258,140 @@ function RightsAlert({ title, author, onProtected }: { title: string; author?: s
   );
 }
 
+/** Desenho da roleta: 8 fatias com os prêmios, a de cima é a sorteada. */
+function SpinWheel({ angle, spinning, onStop }: { angle: number; spinning: boolean; onStop: () => void }) {
+  const n = SPIN_SEGMENTS.length;
+  const seg = 360 / n;
+  const point = (deg: number, r: number) => {
+    const rad = (deg * Math.PI) / 180;
+    return `${100 + r * Math.sin(rad)} ${100 - r * Math.cos(rad)}`;
+  };
+  return (
+    <div className="spin-wheel-wrap">
+      <span className="spin-pointer" aria-hidden="true" />
+      <svg
+        className={`spin-wheel ${spinning ? "is-spinning" : ""}`}
+        viewBox="0 0 200 200"
+        style={{ transform: `rotate(${angle}deg)` }}
+        onTransitionEnd={onStop}
+        aria-hidden="true"
+      >
+        {SPIN_SEGMENTS.map((value, i) => {
+          const a = i * seg;
+          const mid = a + seg / 2;
+          return (
+            <g key={i}>
+              <path d={`M100 100 L${point(a, 96)} A96 96 0 0 1 ${point(a + seg, 96)} Z`} className={`spin-slice is-${i % 2 ? "b" : "a"} ${value >= 10 ? "is-big" : ""}`} />
+              <text
+                x="100"
+                y="34"
+                className="spin-label"
+                transform={`rotate(${mid} 100 100)`}
+                textAnchor="middle"
+                dominantBaseline="middle"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
+        <circle cx="100" cy="100" r="16" className="spin-hub" />
+        <circle cx="100" cy="100" r="5" className="spin-hub-dot" />
+      </svg>
+    </div>
+  );
+}
+
+/** Roleta diária: um giro por dia, o prêmio vem do banco e a roleta para nele. */
+function DailySpinModal({
+  session,
+  onClose,
+  onWon,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onWon: (result: SpinResult) => void;
+}) {
+  const [phase, setPhase] = useState<"ready" | "spinning" | "done">("ready");
+  const [result, setResult] = useState<SpinResult | null>(null);
+  const [angle, setAngle] = useState(0);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && phase !== "spinning") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, phase]);
+
+  function finish(r: SpinResult) {
+    setPhase("done");
+    onWon(r);
+  }
+
+  async function spin() {
+    setPhase("spinning");
+    setError("");
+    try {
+      const r = await spinDailyWheel(session);
+      setResult(r);
+      const seg = 360 / SPIN_SEGMENTS.length;
+      const matches = SPIN_SEGMENTS.flatMap((v, i) => (v === r.prize ? [i] : []));
+      const idx = matches[Math.floor(Math.random() * matches.length)] ?? 0;
+      const stop = 360 - (idx * seg + seg / 2);
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (!r.is_new || reduced) {
+        // Já tinha girado (outro aparelho) ou sem animação: mostra direto o resultado.
+        setAngle(stop);
+        finish(r);
+      } else {
+        setAngle(360 * 6 + stop);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível girar a roleta.");
+      setPhase("ready");
+    }
+  }
+
+  return (
+    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
+      <section className="spin-dialog" role="dialog" aria-modal="true" aria-labelledby="spin-title">
+        <button type="button" className="auth-close spin-close" onClick={onClose} disabled={phase === "spinning"} aria-label="Fechar roleta">
+          {Icon.close}
+        </button>
+        <h2 id="spin-title">Roleta diária</h2>
+        <p className="spin-sub">
+          {phase === "done" && result
+            ? result.is_new
+              ? "Volte amanhã para girar de novo."
+              : "Você já girou hoje. Volte amanhã!"
+            : "Um giro por dia, de 1 a 20 💎."}
+        </p>
+
+        <SpinWheel angle={angle} spinning={phase === "spinning"} onStop={() => result && phase === "spinning" && finish(result)} />
+
+        <div className="spin-foot" aria-live="polite">
+          {phase === "done" && result ? (
+            <>
+              <strong className="spin-prize">+{result.prize} 💎</strong>
+              <span className="spin-balance">Saldo: {result.balance}</span>
+              <button type="button" className="btn btn-primary" onClick={onClose}>
+                Boa!
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-primary spin-go" disabled={phase === "spinning"} onClick={() => void spin()}>
+              {phase === "spinning" ? "Girando…" : "Girar"}
+            </button>
+          )}
+          {error ? <p className="auth-error" role="alert">{error}</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /** Loja: saldo de diamantes, o Salva-ofensiva, como ganhar e o extrato. */
 function DiamondShopPage({
   session,
@@ -2270,12 +2410,15 @@ function DiamondShopPage({
   const [auto, setAuto] = useState(autoFreezeEnabled);
   const [rescue, setRescue] = useState(streakRescue);
   const [showAll, setShowAll] = useState(false);
+  const [spin, setSpin] = useState<{ spun_today: boolean; prize: number | null } | null>(null);
+  const [spinOpen, setSpinOpen] = useState(false);
 
   const load = useCallback(() => {
-    return Promise.all([fetchWallet(session), fetchDiamondHistory(session)])
-      .then(([w, h]) => {
+    return Promise.all([fetchWallet(session), fetchDiamondHistory(session), fetchSpinStatus(session).catch(() => null)])
+      .then(([w, h, sp]) => {
         setWallet(w);
         setHistory(h);
+        setSpin(sp);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar seus diamantes."));
   }, [session]);
@@ -2309,6 +2452,16 @@ function DiamondShopPage({
 
   return (
     <div className="home profile shop">
+      {spinOpen ? (
+        <DailySpinModal
+          session={session}
+          onClose={() => setSpinOpen(false)}
+          onWon={(r) => {
+            setSpin({ spun_today: true, prize: r.prize });
+            void load();
+          }}
+        />
+      ) : null}
       <nav className="home-nav profile-nav">
         <button type="button" className="btn" onClick={onClose}>
           {Icon.back} Voltar
@@ -2333,6 +2486,21 @@ function DiamondShopPage({
         </div>
       ) : wallet ? (
         <>
+          <section className="shop-card" aria-label="Roleta diária">
+            <div className="shop-card-row">
+              <span className="shop-card-icon" aria-hidden="true">
+                🎡
+              </span>
+              <span className="shop-card-title">
+                <strong>Roleta diária</strong>
+                <span>{spin?.spun_today ? `Hoje: +${spin.prize} 💎 · volte amanhã` : "Um giro grátis por dia"}</span>
+              </span>
+              <button type="button" className="btn btn-primary" disabled={!spin || spin.spun_today} onClick={() => setSpinOpen(true)}>
+                {spin?.spun_today ? "Amanhã" : "Girar"}
+              </button>
+            </div>
+          </section>
+
           <section
             className="shop-card"
             aria-label="Salva-ofensiva"
@@ -2376,7 +2544,15 @@ function DiamondShopPage({
             </label>
           </section>
 
-          <ul className="shop-earn" aria-label="Como ganhar diamantes">
+          <h2 className="shop-section-title" id="shop-earn">
+            Como ganhar
+          </h2>
+          <ul className="shop-earn" aria-labelledby="shop-earn">
+            <li>
+              <span aria-hidden="true">🎡</span>
+              <span>Roleta diária</span>
+              <strong>até +20</strong>
+            </li>
             <li>
               <span aria-hidden="true">📖</span>
               <span>{wallet.goal_minutes} min lidos no dia</span>
@@ -2390,7 +2566,9 @@ function DiamondShopPage({
           </ul>
 
           <section className="shop-history" aria-labelledby="shop-history">
-            <h2 id="shop-history">Extrato</h2>
+            <h2 className="shop-section-title" id="shop-history">
+              Extrato
+            </h2>
             {shown && shown.length > 0 ? (
               <>
                 <ol>
@@ -2408,7 +2586,7 @@ function DiamondShopPage({
                 ) : null}
               </>
             ) : (
-              <p className="profile-empty">Nada por aqui ainda.</p>
+              <p className="profile-empty">Nada por aqui ainda. Gire a roleta para ganhar os primeiros!</p>
             )}
           </section>
         </>
@@ -4187,6 +4365,8 @@ export function App() {
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
   const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
   const [freezeBusy, setFreezeBusy] = useState(false);
+  /** Roleta diária aberta (sozinha na primeira visita do dia, se ainda não girou). */
+  const [spinOpen, setSpinOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
@@ -4364,9 +4544,13 @@ export function App() {
         if (!alive) return;
         if (changed) applyRemoteData();
         const outcome = await checkStreakFreeze(session).catch(() => null);
-        if (!alive || !outcome) return;
-        setFreezeOutcome(outcome);
-        if (outcome.kind === "saved") setDataEpoch((n) => n + 1);
+        if (!alive) return;
+        if (outcome) {
+          setFreezeOutcome(outcome);
+          if (outcome.kind === "saved") setDataEpoch((n) => n + 1);
+        }
+        const spin = await fetchSpinStatus(session).catch(() => null);
+        if (alive && spin && !spin.spun_today && takeSpinOffer(dayKey())) setSpinOpen(true);
       })
       .catch(() => {
         // Sem a tabela ou sem internet: segue só com os dados do aparelho.
@@ -5448,6 +5632,7 @@ export function App() {
   useBackClose(moderationOpen, () => setModerationOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
   useBackClose(shopOpen, () => setShopOpen(false));
+  useBackClose(spinOpen, () => setSpinOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
   useBackClose(aboutOpen, () => setAboutOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
@@ -5613,6 +5798,13 @@ export function App() {
         ) : null}
 
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
+        {spinOpen && authSession ? (
+          <DailySpinModal
+            session={authSession}
+            onClose={() => setSpinOpen(false)}
+            onWon={(r) => r.is_new && setToast(`+${r.prize} 💎 na roleta`)}
+          />
+        ) : null}
 
         {install ? (
           // No celular o convite fica aqui, fora do topo (lá não cabe junto com "Importar livro").
