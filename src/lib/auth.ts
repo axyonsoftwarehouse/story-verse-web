@@ -1,3 +1,5 @@
+import { captureError, captureEvent } from "./telemetry";
+
 /**
  * O login só existe com o Supabase configurado. Sem as variáveis (ex.: deploy que ainda não as
  * tem), o app funciona como antes, sem contas — o merge não quebra a produção.
@@ -104,7 +106,8 @@ async function authRequest(
       // Rede muito lenta não pode prender o app na tela de abertura.
       signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
     });
-  } catch {
+  } catch (error) {
+    captureError("auth-network", error, { path });
     throw new AuthNetworkError("Não foi possível conectar ao serviço de autenticação. Verifique sua conexão.");
   }
   const payload = (await response.json().catch(() => ({}))) as AuthResponse;
@@ -115,10 +118,12 @@ async function authRequest(
   }
   // Limite de requisições (429): espera e tenta depois, sem deslogar ninguém.
   if (response.status === 429) {
+    captureEvent("warn", "auth-http", "limite de requisições do auth (429)", { path });
     throw new AuthNetworkError(describeAuthError(serverMessage || "too many requests"));
   }
   // Supabase fora do ar também não é motivo para deslogar.
   if (response.status >= 500) {
+    captureError("auth-http", new Error(serverMessage || "auth indisponível"), { status: response.status, path });
     throw new AuthNetworkError("O serviço de autenticação está instável. Tente de novo em instantes.");
   }
 

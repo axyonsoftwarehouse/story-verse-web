@@ -1,5 +1,6 @@
 import type { StoryCharacter } from "../data/types";
 import { NATURAL_SPEECH_RULES, naturalizeReply } from "./naturalSpeech";
+import { captureError, captureEvent } from "./telemetry";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -256,6 +257,11 @@ async function callLlmWithFallback(
       return text;
     } catch (e) {
       // Qualquer falha (cota, modelo removido, chave inválida, rede) passa para o próximo.
+      if (e instanceof LlmHttpError) {
+        captureEvent("warn", "ai-provider", `${p.id} falhou`, { status: e.status });
+      } else {
+        captureError("ai-provider", e, { provider: p.id });
+      }
       if (e instanceof LlmHttpError && e.status === 429) {
         sawRateLimit = true;
         cooldownUntil.set(p.id, Date.now() + (e.retryAfterMs ?? DEFAULT_COOLDOWN_MS));
@@ -263,11 +269,13 @@ async function callLlmWithFallback(
     }
   }
 
-  throw new Error(
+  const error = new Error(
     sawRateLimit
       ? "O serviço de inteligência artificial está no limite de uso no momento. Aguarde um pouco e tente de novo."
       : "Não foi possível gerar a resposta agora. Tente de novo em instantes.",
   );
+  captureError("ai", error, { providers: order.map((p) => p.id), rateLimited: sawRateLimit });
+  throw error;
 }
 
 function trimHistory(history: ChatTurn[]): ChatTurn[] {
