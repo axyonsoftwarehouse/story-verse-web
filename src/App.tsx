@@ -11,7 +11,7 @@ import {
 } from "./lib/ai";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
-import { activateDataOwner } from "./lib/dataOwner";
+import { activateDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
@@ -3739,10 +3739,15 @@ export function App() {
   const readingHere = usePresenceCount(authEnabled && bookRoomId ? `book:${bookRoomId}` : null, authUserId);
   useLayoutEffect(() => {
     if (!authEnabled || authLoading) return;
-    if (activateDataOwner(authUserId ?? "anon")) {
+    let alive = true;
+    void activateDataOwner(authUserId ?? "anon").then((changed) => {
+      if (!alive || !changed) return;
       setPrefs(loadPrefs());
       setDataEpoch((n) => n + 1);
-    }
+    });
+    return () => {
+      alive = false;
+    };
   }, [authUserId, authLoading]);
 
   /**
@@ -3775,8 +3780,14 @@ export function App() {
     const session = authSessionRef.current;
     if (!session) return;
     let alive = true;
-    void syncAccount(session, { keepalive: false, resume: true })
-      .then((changed) => alive && changed && applyRemoteData())
+    void dataOwnerReady()
+      .then(() => {
+        if (!alive) return false;
+        return syncAccount(session, { keepalive: false, resume: true });
+      })
+      .then((changed) => {
+        if (alive && changed) applyRemoteData();
+      })
       .catch(() => {
         // Sem a tabela ou sem internet: segue só com os dados do aparelho.
       });
