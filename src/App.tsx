@@ -90,7 +90,18 @@ import {
   type ReadingEvents,
   type ReadingSummary,
   type ReadingTotals,
+  weekStartDate,
 } from "./lib/readingStats";
+import {
+  fetchRanking,
+  fetchRankingProfile,
+  PLACE_MEDALS,
+  reportReading,
+  setRankingHidden,
+  takeWeeklyAwards,
+  type RankEntry,
+  type RankingProfile,
+} from "./lib/ranking";
 import {
   disableDailyNotifications,
   downloadIcs,
@@ -1454,24 +1465,48 @@ function metaString(user: SupabaseUser, key: string): string | null {
 
 /** Foto enviada, senão o avatar pronto, senão a inicial do nome sobre a cor da conta. */
 function UserAvatar({ user, className }: { user: SupabaseUser; className: string }) {
-  const photo = metaString(user, "photo");
-  const avatar = findAvatar(user.user_metadata?.avatar);
+  return (
+    <PersonAvatar
+      id={user.id}
+      name={displayNameOf(user)}
+      avatar={user.user_metadata?.avatar}
+      photo={metaString(user, "photo")}
+      className={className}
+    />
+  );
+}
+
+/** O mesmo avatar para quem não é a conta atual (ex.: leitores do ranking). */
+function PersonAvatar({
+  id,
+  name,
+  avatar: avatarId,
+  photo,
+  className,
+}: {
+  id: string;
+  name: string;
+  avatar: unknown;
+  photo: string | null;
+  className: string;
+}) {
+  const avatar = findAvatar(avatarId);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [photo]);
   if (photo && !broken) {
     return (
       <span className={`${className} has-photo`} aria-hidden="true">
-        <img src={photo} alt="" onError={() => setBroken(true)} />
+        <img src={photo} alt="" loading="lazy" onError={() => setBroken(true)} />
       </span>
     );
   }
   return (
     <span
       className={`${className} ${avatar ? "has-art" : ""}`}
-      style={{ "--c": avatar?.color ?? profileColor(user.id) } as React.CSSProperties}
+      style={{ "--c": avatar?.color ?? profileColor(id) } as React.CSSProperties}
       aria-hidden="true"
     >
-      {avatar ? <AvatarArt avatar={avatar} /> : displayNameOf(user).charAt(0).toUpperCase()}
+      {avatar ? <AvatarArt avatar={avatar} /> : name.charAt(0).toUpperCase()}
     </span>
   );
 }
@@ -2195,6 +2230,257 @@ function RightsAlert({ title, author, onProtected }: { title: string; author?: s
       “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}: pode ser domínio público (confira a data de
       morte do autor: mais de 70 anos).
     </p>
+  );
+}
+
+function ordinal(place: number): string {
+  return `${place}º`;
+}
+
+/** Quanto falta para a semana do ranking acabar (domingo à meia-noite). */
+function weekCountdown(now = new Date()): string {
+  const end = weekStartDate(now);
+  end.setDate(end.getDate() + 7);
+  const days = Math.ceil((end.getTime() - now.getTime()) / 86_400_000);
+  return days <= 1 ? "termina hoje à meia-noite" : `termina em ${days} dias`;
+}
+
+function weekRangeLabel(offset: 0 | -1): string {
+  const start = weekStartDate();
+  start.setDate(start.getDate() + 7 * offset);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+/** Ranking semanal: pódio dos 3 que mais leram, a lista dos demais e a sua posição. */
+function RankingPage({ session, onClose }: { session: SupabaseSession; onClose: () => void }) {
+  const [tab, setTab] = useState<0 | -1>(0);
+  const [lists, setLists] = useState<Partial<Record<0 | -1, RankEntry[]>>>({});
+  const [profile, setProfile] = useState<RankingProfile | null>(null);
+  const [error, setError] = useState("");
+  const [savingHidden, setSavingHidden] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (lists[tab]) return;
+    let alive = true;
+    setError("");
+    // Envia os minutos de agora antes de buscar: a sua posição já sai atualizada.
+    const ready = tab === 0 ? reportReading(session).catch(() => {}) : Promise.resolve();
+    void ready
+      .then(() => Promise.all([fetchRanking(session, tab), fetchRankingProfile(session)]))
+      .then(([list, p]) => {
+        if (!alive) return;
+        setLists((l) => ({ ...l, [tab]: list }));
+        setProfile(p);
+      })
+      .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : "Não foi possível carregar o ranking."));
+    return () => {
+      alive = false;
+    };
+    // Recarrega ao trocar de aba ou depois de mudar a visibilidade (que limpa as listas).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, session, lists]);
+
+  async function toggleHidden(hidden: boolean) {
+    setSavingHidden(true);
+    setError("");
+    try {
+      await setRankingHidden(session, hidden);
+      setProfile((p) => ({ diamonds: p?.diamonds ?? 0, hidden }));
+      setLists({});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+    } finally {
+      setSavingHidden(false);
+    }
+  }
+
+  const list = lists[tab] ?? null;
+  const podium = list?.filter((e) => e.place <= 3) ?? [];
+  const me = list?.find((e) => e.is_me) ?? null;
+  const above = me && me.place > 1 ? list?.find((e) => e.place === me.place - 1) : undefined;
+  // O banco manda até 50 do topo; se você está mais abaixo, sua linha vem separada no fim.
+  const rest = list?.filter((e) => e.place > 3 && e.place <= 50) ?? [];
+  const meOutside = me && me.place > 50 ? me : null;
+  const current = tab === 0;
+
+  return (
+    <div className="home profile moderation ranking">
+      <nav className="home-nav profile-nav">
+        <button type="button" className="btn" onClick={onClose}>
+          {Icon.back} Voltar
+        </button>
+        {profile ? (
+          <span className="ranking-diamonds" title="Diamantes ganhos no pódio do ranking semanal">
+            <span aria-hidden="true">💎</span> <strong>{profile.diamonds}</strong>
+            <span className="sr-only"> diamantes</span>
+          </span>
+        ) : null}
+      </nav>
+      <header className="moderation-head">
+        <span className="eyebrow">Ranking semanal · {weekRangeLabel(tab)}</span>
+        <h1>{current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
+        <p>
+          Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham 50,
+          30 e 20 💎.
+        </p>
+      </header>
+
+      <div className="segmented moderation-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 0} className={tab === 0 ? "is-on" : ""} onClick={() => setTab(0)}>
+          Esta semana
+        </button>
+        <button type="button" role="tab" aria-selected={tab === -1} className={tab === -1 ? "is-on" : ""} onClick={() => setTab(-1)}>
+          Semana passada
+        </button>
+      </div>
+
+      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
+
+      {list === null && !error ? (
+        <div className="page-status">
+          <span className="spinner" aria-hidden="true" />
+          Carregando ranking…
+        </div>
+      ) : list ? (
+        <>
+          <div className={`ranking-me ${me ? "has-place" : ""}`} role="status">
+            {profile?.hidden ? (
+              <span>Você está escondido do ranking. Ative “Aparecer no ranking” abaixo para concorrer ao pódio.</span>
+            ) : me ? (
+              <>
+                <span className="ranking-me-place" aria-hidden="true">
+                  {me.place <= 3 ? PLACE_MEDALS[me.place as 1 | 2 | 3] : ordinal(me.place)}
+                </span>
+                <span>
+                  <strong>
+                    Você {current ? "está" : "ficou"} em {ordinal(me.place)} lugar · {formatMinutes(me.minutes)}
+                  </strong>
+                  {current && above ? (
+                    <small>
+                      Faltam {formatMinutes(above.minutes - me.minutes + 1)} de leitura para passar{" "}
+                      {above.name.split(" ")[0]}.
+                    </small>
+                  ) : current && me.place === 1 ? (
+                    <small>Você está na frente. Continue lendo para manter o ouro!</small>
+                  ) : null}
+                </span>
+              </>
+            ) : (
+              <span>
+                {current
+                  ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
+                  : "Você não entrou no ranking da semana passada."}
+              </span>
+            )}
+          </div>
+
+          {list.length === 0 ? (
+            <p className="profile-empty moderation-empty">
+              {current ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚" : "Ninguém leu na semana passada."}
+            </p>
+          ) : (
+            <ol className="podium" aria-label="Pódio">
+              {/* Ordem visual de pódio: prata, ouro, bronze. */}
+              {[2, 1, 3].map((place) => {
+                const e = podium.find((p) => p.place === place);
+                return (
+                  <li
+                    key={place}
+                    className={["podium-spot", `is-${place}`, e?.is_me ? "is-me" : "", e ? "" : "is-empty"].filter(Boolean).join(" ")}
+                  >
+                    {e ? (
+                      <>
+                        <span className="podium-avatar">
+                          <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" />
+                          <span className="podium-medal" aria-hidden="true">
+                            {PLACE_MEDALS[place as 1 | 2 | 3]}
+                          </span>
+                        </span>
+                        <strong className="podium-name">{e.is_me ? "Você" : e.name}</strong>
+                        <span className="podium-minutes">{formatMinutes(e.minutes)}</span>
+                      </>
+                    ) : (
+                      <span className="podium-name is-muted">Vaga aberta</span>
+                    )}
+                    <span className="podium-block">
+                      <span className="sr-only">Lugar </span>
+                      {place}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          {rest.length > 0 || meOutside ? (
+            <ol className="ranking-list" aria-label="Demais leitores">
+              {rest.map((e) => (
+                <RankingRow key={e.user_id} entry={e} />
+              ))}
+              {meOutside ? (
+                <>
+                  <li className="ranking-gap" aria-hidden="true">
+                    ⋯
+                  </li>
+                  <RankingRow entry={meOutside} />
+                </>
+              ) : null}
+            </ol>
+          ) : null}
+        </>
+      ) : null}
+
+      {profile ? (
+        <label className="ranking-visibility">
+          <input
+            type="checkbox"
+            checked={!profile.hidden}
+            disabled={savingHidden}
+            onChange={(e) => void toggleHidden(!e.target.checked)}
+          />
+          <span>
+            <strong>Aparecer no ranking</strong>
+            <small>Outros leitores veem só seu nome, avatar e minutos lidos na semana.</small>
+          </span>
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function RankingRow({ entry }: { entry: RankEntry }) {
+  return (
+    <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`}>
+      <span className="ranking-place">{ordinal(entry.place)}</span>
+      <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" />
+      <span className="ranking-name">{entry.is_me ? `${entry.name} (você)` : entry.name}</span>
+      <span className="ranking-minutes">{formatMinutes(entry.minutes)}</span>
+    </li>
+  );
+}
+
+/** Convite na tela inicial para abrir o ranking da semana. */
+function RankingTeaser({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" className="ranking-teaser" onClick={onOpen}>
+      <span className="ranking-teaser-icon" aria-hidden="true">
+        🏆
+      </span>
+      <span className="ranking-teaser-text">
+        <strong>Ranking da semana</strong>
+        <span>Veja quem mais leu desde segunda e em que lugar você está. O pódio ganha diamantes.</span>
+      </span>
+      <span className="ranking-teaser-go" aria-hidden="true">
+        {Icon.next}
+      </span>
+    </button>
   );
 }
 
@@ -3619,6 +3905,7 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [moderationOpen, setModerationOpen] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
@@ -3752,6 +4039,8 @@ export function App() {
    */
   const syncAccount = useCallback(async (session: SupabaseSession, opts: { keepalive: boolean; resume: boolean }) => {
     let changed = await syncNow(session, { keepalive: opts.keepalive });
+    // Minutos da semana para o ranking (sem o ranking configurado no Supabase, segue sem ele).
+    await reportReading(session, { keepalive: opts.keepalive }).catch(() => {});
     if (opts.keepalive) return changed;
     const books = await syncBooks(session).catch(() => ({ local: false, library: false }));
     // A lista da conta mudou (livro enviado ou removido): manda já para os outros aparelhos.
@@ -3833,6 +4122,35 @@ export function App() {
     const t = window.setTimeout(() => setCelebration(null), 4200);
     return () => window.clearTimeout(t);
   }, [celebration]);
+  /** Semana do ranking fechada: parabéns para quem ficou no pódio (uma vez só, ao abrir o app). */
+  useEffect(() => {
+    if (!authEnabled || !authSession) return;
+    let alive = true;
+    const session = authSession;
+    // Depois da sincronização de abertura, que envia os minutos do fim da semana.
+    const t = window.setTimeout(() => {
+      void takeWeeklyAwards(session)
+        .then((awards) => {
+          const last = awards[awards.length - 1];
+          if (!alive || !last) return;
+          const total = awards.reduce((sum, a) => sum + a.diamonds, 0);
+          setCelebration({
+            emoji: PLACE_MEDALS[last.place],
+            title: `Você ficou em ${last.place}º lugar no ranking da semana!`,
+            text: `${formatMinutes(last.minutes)} de leitura. Você ganhou ${total} 💎. Parabéns!`,
+          });
+        })
+        .catch(() => {
+          // Sem o ranking no Supabase ou sem internet: tenta de novo na próxima abertura.
+        });
+    }, 3000);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+    // Só quando troca de usuário (não a cada renovação do token).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUserId]);
   /** Ao abrir o app: escudos salvam a sequência de ontem, se preciso (aviso uma vez por dia). */
   const [shieldNotice, setShieldNotice] = useState<number | null>(shieldNoticeOnLoad);
   /** Capítulos já comemorados nesta visita (para não repetir a cada rolagem). */
@@ -4826,6 +5144,7 @@ export function App() {
   useBackClose(Boolean(book), leaveBook);
   useBackClose(profileOpen, () => setProfileOpen(false));
   useBackClose(moderationOpen, () => setModerationOpen(false));
+  useBackClose(rankingOpen, () => setRankingOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
   useBackClose(aboutOpen, () => setAboutOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
@@ -4871,6 +5190,9 @@ export function App() {
           onRead={startBook}
         />
       );
+    }
+    if (rankingOpen && authSession) {
+      return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} />;
     }
     if (profileOpen && authSession) {
       return (
@@ -5132,6 +5454,8 @@ export function App() {
         )}
 
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
+
+        {authSession ? <RankingTeaser onOpen={() => setRankingOpen(true)} /> : null}
 
         {recent.length > 0 || continueUndo ? (
           <ContinueReading
