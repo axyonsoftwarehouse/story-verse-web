@@ -1,7 +1,8 @@
-import { gunzipSync, gzipSync, strFromU8, strToU8 } from "fflate";
+import { gzipSync, strToU8 } from "fflate";
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
 import { currentDataOwner } from "./dataOwner";
+import { gunzipToString } from "./safeUnzip";
 import {
   deleteLocalBook,
   getLocalRecord,
@@ -21,6 +22,9 @@ import {
  */
 
 const BUCKET = "user-books";
+
+/** Teto do texto descomprimido do livro, para um gzip bomb não estourar a memória do aparelho. */
+const MAX_UNPACKED_BYTES = 64 * 1024 * 1024;
 
 type Packed = {
   v: 1;
@@ -76,7 +80,7 @@ async function pack(record: StoredBook): Promise<Uint8Array> {
 }
 
 async function unpack(bytes: Uint8Array): Promise<StoredBook> {
-  const p = JSON.parse(strFromU8(gunzipSync(bytes))) as Packed;
+  const p = JSON.parse(gunzipToString(bytes, MAX_UNPACKED_BYTES)) as Packed;
   const images = p.images
     ? Object.fromEntries(await Promise.all(Object.entries(p.images).map(async ([k, url]) => [k, await (await fetch(url)).blob()] as const)))
     : undefined;
