@@ -2269,6 +2269,7 @@ function DiamondShopPage({
   const [busy, setBusy] = useState(false);
   const [auto, setAuto] = useState(autoFreezeEnabled);
   const [rescue, setRescue] = useState(streakRescue);
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(() => {
     return Promise.all([fetchWallet(session), fetchDiamondHistory(session)])
@@ -2290,7 +2291,7 @@ function DiamondShopPage({
     setError("");
     try {
       const r = await rescueStreak(session, rescue);
-      setNotice(`Sequência salva! ${r.streak} ${r.streak === 1 ? "dia" : "dias"} e contando. 🔥`);
+      setNotice(`Sequência salva: ${r.streak} ${r.streak === 1 ? "dia" : "dias"} 🔥`);
       setRescue(null);
       onStreakSaved();
       await load();
@@ -2302,24 +2303,24 @@ function DiamondShopPage({
   }
 
   const price = wallet?.freeze_price ?? 0;
-  const cost = rescue ? rescue.paidDays.length * price : 0;
-  const leftThisWeek = wallet ? Math.max(0, wallet.freezes_per_week - wallet.freezes_this_week) : 0;
+  const cost = rescue && rescue.paidDays.length > 0 ? rescue.paidDays.length * price : 0;
+  const short = wallet ? Math.max(0, cost - wallet.balance) : 0;
+  const shown = showAll ? history : history?.slice(0, 5);
 
   return (
-    <div className="home profile moderation shop">
+    <div className="home profile shop">
       <nav className="home-nav profile-nav">
         <button type="button" className="btn" onClick={onClose}>
           {Icon.back} Voltar
         </button>
       </nav>
-      <header className="moderation-head shop-head">
-        <span className="eyebrow">Loja</span>
-        <h1>Seus diamantes</h1>
-        <p className="shop-balance" aria-live="polite">
-          <span aria-hidden="true">💎</span>
-          <strong>{wallet ? wallet.balance : "–"}</strong>
-          <span className="sr-only"> diamantes</span>
-        </p>
+
+      <header className="shop-hero" aria-live="polite">
+        <span className="shop-hero-gem" aria-hidden="true">
+          💎
+        </span>
+        <strong>{wallet ? wallet.balance : "–"}</strong>
+        <span>diamantes</span>
       </header>
 
       {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
@@ -2332,87 +2333,82 @@ function DiamondShopPage({
         </div>
       ) : wallet ? (
         <>
-          <section className="profile-card shop-item" aria-labelledby="shop-freeze">
-            <span className="shop-item-icon" aria-hidden="true">
-              🧊
-            </span>
-            <div className="shop-item-body">
-              <h2 id="shop-freeze">Salva-ofensiva</h2>
-              <p>
-                Perdeu um dia de leitura? O Salva-ofensiva mantém sua sequência por <strong>{price} 💎</strong> por dia. Os
-                escudos grátis 🛡️ são usados antes. Até {wallet.freezes_per_week} por semana, para a sequência continuar
-                valendo.
-              </p>
-              <p className="shop-item-meta">
-                Nesta semana: {wallet.freezes_this_week} de {wallet.freezes_per_week} usados
-                {leftThisWeek === 0 ? " · limite atingido" : ""}
-              </p>
-              {rescue && rescue.paidDays.length > 0 ? (
-                <div className="shop-rescue">
-                  <span>
-                    Sua sequência de <strong>{rescue.streak} {rescue.streak === 1 ? "dia" : "dias"}</strong> quebrou
-                    {rescue.days.length > 1 ? ` (${rescue.days.length} dias sem leitura)` : " ontem"}.
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy || wallet.balance < cost}
-                    onClick={() => void saveStreak()}
-                  >
-                    {busy ? "Salvando…" : `Salvar por ${cost} 💎`}
-                  </button>
-                  {wallet.balance < cost ? (
-                    <small>Faltam {cost - wallet.balance} 💎. Leia hoje para começar a ganhar.</small>
-                  ) : null}
-                </div>
-              ) : null}
-              <label className="ranking-visibility shop-auto">
-                <input
-                  type="checkbox"
-                  checked={auto}
-                  onChange={(e) => {
-                    setAuto(e.target.checked);
-                    setAutoFreezeEnabled(e.target.checked);
-                  }}
-                />
-                <span>
-                  <strong>Usar automaticamente</strong>
-                  <small>Quando um dia passar sem leitura e os escudos não bastarem, os diamantes salvam a sequência sozinhos.</small>
-                </span>
-              </label>
+          <section
+            className="shop-card"
+            aria-label="Salva-ofensiva"
+            title={`Mantém a sequência num dia sem leitura. Os escudos grátis são usados antes. Até ${wallet.freezes_per_week} por semana.`}
+          >
+            <div className="shop-card-row">
+              <span className="shop-card-icon" aria-hidden="true">
+                🧊
+              </span>
+              <span className="shop-card-title">
+                <strong>Salva-ofensiva</strong>
+                <span>{price} 💎 por dia perdido</span>
+              </span>
+              <span className="shop-chip" aria-label={`${wallet.freezes_this_week} de ${wallet.freezes_per_week} usados nesta semana`}>
+                {wallet.freezes_this_week}/{wallet.freezes_per_week} na semana
+              </span>
             </div>
+
+            {rescue && cost > 0 ? (
+              <div className="shop-rescue">
+                <span>
+                  🔥 Sequência de <strong>{rescue.streak} {rescue.streak === 1 ? "dia" : "dias"}</strong> quebrou
+                </span>
+                <button type="button" className="btn btn-primary" disabled={busy || short > 0} onClick={() => void saveStreak()}>
+                  {busy ? "Salvando…" : short > 0 ? `Faltam ${short} 💎` : `Salvar · ${cost} 💎`}
+                </button>
+              </div>
+            ) : null}
+
+            <label className="shop-switch">
+              <span>Usar automaticamente</span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={auto}
+                onChange={(e) => {
+                  setAuto(e.target.checked);
+                  setAutoFreezeEnabled(e.target.checked);
+                }}
+              />
+            </label>
           </section>
 
-          <section className="profile-card shop-earn" aria-labelledby="shop-earn">
-            <h2 id="shop-earn">Como ganhar diamantes</h2>
-            <ul>
-              <li>
-                <span aria-hidden="true">📖</span> Leia {wallet.goal_minutes} min num dia: <strong>+{wallet.goal_reward} 💎</strong>
-              </li>
-              <li>
-                <span aria-hidden="true">🏆</span> Fique no pódio do ranking semanal: <strong>+50, +30 ou +20 💎</strong>
-              </li>
-            </ul>
-          </section>
+          <ul className="shop-earn" aria-label="Como ganhar diamantes">
+            <li>
+              <span aria-hidden="true">📖</span>
+              <span>{wallet.goal_minutes} min lidos no dia</span>
+              <strong>+{wallet.goal_reward}</strong>
+            </li>
+            <li>
+              <span aria-hidden="true">🏆</span>
+              <span>Pódio da semana</span>
+              <strong>até +50</strong>
+            </li>
+          </ul>
 
           <section className="shop-history" aria-labelledby="shop-history">
             <h2 id="shop-history">Extrato</h2>
-            {history && history.length > 0 ? (
-              <ol className="ranking-list">
-                {history.map((e, i) => (
-                  <li key={`${e.reason}-${e.ref}-${i}`} className="ranking-row shop-entry">
-                    <span className="shop-entry-label">
-                      {diamondEntryLabel(e)}
-                      <small>{new Date(e.created_at).toLocaleDateString("pt-BR")}</small>
-                    </span>
-                    <span className={`shop-entry-amount ${e.amount > 0 ? "is-in" : "is-out"}`}>
-                      {e.amount > 0 ? `+${e.amount}` : e.amount} 💎
-                    </span>
-                  </li>
-                ))}
-              </ol>
+            {shown && shown.length > 0 ? (
+              <>
+                <ol>
+                  {shown.map((e, i) => (
+                    <li key={`${e.reason}-${e.ref}-${i}`}>
+                      <span>{diamondEntryLabel(e)}</span>
+                      <strong className={e.amount > 0 ? "is-in" : "is-out"}>{e.amount > 0 ? `+${e.amount}` : e.amount}</strong>
+                    </li>
+                  ))}
+                </ol>
+                {!showAll && history && history.length > 5 ? (
+                  <button type="button" className="inline-link" onClick={() => setShowAll(true)}>
+                    Ver tudo
+                  </button>
+                ) : null}
+              </>
             ) : (
-              <p className="profile-empty">Nenhum diamante ainda. Leia {wallet.goal_minutes} minutos hoje para ganhar os primeiros!</p>
+              <p className="profile-empty">Nada por aqui ainda.</p>
             )}
           </section>
         </>
@@ -2447,11 +2443,10 @@ function FreezeNudge({
           🧊
         </span>
         <div>
-          <strong>Salva-ofensiva usado!</strong>
-          <span>
-            Sua sequência de {outcome.streak} {outcome.streak === 1 ? "dia" : "dias"} continua. Foram {outcome.spent} 💎
-            {outcome.balance !== null ? ` (sobraram ${outcome.balance})` : ""}.
-          </span>
+          <strong>
+            Sequência salva: {outcome.streak} {outcome.streak === 1 ? "dia" : "dias"}
+          </strong>
+          <span>Salva-ofensiva usado · −{outcome.spent} 💎</span>
         </div>
         {close}
       </div>
@@ -2470,19 +2465,19 @@ function FreezeNudge({
         </strong>
         <span>
           {reason === "manual"
-            ? `Dá para salvar com o Salva-ofensiva por ${cost} 💎 (você tem ${wallet.balance}).`
+            ? "Dá para salvar com o Salva-ofensiva."
             : reason === "limit"
-              ? "Você já usou os salva-ofensivas desta semana. Leia hoje para começar uma nova!"
-              : `O Salva-ofensiva custa ${cost} 💎 e você tem ${wallet.balance}. Leia hoje para começar uma nova!`}
+              ? "Limite da semana atingido."
+              : `Faltam ${Math.max(0, cost - wallet.balance)} 💎 para salvar.`}
         </span>
       </div>
       {reason === "manual" ? (
         <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>
-          {busy ? "Salvando…" : `Salvar por ${cost} 💎`}
+          {busy ? "Salvando…" : `Salvar · ${cost} 💎`}
         </button>
       ) : reason === "no-balance" ? (
         <button type="button" className="btn" onClick={onOpenShop}>
-          Ver loja
+          Loja
         </button>
       ) : null}
       {close}
