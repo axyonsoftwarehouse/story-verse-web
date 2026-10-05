@@ -17,6 +17,7 @@ const USER_KEYS = new Set([
   "storyverse:reading-progress",
   "storyverse:reading-stats",
   "storyverse:streak-meta",
+  "storyverse:auto-freeze",
   "storyverse:reading-goal",
   "storyverse:finished-books",
   "storyverse:last-character",

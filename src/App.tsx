@@ -90,8 +90,22 @@ import {
   type ReadingEvents,
   type ReadingSummary,
   type ReadingTotals,
+  streakRescue,
   weekStartDate,
 } from "./lib/readingStats";
+import {
+  autoFreezeEnabled,
+  checkStreakFreeze,
+  claimReadingRewards,
+  diamondEntryLabel,
+  fetchDiamondHistory,
+  fetchWallet,
+  rescueStreak,
+  setAutoFreezeEnabled,
+  type DiamondEntry,
+  type FreezeOutcome,
+  type Wallet,
+} from "./lib/diamonds";
 import {
   fetchRanking,
   fetchRankingProfile,
@@ -1735,9 +1749,14 @@ function dayLevel(minutes: number, goal: number): 0 | 1 | 2 | 3 {
 const LEVEL_LABELS = ["Sem leitura", "Pouco", "Perto da meta", "Meta cumprida"] as const;
 const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
+/** Dia sem leitura que manteve a sequência: por escudo (grátis) ou com diamantes. */
+function savedLabel(d: { bought: boolean }): string {
+  return d.bought ? "salvo com diamantes" : "salvo por escudo";
+}
+
 function dayTitle(d: ReadingDay, goal?: number): string {
   const date = d.date.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
-  if (d.state === "frozen") return `${date}: salvo por escudo`;
+  if (d.state === "frozen") return `${date}: ${savedLabel(d)}`;
   const met = goal !== undefined && d.minutes >= goal;
   return `${date}: ${d.minutes} min${met ? " · meta cumprida ✓" : ""}`;
 }
@@ -1849,7 +1868,7 @@ function DayDetail({ day, goal }: { day: ReadingDay; goal: number }) {
   return (
     <span className="day-detail" role="status">
       <strong>{date}</strong>
-      {day.state === "frozen" ? " · salvo por escudo 🛡️" : ` · ${day.minutes} min`}
+      {day.state === "frozen" ? ` · ${savedLabel(day)} ${day.bought ? "💎" : "🛡️"}` : ` · ${day.minutes} min`}
       {day.state !== "frozen" && day.minutes >= goal ? <span className="day-detail-met"> · meta ✓</span> : null}
     </span>
   );
@@ -2025,7 +2044,7 @@ function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: num
             .map((d) => (
               <tr key={d.key}>
                 <th>{d.date.toLocaleDateString("pt-BR")}</th>
-                <td>{d.state === "frozen" ? "salvo por escudo" : `${d.minutes} min`}</td>
+                <td>{d.state === "frozen" ? savedLabel(d) : `${d.minutes} min`}</td>
               </tr>
             ))}
         </tbody>
@@ -2233,6 +2252,244 @@ function RightsAlert({ title, author, onProtected }: { title: string; author?: s
   );
 }
 
+/** Loja: saldo de diamantes, o Salva-ofensiva, como ganhar e o extrato. */
+function DiamondShopPage({
+  session,
+  onClose,
+  onStreakSaved,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onStreakSaved: () => void;
+}) {
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [history, setHistory] = useState<DiamondEntry[] | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [auto, setAuto] = useState(autoFreezeEnabled);
+  const [rescue, setRescue] = useState(streakRescue);
+
+  const load = useCallback(() => {
+    return Promise.all([fetchWallet(session), fetchDiamondHistory(session)])
+      .then(([w, h]) => {
+        setWallet(w);
+        setHistory(h);
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar seus diamantes."));
+  }, [session]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    void load();
+  }, [load]);
+
+  async function saveStreak() {
+    if (!rescue) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await rescueStreak(session, rescue);
+      setNotice(`Sequência salva! ${r.streak} ${r.streak === 1 ? "dia" : "dias"} e contando. 🔥`);
+      setRescue(null);
+      onStreakSaved();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a sequência.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const price = wallet?.freeze_price ?? 0;
+  const cost = rescue ? rescue.paidDays.length * price : 0;
+  const leftThisWeek = wallet ? Math.max(0, wallet.freezes_per_week - wallet.freezes_this_week) : 0;
+
+  return (
+    <div className="home profile moderation shop">
+      <nav className="home-nav profile-nav">
+        <button type="button" className="btn" onClick={onClose}>
+          {Icon.back} Voltar
+        </button>
+      </nav>
+      <header className="moderation-head shop-head">
+        <span className="eyebrow">Loja</span>
+        <h1>Seus diamantes</h1>
+        <p className="shop-balance" aria-live="polite">
+          <span aria-hidden="true">💎</span>
+          <strong>{wallet ? wallet.balance : "–"}</strong>
+          <span className="sr-only"> diamantes</span>
+        </p>
+      </header>
+
+      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
+      {notice ? <p className="shop-notice" role="status">{notice}</p> : null}
+
+      {wallet === null && !error ? (
+        <div className="page-status">
+          <span className="spinner" aria-hidden="true" />
+          Carregando…
+        </div>
+      ) : wallet ? (
+        <>
+          <section className="profile-card shop-item" aria-labelledby="shop-freeze">
+            <span className="shop-item-icon" aria-hidden="true">
+              🧊
+            </span>
+            <div className="shop-item-body">
+              <h2 id="shop-freeze">Salva-ofensiva</h2>
+              <p>
+                Perdeu um dia de leitura? O Salva-ofensiva mantém sua sequência por <strong>{price} 💎</strong> por dia. Os
+                escudos grátis 🛡️ são usados antes. Até {wallet.freezes_per_week} por semana, para a sequência continuar
+                valendo.
+              </p>
+              <p className="shop-item-meta">
+                Nesta semana: {wallet.freezes_this_week} de {wallet.freezes_per_week} usados
+                {leftThisWeek === 0 ? " · limite atingido" : ""}
+              </p>
+              {rescue && rescue.paidDays.length > 0 ? (
+                <div className="shop-rescue">
+                  <span>
+                    Sua sequência de <strong>{rescue.streak} {rescue.streak === 1 ? "dia" : "dias"}</strong> quebrou
+                    {rescue.days.length > 1 ? ` (${rescue.days.length} dias sem leitura)` : " ontem"}.
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy || wallet.balance < cost}
+                    onClick={() => void saveStreak()}
+                  >
+                    {busy ? "Salvando…" : `Salvar por ${cost} 💎`}
+                  </button>
+                  {wallet.balance < cost ? (
+                    <small>Faltam {cost - wallet.balance} 💎. Leia hoje para começar a ganhar.</small>
+                  ) : null}
+                </div>
+              ) : null}
+              <label className="ranking-visibility shop-auto">
+                <input
+                  type="checkbox"
+                  checked={auto}
+                  onChange={(e) => {
+                    setAuto(e.target.checked);
+                    setAutoFreezeEnabled(e.target.checked);
+                  }}
+                />
+                <span>
+                  <strong>Usar automaticamente</strong>
+                  <small>Quando um dia passar sem leitura e os escudos não bastarem, os diamantes salvam a sequência sozinhos.</small>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="profile-card shop-earn" aria-labelledby="shop-earn">
+            <h2 id="shop-earn">Como ganhar diamantes</h2>
+            <ul>
+              <li>
+                <span aria-hidden="true">📖</span> Leia {wallet.goal_minutes} min num dia: <strong>+{wallet.goal_reward} 💎</strong>
+              </li>
+              <li>
+                <span aria-hidden="true">🏆</span> Fique no pódio do ranking semanal: <strong>+50, +30 ou +20 💎</strong>
+              </li>
+            </ul>
+          </section>
+
+          <section className="shop-history" aria-labelledby="shop-history">
+            <h2 id="shop-history">Extrato</h2>
+            {history && history.length > 0 ? (
+              <ol className="ranking-list">
+                {history.map((e, i) => (
+                  <li key={`${e.reason}-${e.ref}-${i}`} className="ranking-row shop-entry">
+                    <span className="shop-entry-label">
+                      {diamondEntryLabel(e)}
+                      <small>{new Date(e.created_at).toLocaleDateString("pt-BR")}</small>
+                    </span>
+                    <span className={`shop-entry-amount ${e.amount > 0 ? "is-in" : "is-out"}`}>
+                      {e.amount > 0 ? `+${e.amount}` : e.amount} 💎
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="profile-empty">Nenhum diamante ainda. Leia {wallet.goal_minutes} minutos hoje para ganhar os primeiros!</p>
+            )}
+          </section>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Aviso na tela inicial: a sequência quebrou (oferta) ou foi salva com diamantes. */
+function FreezeNudge({
+  outcome,
+  busy,
+  onSave,
+  onOpenShop,
+  onClose,
+}: {
+  outcome: FreezeOutcome;
+  busy: boolean;
+  onSave: () => void;
+  onOpenShop: () => void;
+  onClose: () => void;
+}) {
+  const close = (
+    <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar aviso">
+      {Icon.close}
+    </button>
+  );
+  if (outcome.kind === "saved") {
+    return (
+      <div className="nudge nudge-diamond" role="status">
+        <span className="nudge-emoji" aria-hidden="true">
+          🧊
+        </span>
+        <div>
+          <strong>Salva-ofensiva usado!</strong>
+          <span>
+            Sua sequência de {outcome.streak} {outcome.streak === 1 ? "dia" : "dias"} continua. Foram {outcome.spent} 💎
+            {outcome.balance !== null ? ` (sobraram ${outcome.balance})` : ""}.
+          </span>
+        </div>
+        {close}
+      </div>
+    );
+  }
+  const { rescue, wallet, reason } = outcome;
+  const cost = rescue.paidDays.length * wallet.freeze_price;
+  return (
+    <div className="nudge nudge-diamond" role="status">
+      <span className="nudge-emoji" aria-hidden="true">
+        💔
+      </span>
+      <div>
+        <strong>
+          Sua sequência de {rescue.streak} {rescue.streak === 1 ? "dia" : "dias"} quebrou
+        </strong>
+        <span>
+          {reason === "manual"
+            ? `Dá para salvar com o Salva-ofensiva por ${cost} 💎 (você tem ${wallet.balance}).`
+            : reason === "limit"
+              ? "Você já usou os salva-ofensivas desta semana. Leia hoje para começar uma nova!"
+              : `O Salva-ofensiva custa ${cost} 💎 e você tem ${wallet.balance}. Leia hoje para começar uma nova!`}
+        </span>
+      </div>
+      {reason === "manual" ? (
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>
+          {busy ? "Salvando…" : `Salvar por ${cost} 💎`}
+        </button>
+      ) : reason === "no-balance" ? (
+        <button type="button" className="btn" onClick={onOpenShop}>
+          Ver loja
+        </button>
+      ) : null}
+      {close}
+    </div>
+  );
+}
+
 function ordinal(place: number): string {
   return `${place}º`;
 }
@@ -2255,7 +2512,15 @@ function weekRangeLabel(offset: 0 | -1): string {
 }
 
 /** Ranking semanal: pódio dos 3 que mais leram, a lista dos demais e a sua posição. */
-function RankingPage({ session, onClose }: { session: SupabaseSession; onClose: () => void }) {
+function RankingPage({
+  session,
+  onClose,
+  onOpenShop,
+}: {
+  session: SupabaseSession;
+  onClose: () => void;
+  onOpenShop: () => void;
+}) {
   const [tab, setTab] = useState<0 | -1>(0);
   const [lists, setLists] = useState<Partial<Record<0 | -1, RankEntry[]>>>({});
   const [profile, setProfile] = useState<RankingProfile | null>(null);
@@ -2284,7 +2549,6 @@ function RankingPage({ session, onClose }: { session: SupabaseSession; onClose: 
       alive = false;
     };
     // Recarrega ao trocar de aba ou depois de mudar a visibilidade (que limpa as listas).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, session, lists]);
 
   async function toggleHidden(hidden: boolean) {
@@ -2317,10 +2581,10 @@ function RankingPage({ session, onClose }: { session: SupabaseSession; onClose: 
           {Icon.back} Voltar
         </button>
         {profile ? (
-          <span className="ranking-diamonds" title="Diamantes ganhos no pódio do ranking semanal">
+          <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
             <span aria-hidden="true">💎</span> <strong>{profile.diamonds}</strong>
             <span className="sr-only"> diamantes</span>
-          </span>
+          </button>
         ) : null}
       </nav>
       <header className="moderation-head">
@@ -2916,6 +3180,7 @@ function ProfilePage({
   isAvailable,
   isAdmin,
   onOpenModeration,
+  onOpenShop,
 }: {
   session: SupabaseSession;
   onSessionChange: (session: SupabaseSession) => void;
@@ -2931,8 +3196,21 @@ function ProfilePage({
   isAvailable: (book: Ebook) => boolean;
   isAdmin?: boolean;
   onOpenModeration?: () => void;
+  onOpenShop: () => void;
 }) {
   const user = session.user;
+  const [diamonds, setDiamonds] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchWallet(session)
+      .then((w) => alive && setDiamonds(w.balance))
+      .catch(() => {
+        // Sem a loja no Supabase ou sem internet: o botão mostra só "Loja".
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session]);
   const name = displayNameOf(user);
   const since = memberSince(user.created_at);
 
@@ -3065,9 +3343,13 @@ function ProfilePage({
   return (
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
       {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
-      <nav className="home-nav profile-nav">
+      <nav className="home-nav profile-nav nav-split">
         <button type="button" className="btn" onClick={leave}>
           {Icon.back} Voltar
+        </button>
+        <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
+          <span aria-hidden="true">💎</span> <strong>{diamonds ?? "–"}</strong>
+          <span className="sr-only"> diamantes</span> · Loja
         </button>
       </nav>
 
@@ -3325,9 +3607,9 @@ function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
           <li
             key={i}
             className={[`is-${d.state}`, d.today ? "is-today" : ""].filter(Boolean).join(" ")}
-            aria-label={`${d.today ? "Hoje" : d.label}: ${d.state === "read" ? "leu" : d.state === "frozen" ? "salvo por escudo" : "não leu"}`}
+            aria-label={`${d.today ? "Hoje" : d.label}: ${d.state === "read" ? "leu" : d.state === "frozen" ? savedLabel(d) : "não leu"}`}
           >
-            {d.state === "frozen" ? "🛡️" : d.label}
+            {d.state === "frozen" ? (d.bought ? "💎" : "🛡️") : d.label}
           </li>
         ))}
       </ol>
@@ -3906,6 +4188,10 @@ export function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [moderationOpen, setModerationOpen] = useState(false);
   const [rankingOpen, setRankingOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
+  const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
+  const [freezeBusy, setFreezeBusy] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
@@ -4045,8 +4331,13 @@ export function App() {
   const syncAccount = useCallback(async (session: SupabaseSession, opts: { keepalive: boolean; resume: boolean }) => {
     let changed = await syncNow(session, { keepalive: opts.keepalive });
     // Minutos da semana para o ranking (sem o ranking configurado no Supabase, segue sem ele).
-    await reportReading(session, { keepalive: opts.keepalive }).catch(() => {});
+    const reported = await reportReading(session, { keepalive: opts.keepalive }).catch(() => false);
     if (opts.keepalive) return changed;
+    // Leitura do dia que rende diamantes: pede a recompensa e avisa.
+    if (reported) {
+      const gained = await claimReadingRewards(session).catch(() => 0);
+      if (gained > 0) setToast(`+${gained} 💎 pela leitura de hoje`);
+    }
     const books = await syncBooks(session).catch(() => ({ local: false, library: false }));
     // A lista da conta mudou (livro enviado ou removido): manda já para os outros aparelhos.
     if (books.library) changed = (await syncNow(session).catch(() => false)) || changed;
@@ -4074,8 +4365,13 @@ export function App() {
         if (!alive) return false;
         return syncAccount(session, { keepalive: false, resume: true });
       })
-      .then((changed) => {
-        if (alive && changed) applyRemoteData();
+      .then(async (changed) => {
+        if (!alive) return;
+        if (changed) applyRemoteData();
+        const outcome = await checkStreakFreeze(session).catch(() => null);
+        if (!alive || !outcome) return;
+        setFreezeOutcome(outcome);
+        if (outcome.kind === "saved") setDataEpoch((n) => n + 1);
       })
       .catch(() => {
         // Sem a tabela ou sem internet: segue só com os dados do aparelho.
@@ -5156,6 +5452,7 @@ export function App() {
   useBackClose(profileOpen, () => setProfileOpen(false));
   useBackClose(moderationOpen, () => setModerationOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
+  useBackClose(shopOpen, () => setShopOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
   useBackClose(aboutOpen, () => setAboutOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
@@ -5202,14 +5499,27 @@ export function App() {
         />
       );
     }
+    if (shopOpen && authSession) {
+      return (
+        <DiamondShopPage
+          session={authSession}
+          onClose={() => setShopOpen(false)}
+          onStreakSaved={() => {
+            setFreezeOutcome(null);
+            setDataEpoch((n) => n + 1);
+          }}
+        />
+      );
+    }
     if (rankingOpen && authSession) {
-      return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} />;
+      return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
     }
     if (profileOpen && authSession) {
       return (
         <ProfilePage
           isAdmin={isAdmin}
           onOpenModeration={() => setModerationOpen(true)}
+          onOpenShop={() => setShopOpen(true)}
           session={authSession}
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
@@ -5317,6 +5627,27 @@ export function App() {
               Instalar
             </button>
           </div>
+        ) : null}
+
+        {freezeOutcome && authSession ? (
+          <FreezeNudge
+            outcome={freezeOutcome}
+            busy={freezeBusy}
+            onClose={() => setFreezeOutcome(null)}
+            onOpenShop={() => setShopOpen(true)}
+            onSave={() => {
+              if (freezeOutcome.kind !== "offer") return;
+              const { rescue, wallet } = freezeOutcome;
+              setFreezeBusy(true);
+              rescueStreak(authSession, rescue)
+                .then((r) => {
+                  setFreezeOutcome({ kind: "saved", streak: r.streak, spent: rescue.paidDays.length * wallet.freeze_price, balance: r.balance });
+                  setDataEpoch((n) => n + 1);
+                })
+                .catch((err: unknown) => setToast(err instanceof Error ? err.message : "Não foi possível salvar a sequência."))
+                .finally(() => setFreezeBusy(false));
+            }}
+          />
         ) : null}
 
         {shieldNotice !== null ? (

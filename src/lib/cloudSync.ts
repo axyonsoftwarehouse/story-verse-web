@@ -188,9 +188,9 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
     for (const [d, s] of Object.entries(a)) out[d] = Math.max(s, out[d] ?? 0);
     return JSON.stringify(out);
   }
-  // Escudos: o maior; dias salvos por escudo: todos.
+  // Escudos: o maior; dias salvos (por escudo ou diamantes): todos.
   if (key === "storyverse:streak-meta") {
-    const a = l as { shields?: number; frozen?: string[]; awardedAt?: number; shieldNoticeDay?: string };
+    const a = l as { shields?: number; frozen?: string[]; awardedAt?: number; shieldNoticeDay?: string; bought?: string[] };
     const c = r as typeof a;
     return JSON.stringify({
       ...c,
@@ -198,6 +198,7 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
       shields: Math.max(a.shields ?? 0, c.shields ?? 0),
       frozen: [...new Set([...(c.frozen ?? []), ...(a.frozen ?? [])])],
       awardedAt: Math.max(a.awardedAt ?? 0, c.awardedAt ?? 0),
+      bought: [...new Set([...(c.bought ?? []), ...(a.bought ?? [])])],
     });
   }
   // Preferências (tema, meta, lembrete, voz…) mudadas nos dois ao mesmo tempo: vale a daqui.

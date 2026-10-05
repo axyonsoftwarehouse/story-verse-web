@@ -1,5 +1,6 @@
-import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import type { SupabaseSession } from "./auth";
 import { recentReadingSeconds } from "./readingStats";
+import { rpc } from "./rpc";
 
 /**
  * Ranking semanal de leitores (Supabase): o app envia os minutos lidos por dia e o banco soma a
@@ -21,68 +22,35 @@ export type WeeklyAward = { week_start: string; place: 1 | 2 | 3; minutes: numbe
 
 export type RankingProfile = { hidden: boolean; diamonds: number };
 
-function friendly(message: string, status: number): string {
-  const m = message.toLowerCase();
-  if (m.includes("could not find the function") || m.includes("does not exist") || status === 404) {
-    return "O ranking ainda não foi configurado no Supabase.";
-  }
-  if (status === 401) return "Sua sessão expirou. Entre de novo.";
-  return message;
-}
-
-async function rpc<T>(session: SupabaseSession, name: string, args: object = {}, keepalive = false): Promise<T> {
-  const { url, anonKey } = supabaseConfig();
-  let res: Response;
-  try {
-    res = await fetch(`${url}/rest/v1/rpc/${name}`, {
-      method: "POST",
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${session.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(args),
-      keepalive,
-      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(20_000) : undefined,
-    });
-  } catch {
-    throw new AuthNetworkError("Sem conexão com o servidor. Tente de novo.");
-  }
-  if (!res.ok) {
-    const payload = (await res.json().catch(() => ({}))) as { message?: string; msg?: string; error?: string };
-    const message = payload.message ?? payload.msg ?? payload.error ?? `Erro ${res.status}`;
-    console.warn(`[ranking] ${name} → ${res.status}: ${message}`);
-    throw new Error(friendly(message, res.status));
-  }
-  const text = await res.text();
-  return (text ? JSON.parse(text) : null) as T;
-}
+const call = <T>(session: SupabaseSession, name: string, args: object = {}, keepalive = false) =>
+  rpc<T>(session, name, args, { feature: "O ranking", keepalive });
 
 /** Último envio por conta: só manda de novo quando os minutos mudaram. */
 const lastReported = new Map<string, string>();
 
-/** Envia os segundos lidos nos últimos 8 dias (cobre a semana atual e o fim da passada). */
-export async function reportReading(session: SupabaseSession, opts: { keepalive?: boolean } = {}): Promise<void> {
+/** Envia os segundos lidos nos últimos 8 dias (cobre a semana atual e o fim da passada). Diz se enviou. */
+export async function reportReading(session: SupabaseSession, opts: { keepalive?: boolean } = {}): Promise<boolean> {
   const days = recentReadingSeconds(8);
-  if (Object.keys(days).length === 0) return;
+  if (Object.keys(days).length === 0) return false;
   const body = JSON.stringify(days);
-  if (lastReported.get(session.user.id) === body) return;
-  await rpc<null>(session, "report_reading", { p_days: days }, opts.keepalive);
+  if (lastReported.get(session.user.id) === body) return false;
+  await call<null>(session, "report_reading", { p_days: days }, opts.keepalive);
   lastReported.set(session.user.id, body);
+  return true;
 }
 
 /** Ranking desta semana (0) ou da passada (-1): o topo e a sua linha, se você já leu. */
 export async function fetchRanking(session: SupabaseSession, offset: 0 | -1, limit = 50): Promise<RankEntry[]> {
-  return (await rpc<RankEntry[]>(session, "weekly_ranking", { p_offset: offset, p_limit: limit })) ?? [];
+  return (await call<RankEntry[]>(session, "weekly_ranking", { p_offset: offset, p_limit: limit })) ?? [];
 }
 
 export async function fetchRankingProfile(session: SupabaseSession): Promise<RankingProfile> {
-  const rows = (await rpc<RankingProfile[]>(session, "my_ranking_profile")) ?? [];
+  const rows = (await call<RankingProfile[]>(session, "my_ranking_profile")) ?? [];
   return rows[0] ?? { hidden: false, diamonds: 0 };
 }
 
 export async function setRankingHidden(session: SupabaseSession, hidden: boolean): Promise<void> {
-  await rpc<null>(session, "set_ranking_hidden", { p_hidden: hidden });
+  await call<null>(session, "set_ranking_hidden", { p_hidden: hidden });
 }
 
 /**
@@ -90,8 +58,8 @@ export async function setRankingHidden(session: SupabaseSession, hidden: boolean
  * marca como vistos: o aviso aparece uma vez só, mesmo com o app aberto em dois aparelhos.
  */
 export async function takeWeeklyAwards(session: SupabaseSession): Promise<WeeklyAward[]> {
-  const awards = (await rpc<WeeklyAward[]>(session, "my_weekly_awards")) ?? [];
-  if (awards.length > 0) await rpc<null>(session, "mark_awards_seen").catch(() => {});
+  const awards = (await call<WeeklyAward[]>(session, "my_weekly_awards")) ?? [];
+  if (awards.length > 0) await call<null>(session, "mark_awards_seen").catch(() => {});
   return awards;
 }
 
