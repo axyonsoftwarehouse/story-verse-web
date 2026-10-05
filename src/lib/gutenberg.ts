@@ -1,4 +1,5 @@
 import type { Ebook } from "../data/types";
+import { captureError, captureEvent } from "./telemetry";
 
 /**
  * Os .txt do gutenberg.org não liberam CORS, então passam pelo proxy do próprio site:
@@ -75,13 +76,17 @@ async function fetchFeed(url: string): Promise<string> {
       const body = res.ok ? await res.text() : "";
       if (body.includes("<feed")) return body;
       console.warn("Busca no Gutenberg falhou:", res.status);
+      captureEvent("warn", "gutenberg-search", `busca falhou HTTP ${res.status}`, { attempt });
     } catch (e) {
       console.warn("Busca no Gutenberg falhou:", e);
+      captureError("gutenberg-search", e, { attempt });
     } finally {
       clearTimeout(timer);
     }
   }
-  throw new Error("Não foi possível buscar livros agora. Tente de novo em instantes.");
+  const error = new Error("Não foi possível buscar livros agora. Tente de novo em instantes.");
+  captureError("gutenberg-search", error, { url });
+  throw error;
 }
 
 /** Cada busca feita fica guardada na sessão. */
@@ -142,6 +147,7 @@ export async function fetchBookText(gutenbergId: number): Promise<string> {
       const res = await fetch(`${base}/cache/epub/${gutenbergId}/pg${gutenbergId}.txt`);
       if (!res.ok) {
         console.warn("Falha ao baixar livro do Gutenberg:", base, gutenbergId, res.status);
+        captureEvent("warn", "gutenberg-text", `livro falhou HTTP ${res.status}`, { base, id: gutenbergId });
         continue;
       }
       const body = await res.text();
@@ -154,6 +160,7 @@ export async function fetchBookText(gutenbergId: number): Promise<string> {
       return text;
     } catch (e) {
       console.warn("Falha ao baixar livro do Gutenberg:", base, gutenbergId, e);
+      captureError("gutenberg-text", e, { base, id: gutenbergId });
     }
   }
 

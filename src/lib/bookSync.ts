@@ -1,6 +1,7 @@
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from "fflate";
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { captureError } from "./telemetry";
 import {
   deleteLocalBook,
   getLocalRecord,
@@ -41,12 +42,17 @@ async function storage(session: SupabaseSession, path: string, init: { method?: 
       headers: { apikey: anonKey, Authorization: `Bearer ${session.access_token}`, ...init.headers },
       body: init.body,
     });
-  } catch {
+  } catch (error) {
+    captureError("books-network", error, { path });
     throw new AuthNetworkError("Sem conexão para sincronizar os livros.");
   }
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
     console.warn(`[livros] ${init.method ?? "GET"} ${path} → ${res.status}: ${payload.message ?? payload.error ?? ""}`);
+    captureError("books-http", new Error(payload.message ?? payload.error ?? `Erro ${res.status}`), {
+      status: res.status,
+      method: init.method ?? "GET",
+    });
     throw new Error(payload.message ?? `Erro ${res.status}`);
   }
   return res;
@@ -128,8 +134,9 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
         await putLocalRecord(downloaded);
         local = true;
       }
-    } catch {
+    } catch (error) {
       // Um livro com problema (sem espaço, rede) não impede os outros; tenta de novo depois.
+      captureError("books-item", error, { id: key });
     }
   }
   return { local, library };
