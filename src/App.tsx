@@ -1937,32 +1937,75 @@ function WeekBars({ days, goal, total }: { days: ReadingDay[]; goal: number; tot
 }
 
 /** Calendário de constância: semanas em colunas, meses em cima e dias da semana ao lado. */
-const HEAT_CELL = 14;
 const HEAT_GAP = 4;
 const HEAT_LABEL_W = 30;
 const HEAT_WEEKDAYS = ["", "seg", "", "qua", "", "sex", ""];
+/** Períodos do mapa: por padrão os últimos 3 meses (um ano inteiro fica vazio para quem começou agora). */
+const HEAT_PERIODS = [
+  { id: "1m", label: "1 mês", weeks: 5 },
+  { id: "3m", label: "3 meses", weeks: 13 },
+  { id: "1a", label: "1 ano", weeks: 53 },
+] as const;
+type HeatPeriod = (typeof HEAT_PERIODS)[number]["id"];
+const HEAT_PERIOD_KEY = "storyverse:heat-period";
 
-function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: number }) {
+function savedHeatPeriod(): HeatPeriod {
+  try {
+    const v = localStorage.getItem(HEAT_PERIOD_KEY);
+    return HEAT_PERIODS.some((p) => p.id === v) ? (v as HeatPeriod) : "3m";
+  } catch {
+    return "3m";
+  }
+}
+
+/** Texto do tooltip de um dia: data por extenso e o que foi lido. */
+function heatTooltip(d: ReadingDay, goal: number): { date: string; detail: string } {
+  const date = d.date.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const detail =
+    d.state === "frozen"
+      ? d.bought
+        ? "Sequência salva com diamantes 💎"
+        : "Sequência salva por escudo 🛡️"
+      : d.minutes <= 0
+        ? "Sem leitura"
+        : `${formatMinutes(d.minutes)} lidos • ${d.minutes >= goal ? "Meta atingida" : `meta de ${goal} min`}`;
+  return { date: date.charAt(0).toUpperCase() + date.slice(1), detail };
+}
+
+function ReadingHeatmap({ days: allDays, goal, streak }: { days: ReadingDay[]; goal: number; streak: number }) {
   const { picked, bind, clear } = useDayPick();
-  // Quantas semanas cabem na largura (quadrados de tamanho fixo): ~1 ano no computador.
+  const [period, setPeriod] = useState<HeatPeriod>(savedHeatPeriod);
+  const weeks = HEAT_PERIODS.find((p) => p.id === period)!.weeks;
+
+  // Quadrados do tamanho que couber (entre 10 e 28 px); o ano inteiro rola de lado no celular.
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [weeks, setWeeks] = useState(16);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [cell, setCell] = useState(14);
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const fit = () =>
-      setWeeks(Math.max(8, Math.min(53, Math.floor((el.clientWidth - HEAT_LABEL_W + HEAT_GAP) / (HEAT_CELL + HEAT_GAP)))));
+    const fit = () => {
+      const free = el.clientWidth - HEAT_LABEL_W - HEAT_GAP * (weeks - 1);
+      setCell(Math.max(10, Math.min(28, Math.floor(free / weeks))));
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [weeks]);
+  // Começa mostrando o mais recente (hoje fica à direita).
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (sc) sc.scrollLeft = sc.scrollWidth;
+  }, [weeks, cell]);
+
   // Colunas = semanas começando no domingo; a última termina hoje.
   const today = allDays[allDays.length - 1];
   const days = allDays.slice(-((weeks - 1) * 7 + today.date.getDay() + 1));
-  const pickedDay = days.find((d) => d.key === picked);
   const readCount = days.filter((d) => d.minutes > 0).length;
   const metCount = days.filter((d) => d.minutes >= goal).length;
+  const hasSaved = days.some((d) => d.state === "frozen");
+  const step = cell + HEAT_GAP;
 
   // Nome do mês em cima da primeira semana em que ele aparece.
   const months: { col: number; label: string }[] = [];
@@ -1976,70 +2019,140 @@ function ReadingHeatmap({ days: allDays, goal }: { days: ReadingDay[]; goal: num
     }
   }
 
+  // Tooltip flutuante em cima do dia escolhido (embaixo, se não couber em cima).
+  const [tip, setTip] = useState<{ left: number; top: number; below: boolean; edge: "" | "is-left" | "is-right" } | null>(null);
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const btn = picked ? wrap?.querySelector<HTMLElement>(`[data-day="${picked}"]`) : null;
+    if (!wrap || !btn) return setTip(null);
+    const w = wrap.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const below = b.top - w.top < 56;
+    const left = b.left - w.left + b.width / 2;
+    // Perto das bordas o tooltip se alinha pelo lado do dia (não sai do card).
+    const edge = left < 110 ? "is-left" : left > w.width - 110 ? "is-right" : "";
+    setTip({ left, top: below ? b.bottom - w.top + 8 : b.top - w.top - 8, below, edge });
+  }, [picked, cell, weeks]);
+  const pickedDay = days.find((d) => d.key === picked);
+  const tipText = pickedDay ? heatTooltip(pickedDay, goal) : null;
+
   return (
     <>
       <div className="dash-card-head heat-head">
         <span className="dash-label">Constância</span>
-        {pickedDay ? (
-          <DayDetail day={pickedDay} goal={goal} />
-        ) : (
-          <span className="heat-summary">
-            <span>
-              <strong>{readCount}</strong> {readCount === 1 ? "dia lido" : "dias lidos"}
-            </span>
-            <span>
-              <strong>{metCount}</strong> {metCount === 1 ? "meta cumprida" : "metas cumpridas"} ✓
-            </span>
-            <span className="heat-summary-range">últimas {weeks} semanas</span>
-          </span>
-        )}
-      </div>
-      <div className="heatmap-wrap" ref={wrapRef} onPointerLeave={(e) => e.pointerType === "mouse" && clear()}>
-        <div className="heat-months" aria-hidden="true" style={{ marginLeft: HEAT_LABEL_W }}>
-          {months.map((m) => (
-            <span key={m.col} style={{ left: m.col * (HEAT_CELL + HEAT_GAP) }}>
-              {m.label}
-            </span>
+        <div className="segmented heat-periods" role="tablist" aria-label="Período">
+          {HEAT_PERIODS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={period === p.id}
+              className={period === p.id ? "is-on" : ""}
+              onClick={() => {
+                clear();
+                setPeriod(p.id);
+                try {
+                  localStorage.setItem(HEAT_PERIOD_KEY, p.id);
+                } catch {
+                  // Sem armazenamento: vale só nesta visita.
+                }
+              }}
+            >
+              {p.label}
+            </button>
           ))}
         </div>
-        <div className="heat-body">
-          <div className="heat-weekdays" aria-hidden="true">
-            {HEAT_WEEKDAYS.map((w, i) => (
-              <span key={i}>{w}</span>
-            ))}
-          </div>
-          <div className="heatmap">
-            {days.map((d, i) => (
-              <button
-                type="button"
-                key={d.key}
-                className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)} ${
-                  d.key === today.key ? "is-today" : ""
-                } ${picked === d.key ? "is-picked" : ""}`}
-                style={{ animationDelay: `${Math.floor(i / 7) * 25}ms` }}
-                aria-label={dayTitle(d, goal)}
-                aria-pressed={picked === d.key}
-                tabIndex={-1}
-                {...bind(d.key)}
-              />
-            ))}
+      </div>
+
+      <dl className="heat-stats">
+        <div>
+          <dt>
+            <span aria-hidden="true">🔥</span> Ofensiva<span className="heat-stat-more"> atual</span>
+          </dt>
+          <dd>
+            {streak} {streak === 1 ? "dia" : "dias"}
+          </dd>
+        </div>
+        <div>
+          <dt>
+            <span aria-hidden="true">📚</span> Dias lidos
+          </dt>
+          <dd>{readCount}</dd>
+        </div>
+        <div>
+          <dt>
+            <span aria-hidden="true">🎯</span> Metas<span className="heat-stat-more"> cumpridas</span>
+          </dt>
+          <dd>{metCount}</dd>
+        </div>
+      </dl>
+
+      <div
+        className="heatmap-wrap"
+        ref={wrapRef}
+        style={{ "--cell": `${cell}px` } as React.CSSProperties}
+        onPointerLeave={(e) => e.pointerType === "mouse" && clear()}
+      >
+        <div className="heat-scroll" ref={scrollRef} onScroll={clear}>
+          <div className="heat-grid">
+            <div className="heat-months" aria-hidden="true" style={{ marginLeft: HEAT_LABEL_W }}>
+              {months.map((m) => (
+                <span key={m.col} style={{ left: m.col * step }}>
+                  {m.label}
+                </span>
+              ))}
+            </div>
+            <div className="heat-body">
+              <div className="heat-weekdays" aria-hidden="true">
+                {HEAT_WEEKDAYS.map((w, i) => (
+                  <span key={i}>{w}</span>
+                ))}
+              </div>
+              <div className="heatmap">
+                {days.map((d, i) => (
+                  <button
+                    type="button"
+                    key={d.key}
+                    data-day={d.key}
+                    className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)} ${
+                      d.key === today.key ? "is-today" : ""
+                    } ${picked === d.key ? "is-picked" : ""}`}
+                    style={{ animationDelay: `${Math.floor(i / 7) * 18}ms` }}
+                    aria-label={dayTitle(d, goal)}
+                    aria-pressed={picked === d.key}
+                    tabIndex={-1}
+                    {...bind(d.key)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+        {tip && tipText ? (
+          <div
+            className={`heat-tooltip ${tip.below ? "is-below" : ""} ${tip.edge}`}
+            style={{ left: tip.left, top: tip.top }}
+            role="status"
+          >
+            <strong>{tipText.date}</strong>
+            <span>{tipText.detail}</span>
+          </div>
+        ) : null}
       </div>
-      <div className="heatmap-foot">
-        <span className="heat-tip">Toque num dia (ou passe o mouse) para ver quanto leu.</span>
-        <span className="heat-legend" aria-hidden="true">
-          <span>
-            <i className="heat-cell lv-0" />
-            Sem leitura
-          </span>
-          {([1, 2, 3] as const).map((lv) => (
-            <span key={lv}>
-              <i className={`heat-cell lv-${lv}`} />
-              {lv === 3 ? "Meta cumprida" : LEVEL_LABELS[lv]}
-            </span>
+
+      <div className="heatmap-foot" aria-hidden="true">
+        <span className="heat-legend">
+          Sem leitura
+          {([0, 1, 2, 3] as const).map((lv) => (
+            <i key={lv} className={`heat-cell lv-${lv}`} title={LEVEL_LABELS[lv]} />
           ))}
+          Meta cumprida
         </span>
+        {hasSaved ? (
+          <span className="heat-legend">
+            <i className="heat-cell lv-frozen" /> Sequência salva
+          </span>
+        ) : null}
       </div>
       {/* Mesmo dado em tabela, para leitores de tela. */}
       <table className="sr-only">
@@ -2138,7 +2251,7 @@ function ReadingDashboard({
       </div>
 
       <div className="dash-card dash-heat">
-        <ReadingHeatmap days={history} goal={summary.goalMinutes} />
+        <ReadingHeatmap days={history} goal={summary.goalMinutes} streak={summary.streak} />
       </div>
 
       <div className="dash-tiles">

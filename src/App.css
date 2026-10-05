@@ -5413,17 +5413,18 @@
   font-weight: 700;
 }
 
-/* Mapa de constância */
+/* Mapa de constância (min-width: 0 deixa o ano inteiro rolar em vez de alargar o card) */
 .dash-heat {
   grid-column: 1 / -1;
+  min-width: 0;
 }
 
-/* Quadrados de tamanho fixo (14 px + 4 px): o componente escolhe quantas semanas cabem. */
+/* Quadrados do tamanho que couber (--cell, 10 a 22 px), calculado pelo componente. */
 .heatmap {
   display: grid;
   grid-auto-flow: column;
-  grid-template-rows: repeat(7, 14px);
-  grid-auto-columns: 14px;
+  grid-template-rows: repeat(7, var(--cell, 14px));
+  grid-auto-columns: var(--cell, 14px);
   gap: 4px;
 }
 
@@ -5436,15 +5437,16 @@
 }
 
 .heat-cell.lv-1 {
-  background: var(--heat-1);
+  background: rgba(228, 184, 106, 0.28);
 }
 
 .heat-cell.lv-2 {
-  background: var(--heat-2);
+  background: rgba(228, 184, 106, 0.6);
 }
 
 .heat-cell.lv-3 {
-  background: var(--heat-3);
+  background: #f3c46a;
+  box-shadow: 0 0 10px -3px rgba(243, 196, 106, 0.6);
 }
 
 .heat-cell.lv-frozen {
@@ -5479,20 +5481,23 @@
 }
 
 .heat-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.9rem;
-}
-
-.heat-legend > span {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4px;
 }
 
 .heat-legend .heat-cell {
   width: 11px;
   animation: none;
+  box-shadow: none;
+}
+
+.heat-legend .heat-cell:first-of-type {
+  margin-left: 0.3rem;
+}
+
+.heat-legend .heat-cell:last-of-type {
+  margin-right: 0.3rem;
 }
 
 /* Totais */
@@ -5832,18 +5837,6 @@
   background: var(--heat-3);
 }
 
-/* Mapa: "meta cumprida" leva um check (não depende só do tom) */
-.heat-cell.lv-3 {
-  position: relative;
-}
-
-.heat-cell.lv-3::after {
-  position: absolute;
-  inset: 0;
-  content: "";
-  background: center / 70% no-repeat
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c140c' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
-}
 
 @media (max-width: 1000px) {
   .dashboard {
@@ -6121,19 +6114,6 @@
   row-gap: 0.4rem;
 }
 
-.heat-summary {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.3rem 0.9rem;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.heat-summary strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
 
 .heat-months {
   position: relative;
@@ -6156,7 +6136,7 @@
 
 .heat-weekdays {
   display: grid;
-  grid-template-rows: repeat(7, 14px);
+  grid-template-rows: repeat(7, var(--cell, 14px));
   gap: 4px;
   width: 30px;
   flex-shrink: 0;
@@ -6165,7 +6145,7 @@
 .heat-weekdays span {
   color: var(--muted);
   font-size: 0.64rem;
-  line-height: 14px;
+  line-height: var(--cell, 14px);
 }
 
 .heatmap .heat-cell {
@@ -6190,21 +6170,127 @@
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-.heat-tip {
+@media (max-width: 560px) {
+  .day-detail {
+    text-align: left;
+  }
+}
+
+.heat-periods {
+  flex-shrink: 0;
+}
+
+.heat-periods button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+/* Métricas do topo: ofensiva, dias lidos e metas no período. */
+.heat-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.2rem 0 1.1rem;
+}
+
+.heat-stats > div {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.025);
+}
+
+.heat-stats dt {
   color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.heat-stats dd {
+  margin: 0.15rem 0 0;
+  color: var(--text);
+  font-family: var(--font-read);
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* O ano inteiro no celular rola de lado, começando pelo mais recente. */
+.heat-scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+/* Períodos curtos não esticam: o mapa fica no centro do card. */
+.heat-scroll > * {
+  width: max-content;
+  margin-inline: auto;
+}
+
+.heat-tooltip {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-deep);
+  box-shadow: var(--shadow-soft);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(var(--tx, -50%), var(--ty, -100%));
+  animation: tip-in 0.12s ease-out both;
+}
+
+.heat-tooltip.is-below {
+  --ty: 0;
+}
+
+.heat-tooltip.is-left {
+  --tx: -18px;
+}
+
+.heat-tooltip.is-right {
+  --tx: calc(-100% + 18px);
+}
+
+.heat-tooltip strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.heat-tooltip span {
+  color: var(--text-read);
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @media (max-width: 560px) {
-  .heat-summary {
-    justify-content: flex-start;
+  .heat-stats {
+    gap: 0.4rem;
   }
 
-  .heat-summary-range {
+  .heat-stats > div {
+    padding: 0.5rem 0.55rem;
+  }
+
+  .heat-stats dt {
+    font-size: 0.68rem;
+  }
+
+  .heat-stat-more {
     display: none;
   }
 
-  .day-detail {
-    text-align: left;
+  .heat-stats dd {
+    font-size: 1.05rem;
   }
 }
 
