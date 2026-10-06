@@ -123,3 +123,39 @@ export function useInstallPrompt(): { install: (() => Promise<void>) | null } {
     },
   };
 }
+
+/** `installed`: já está instalado (ou aberto como app); `install`: convite nativo do navegador. */
+export function useAppInstall(): { installed: boolean; install: (() => Promise<void>) | null } {
+  const { install } = useInstallPrompt();
+  return { installed, install };
+}
+
+/**
+ * Onde a pessoa está, para o passo a passo de "Baixar app" quando o navegador não oferece o
+ * botão de instalar (iPhone, Safari no Mac, Firefox no computador...).
+ */
+export type InstallPlatform = "ios" | "android" | "desktop" | "mac-safari" | "firefox-desktop";
+
+export function installPlatform(
+  ua = typeof navigator !== "undefined" ? navigator.userAgent : "",
+  touchPoints = typeof navigator !== "undefined" ? navigator.maxTouchPoints : 0,
+): InstallPlatform {
+  // iPad com iPadOS se apresenta como Mac: a tela de toque denuncia.
+  if (/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1)) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  if (/Firefox\//.test(ua)) return "firefox-desktop";
+  if (/Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) return "mac-safari";
+  return "desktop";
+}
+
+/**
+ * Links das lojas oficiais, quando houver app publicado (VITE_ANDROID_APP_URL /
+ * VITE_IOS_APP_URL). Sem eles, "Baixar app" instala o próprio site (PWA).
+ */
+export function storeLinks(env: { VITE_ANDROID_APP_URL?: string; VITE_IOS_APP_URL?: string } = import.meta.env): {
+  android: string | null;
+  ios: string | null;
+} {
+  const safe = (url?: string) => (url && /^https:\/\/\S+$/.test(url.trim()) ? url.trim() : null);
+  return { android: safe(env.VITE_ANDROID_APP_URL), ios: safe(env.VITE_IOS_APP_URL) };
+}

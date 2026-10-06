@@ -18,6 +18,10 @@ interface ImportMetaEnv {
   readonly VITE_OPENROUTER_API_KEY?: string;
   /** Opcional. Modelos gratuitos do OpenRouter terminam em ":free". */
   readonly VITE_OPENROUTER_MODELS?: string;
+  /** Opcional. Link do app na Google Play (sem ele, "Baixar app" instala o site). */
+  readonly VITE_ANDROID_APP_URL?: string;
+  /** Opcional. Link do app na App Store. */
+  readonly VITE_IOS_APP_URL?: string;
 }
 
 interface ImportMeta {
