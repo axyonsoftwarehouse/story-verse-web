@@ -1,6 +1,5 @@
 dist
 node_modules
-story-magic-api
 package-lock.json
 src/App.css
 public

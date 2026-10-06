@@ -2,13 +2,7 @@ name: Frontend
 
 on:
   push:
-    paths-ignore:
-      - "story-magic-api/**"
-      - ".github/workflows/story-magic-api.yml"
   pull_request:
-    paths-ignore:
-      - "story-magic-api/**"
-      - ".github/workflows/story-magic-api.yml"
 
 permissions:
   contents: read

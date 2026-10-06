@@ -47,7 +47,6 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 |---|---|
 | Frontend | React 18 + TypeScript |
 | Build e servidor de desenvolvimento do frontend | Vite 5 |
-| API backend | Java + Spring Boot (`story-magic-api/`) |
 | Hospedagem do frontend | Vercel (site estático + rewrites) |
 | Autenticação | Supabase Auth (REST, direto do cliente) |
 | Catálogo e conteúdo no frontend atual | [Project Gutenberg](https://www.gutenberg.org), via proxy (`/gutenberg` e `/gutenberg-mirror`) |
@@ -55,9 +54,9 @@ O acervo vem do [Project Gutenberg](https://www.gutenberg.org): mais de 70 mil l
 | IA no frontend atual | [Groq](https://console.groq.com), [Google Gemini](https://aistudio.google.com) e [OpenRouter](https://openrouter.ai) |
 | Fontes | Literata (leitura) e Plus Jakarta Sans (interface), do Google Fonts |
 
-O frontend e a API são módulos independentes, com builds, dependências e processos de execução separados. A API Spring Boot oferece endpoints REST para catálogo, conteúdo público do Gutenberg e busca de metadados na Open Library. **O frontend ainda não está conectado a esses endpoints** e continua chamando diretamente os serviços identificados como atuais na tabela. Valores de configuração com prefixo `VITE_` são incluídos no bundle e não podem ser tratados como segredos privados. O Supabase Auth gerencia contas e sessões; livros importados, progresso, conversas e preferências continuam no navegador. A API não persiste usuários nem dados de leitura. A interface não usa bibliotecas de componentes.
+Este repositório contém só o frontend. A API Java/Spring Boot é um projeto separado (fora deste repositório) e **o frontend ainda não está conectado a ela**: continua chamando diretamente os serviços identificados como atuais na tabela. Valores de configuração com prefixo `VITE_` são incluídos no bundle e não podem ser tratados como segredos privados. O Supabase Auth gerencia contas e sessões; livros importados, progresso, conversas e preferências continuam no navegador. A interface não usa bibliotecas de componentes.
 
-Consulte [`ARCHITECTURE.md`](ARCHITECTURE.md) para os limites entre os módulos e as regras para futuras integrações, e [`story-magic-api/README.md`](story-magic-api/README.md) para executar e usar a API.
+Consulte [`ARCHITECTURE.md`](ARCHITECTURE.md) para os limites com o backend e as regras para futuras integrações.
 
 ### Estrutura
 
@@ -91,11 +90,6 @@ public/
 ├── sw.js                   Service worker (offline)
 ├── manifest.webmanifest    Manifesto do app instalável
 └── icons/                  Ícones do app
-story-magic-api/
-├── pom.xml                 Build Maven independente do backend
-├── Dockerfile              Imagem de produção
-├── render.yaml             Blueprint de hospedagem always-on
-└── src/                    API Spring Boot, integrações e testes
 ```
 
 ## Regras de negócio
