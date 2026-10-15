@@ -37,6 +37,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Opcional: quando definido, o login/sessão usam a API própria (Marco 2).
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_SUPABASE_EMAIL_OTP_ENABLED: ${{ secrets.VITE_SUPABASE_EMAIL_OTP_ENABLED }}
           VITE_LOGIN_REQUIRED: ${{ secrets.VITE_LOGIN_REQUIRED }}
           VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}

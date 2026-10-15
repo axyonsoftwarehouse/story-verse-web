@@ -433,10 +433,11 @@ docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\dt pub
 
 ## 14. O que vem depois (Marco 2)
 
-- O backend (Spring) entra como serviço `api` no stack `storyverse` (bloco comentado no
-  `docker-compose.yml`); conecta em `db:5432` e nunca publica o banco no host.
-- O Caddy de borda ganha o bloco `api.storyverse.…` apontando para esse serviço.
-- O build da API passa pelo GitHub Actions → imagem no GHCR → a VPS faz `pull`.
+- O backend (Spring, repo `axyonsoftwarehouse/story-verse-api`) entra como serviço `api` no
+  stack `storyverse`; conecta em `db:5432` e nunca publica o banco no host.
+- O Caddy de borda tem o bloco `api.storyverse.…` apontando para `storyverse-api-1:8080`.
+- O build da API passa pelo GitHub Actions → imagem no GHCR → a VPS faz `pull` (workflow
+  `deploy-api.yml`). A imagem no GHCR precisa ser **pública** (ou usar um token para o `pull`).
 - As chaves de IA saem do site e passam para o servidor.
 - A migração dos dados (contas, progresso, diamantes, envios) vem do Supabase
   (`pg_dump` + Storage) — **Marco 3**.

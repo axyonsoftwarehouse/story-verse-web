@@ -23,18 +23,20 @@ services:
     networks:
       - storyverse
 
-  # Marco 2: o backend (story-magic-api) entra aqui, conecta em db:5432 e mais
-  # ninguém publica 5432 no host.
-  # api:
-  #   build: ../../../story-magic-api
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: postgres://${POSTGRES_USER:-storyverse}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-storyverse}
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   networks:
-  #     - storyverse
+  api:
+    image: ${API_IMAGE:-ghcr.io/axyonsoftwarehouse/story-verse-api:latest}
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-storyverse}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-storyverse}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://storyverse.2.29.42.104.sslip.io}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - storyverse
 
 networks:
   storyverse:

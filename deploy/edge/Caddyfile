@@ -13,6 +13,12 @@ api.staging.2.29.42.104.sslip.io {
     reverse_proxy foodie-staging-api-1:4001
 }
 
+# ── Storyverse — API (backend) ──────────────────────────────────────
+api.storyverse.2.29.42.104.sslip.io {
+    encode zstd gzip
+    reverse_proxy storyverse-api-1:8080
+}
+
 # ── Storyverse (novo) ───────────────────────────────────────────────
 storyverse.2.29.42.104.sslip.io {
     encode zstd gzip

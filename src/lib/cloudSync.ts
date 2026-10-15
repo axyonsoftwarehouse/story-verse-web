@@ -1,4 +1,5 @@
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { apiEnabled, apiRequest } from "./backend";
 import { currentDataOwner, isUserKey } from "./dataOwner";
 import { captureError } from "./telemetry";
 
@@ -279,14 +280,46 @@ async function writeIfUnchanged(session: SupabaseSession, prev: Row | undefined,
   return rows.length > 0;
 }
 
+/** Leitura do estado de leitura direto do Supabase (PostgREST). */
+async function supabaseGetState(session: SupabaseSession): Promise<Row | undefined> {
+  const res = await rest(session, `reading_state?select=data,updated_at&user_id=eq.${session.user.id}`);
+  return ((await res.json()) as Row[])[0];
+}
+
+type ApiStateResponse = { data?: Snapshot; updatedAt?: string | null };
+
+/** Leitura do estado de leitura pela API própria. */
+async function apiGetState(session: SupabaseSession): Promise<Row | undefined> {
+  const payload = await apiRequest<ApiStateResponse>("/api/v1/me/reading-state", {
+    accessToken: session.access_token,
+  });
+  if (!payload?.updatedAt) return undefined;
+  return { data: payload.data ?? {}, updated_at: payload.updatedAt };
+}
+
+/** Gravação otimista pela API própria (`updated=false` se outro aparelho gravou antes). */
+async function apiPutState(
+  session: SupabaseSession,
+  prev: Row | undefined,
+  data: Snapshot,
+  keepalive: boolean,
+): Promise<boolean> {
+  const payload = await apiRequest<{ updated?: boolean }>("/api/v1/me/reading-state", {
+    method: "PUT",
+    accessToken: session.access_token,
+    body: { data, baseUpdatedAt: prev?.updated_at ?? null },
+    keepalive: keepalive && JSON.stringify(data).length < 60_000,
+  });
+  return payload?.updated === true;
+}
+
 let running: { userId: string; promise: Promise<boolean> } | null = null;
 
 async function syncOnce(session: SupabaseSession, keepalive: boolean): Promise<boolean> {
   const userId = session.user.id;
   let changed = false;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await rest(session, `reading_state?select=data,updated_at&user_id=eq.${userId}`);
-    const row = ((await res.json()) as Row[])[0];
+    const row = apiEnabled ? await apiGetState(session) : await supabaseGetState(session);
     const remote = row?.data ?? {};
     // Os dados em uso aqui são de outra conta (saiu ou trocou enquanto baixava): não mistura.
     if (currentDataOwner() !== userId) return false;
@@ -314,7 +347,9 @@ async function syncOnce(session: SupabaseSession, keepalive: boolean): Promise<b
       saveBase(userId, merged);
       return changed;
     }
-    const written = await writeIfUnchanged(session, row, merged, keepalive);
+    const written = apiEnabled
+      ? await apiPutState(session, row, merged, keepalive)
+      : await writeIfUnchanged(session, row, merged, keepalive);
     // Ao sair do app não dá para saber se gravou: a base fica como estava e a próxima rodada
     // junta de novo (se gravou, nada muda; se não, nada se perde).
     if (written && !keepalive) saveBase(userId, merged);
