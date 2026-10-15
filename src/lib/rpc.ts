@@ -1,7 +1,9 @@
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { apiEnabled, apiRequest } from "./backend";
 
 /**
- * Chamada a uma função do banco (Supabase RPC) em nome de quem está logado. `feature` dá nome
+ * Chamada a uma função do banco em nome de quem está logado. Na API própria vira
+ * `POST /api/v1/rpc/{name}` (com lista branca); no Supabase, o RPC do PostgREST. `feature` dá nome
  * ao recurso na mensagem de "ainda não foi configurado" (ex.: "O ranking", "A loja").
  */
 export async function rpc<T>(
@@ -10,6 +12,14 @@ export async function rpc<T>(
   args: object,
   opts: { feature: string; keepalive?: boolean },
 ): Promise<T> {
+  if (apiEnabled) {
+    return apiRequest<T>(`/api/v1/rpc/${encodeURIComponent(name)}`, {
+      method: "POST",
+      body: args,
+      accessToken: session.access_token,
+      keepalive: opts.keepalive,
+    });
+  }
   const { url, anonKey } = supabaseConfig();
   let res: Response;
   try {
