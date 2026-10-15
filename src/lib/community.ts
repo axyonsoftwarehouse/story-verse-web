@@ -1,5 +1,6 @@
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { apiBaseUrl, apiEnabled, apiFetch, apiRequest } from "./backend";
 import { castFromNames } from "./cast";
 import { dataUrlToBlob, uploadBookCover } from "./profileMedia";
 
@@ -148,6 +149,36 @@ export async function submitBook(
   const bytes = new Blob([input.text]).size;
   if (bytes > MAX_COMMUNITY_BYTES) throw new Error("O texto do livro é grande demais (máximo de 10 MB).");
   const path = `${session.user.id}/${crypto.randomUUID()}.txt`;
+  if (apiEnabled) {
+    const upload = await apiFetch(`/api/v1/storage/${BUCKET}/object?path=${encodeURIComponent(path)}`, {
+      method: "POST",
+      accessToken: session.access_token,
+      body: input.text,
+      headers: { "Content-Type": "text/plain" },
+    });
+    if (!upload.ok) {
+      const payload = (await upload.json().catch(() => ({}))) as { error?: string; message?: string };
+      throw new Error(payload.error ?? payload.message ?? `Erro ${upload.status}`);
+    }
+    const row = await apiRequest<Submission>("/api/v1/community/submissions", {
+      method: "POST",
+      accessToken: session.access_token,
+      body: {
+        submitter_name: input.submitterName.slice(0, 60),
+        title: input.title.slice(0, 120),
+        author: input.author.slice(0, 120) || null,
+        language: input.language,
+        rights: input.rights,
+        rights_note: input.rightsNote.trim().slice(0, 500) || null,
+        characters: input.characters.trim().slice(0, 600) || null,
+        text_path: path,
+        char_count: input.text.length,
+        ...(input.coverUrl ? { cover_url: input.coverUrl } : {}),
+      },
+    });
+    approvedCache = null;
+    return row;
+  }
   const insert = (withCover: boolean) =>
     sb("/rest/v1/book_submissions", {
       method: "POST",
@@ -188,9 +219,9 @@ export async function submitBook(
     return row;
   } catch (err) {
     // Sem o registro, o texto e a capa enviada não servem para nada.
-    void sb(`/storage/v1/object/${BUCKET}/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+    void dropObject(session, BUCKET, path);
     const cover = uploadedCoverPath(input.coverUrl);
-    if (cover) void sb(`/storage/v1/object/profile-media/${encodePath(cover)}`, { method: "DELETE", session }).catch(() => {});
+    if (cover) void dropObject(session, "profile-media", cover);
     throw err;
   }
 }
@@ -199,6 +230,14 @@ export async function listSubmissions(
   session: SupabaseSession | null,
   which: "mine" | "pending" | "approved",
 ): Promise<Submission[]> {
+  if (apiEnabled) {
+    const scope = which === "mine" ? "mine" : which === "pending" ? "pending" : "approved";
+    return (
+      (await apiRequest<Submission[]>(`/api/v1/community/submissions?scope=${scope}`, {
+        accessToken: session?.access_token,
+      })) ?? []
+    );
+  }
   const query =
     which === "mine"
       ? `user_id=eq.${session?.user.id ?? ""}&order=created_at.desc`
@@ -231,6 +270,15 @@ export async function reviewSubmission(
   note?: string,
   coverUrl?: string | null,
 ): Promise<Submission> {
+  if (apiEnabled) {
+    const row = await apiRequest<Submission>(`/api/v1/community/submissions/${id}`, {
+      method: "PATCH",
+      accessToken: session.access_token,
+      body: { status, review_note: note?.trim().slice(0, 500) || null, ...(coverUrl ? { cover_url: coverUrl } : {}) },
+    });
+    approvedCache = null;
+    return row;
+  }
   const fields: Record<string, unknown> = { status, review_note: note?.trim().slice(0, 500) || null, reviewed_at: new Date().toISOString() };
   if (coverUrl) fields.cover_url = coverUrl;
   const send = (body: Record<string, unknown>) =>
@@ -257,14 +305,29 @@ export async function reviewSubmission(
 }
 
 const COVER_PREFIX = "/storage/v1/object/public/profile-media/";
+const API_COVER_PREFIX = "/api/v1/storage/public/profile-media/";
 
 /** Caminho da capa no Storage, se ela foi enviada pelo app (capas da Open Library não). */
 function uploadedCoverPath(coverUrl: string | null | undefined): string | null {
   if (!coverUrl) return null;
-  const at = coverUrl.indexOf(COVER_PREFIX);
-  if (at < 0 || !coverUrl.startsWith(supabaseConfig().url)) return null;
-  const path = decodeURIComponent(coverUrl.slice(at + COVER_PREFIX.length).split("?")[0]);
+  const prefix = apiEnabled ? API_COVER_PREFIX : COVER_PREFIX;
+  const base = apiEnabled ? apiBaseUrl : supabaseConfig().url;
+  const at = coverUrl.indexOf(prefix);
+  if (at < 0 || !coverUrl.startsWith(base)) return null;
+  const path = decodeURIComponent(coverUrl.slice(at + prefix.length).split("?")[0]);
   return path.split("/")[1] === "livros" ? path : null;
+}
+
+/** Apaga um arquivo do Storage (Supabase ou API própria). */
+async function dropObject(session: SupabaseSession | null, bucket: string, path: string): Promise<void> {
+  if (apiEnabled) {
+    await apiFetch(`/api/v1/storage/${bucket}/object?path=${encodeURIComponent(path)}`, {
+      method: "DELETE",
+      accessToken: session?.access_token,
+    }).catch(() => {});
+    return;
+  }
+  await sb(`/storage/v1/object/${bucket}/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
 }
 
 /**
@@ -272,6 +335,15 @@ function uploadedCoverPath(coverUrl: string | null | undefined): string | null {
  * pasta no Storage); sem ela no banco, o PATCH direto funciona para o admin.
  */
 export async function setSubmissionCover(session: SupabaseSession, id: string, coverUrl: string): Promise<void> {
+  if (apiEnabled) {
+    await apiRequest("/api/v1/rpc/set_submission_cover", {
+      method: "POST",
+      accessToken: session.access_token,
+      body: { submission_id: id, new_cover: coverUrl },
+    });
+    approvedCache = null;
+    return;
+  }
   try {
     await sb("/rest/v1/rpc/set_submission_cover", {
       method: "POST",
@@ -300,8 +372,24 @@ export async function changeSubmissionCover(session: SupabaseSession, s: Submiss
   const url = await uploadBookCover(session, image);
   const dropNew = () => {
     const path = uploadedCoverPath(url);
-    if (path) void sb(`/storage/v1/object/profile-media/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+    if (path) void dropObject(session, "profile-media", path);
   };
+  if (apiEnabled) {
+    try {
+      const row = await apiRequest<Submission>(`/api/v1/community/submissions/${s.id}`, {
+        method: "PATCH",
+        accessToken: session.access_token,
+        body: { cover_url: url },
+      });
+      const old = uploadedCoverPath(s.cover_url);
+      if (old) void dropObject(session, "profile-media", old);
+      approvedCache = null;
+      return row;
+    } catch (err) {
+      dropNew();
+      throw err;
+    }
+  }
   let rows: Submission[];
   try {
     const res = await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, {
@@ -320,7 +408,7 @@ export async function changeSubmissionCover(session: SupabaseSession, s: Submiss
     throw new Error("Sem permissão para trocar a capa.");
   }
   const old = uploadedCoverPath(s.cover_url);
-  if (old) void sb(`/storage/v1/object/profile-media/${encodePath(old)}`, { method: "DELETE", session }).catch(() => {});
+  if (old) void dropObject(session, "profile-media", old);
   approvedCache = null;
   return rows[0];
 }
@@ -351,7 +439,7 @@ export async function syncSubmissionCovers(session: SupabaseSession, localBooks:
     } catch (err) {
       // Sem gravar no envio, a imagem enviada não serve para nada.
       const orphan = uploadedCoverPath(url);
-      if (orphan) void sb(`/storage/v1/object/profile-media/${encodePath(orphan)}`, { method: "DELETE", session }).catch(() => {});
+      if (orphan) void dropObject(session, "profile-media", orphan);
       console.warn(`[acervo] capa de "${s.title}" não sincronizada:`, err);
     }
   }
@@ -360,6 +448,14 @@ export async function syncSubmissionCovers(session: SupabaseSession, localBooks:
 
 /** Apaga o envio, o texto e a capa enviada (admin: qualquer um; quem enviou: só os em análise). */
 export async function deleteSubmission(session: SupabaseSession, s: Submission): Promise<void> {
+  if (apiEnabled) {
+    await apiRequest(`/api/v1/community/submissions/${s.id}`, { method: "DELETE", accessToken: session.access_token });
+    await dropObject(session, BUCKET, s.text_path);
+    const cover = uploadedCoverPath(s.cover_url);
+    if (cover) await dropObject(session, "profile-media", cover);
+    approvedCache = null;
+    return;
+  }
   await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, { method: "DELETE", session });
   await sb(`/storage/v1/object/${BUCKET}/${encodePath(s.text_path)}`, { method: "DELETE", session }).catch(() => {});
   const cover = uploadedCoverPath(s.cover_url);
@@ -368,12 +464,35 @@ export async function deleteSubmission(session: SupabaseSession, s: Submission):
 }
 
 export async function fetchCommunityText(session: SupabaseSession | null, path: string): Promise<string> {
+  if (apiEnabled) {
+    const res = await apiFetch(`/api/v1/storage/${BUCKET}/object?path=${encodeURIComponent(path)}`, {
+      accessToken: session?.access_token,
+    });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      throw new Error(payload.error ?? payload.message ?? `Erro ${res.status}`);
+    }
+    return res.text();
+  }
   const res = await sb(`/storage/v1/object/authenticated/${BUCKET}/${encodePath(path)}`, { session });
   return res.text();
 }
 
 /** Pergunta ao banco (função is_admin); qualquer erro conta como "não é admin". */
 export async function checkIsAdmin(session: SupabaseSession): Promise<boolean> {
+  if (apiEnabled) {
+    try {
+      return (
+        (await apiRequest<boolean>("/api/v1/rpc/is_admin", {
+          method: "POST",
+          accessToken: session.access_token,
+          body: {},
+        })) === true
+      );
+    } catch {
+      return false;
+    }
+  }
   try {
     const res = await sb("/rest/v1/rpc/is_admin", {
       method: "POST",
