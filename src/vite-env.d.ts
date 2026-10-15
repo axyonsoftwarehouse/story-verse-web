@@ -5,6 +5,8 @@ declare const __APP_VERSION__: string;
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  /** Opcional. Base da API própria (Marco 2). Definida, ela passa a servir o login/cadastro/sessão. */
+  readonly VITE_API_URL?: string;
   /** Opcional. "false" deixa ler e conversar sem conta (a conta vira opcional). */
   readonly VITE_LOGIN_REQUIRED?: string;
   /** Opcional. "true" pede o código de 6 números no cadastro (OTP configurado no Supabase). */

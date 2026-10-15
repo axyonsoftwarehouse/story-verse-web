@@ -1,10 +1,13 @@
 import { captureError, captureEvent } from "./telemetry";
+import { apiEnabled, apiRequest, AuthNetworkError } from "./backend";
+
+export { AuthNetworkError };
 
 /**
- * O login só existe com o Supabase configurado. Sem as variáveis (ex.: deploy que ainda não as
- * tem), o app funciona como antes, sem contas — o merge não quebra a produção.
+ * O login existe com o Supabase (padrão) ou com a API própria, quando `VITE_API_URL` está
+ * definida. Sem nenhum dos dois, o app funciona como antes, sem contas.
  */
-export const authEnabled = Boolean(
+export const authEnabled = apiEnabled || Boolean(
   import.meta.env.VITE_SUPABASE_URL?.trim() && import.meta.env.VITE_SUPABASE_ANON_KEY?.trim(),
 );
 /** Conta obrigatória para ler e importar. `VITE_LOGIN_REQUIRED=false` deixa a conta opcional. */
@@ -12,7 +15,8 @@ export const loginRequired = authEnabled && import.meta.env.VITE_LOGIN_REQUIRED?
 
 const SESSION_KEY = "storyverse:supabase-session";
 const LEGACY_AUTH_KEY = "storyverse:auth";
-export const EMAIL_OTP_ENABLED = import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED === "true";
+/** A API própria ainda não tem OTP; com ela, o código de 6 dígitos fica desligado. */
+export const EMAIL_OTP_ENABLED = !apiEnabled && import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED === "true";
 
 export type SupabaseUser = {
   id: string;
@@ -80,11 +84,27 @@ function describeAuthError(message: string): string {
   return message;
 }
 
-/**
- * Sem internet (ou Supabase fora do ar). Diferente de "senha errada" ou "sessão revogada": nesse
- * caso a sessão guardada continua valendo no aparelho, e a renovação é tentada de novo depois.
- */
-export class AuthNetworkError extends Error {}
+/** Resposta da API própria de contas (ver story-verse-api). */
+type ApiUser = { id: string; email: string; name?: string | null };
+type ApiAuthResponse = { accessToken: string; refreshToken: string; expiresIn?: number; user: ApiUser };
+
+function apiToUser(user: ApiUser): SupabaseUser {
+  return { id: user.id, email: user.email, user_metadata: user.name ? { name: user.name } : {} };
+}
+
+function apiToSession(payload: ApiAuthResponse): SupabaseSession {
+  if (!payload?.accessToken || !payload?.refreshToken || !payload?.user) {
+    throw new Error("O serviço não retornou uma sessão válida.");
+  }
+  return {
+    access_token: payload.accessToken,
+    refresh_token: payload.refreshToken,
+    // Pelo relógio do aparelho (expiresIn), como no caminho do Supabase.
+    expires_at:
+      Math.floor(Date.now() / 1000) + (payload.expiresIn && payload.expiresIn > 0 ? payload.expiresIn : 3600),
+    user: apiToUser(payload.user),
+  };
+}
 
 async function authRequest(
   path: string,
@@ -157,6 +177,12 @@ export function clearLegacyCredentials() {
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<SupabaseSession> {
+  if (apiEnabled) {
+    const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/login", { method: "POST", body: { email, password } });
+    const session = apiToSession(payload);
+    storeSession(session);
+    return session;
+  }
   const payload = await authRequest("token?grant_type=password", { email, password });
   const session = makeSession(payload);
   if (!session) throw new Error("O serviço não retornou uma sessão válida.");
@@ -169,6 +195,16 @@ export async function signUpWithPassword(
   password: string,
   name: string,
 ): Promise<SupabaseSession | null> {
+  if (apiEnabled) {
+    // A API própria já devolve a sessão no cadastro (sem confirmação por e-mail nesta etapa).
+    const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/signup", {
+      method: "POST",
+      body: { email, password, name },
+    });
+    const session = apiToSession(payload);
+    storeSession(session);
+    return session;
+  }
   const redirect = encodeURIComponent(window.location.origin);
   const payload = await authRequest(`signup?redirect_to=${redirect}`, {
     email,
@@ -181,6 +217,9 @@ export async function signUpWithPassword(
 }
 
 export async function verifySignupCode(email: string, token: string): Promise<SupabaseSession> {
+  if (apiEnabled) {
+    throw new Error("A confirmação por código ainda não está disponível nesta versão.");
+  }
   const payload = await authRequest("verify", { type: "signup", email, token });
   const session = makeSession(payload);
   if (!session) throw new Error("Código confirmado, mas o serviço não retornou uma sessão válida.");
@@ -189,6 +228,9 @@ export async function verifySignupCode(email: string, token: string): Promise<Su
 }
 
 export async function resendSignupCode(email: string): Promise<void> {
+  if (apiEnabled) {
+    throw new Error("A confirmação por código ainda não está disponível nesta versão.");
+  }
   await authRequest("resend", { type: "signup", email });
 }
 
@@ -203,6 +245,12 @@ export function storedAuthSession(): SupabaseSession | null {
 }
 
 export async function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
+  if (apiEnabled) {
+    const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/refresh", { method: "POST", body: { refreshToken } });
+    const session = apiToSession(payload);
+    storeSession(session);
+    return session;
+  }
   const payload = await authRequest("token?grant_type=refresh_token", { refresh_token: refreshToken });
   const session = makeSession(payload);
   if (!session) throw new Error("Não foi possível renovar a sessão. Entre novamente.");
@@ -260,6 +308,8 @@ export function consumeAuthRedirect(): Promise<RedirectResult> {
 }
 
 async function readAuthRedirect(): Promise<RedirectResult> {
+  // A API própria não usa link de e-mail com tokens no endereço (nessa etapa).
+  if (apiEnabled) return null;
   const hash = window.location.hash.replace(/^#/, "");
   if (!/(access_token|error_description)=/.test(hash)) return null;
   const params = new URLSearchParams(hash);
@@ -289,12 +339,18 @@ async function readAuthRedirect(): Promise<RedirectResult> {
 
 /** Envia o e-mail de "esqueci minha senha"; o link volta para o site com type=recovery. */
 export async function requestPasswordReset(email: string): Promise<void> {
+  if (apiEnabled) {
+    throw new Error("A recuperação de senha ainda não está disponível nesta versão.");
+  }
   const redirect = encodeURIComponent(window.location.origin);
   await authRequest(`recover?redirect_to=${redirect}`, { email });
 }
 
 /** Define a senha nova (logado pelo link de recuperação). */
 export async function updatePassword(session: SupabaseSession, password: string): Promise<void> {
+  if (apiEnabled) {
+    throw new Error("Trocar a senha ainda não está disponível nesta versão.");
+  }
   await authRequest("user", { password }, session.access_token, "PUT");
 }
 
@@ -303,6 +359,9 @@ export async function updateProfileData(
   session: SupabaseSession,
   data: { name?: string; avatar?: string | null; photo?: string | null; cover?: string | null },
 ): Promise<SupabaseSession> {
+  if (apiEnabled) {
+    throw new Error("Editar o perfil ainda não está disponível nesta versão.");
+  }
   const user = (await authRequest("user", { data }, session.access_token, "PUT")) as unknown as SupabaseUser;
   const next = { ...session, user: { ...session.user, ...user } };
   storeSession(next);
@@ -315,6 +374,22 @@ export async function updateProfileData(
  * se nada mudou.
  */
 export async function refreshProfile(session: SupabaseSession): Promise<SupabaseSession> {
+  if (apiEnabled) {
+    const current = await apiRequest<ApiUser>("/api/v1/auth/me", { accessToken: session.access_token });
+    if (!current?.id || current.id !== session.user.id) return session;
+    const user = apiToUser(current);
+    if (
+      JSON.stringify(user.user_metadata ?? {}) === JSON.stringify(session.user.user_metadata ?? {}) &&
+      user.email === session.user.email
+    ) {
+      return session;
+    }
+    const base = storedAuthSession() ?? session;
+    if (base.user.id !== session.user.id) return session;
+    const next = { ...base, user: { ...base.user, ...user } };
+    storeSession(next);
+    return next;
+  }
   const user = (await authRequest("user", undefined, session.access_token, "GET")) as unknown as SupabaseUser;
   if (!user?.id || user.id !== session.user.id) return session;
   if (JSON.stringify(user.user_metadata ?? {}) === JSON.stringify(session.user.user_metadata ?? {}) && user.email === session.user.email) {
@@ -340,6 +415,18 @@ export function restoreAuthSession(): Promise<SupabaseSession | null> {
 }
 
 export async function signOut(session: SupabaseSession): Promise<void> {
+  if (apiEnabled) {
+    try {
+      await apiRequest("/api/v1/auth/logout", {
+        method: "POST",
+        body: { refreshToken: session.refresh_token },
+        accessToken: session.access_token,
+      });
+    } finally {
+      storeSession(null);
+    }
+    return;
+  }
   try {
     await authRequest("logout", undefined, session.access_token);
   } finally {
