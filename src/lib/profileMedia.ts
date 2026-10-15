@@ -1,4 +1,5 @@
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { apiBaseUrl, apiEnabled, apiFetch } from "./backend";
 
 /**
  * Foto de perfil e foto de capa no Storage do Supabase (bucket "profile-media", ver
@@ -85,6 +86,21 @@ function friendly(message: string, status: number): string {
 }
 
 async function storage(path: string, init: { method: string; session: SupabaseSession; body?: Blob; headers?: Record<string, string> }) {
+  if (apiEnabled) {
+    const res = await apiFetch(`/api/v1/storage/${BUCKET}/object?path=${encodeURIComponent(path)}`, {
+      method: init.method,
+      accessToken: init.session.access_token,
+      body: init.body,
+      headers: init.headers?.["Content-Type"] ? { "Content-Type": init.headers["Content-Type"] } : {},
+    });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      const message = payload.error ?? payload.message ?? `Erro ${res.status}`;
+      console.warn(`[fotos] ${init.method} ${path} → ${res.status}: ${message}`);
+      throw new Error(friendly(message, res.status));
+    }
+    return;
+  }
   const { url, anonKey } = supabaseConfig();
   let res: Response;
   try {
@@ -117,6 +133,7 @@ export async function uploadProfileImage(session: SupabaseSession, kind: MediaKi
     body: image,
     headers: { "Content-Type": image.type, "x-upsert": "true", "cache-control": "max-age=31536000" },
   });
+  if (apiEnabled) return `${apiBaseUrl}/api/v1/storage/public/${BUCKET}/${path}?v=${Date.now()}`;
   const { url } = supabaseConfig();
   return `${url}/storage/v1/object/public/${BUCKET}/${path}?v=${Date.now()}`;
 }
@@ -141,6 +158,7 @@ export async function uploadBookCover(session: SupabaseSession, image: Blob): Pr
     body: image,
     headers: { "Content-Type": image.type, "cache-control": "max-age=31536000" },
   });
+  if (apiEnabled) return `${apiBaseUrl}/api/v1/storage/public/${BUCKET}/${path}`;
   const { url } = supabaseConfig();
   return `${url}/storage/v1/object/public/${BUCKET}/${path}`;
 }
