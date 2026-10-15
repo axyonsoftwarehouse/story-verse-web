@@ -1,6 +1,7 @@
 import { gzipSync, strToU8 } from "fflate";
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
+import { apiEnabled, apiFetch } from "./backend";
 import { currentDataOwner } from "./dataOwner";
 import { gunzipToString } from "./safeUnzip";
 import { captureError } from "./telemetry";
@@ -39,6 +40,25 @@ const encodePath = (path: string) => path.split("/").map(encodeURIComponent).joi
 const pathOf = (session: SupabaseSession, id: number) => `${session.user.id}/${Math.abs(id)}.json.gz`;
 
 async function storage(session: SupabaseSession, path: string, init: { method?: string; body?: BodyInit; headers?: Record<string, string> } = {}) {
+  if (apiEnabled) {
+    // `path` vem como "user-books/<uid>/…" (ou "authenticated/user-books/…" no download).
+    const cleaned = path.replace(/^authenticated\//, "");
+    const slash = cleaned.indexOf("/");
+    const bucket = cleaned.slice(0, slash);
+    const objectPath = cleaned.slice(slash + 1);
+    const res = await apiFetch(`/api/v1/storage/${bucket}/object?path=${encodeURIComponent(objectPath)}`, {
+      method: init.method ?? "GET",
+      accessToken: session.access_token,
+      body: init.body,
+      headers: init.headers,
+    });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      console.warn(`[livros] ${init.method ?? "GET"} ${path} → ${res.status}: ${payload.error ?? payload.message ?? ""}`);
+      throw new Error(payload.error ?? payload.message ?? `Erro ${res.status}`);
+    }
+    return res;
+  }
   const { url, anonKey } = supabaseConfig();
   let res: Response;
   try {

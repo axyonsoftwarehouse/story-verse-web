@@ -32,6 +32,9 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-storyverse}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://storyverse.2.29.42.104.sslip.io}
+      STORAGE_DIR: /data/media
+    volumes:
+      - storyverse_media:/data/media
     depends_on:
       db:
         condition: service_healthy
@@ -45,3 +48,4 @@ networks:
 
 volumes:
   storyverse_db_data:
+  storyverse_media:

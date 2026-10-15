@@ -50,3 +50,24 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
   }
   return payload as T;
 }
+
+/** Fetch cru (arquivos em binário). `path` começa em "/api/v1/". Não trata o status. */
+export async function apiFetch(
+  path: string,
+  init: { method?: string; body?: BodyInit; headers?: Record<string, string>; accessToken?: string } = {},
+): Promise<Response> {
+  try {
+    return await fetch(`${apiBaseUrl}${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        ...(init.accessToken ? { Authorization: `Bearer ${init.accessToken}` } : {}),
+        ...init.headers,
+      },
+      body: init.body,
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(60_000) : undefined,
+    });
+  } catch (error) {
+    captureError("api-network", error, { path });
+    throw new AuthNetworkError("Sem conexão com o servidor. Tente de novo.");
+  }
+}
