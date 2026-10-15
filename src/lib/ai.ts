@@ -1,4 +1,6 @@
 import type { StoryCharacter } from "../data/types";
+import { storedAuthSession } from "./auth";
+import { apiEnabled, apiRequest } from "./backend";
 import { NATURAL_SPEECH_RULES, naturalizeReply } from "./naturalSpeech";
 import { captureError, captureEvent } from "./telemetry";
 
@@ -224,12 +226,36 @@ const providerChain = buildProviderChain();
 /** Até quando (timestamp) cada modelo deve ser pulado por ter estourado a cota. */
 const cooldownUntil = new Map<string, number>();
 
+/**
+ * Na API própria, as chaves ficam no servidor: perguntamos uma vez se a IA está configurada lá.
+ * `null` = ainda não sabemos (tratamos como ativa e confirmamos na primeira chamada).
+ */
+let serverLive: boolean | null = null;
+let serverStatusPromise: Promise<void> | null = null;
+
+async function ensureAiStatus(): Promise<void> {
+  if (!apiEnabled || serverLive !== null) return;
+  serverStatusPromise ??= apiRequest<{ live?: boolean }>("/api/v1/ai/status")
+    .then((status) => {
+      serverLive = status?.live === true;
+    })
+    .catch(() => {
+      serverLive = false;
+    })
+    .finally(() => {
+      serverStatusPromise = null;
+    });
+  await serverStatusPromise;
+}
+
 export function detectProvider(): "live" | "mock" {
+  if (apiEnabled) return serverLive === false ? "mock" : "live";
   return providerChain.length > 0 ? "live" : "mock";
 }
 
 /** Texto curto para o pill da UI (linguagem para quem lê, não para quem desenvolve). */
 export function providerDisplayLabel(): string {
+  if (apiEnabled) return serverLive === false ? "Modo demonstração" : "IA ativa";
   if (providerChain.length > 1) return "IA ativa (com serviço reserva)";
   if (providerChain.length === 1) return "IA ativa";
   return "Modo demonstração";
@@ -240,6 +266,21 @@ async function callLlmWithFallback(
   messages: ChatTurn[],
   maxTokens = REPLY_MAX_TOKENS,
 ): Promise<string> {
+  if (apiEnabled) {
+    await ensureAiStatus();
+    if (serverLive === false) {
+      throw new Error("Nenhum serviço de IA está configurado neste ambiente.");
+    }
+    const session = storedAuthSession();
+    const out = await apiRequest<{ text?: string }>("/api/v1/ai/reply", {
+      method: "POST",
+      accessToken: session?.access_token,
+      body: { system, messages, maxTokens },
+    });
+    const text = out?.text?.trim();
+    if (!text) throw new Error("Resposta vazia da IA.");
+    return text;
+  }
   if (providerChain.length === 0) {
     throw new Error("Nenhum serviço de IA está configurado neste ambiente.");
   }
@@ -316,6 +357,7 @@ export async function characterReply(params: {
     textLanguage,
   } = params;
 
+  await ensureAiStatus();
   if (detectProvider() === "mock") {
     await new Promise((r) => setTimeout(r, 350 + Math.random() * 400));
     return mockReply(character, userMessage);
@@ -378,6 +420,7 @@ export async function suggestBookCharacters(params: {
   /** Início do livro, para obras que o modelo talvez não conheça. */
   opening: string;
 }): Promise<StoryCharacter[]> {
+  await ensureAiStatus();
   if (detectProvider() === "mock") return [narratorCharacter(params.title)];
 
   const system = [
