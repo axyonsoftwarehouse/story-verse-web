@@ -37,7 +37,7 @@ roda o Foodie) e o rollback é só trocar a pasta.
 | VPS Hetzner `production-01` | já existe (`2.29.42.104`, Ubuntu 24.04, Docker + Compose) |
 | Acesso SSH | usuário `deploy` (com `sudo`), a mesma mecânica do Foodie |
 | Firewall | `ufw` libera **22, 80, 443** — nada a mudar |
-| Repositório canônico | ramo/repo na organização `codeplusofc` com o Storyverse (**a definir**) |
+| Repositório | `axyonsoftwarehouse/story-verse-web` (web) — branch de deploy `vps` |
 | Supabase | **URL + chave anon** (públicas) para o Marco 1 |
 | Node | 22 (mesma versão da CI do projeto) |
 
@@ -48,11 +48,12 @@ roda o Foodie) e o rollback é só trocar a pasta.
 
 ## 3. Estratégia de branch e repositório
 
-- **Original `codeplusofc/story-magic` (main):** congela e **permanece no ar** para os
-  usuários. **Nunca** publicar a VPS a partir dele.
-- **Ramo/repo de trabalho (ex.: `vps`):** onde entra o desenvolvimento e de onde a VPS é
-  publicada. Manter na organização do professor para revisão conjunta.
-- O robô de publicação (seção 5) será disparado **apenas** por esse ramo, nunca por `main`.
+- **Repositório do produto:** `axyonsoftwarehouse/story-verse-web` (web-only). A `main` é a
+  produção (deploy Vercel) e a `staging`, a homologação (Vercel).
+- **Branch de deploy da VPS:** `vps` — onde entram as mudanças de infraestrutura/deploy. O
+  robô de publicação (seção 5) dispara **apenas** por ela, nunca pela `main`.
+- **Repositório anterior `codeplusofc/story-magic`:** histórico preservado como referência
+  (remoto local `codeplus`); não é mais a origem do desenvolvimento.
 
 ---
 

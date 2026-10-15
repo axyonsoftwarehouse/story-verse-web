@@ -12,7 +12,7 @@ Público: Guilherme Pinheiro (dono do produto) e quem opera a infraestrutura.
 
 ## 1. Resumo executivo
 
-O Storyverse (internamente `story-magic`) é hoje um aplicativo que **não tem servidor
+O Storyverse (repositório `story-verse-web`) é hoje um aplicativo que **não tem servidor
 próprio**. Ele é montado como site (na **Vercel**) e usa um "backend de terceiros" no
 modelo **Supabase** para contas, banco de dados, arquivos e presença online. As chaves de
 inteligência artificial ficam no navegador.
@@ -62,8 +62,9 @@ Um ponto central: no Storyverse, **"o servidor" é o Supabase**. O navegador con
 **direto** com ele (contas, banco, arquivos, tempo real). Não há um programa de backend
 "nosso" no meio.
 
-> **Importante:** existe no repositório um projeto de backend em Java (`story-magic-api/`),
-> mas ele é apenas um **esqueleto** — hoje só serve catálogo de livros, texto do Gutenberg e
+> **Importante:** existe um projeto de backend em Java (`story-magic-api/`) — no repositório
+> anterior, já que o atual é **web-only** — mas ele é apenas um **esqueleto**: hoje só serve
+> catálogo de livros, texto do Gutenberg e
 > busca na Open Library. Ele **não** faz login, banco ou arquivos, e **não está conectado**
 > ao site. Ou seja, "reescrever o backend" significa **construir o que o Supabase faz hoje**.
 
@@ -159,17 +160,15 @@ Quando estiver tudo pronto, podemos registrar um domínio próprio e apontar par
 
 ## 7. Onde o trabalho vive (repositório e automação)
 
-**Repositório (o "caderno do projeto").** O código do Storyverse está no GitHub, na
-organização do professor (`codeplusofc/story-magic`). O plano:
+**Repositório (o "caderno do projeto").** O código do Storyverse vive no GitHub em
+`axyonsoftwarehouse/story-verse-web` (desde 06/10/2026; antes, `codeplusofc/story-magic`). O plano:
 
-- O repositório **original permanece no ar** para os usuários, **congelado** (sem
-  desenvolvimento novo durante a migração).
-- O desenvolvimento novo acontece **na mesma organização**, num **ramo/banco de código
-  dedicado** (ex.: um ramo `vps` ou um repositório novo em `codeplusofc`), para manter o
-  professor no circuito e permitir revisão.
-- Existe também um repositório vazio (`codeplusofc/story-magic-api`) criado para o backend.
-  A decisão é **concentrar tudo em `story-magic`** (onde o esqueleto do backend já vive) e
-  **excluir o repositório vazio**, evitando confusão.
+- A `main` é a **produção** (deploy automático no Vercel) e a `staging`, a **homologação**.
+- As mudanças de infraestrutura/deploy da VPS ficam na branch **`vps`** — é dela que a VPS é
+  publicada, nunca da `main`.
+- O repositório anterior (`codeplusofc/story-magic`) permanece como **histórico/arquivo**.
+- O repositório é **web-only**: o backend (`story-magic-api`) saiu dele e será desenvolvido
+  em separado (Marco 2).
 
 **Automação (o "robô de entrega").** O processo será o mesmo modelo já usado no Foodie:
 quando o código é enviado ao GitHub, um **robô do GitHub Actions** testa e publica na VPS.
@@ -267,7 +266,7 @@ inconveniência real é **fazer login novamente**.
 - As **chaves de IA** (Groq/Gemini/OpenRouter) para configurar no servidor.
 - O serviço de **e-mail** usado no cadastro (SMTP), para confirmação e recuperação de senha.
 - Concordância em **congelar o desenvolvimento** no repositório original durante a migração.
-- Permissão para criar o ramo/repositório de desenvolvimento na organização `codeplusofc`.
+- Permissão para criar o ramo de desenvolvimento na organização `axyonsoftwarehouse`.
 
 **Do lado técnico (com apoio de IA):**
 - Todo o trabalho de infraestrutura, automação e construção do backend.
