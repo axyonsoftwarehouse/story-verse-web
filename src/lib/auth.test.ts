@@ -20,12 +20,25 @@ describe("session refresh races", () => {
     localStorage.setItem(KEY, JSON.stringify(old));
     let release!: (response: Response) => void;
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
-    const { refreshAuthSession, storedAuthSession } = await import("./auth");
+    const { refreshAuthSession, storedAuthSession, AuthSessionError } = await import("./auth");
     const refresh = refreshAuthSession(old.refresh_token);
     await vi.waitFor(() => expect(release).toBeDefined());
     localStorage.removeItem(KEY);
     release(new Response(JSON.stringify(refreshed)));
-    await expect(refresh).rejects.toThrow();
+    await expect(refresh).rejects.toBeInstanceOf(AuthSessionError);
     expect(storedAuthSession()).toBeNull();
+  });
+  it("another tab rotating the token wins over the in-flight refresh", async () => {
+    localStorage.setItem(KEY, JSON.stringify(old));
+    let release!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
+    const { refreshAuthSession, storedAuthSession, AuthSessionError } = await import("./auth");
+    const refresh = refreshAuthSession(old.refresh_token);
+    await vi.waitFor(() => expect(release).toBeDefined());
+    // A outra aba já renovou: o token guardado é outro.
+    localStorage.setItem(KEY, JSON.stringify({ ...old, refresh_token: "other-refresh" }));
+    release(new Response(JSON.stringify(refreshed)));
+    await expect(refresh).rejects.toBeInstanceOf(AuthSessionError);
+    expect(storedAuthSession()?.refresh_token).toBe("other-refresh");
   });
 });

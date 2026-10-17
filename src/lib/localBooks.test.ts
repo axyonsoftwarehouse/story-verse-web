@@ -1,7 +1,7 @@
 import { activateDataOwner } from "./dataOwner";
 import { describe, expect, it } from "vitest";
 import type { Ebook } from "../data/types";
-import { deleteLocalBook, getLocalRecord, listLocalRecords, loadLocalBookText, saveLocalBook } from "./localBooks";
+import { readLibrary, deleteLocalBook, getLocalRecord, listLocalRecords, loadLocalBookText, saveLocalBook } from "./localBooks";
 
 async function setOwner(owner: string): Promise<void> { await activateDataOwner(owner); }
 
@@ -57,5 +57,17 @@ describe("localBooks — isolamento por conta", () => {
     const ids = (await listLocalRecords()).map((record) => record.id);
     expect(ids).toContain(idA);
     expect(ids).not.toContain(idB);
+  });
+
+  it("grava a lista na conta que iniciou o salvamento, mesmo se a conta trocar no meio", async () => {
+    const id = -777000005;
+    await setOwner("userA");
+    const saving = saveLocalBook(makeBook(id, "Durante a troca"), "A");
+    // Troca de conta antes de o IndexedDB terminar.
+    await setOwner("userB");
+    await saving;
+
+    expect(readLibrary("userA")[String(id)]).toBeDefined();
+    expect(readLibrary("userB")[String(id)]).toBeUndefined();
   });
 });

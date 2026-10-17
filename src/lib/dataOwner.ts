@@ -66,6 +66,22 @@ export const userStorage = {
 export function currentDataOwner(): string | null { return tabOwner; }
 export function legacyDataOwner(): string | null { return safeGet(LEGACY_OWNER_KEY); }
 
+/**
+ * Storage para um dono **capturado** no início de uma operação assíncrona. Evita que uma troca
+ * de conta no meio do `await` redirecione a escrita para a conta nova. `null` = sem conta/ativação:
+ * usa o namespace ambiente (`userStorage`), preservando o comportamento antigo.
+ */
+export function storageForOwner(owner: string | null) {
+  if (owner === null) return userStorage;
+  const prefix = ACCOUNT_PREFIX + owner + ":";
+  const keyFor = (key: string) => (isUserKey(key) ? prefix + key : key);
+  return {
+    getItem(key: string): string | null { return localStorage.getItem(keyFor(key)); },
+    setItem(key: string, value: string) { localStorage.setItem(keyFor(key), value); },
+    removeItem(key: string) { localStorage.removeItem(keyFor(key)); },
+  };
+}
+
 let pending: Promise<boolean> | null = null;
 let pendingOwner: string | null = null;
 function activate(owner: string): boolean {

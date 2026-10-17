@@ -13,6 +13,12 @@ export const apiEnabled = apiBaseUrl.length > 0;
  */
 export class AuthNetworkError extends Error {}
 
+/**
+ * A sessão mudou ou foi encerrada em outra aba. Diferente de falha de rede: não é transitória,
+ * então não deve ser tratada como "offline" nem tentar de novo com o token antigo.
+ */
+export class AuthSessionError extends Error {}
+
 type ApiInit = { method?: string; body?: unknown; accessToken?: string; keepalive?: boolean; timeoutMs?: number };
 
 /** Chamada JSON à API própria. `path` começa em "/api/v1/". */
