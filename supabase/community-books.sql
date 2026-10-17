@@ -17,12 +17,13 @@ drop policy if exists "admin vê a si mesmo" on public.admins;
 create policy "admin vê a si mesmo" on public.admins
   for select using (auth.uid() = user_id);
 
--- O Gmail ignora pontos no endereço; o Supabase não. Aceita as duas grafias.
-insert into public.admins (user_id)
-select id from auth.users
-where lower(replace(split_part(email, '@', 1), '.', '')) = 'businesscodeplus'
-  and lower(split_part(email, '@', 2)) = 'gmail.com'
-on conflict do nothing;
+-- Admin: promoção MANUAL, por UUID verificado fora de banda.
+-- Não derive admin do e-mail informado no cadastro: o cadastro pode não confirmar o e-mail e
+-- o Gmail ignora pontos (uma variante pontuada do endereço poderia virar admin).
+-- Substitua o UUID abaixo pelo id real e rode uma vez:
+--
+-- insert into public.admins (user_id) values ('00000000-0000-0000-0000-000000000000')
+--   on conflict do nothing;
 
 create or replace function public.is_admin()
 returns boolean
