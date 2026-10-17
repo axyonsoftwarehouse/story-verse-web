@@ -12,6 +12,12 @@ permissions:
 env:
   VERCEL_ORG_ID: team_Sh216UlOrPQouVny8mVfAp7G
   VERCEL_PROJECT_ID: prj_a4sn6Oe2d08w4IhEJc9DLq6Frfz0
+  STORYVERSE_API_URL: https://api.storyverse.2.29.42.104.sslip.io
+
+# PENDENTE: o painel da Vercel ainda tem VITE_GROQ_API_KEY/VITE_GEMINI_API_KEY/
+# VITE_OPENROUTER_API_KEY e não tem VITE_API_URL no Preview. Enquanto não houver acesso
+# ao painel, os deploys abaixo limpam essas chaves do build e definem VITE_API_URL.
+# Remover esse ajuste quando as variáveis da Vercel estiverem corretas.
 
 jobs:
   verify:
@@ -70,6 +76,13 @@ jobs:
         run: |
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          for envfile in .vercel/.env.*.local; do
+            [ -e "$envfile" ] || continue
+            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d' "$envfile"
+            sed -i '/^VITE_API_URL=/d' "$envfile"
+            printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
+          done
+          echo "::warning::Chaves VITE_* de IA removidas do build. Remova-as do painel da Vercel (pendente)."
           vercel build --prod --token="$VERCEL_TOKEN"
           url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -114,11 +127,23 @@ jobs:
         run: |
           npm install --global vercel@latest
           if vercel pull --yes --environment=staging --token="$VERCEL_TOKEN"; then
-            vercel build --target=staging --token="$VERCEL_TOKEN"
-            url=$(vercel deploy --prebuilt --target=staging --token="$VERCEL_TOKEN")
+            target=staging
           else
             echo "::notice::Sem ambiente 'staging' na Vercel: usando Preview com as variáveis da branch staging."
             vercel pull --yes --environment=preview --git-branch=staging --token="$VERCEL_TOKEN"
+            target=preview
+          fi
+          for envfile in .vercel/.env.*.local; do
+            [ -e "$envfile" ] || continue
+            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d' "$envfile"
+            sed -i '/^VITE_API_URL=/d' "$envfile"
+            printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
+          done
+          echo "::warning::Chaves VITE_* de IA removidas do build. Remova-as do painel da Vercel (pendente)."
+          if [ "$target" = "staging" ]; then
+            vercel build --target=staging --token="$VERCEL_TOKEN"
+            url=$(vercel deploy --prebuilt --target=staging --token="$VERCEL_TOKEN")
+          else
             vercel build --token="$VERCEL_TOKEN"
             url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
           fi
@@ -163,6 +188,13 @@ jobs:
         run: |
           npm install --global vercel@latest
           vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          for envfile in .vercel/.env.*.local; do
+            [ -e "$envfile" ] || continue
+            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d' "$envfile"
+            sed -i '/^VITE_API_URL=/d' "$envfile"
+            printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
+          done
+          echo "::warning::Chaves VITE_* de IA removidas do build. Remova-as do painel da Vercel (pendente)."
           vercel build --token="$VERCEL_TOKEN"
           url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
