@@ -241,7 +241,8 @@ async function ensureAiStatus(): Promise<void> {
       serverLive = status?.live === true;
     })
     .catch(() => {
-      serverLive = false;
+      // Indisponível/instável não é o mesmo que "sem provedor": mantém o último estado conhecido
+      // e tenta de novo depois. Assim o chat não finge estar em modo demonstração durante um 5xx.
     })
     .finally(() => {
       serverStatusCheckedAt = Date.now();
