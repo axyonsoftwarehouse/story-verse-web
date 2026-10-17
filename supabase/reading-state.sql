@@ -25,6 +25,23 @@ drop policy if exists "atualizar os proprios dados" on public.reading_state;
 create policy "atualizar os proprios dados" on public.reading_state
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+-- O relógio do servidor manda no updated_at: o cliente o usa como versão otimista e, sem isso,
+-- dois aparelhos com relógios diferentes podiam perder uma gravação.
+create or replace function public.touch_reading_state()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists reading_state_touch on public.reading_state;
+create trigger reading_state_touch
+  before insert or update on public.reading_state
+  for each row execute function public.touch_reading_state();
+
 -- Projetos novos do Supabase não liberam tabelas novas para a API; as regras acima continuam valendo.
 grant select, insert, update on public.reading_state to authenticated;
 

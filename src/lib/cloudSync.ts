@@ -103,6 +103,8 @@ function parse<T>(raw: string | undefined): T | undefined {
 }
 
 type Stamped = { updatedAt?: number; finishedAt?: number; importedAt?: number; deletedAt?: number };
+type ChatMessage = { id: string; role: string; text: string };
+type SavedChatLike = { threads?: Record<string, ChatMessage[]>; activeCharId?: string; updatedAt?: number };
 
 /**
  * Junta dois mapas item por item em 3 vias: item que só um lado mexeu (inclusive apagou) fica
@@ -179,9 +181,25 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
     const out = mergeItems(asSet(l as string[]), asSet(r as string[]), asSet(b as string[] | undefined), () => true as const);
     return JSON.stringify(Object.keys(out));
   }
-  // Conversa de um livro: a mais recente.
+  // Conversa de um livro: une as mensagens das duas cópias; a ordem local é preservada e as
+  // mensagens que só existem no outro aparelho entram no fim. Antes, a conversa inteira de um
+  // lado sobrescrevia a do outro (perda de mensagens quando os dois conversavam offline).
   if (key.startsWith("storyverse:chat:")) {
-    return ((l as Stamped).updatedAt ?? 0) >= ((r as Stamped).updatedAt ?? 0) ? local : remote;
+    const lc = l as SavedChatLike;
+    const rc = r as SavedChatLike;
+    const threads: Record<string, ChatMessage[]> = {};
+    for (const [charId, msgs] of Object.entries(lc.threads ?? {})) {
+      if (Array.isArray(msgs)) threads[charId] = msgs;
+    }
+    for (const [charId, msgs] of Object.entries(rc.threads ?? {})) {
+      if (!Array.isArray(msgs)) continue;
+      const current = threads[charId] ?? [];
+      const ids = new Set(current.map((m) => m.id));
+      const extra = msgs.filter((m) => m?.id && !ids.has(m.id));
+      if (extra.length > 0) threads[charId] = [...current, ...extra];
+    }
+    const newer = (lc.updatedAt ?? 0) >= (rc.updatedAt ?? 0) ? lc : rc;
+    return JSON.stringify({ ...newer, threads, updatedAt: Math.max(lc.updatedAt ?? 0, rc.updatedAt ?? 0) });
   }
   // Minutos por dia: o maior dos dois.
   if (key === "storyverse:reading-stats") {
@@ -203,7 +221,11 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
       bought: [...new Set([...(c.bought ?? []), ...(a.bought ?? [])])],
     });
   }
-  // Preferências (tema, meta, lembrete, voz…) mudadas nos dois ao mesmo tempo: vale a daqui.
+  // Preferências (tema, fonte, lembrete, voz…) mudadas nos dois ao mesmo tempo: em objetos,
+  // preserva os campos que só o outro lado mudou; nos escalares, vale a daqui.
+  if (l && r && typeof l === "object" && typeof r === "object" && !Array.isArray(l) && !Array.isArray(r)) {
+    return JSON.stringify({ ...(r as Record<string, unknown>), ...(l as Record<string, unknown>) });
+  }
   return local;
 }
 
