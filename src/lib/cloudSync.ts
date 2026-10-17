@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
 import { apiEnabled, apiRequest } from "./backend";
 import { currentDataOwner, isUserKey } from "./dataOwner";
@@ -65,7 +66,7 @@ function sameAsBase(key: string, value: string | undefined, base: string | undef
 
 function loadBase(userId: string): Snapshot {
   try {
-    return JSON.parse(localStorage.getItem(BASE_PREFIX + userId) ?? "{}") as Snapshot;
+    return JSON.parse(userStorage.getItem(BASE_PREFIX + userId) ?? "{}") as Snapshot;
   } catch {
     return {};
   }
@@ -73,7 +74,7 @@ function loadBase(userId: string): Snapshot {
 
 function saveBase(userId: string, snapshot: Snapshot) {
   try {
-    localStorage.setItem(BASE_PREFIX + userId, JSON.stringify(toBase(snapshot)));
+    userStorage.setItem(BASE_PREFIX + userId, JSON.stringify(toBase(snapshot)));
   } catch {
     // Sem espaço: a próxima junção trata tudo como mudado dos dois lados (não perde nada).
   }
@@ -82,9 +83,9 @@ function saveBase(userId: string, snapshot: Snapshot) {
 function localSnapshot(): Snapshot {
   const out: Snapshot = {};
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && isUserKey(k)) out[k] = localStorage.getItem(k) ?? "";
+    for (let i = 0; i < userStorage.length; i++) {
+      const k = userStorage.key(i);
+      if (k && isUserKey(k)) out[k] = userStorage.getItem(k) ?? "";
     }
   } catch {
     // Sem armazenamento.
@@ -330,13 +331,13 @@ async function syncOnce(session: SupabaseSession, keepalive: boolean): Promise<b
     try {
       for (const k of Object.keys(local)) {
         if (!(k in merged)) {
-          localStorage.removeItem(k);
+          userStorage.removeItem(k);
           changed = true;
         }
       }
       for (const [k, v] of Object.entries(merged)) {
         if (local[k] !== v) {
-          localStorage.setItem(k, v);
+          userStorage.setItem(k, v);
           changed = true;
         }
       }

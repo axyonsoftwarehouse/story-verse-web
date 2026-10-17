@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import type { Ebook } from "../data/types";
 import { currentDataOwner, legacyDataOwner } from "./dataOwner";
 
@@ -121,7 +122,7 @@ export type LibraryEntry = { importedAt: number; deletedAt?: number; uploadedAt?
 
 export function readLibrary(): Record<string, LibraryEntry> {
   try {
-    return JSON.parse(localStorage.getItem(LIBRARY_KEY) ?? "{}") as Record<string, LibraryEntry>;
+    return JSON.parse(userStorage.getItem(LIBRARY_KEY) ?? "{}") as Record<string, LibraryEntry>;
   } catch {
     return {};
   }
@@ -131,7 +132,7 @@ export function updateLibrary(id: number, change: (e: LibraryEntry | undefined) 
   try {
     const all = readLibrary();
     all[String(id)] = change(all[String(id)]);
-    localStorage.setItem(LIBRARY_KEY, JSON.stringify(all));
+    userStorage.setItem(LIBRARY_KEY, JSON.stringify(all));
   } catch {
     // Sem espaço: o livro continua aqui, só não vai para os outros aparelhos.
   }

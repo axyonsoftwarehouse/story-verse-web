@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import { captureError, captureEvent } from "./telemetry";
 import { apiEnabled, apiRequest, AuthNetworkError } from "./backend";
 
@@ -168,12 +169,12 @@ function makeSession(payload: AuthResponse): SupabaseSession | null {
 }
 
 function storeSession(session: SupabaseSession | null) {
-  if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  else localStorage.removeItem(SESSION_KEY);
+  if (session) userStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  else userStorage.removeItem(SESSION_KEY);
 }
 
 export function clearLegacyCredentials() {
-  localStorage.removeItem(LEGACY_AUTH_KEY);
+  userStorage.removeItem(LEGACY_AUTH_KEY);
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<SupabaseSession> {
@@ -237,30 +238,52 @@ export async function resendSignupCode(email: string): Promise<void> {
 /** Sessão guardada neste aparelho (pode ter sido renovada por outra aba). */
 export function storedAuthSession(): SupabaseSession | null {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = userStorage.getItem(SESSION_KEY);
     return raw ? (JSON.parse(raw) as SupabaseSession) : null;
   } catch {
     return null;
   }
 }
 
-export async function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
+let refreshQueue: Promise<unknown> = Promise.resolve();
+export function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
+  const expectedUser = storedAuthSession()?.user.id;
+  const run = async () => {
+    const current = storedAuthSession();
+    if (!current || current.user.id !== expectedUser) throw new AuthNetworkError("A sessão mudou durante a renovação.");
+    if (current.refresh_token !== refreshToken) return current;
+    return refreshSessionOnce(refreshToken);
+  };
+  const locked = () => navigator.locks?.request
+    ? navigator.locks.request("storyverse:auth-refresh", run) : run();
+  const result = refreshQueue.then(locked, locked);
+  refreshQueue = result.catch(() => {});
+  return result;
+}
+
+function storeRefreshed(session: SupabaseSession, previousToken: string): void {
+  if (storedAuthSession()?.refresh_token !== previousToken)
+    throw new AuthNetworkError("A sessão mudou durante a renovação.");
+  storeSession(session);
+}
+
+async function refreshSessionOnce(refreshToken: string): Promise<SupabaseSession> {
   if (apiEnabled) {
     const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/refresh", { method: "POST", body: { refreshToken } });
     const session = apiToSession(payload);
-    storeSession(session);
+    storeRefreshed(session, refreshToken);
     return session;
   }
   const payload = await authRequest("token?grant_type=refresh_token", { refresh_token: refreshToken });
   const session = makeSession(payload);
   if (!session) throw new Error("Não foi possível renovar a sessão. Entre novamente.");
-  storeSession(session);
+  storeRefreshed(session, refreshToken);
   return session;
 }
 
 async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
   clearLegacyCredentials();
-  const stored = localStorage.getItem(SESSION_KEY);
+  const stored = userStorage.getItem(SESSION_KEY);
   if (!stored) return null;
 
   let session: SupabaseSession;
@@ -286,6 +309,7 @@ async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
       // Sem internet (app instalado, lendo offline): continua logado com a sessão guardada e
       // renova quando a conexão voltar. Só sai se o Supabase recusar a sessão.
       if (error instanceof AuthNetworkError) return session;
+      if (storedAuthSession()?.refresh_token !== session.refresh_token) return storedAuthSession();
       storeSession(null);
       throw error;
     }
@@ -384,7 +408,8 @@ export async function refreshProfile(session: SupabaseSession): Promise<Supabase
     ) {
       return session;
     }
-    const base = storedAuthSession() ?? session;
+    const base = storedAuthSession();
+    if (!base) return session;
     if (base.user.id !== session.user.id) return session;
     const next = { ...base, user: { ...base.user, ...user } };
     storeSession(next);
@@ -396,7 +421,8 @@ export async function refreshProfile(session: SupabaseSession): Promise<Supabase
     return session;
   }
   // Pela sessão guardada: se ela foi renovada enquanto isto rodava, não volta o token antigo.
-  const base = storedAuthSession() ?? session;
+  const base = storedAuthSession();
+  if (!base) return session;
   if (base.user.id !== session.user.id) return session;
   const next = { ...base, user: { ...base.user, ...user } };
   storeSession(next);
@@ -415,21 +441,14 @@ export function restoreAuthSession(): Promise<SupabaseSession | null> {
 }
 
 export async function signOut(session: SupabaseSession): Promise<void> {
+  if (storedAuthSession()?.user.id === session.user.id) storeSession(null);
   if (apiEnabled) {
-    try {
       await apiRequest("/api/v1/auth/logout", {
         method: "POST",
         body: { refreshToken: session.refresh_token },
         accessToken: session.access_token,
       });
-    } finally {
-      storeSession(null);
-    }
     return;
   }
-  try {
     await authRequest("logout", undefined, session.access_token);
-  } finally {
-    storeSession(null);
-  }
 }

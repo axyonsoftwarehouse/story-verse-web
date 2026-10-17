@@ -28,6 +28,10 @@ const call = <T>(session: SupabaseSession, name: string, args: object = {}, keep
 /** Último envio por conta: só manda de novo quando os minutos mudaram. */
 const lastReported = new Map<string, string>();
 
+export async function readingHeartbeat(session: SupabaseSession, active: boolean): Promise<void> {
+  await call<number>(session, "reading_heartbeat", { p_active: active });
+}
+
 /** Envia os segundos lidos nos últimos 8 dias (cobre a semana atual e o fim da passada). Diz se enviou. */
 export async function reportReading(session: SupabaseSession, opts: { keepalive?: boolean } = {}): Promise<boolean> {
   const days = recentReadingSeconds(8);

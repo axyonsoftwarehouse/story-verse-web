@@ -19,6 +19,19 @@ let vitals: TelemetryVitals = {};
 const listeners = new Set<() => void>();
 let installed = false;
 
+function redact(text: string): string {
+  return text.replace(/https?:\/\/[^\s"'<>]+/g, (value) => {
+    try { const url = new URL(value); return url.origin + url.pathname; } catch { return "[URL]"; }
+  }).replace(/((?:access_token|refresh_token|password|authorization|api[_-]?key)\s*[=:]\s*)[^&\s]+/gi, "$1[redacted]");
+}
+
+export function sanitizeTelemetry<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value, (key, item: unknown) => {
+    if (/^(access_token|refresh_token|accessToken|refreshToken|authorization|password|apiKey|anonKey)$/i.test(key)) return "[redacted]";
+    return typeof item === "string" ? redact(item) : item;
+  })) as T;
+}
+
 function persist(): void {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ events, vitals }));
@@ -32,8 +45,9 @@ function restore(): void {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as { events?: TelemetryEvent[]; vitals?: TelemetryVitals };
-    events = Array.isArray(parsed.events) ? parsed.events : [];
+    events = Array.isArray(parsed.events) ? sanitizeTelemetry(parsed.events).slice(0, MAX_EVENTS) : [];
     vitals = parsed.vitals ?? {};
+    persist();
   } catch {
     events = [];
     vitals = {};
@@ -45,7 +59,7 @@ function notify(): void {
 }
 
 function push(event: TelemetryEvent): void {
-  events = [event, ...events].slice(0, MAX_EVENTS);
+  events = [sanitizeTelemetry(event), ...events].slice(0, MAX_EVENTS);
   persist();
   notify();
 }
@@ -114,7 +128,7 @@ export function environment(): Record<string, unknown> {
   return {
     version: appVersion(),
     mode: import.meta.env.MODE,
-    url: location.href,
+    url: location.origin + location.pathname,
     online: navigator.onLine,
     language: navigator.language,
     ua: navigator.userAgent,

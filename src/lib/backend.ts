@@ -13,11 +13,11 @@ export const apiEnabled = apiBaseUrl.length > 0;
  */
 export class AuthNetworkError extends Error {}
 
-type ApiInit = { method?: string; body?: unknown; accessToken?: string; keepalive?: boolean };
+type ApiInit = { method?: string; body?: unknown; accessToken?: string; keepalive?: boolean; timeoutMs?: number };
 
 /** Chamada JSON à API própria. `path` começa em "/api/v1/". */
 export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T> {
-  const { method = "GET", body, accessToken, keepalive } = init;
+  const { method = "GET", body, accessToken, keepalive, timeoutMs = 10_000 } = init;
   let response: Response;
   try {
     response = await fetch(`${apiBaseUrl}${path}`, {
@@ -30,7 +30,7 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       keepalive,
       // Rede muito lenta não pode prender o app na tela de abertura.
-      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10_000) : undefined,
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(timeoutMs) : undefined,
     });
   } catch (error) {
     captureError("api-network", error, { path });

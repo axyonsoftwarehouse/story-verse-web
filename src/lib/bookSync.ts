@@ -52,6 +52,7 @@ async function storage(session: SupabaseSession, path: string, init: { method?: 
       body: init.body,
       headers: init.headers,
     });
+    if (init.method === "DELETE" && res.status === 404) return res;
     if (!res.ok) {
       const payload = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       console.warn(`[livros] ${init.method ?? "GET"} ${path} → ${res.status}: ${payload.error ?? payload.message ?? ""}`);
@@ -71,6 +72,7 @@ async function storage(session: SupabaseSession, path: string, init: { method?: 
     captureError("books-network", error, { path });
     throw new AuthNetworkError("Sem conexão para sincronizar os livros.");
   }
+  if (init.method === "DELETE" && res.status === 404) return res;
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
     console.warn(`[livros] ${init.method ?? "GET"} ${path} → ${res.status}: ${payload.message ?? payload.error ?? ""}`);
@@ -102,6 +104,10 @@ async function pack(record: StoredBook): Promise<Uint8Array> {
 
 async function unpack(bytes: Uint8Array): Promise<StoredBook> {
   const p = JSON.parse(gunzipToString(bytes, MAX_UNPACKED_BYTES)) as Packed;
+  if (p.v !== 1 || !p.book || typeof p.text !== "string" || !Number.isSafeInteger(p.book.gutenbergId))
+    throw new Error("Livro sincronizado inválido.");
+  if (p.images && (Object.keys(p.images).length > 300 || Object.values(p.images).some((url) => typeof url !== "string" || !/^data:image\/(png|jpeg|webp);base64,/.test(url))))
+    throw new Error("Ilustrações inválidas.");
   const images = p.images
     ? Object.fromEntries(await Promise.all(Object.entries(p.images).map(async ([k, url]) => [k, await (await fetch(url)).blob()] as const)))
     : undefined;
@@ -117,6 +123,7 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
   let local = false;
   let library = false;
   const records = await listLocalRecords(owner);
+  if (currentDataOwner() !== owner) return { local: false, library: false };
   const here = new Map(records.map((r) => [String(r.id), r]));
 
   // Livros importados antes da sincronização entram na lista da conta.
@@ -129,6 +136,7 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
   }
 
   for (const [key, entry] of Object.entries(readLibrary())) {
+    if (currentDataOwner() !== owner) break;
     const id = Number(key);
     if (!Number.isFinite(id)) continue;
     try {
@@ -139,7 +147,8 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
           local = true;
         }
         if (entry.uploadedAt && !entry.purgedAt) {
-          await storage(session, `${BUCKET}/${encodePath(pathOf(session, id))}`, { method: "DELETE" }).catch(() => {});
+          await storage(session, `${BUCKET}/${encodePath(pathOf(session, id))}`, { method: "DELETE" });
+          if (currentDataOwner() !== owner) break;
           updateLibrary(id, (e) => ({ ...(e ?? entry), purgedAt: Date.now() }));
           library = true;
         }
@@ -152,11 +161,14 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
           headers: { "Content-Type": "application/gzip", "x-upsert": "true" },
           body: new Blob([await pack(record)], { type: "application/gzip" }),
         });
+        if (currentDataOwner() !== owner) break;
         updateLibrary(id, (e) => ({ ...(e ?? entry), uploadedAt: Date.now() }));
         library = true;
       } else if (!record && entry.uploadedAt) {
         const res = await storage(session, `authenticated/${BUCKET}/${encodePath(pathOf(session, id))}`);
         const downloaded = await unpack(new Uint8Array(await res.arrayBuffer()));
+        if (downloaded.id !== id) throw new Error("Identificador do livro inválido.");
+        if (currentDataOwner() !== owner) break;
         // Removido aqui enquanto baixava: não traz de volta.
         if (isRemoved(readLibrary()[key] ?? entry) || (await getLocalRecord(id, owner))) continue;
         await putLocalRecord(downloaded, owner);

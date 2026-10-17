@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import type { Ebook, StoryCharacter } from "../data/types";
 import { CAST_COLORS, suggestBookCharacters } from "./ai";
 
@@ -5,7 +6,7 @@ const CAST_KEY = (bookId: string) => `storyverse:cast:${bookId}`;
 
 function readCached(bookId: string): StoryCharacter[] | null {
   try {
-    const raw = localStorage.getItem(CAST_KEY(bookId));
+    const raw = userStorage.getItem(CAST_KEY(bookId));
     const list = raw ? (JSON.parse(raw) as StoryCharacter[]) : null;
     return Array.isArray(list) && list.length > 0 ? list : null;
   } catch {
@@ -45,7 +46,7 @@ export function castFromNames(title: string, raw: string): StoryCharacter[] {
 
 export function forgetCast(bookId: string) {
   try {
-    localStorage.removeItem(CAST_KEY(bookId));
+    userStorage.removeItem(CAST_KEY(bookId));
   } catch {
     // Nada a limpar.
   }
@@ -61,7 +62,7 @@ export async function loadCast(book: Ebook, opening: string): Promise<StoryChara
   // Só guarda elenco de verdade; o narrador de reserva pode ser trocado quando a IA voltar.
   if (!(cast.length === 1 && cast[0].id === "narrador")) {
     try {
-      localStorage.setItem(CAST_KEY(book.id), JSON.stringify(cast));
+      userStorage.setItem(CAST_KEY(book.id), JSON.stringify(cast));
     } catch {
       // Sem armazenamento: a IA será chamada de novo na próxima vez.
     }

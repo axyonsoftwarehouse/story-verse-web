@@ -1,3 +1,4 @@
+import { userStorage } from "../lib/dataOwner";
 import { useSyncExternalStore, useState, type CSSProperties } from "react";
 import {
   buildDiagnosticsReport,
@@ -10,7 +11,7 @@ import {
 function debugEnabled(): boolean {
   try {
     if (new URLSearchParams(location.search).get("debug") === "1") return true;
-    return localStorage.getItem("storyverse:debug") === "1";
+    return userStorage.getItem("storyverse:debug") === "1";
   } catch {
     return false;
   }

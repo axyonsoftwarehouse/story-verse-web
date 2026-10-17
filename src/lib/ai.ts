@@ -232,9 +232,10 @@ const cooldownUntil = new Map<string, number>();
  */
 let serverLive: boolean | null = null;
 let serverStatusPromise: Promise<void> | null = null;
+let serverStatusCheckedAt = 0;
 
 async function ensureAiStatus(): Promise<void> {
-  if (!apiEnabled || serverLive !== null) return;
+  if (!apiEnabled || serverLive !== null && Date.now() - serverStatusCheckedAt < 30_000) return;
   serverStatusPromise ??= apiRequest<{ live?: boolean }>("/api/v1/ai/status")
     .then((status) => {
       serverLive = status?.live === true;
@@ -243,6 +244,7 @@ async function ensureAiStatus(): Promise<void> {
       serverLive = false;
     })
     .finally(() => {
+      serverStatusCheckedAt = Date.now();
       serverStatusPromise = null;
     });
   await serverStatusPromise;
@@ -274,6 +276,7 @@ async function callLlmWithFallback(
     const session = storedAuthSession();
     const out = await apiRequest<{ text?: string }>("/api/v1/ai/reply", {
       method: "POST",
+      timeoutMs: 65_000,
       accessToken: session?.access_token,
       body: { system, messages, maxTokens },
     });

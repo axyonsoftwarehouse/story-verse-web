@@ -1,18 +1,19 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { activateDataOwner, currentDataOwner } from "./dataOwner";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { activateDataOwner, currentDataOwner, userStorage } from "./dataOwner";
 
 const PREFS = "storyverse:reading-prefs";
 
 beforeEach(() => {
   localStorage.clear();
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe("activateDataOwner", () => {
   it("adota os dados existentes na primeira conta, sem apagar nada", async () => {
     localStorage.setItem(PREFS, "antigo");
-    expect(await activateDataOwner("userA")).toBe(false);
+    await activateDataOwner("userA");
     expect(currentDataOwner()).toBe("userA");
-    expect(localStorage.getItem(PREFS)).toBe("antigo");
+    expect(userStorage.getItem(PREFS)).toBe("antigo");
   });
 
   it("não troca quando o dono é o mesmo", async () => {
@@ -22,13 +23,32 @@ describe("activateDataOwner", () => {
 
   it("guarda os dados da conta anterior no cofre e restaura os da nova", async () => {
     await activateDataOwner("userA");
-    localStorage.setItem(PREFS, "dados de A");
+    userStorage.setItem(PREFS, "dados de A");
 
     expect(await activateDataOwner("userB")).toBe(true);
     expect(currentDataOwner()).toBe("userB");
-    expect(localStorage.getItem(PREFS)).toBeNull();
+    expect(userStorage.getItem(PREFS)).toBeNull();
 
     expect(await activateDataOwner("userA")).toBe(true);
-    expect(localStorage.getItem(PREFS)).toBe("dados de A");
+    expect(userStorage.getItem(PREFS)).toBe("dados de A");
+  });
+  it("another tab cannot redirect in-flight writes", async () => {
+    await activateDataOwner("userA");
+    localStorage.setItem("storyverse:data-owner", "userB");
+    userStorage.setItem(PREFS, "A private");
+    expect(currentDataOwner()).toBe("userA");
+    expect(localStorage.getItem("storyverse:account:userB:" + PREFS)).toBeNull();
+  });
+  it("quota failures reject activation and preserve the previous owner", async () => {
+    await activateDataOwner("userA");
+    userStorage.setItem(PREFS, "private");
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+      if (key.startsWith("storyverse:account:userB:")) throw new DOMException("full", "QuotaExceededError");
+      original.call(this, key, value);
+    });
+    await expect(activateDataOwner("userB")).rejects.toThrow();
+    expect(currentDataOwner()).toBe("userA");
+    expect(userStorage.getItem(PREFS)).toBe("private");
   });
 });

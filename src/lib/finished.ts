@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import type { Ebook } from "../data/types";
 
 /** Livros que o leitor terminou (chegou ao fim do último capítulo), guardados no navegador. */
@@ -7,7 +8,7 @@ type Finished = { book: Ebook; finishedAt: number };
 
 function read(): Record<string, Finished> {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, Finished>;
+    const raw = JSON.parse(userStorage.getItem(KEY) ?? "{}") as Record<string, Finished>;
     return raw && typeof raw === "object" ? raw : {};
   } catch {
     return {};
@@ -19,7 +20,7 @@ export function markBookFinished(book: Ebook) {
   if (store[book.id]) return;
   store[book.id] = { book, finishedAt: Date.now() };
   try {
-    localStorage.setItem(KEY, JSON.stringify(store));
+    userStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     // Sem espaço: só não aparece em "Terminados".
   }

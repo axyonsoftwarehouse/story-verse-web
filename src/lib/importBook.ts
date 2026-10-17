@@ -1,4 +1,5 @@
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8 } from "fflate";
+import { unzipBounded } from "./safeZip";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 /**
@@ -236,7 +237,7 @@ function chapterSubtitle(title: string): string {
 async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(buf);
+    files = await unzipBounded(buf);
   } catch {
     throw new Error("Não foi possível abrir este EPUB. O arquivo pode estar corrompido.");
   }
@@ -449,7 +450,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
 
   let doc;
   try {
-    doc = await pdfjs.getDocument({ data: buf }).promise;
+    doc = await pdfjs.getDocument({ data: buf, isEvalSupported: false }).promise;
   } catch (e) {
     if (e instanceof Error && e.name === "PasswordException") {
       throw new Error("Este PDF é protegido por senha e não pode ser aberto.");

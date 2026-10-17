@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import { naturalizeReply } from "./naturalSpeech";
 
 /** Conversa com os personagens de cada livro, guardada no navegador para continuar depois. */
@@ -14,7 +15,7 @@ const INDEX_KEY = "storyverse:chat-index";
 
 export function loadChat(bookId: string): SavedChat | null {
   try {
-    const raw = localStorage.getItem(KEY(bookId));
+    const raw = userStorage.getItem(KEY(bookId));
     const saved = raw ? (JSON.parse(raw) as SavedChat) : null;
     if (!saved || typeof saved.threads !== "object") return null;
     // Conversas guardadas antes da limpeza de estilo (travessões, *ações*) aparecem já limpas.
@@ -32,15 +33,15 @@ export function saveChat(bookId: string, threads: Record<string, ChatMsg[]>, act
     Object.entries(threads).map(([id, msgs]) => [id, msgs.slice(-MAX_PER_CHARACTER)]),
   );
   try {
-    localStorage.setItem(
+    userStorage.setItem(
       KEY(bookId),
       JSON.stringify({ threads: trimmed, activeCharId, updatedAt: Date.now() } satisfies SavedChat),
     );
     // Índice dos livros com conversa, para apagar as mais antigas.
-    const index = (JSON.parse(localStorage.getItem(INDEX_KEY) ?? "[]") as string[]).filter((b) => b !== bookId);
+    const index = (JSON.parse(userStorage.getItem(INDEX_KEY) ?? "[]") as string[]).filter((b) => b !== bookId);
     index.unshift(bookId);
-    for (const old of index.splice(MAX_BOOKS)) localStorage.removeItem(KEY(old));
-    localStorage.setItem(INDEX_KEY, JSON.stringify(index));
+    for (const old of index.splice(MAX_BOOKS)) userStorage.removeItem(KEY(old));
+    userStorage.setItem(INDEX_KEY, JSON.stringify(index));
   } catch {
     // Sem espaço: a conversa só não fica guardada.
   }
@@ -48,7 +49,7 @@ export function saveChat(bookId: string, threads: Record<string, ChatMsg[]>, act
 
 export function forgetChat(bookId: string) {
   try {
-    localStorage.removeItem(KEY(bookId));
+    userStorage.removeItem(KEY(bookId));
   } catch {
     // Nada a limpar.
   }

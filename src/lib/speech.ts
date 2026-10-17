@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 /**
  * Leitura em voz alta com as vozes do próprio aparelho (Web Speech API): grátis e sem chave.
  * A qualidade depende do navegador: o Edge tem vozes "Natural" quase humanas; Chrome e Android,
@@ -27,7 +28,7 @@ const DEFAULT_RATE = 1.1;
 
 function readPrefs(): VoicePrefs {
   try {
-    return (JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as VoicePrefs) ?? {};
+    return (JSON.parse(userStorage.getItem(PREFS_KEY) ?? "{}") as VoicePrefs) ?? {};
   } catch {
     return {};
   }
@@ -35,7 +36,7 @@ function readPrefs(): VoicePrefs {
 
 function writePrefs(p: VoicePrefs) {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    userStorage.setItem(PREFS_KEY, JSON.stringify(p));
   } catch {
     // Sem armazenamento: a escolha vale só nesta visita.
   }
