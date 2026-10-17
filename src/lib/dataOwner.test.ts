@@ -59,4 +59,10 @@ describe("activateDataOwner", () => {
     expect(storageForOwner("userA").getItem(PREFS)).toBe("dados de A");
     expect(storageForOwner("userB").getItem(PREFS)).toBeNull();
   });
+  it("não bloqueia a ativação se o cofre legado estiver corrompido", async () => {
+    localStorage.setItem("storyverse:data-owner", "userA");
+    localStorage.setItem("storyverse:vault:userA", "{not-json");
+    await activateDataOwner("userA");
+    expect(currentDataOwner()).toBe("userA");
+  });
 });

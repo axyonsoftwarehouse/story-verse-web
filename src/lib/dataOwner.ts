@@ -92,7 +92,17 @@ function activate(owner: string): boolean {
     const legacyOwner = localStorage.getItem(OWNER_KEY);
     const snapshot: Record<string, string> = {};
     const vault = localStorage.getItem(VAULT_PREFIX + owner);
-    if (vault) Object.assign(snapshot, JSON.parse(vault));
+    let vaultData: Record<string, string> | null = null;
+    if (vault) {
+      try {
+        const parsed = JSON.parse(vault) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+          vaultData = parsed as Record<string, string>;
+      } catch {
+        // Cofre legado corrompido: não bloqueia a ativação; tenta os dados globais abaixo.
+      }
+    }
+    if (vaultData) Object.assign(snapshot, vaultData);
     else if (legacyOwner === owner || legacyOwner === null && owner !== "anon") {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
