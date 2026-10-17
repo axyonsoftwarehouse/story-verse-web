@@ -1,7 +1,7 @@
 /**
  * Dados de leitura por conta no mesmo aparelho. Progresso, marcações, conversas, sequência,
- * terminados e preferências ficam no localStorage; ao trocar de conta, os da conta anterior vão
- * para um cofre ("storyverse:vault:<id>") e os da nova voltam de lá. Os livros importados
+ * terminados e preferências ficam em namespaces por conta no localStorage. Os cofres antigos
+ * são migrados sem apagar a origem. A conta ativa pertence à aba. Os livros importados
  * (IndexedDB) guardam o dono em cada registro (ver localBooks.ts).
  *
  * Caches que não são pessoais (traduções, retratos, elenco sugerido pela IA) e o limite diário
@@ -35,99 +35,79 @@ export function isUserKey(key: string): boolean {
 }
 
 function safeGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  try { return localStorage.getItem(key); } catch { return null; }
 }
 
-/** Conta dona dos dados que estão em uso agora ("anon" = sem conta). */
-export function currentDataOwner(): string | null {
-  return safeGet(OWNER_KEY);
-}
+// Active owner belongs to this tab. Another tab cannot redirect in-flight writes.
+let tabOwner: string | null = safeGet(OWNER_KEY);
+const ACCOUNT_PREFIX = "storyverse:account:";
+const physicalKey = (key: string) => isUserKey(key) && tabOwner !== null ? ACCOUNT_PREFIX + tabOwner + ":" + key : key;
 
-/** Dono dos livros importados sem dono gravado (de antes da separação). */
-export function legacyDataOwner(): string | null {
-  return safeGet(LEGACY_OWNER_KEY);
-}
+/** Personal keys are always stored in the namespace captured by this tab. */
+export const userStorage = {
+  getItem(key: string): string | null { return localStorage.getItem(physicalKey(key)); },
+  setItem(key: string, value: string) { localStorage.setItem(physicalKey(key), value); },
+  removeItem(key: string) { localStorage.removeItem(physicalKey(key)); },
+  keys(): string[] {
+    const prefix = tabOwner === null ? null : ACCOUNT_PREFIX + tabOwner + ":";
+    const out: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (prefix && key.startsWith(prefix)) out.push(key.slice(prefix.length));
+      else if (!key.startsWith(ACCOUNT_PREFIX) && (!prefix || !isUserKey(key))) out.push(key);
+    }
+    return out;
+  },
+  get length() { return this.keys().length; },
+  key(index: number): string | null { return this.keys()[index] ?? null; },
+};
 
-const LOCK_NAME = "storyverse:data-owner";
+export function currentDataOwner(): string | null { return tabOwner; }
+export function legacyDataOwner(): string | null { return safeGet(LEGACY_OWNER_KEY); }
 
 let pending: Promise<boolean> | null = null;
 let pendingOwner: string | null = null;
-
-/** Troca síncrona dos dados em uso. Roda sempre dentro do lock (ver activateDataOwner). */
-function swapOwner(owner: string): boolean {
-  try {
-    const current = localStorage.getItem(OWNER_KEY);
-    if (current === owner) return false;
-    if (current === null) {
-      // Primeira vez depois da atualização: os dados que já estavam aqui ficam com a primeira
-      // conta que entrar. Sem conta ainda, não decide nada.
-      if (owner === "anon") return false;
-      localStorage.setItem(OWNER_KEY, owner);
-      localStorage.setItem(LEGACY_OWNER_KEY, owner);
-      return false;
-    }
-
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && isUserKey(k)) keys.push(k);
-    }
+function activate(owner: string): boolean {
+  const previous = tabOwner;
+  const marker = ACCOUNT_PREFIX + owner + ":migrated";
+  // Migrate the old global/vault format once; leave the source intact until all writes succeed.
+  if (localStorage.getItem(marker) === null) {
+    const legacyOwner = localStorage.getItem(OWNER_KEY);
     const snapshot: Record<string, string> = {};
-    for (const k of keys) snapshot[k] = localStorage.getItem(k) ?? "";
-
-    // Guarda os da conta anterior antes de apagar qualquer coisa.
-    localStorage.setItem(VAULT_PREFIX + current, JSON.stringify(snapshot));
-    for (const k of keys) localStorage.removeItem(k);
-
-    const saved = localStorage.getItem(VAULT_PREFIX + owner);
-    if (saved) {
-      const data = JSON.parse(saved) as Record<string, string>;
-      for (const [k, v] of Object.entries(data)) if (isUserKey(k)) localStorage.setItem(k, v);
-      localStorage.removeItem(VAULT_PREFIX + owner);
+    const vault = localStorage.getItem(VAULT_PREFIX + owner);
+    if (vault) Object.assign(snapshot, JSON.parse(vault));
+    else if (legacyOwner === owner || legacyOwner === null && owner !== "anon") {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && isUserKey(key)) snapshot[key] = localStorage.getItem(key) ?? "";
+      }
     }
-    localStorage.setItem(OWNER_KEY, owner);
-    return true;
-  } catch {
-    // Sem espaço para o cofre: não troca nada (melhor que perder dados).
-    return false;
+    for (const [key, value] of Object.entries(snapshot)) {
+      if (isUserKey(key) && typeof value === "string")
+        localStorage.setItem(ACCOUNT_PREFIX + owner + ":" + key, value);
+    }
+    localStorage.setItem(marker, "1");
+    if (legacyOwner === null && owner !== "anon") localStorage.setItem(LEGACY_OWNER_KEY, owner);
   }
+  // Keep the original global-data owner stable until all legacy namespaces are migrated.
+  if (localStorage.getItem(OWNER_KEY) === null && owner !== "anon") localStorage.setItem(OWNER_KEY, owner);
+  tabOwner = owner;
+  return previous !== owner;
 }
 
-/**
- * Duas abas abertas podem trocar de conta ao mesmo tempo (a sessão é a mesma no navegador). O
- * lock do navegador serializa a troca entre as abas e a fila abaixo a serializa dentro da aba,
- * para o snapshot/apagar/restaurar do localStorage nunca se entrelaçar.
- */
-function withLock<T>(fn: () => T): Promise<T> {
-  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
-  if (!locks?.request) return Promise.resolve().then(fn);
-  return locks.request(LOCK_NAME, () => fn());
-}
-
-/**
- * Deixa em uso os dados de `owner` (id da conta ou "anon"). Resolve `true` se trocou — aí a tela
- * precisa ler tudo de novo. Chamadas concorrentes para o mesmo dono esperam a mesma troca.
- */
 export function activateDataOwner(owner: string): Promise<boolean> {
   if (pending && pendingOwner === owner) return pending;
-  const run = () => withLock(() => swapOwner(owner));
+  const run = () => {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    return locks?.request ? locks.request(OWNER_KEY, () => activate(owner)) : Promise.resolve().then(() => activate(owner));
+  };
   const promise = pending ? pending.then(run, run) : run();
   pending = promise;
   pendingOwner = owner;
-  void promise.finally(() => {
-    if (pending === promise) {
-      pending = null;
-      pendingOwner = null;
-    }
-  });
+  const clear = () => { if (pending === promise) { pending = null; pendingOwner = null; } };
+  void promise.then(clear, clear);
   return promise;
 }
 
-/** A troca de dono em andamento (para o sync esperar antes de mexer nos dados). */
-export function dataOwnerReady(): Promise<unknown> {
-  return pending ?? Promise.resolve();
-}
+export function dataOwnerReady(): Promise<unknown> { return pending ?? Promise.resolve(); }

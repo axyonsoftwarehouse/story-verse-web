@@ -4,6 +4,8 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-storyverse}
       POSTGRES_USER: ${POSTGRES_USER:-storyverse}
@@ -24,15 +26,27 @@ services:
       - storyverse
 
   api:
-    image: ${API_IMAGE:-ghcr.io/axyonsoftwarehouse/story-verse-api:latest}
+    image: ${API_IMAGE:?defina uma imagem por commit ou digest}
     restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
     environment:
       PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-storyverse}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-storyverse}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      SPRING_DATASOURCE_USERNAME: storyverse_api
+      SPRING_DATASOURCE_PASSWORD: ${API_DB_PASSWORD:?defina API_DB_PASSWORD para storyverse_api}
+      SPRING_FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-storyverse}
+      SPRING_FLYWAY_USER: ${POSTGRES_USER:-storyverse}
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://storyverse.2.29.42.104.sslip.io}
       STORAGE_DIR: /data/media
+      # IA (chaves no SERVIDOR, nunca no navegador). Sem nenhuma, o chat fica em modo demonstração.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODELS: ${GROQ_MODELS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
     volumes:
       # A pasta precisa pertencer ao uid do app (10001). Em volume novo na VPS:
       #   docker run --rm -v storyverse_storyverse_media:/m alpine chown -R 10001:10001 /m

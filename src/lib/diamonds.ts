@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import type { SupabaseSession } from "./auth";
 import { applyStreakRescue, mergeBoughtFreezes, recentReadingSeconds, streakRescue, type StreakRescue } from "./readingStats";
 import { rpc } from "./rpc";
@@ -119,7 +120,7 @@ const AUTO_KEY = "storyverse:auto-freeze";
 /** Usar diamantes sozinho quando a sequência quebrar (ligado, a não ser que a pessoa desligue). */
 export function autoFreezeEnabled(): boolean {
   try {
-    return localStorage.getItem(AUTO_KEY) !== "false";
+    return userStorage.getItem(AUTO_KEY) !== "false";
   } catch {
     return true;
   }
@@ -127,7 +128,7 @@ export function autoFreezeEnabled(): boolean {
 
 export function setAutoFreezeEnabled(on: boolean) {
   try {
-    localStorage.setItem(AUTO_KEY, String(on));
+    userStorage.setItem(AUTO_KEY, String(on));
   } catch {
     // Sem armazenamento.
   }
@@ -155,8 +156,8 @@ const SPIN_OFFER_KEY = "storyverse:spin-offered";
 /** A roleta abre sozinha uma vez por dia neste aparelho; depois fica na loja. */
 export function takeSpinOffer(today: string): boolean {
   try {
-    if (localStorage.getItem(SPIN_OFFER_KEY) === today) return false;
-    localStorage.setItem(SPIN_OFFER_KEY, today);
+    if (userStorage.getItem(SPIN_OFFER_KEY) === today) return false;
+    userStorage.setItem(SPIN_OFFER_KEY, today);
     return true;
   } catch {
     return false;

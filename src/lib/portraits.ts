@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import type { StoryCharacter } from "../data/types";
 
 /**
@@ -22,7 +23,7 @@ type PortraitCache = Record<string, string>;
 
 function readCache(): PortraitCache {
   try {
-    return (JSON.parse(localStorage.getItem(CACHE_KEY) ?? "{}") as PortraitCache) ?? {};
+    return (JSON.parse(userStorage.getItem(CACHE_KEY) ?? "{}") as PortraitCache) ?? {};
   } catch {
     return {};
   }
@@ -32,7 +33,7 @@ function writeCache(key: string, url: string) {
   try {
     const all = readCache();
     all[key] = url;
-    localStorage.setItem(CACHE_KEY, JSON.stringify(all));
+    userStorage.setItem(CACHE_KEY, JSON.stringify(all));
   } catch {
     // Sem armazenamento: o retrato só é pedido de novo na próxima visita.
   }

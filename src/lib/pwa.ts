@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import { useEffect, useState } from "react";
 
 /**
@@ -24,7 +25,7 @@ let installed =
     (navigator as Navigator & { standalone?: boolean }).standalone === true ||
     (() => {
       try {
-        return localStorage.getItem(INSTALLED_KEY) === "1";
+        return userStorage.getItem(INSTALLED_KEY) === "1";
       } catch {
         return false;
       }
@@ -33,7 +34,7 @@ let installed =
 function markInstalled() {
   installed = true;
   try {
-    localStorage.setItem(INSTALLED_KEY, "1");
+    userStorage.setItem(INSTALLED_KEY, "1");
   } catch {
     // Sem armazenamento: só não lembra.
   }

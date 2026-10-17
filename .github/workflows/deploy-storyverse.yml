@@ -37,24 +37,22 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          # Opcional: quando definido, o login/sessão usam a API própria (Marco 2).
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # A VPS usa a API própria; nunca apontar uma publicação para loopback.
+          VITE_API_URL: https://api.storyverse.2.29.42.104.sslip.io
           VITE_SUPABASE_EMAIL_OTP_ENABLED: ${{ secrets.VITE_SUPABASE_EMAIL_OTP_ENABLED }}
           VITE_LOGIN_REQUIRED: ${{ secrets.VITE_LOGIN_REQUIRED }}
-          VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
-          VITE_GROQ_MODELS: ${{ secrets.VITE_GROQ_MODELS }}
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
-          VITE_GEMINI_MODEL: ${{ secrets.VITE_GEMINI_MODEL }}
-          VITE_OPENROUTER_API_KEY: ${{ secrets.VITE_OPENROUTER_API_KEY }}
-          VITE_OPENROUTER_MODELS: ${{ secrets.VITE_OPENROUTER_MODELS }}
         run: npm run build
 
       - name: Configurar chave SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
+          test -n "$VPS_KNOWN_HOSTS" || { echo "Configure VPS_KNOWN_HOSTS com a chave verificada da VPS"; exit 1; }
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
       - name: Enviar o build para a VPS
         run: |

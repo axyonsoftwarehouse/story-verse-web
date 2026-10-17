@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import { openLibraryCoverUrl } from "./openLibrary";
 
 /**
@@ -18,7 +19,7 @@ type CacheEntry = { url: string | null; at: number };
 
 function readCache(): Record<string, CacheEntry> {
   try {
-    const c = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "{}") as Record<string, CacheEntry>;
+    const c = JSON.parse(userStorage.getItem(CACHE_KEY) ?? "{}") as Record<string, CacheEntry>;
     return c && typeof c === "object" ? c : {};
   } catch {
     return {};
@@ -29,7 +30,7 @@ function writeCache(key: string, entry: CacheEntry) {
   try {
     const c = readCache();
     c[key] = entry;
-    localStorage.setItem(CACHE_KEY, JSON.stringify(c));
+    userStorage.setItem(CACHE_KEY, JSON.stringify(c));
   } catch {
     // Sem espaço: só não guarda (busca de novo na próxima vez).
   }

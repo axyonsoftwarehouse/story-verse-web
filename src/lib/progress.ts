@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 import type { Ebook } from "../data/types";
 
 const PROGRESS_KEY = "storyverse:reading-progress";
@@ -20,7 +21,7 @@ type Store = Record<string, ReadingProgress>;
 
 function readStore(): Store {
   try {
-    const raw = localStorage.getItem(PROGRESS_KEY);
+    const raw = userStorage.getItem(PROGRESS_KEY);
     const parsed = raw ? (JSON.parse(raw) as unknown) : null;
     return parsed && typeof parsed === "object" ? (parsed as Store) : {};
   } catch {
@@ -30,7 +31,7 @@ function readStore(): Store {
 
 function writeStore(store: Store) {
   try {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(store));
+    userStorage.setItem(PROGRESS_KEY, JSON.stringify(store));
   } catch {
     // Sem armazenamento disponível: o progresso só não fica salvo.
   }

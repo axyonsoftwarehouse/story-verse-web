@@ -1,4 +1,5 @@
-import { defineConfig, type ProxyOptions } from "vite";
+import { defineConfig, loadEnv, type ProxyOptions } from "vite";
+import { validateProductionConfig } from "./src/lib/buildConfig.ts";
 import react from "@vitejs/plugin-react";
 import { Agent } from "node:https";
 
@@ -48,11 +49,14 @@ const gutenbergProxy: Record<string, ProxyOptions> = {
   },
 };
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  if (command === "build") validateProductionConfig({ ...loadEnv(mode, process.cwd(), "VITE_"), ...process.env });
+  return {
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? "dev"),
   },
   server: { proxy: gutenbergProxy },
   preview: { proxy: gutenbergProxy },
+  };
 });

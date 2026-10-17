@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 /**
  * Limite diário de mensagens para os personagens, por navegador. Protege a cota das chaves de IA
  * de quem manda mensagem sem parar. Não é uma trava de segurança: as chaves `VITE_*` continuam
@@ -15,7 +16,7 @@ function today(): string {
 
 function read(): Usage {
   try {
-    const u = JSON.parse(localStorage.getItem(KEY) ?? "null") as Usage | null;
+    const u = JSON.parse(userStorage.getItem(KEY) ?? "null") as Usage | null;
     if (u && u.day === today() && typeof u.count === "number") return u;
   } catch {
     // Sem armazenamento: começa do zero.
@@ -32,7 +33,7 @@ export function countMessage(): number {
   const u = read();
   u.count += 1;
   try {
-    localStorage.setItem(KEY, JSON.stringify(u));
+    userStorage.setItem(KEY, JSON.stringify(u));
   } catch {
     // Sem armazenamento: o limite só não é aplicado.
   }

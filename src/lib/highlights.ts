@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 /** Trechos destacados pelo leitor (citações favoritas), por livro, guardados no navegador. */
 
 export type Highlight = {
@@ -18,7 +19,7 @@ export const MAX_HIGHLIGHT_CHARS = 600;
 
 export function loadHighlights(bookId: string): Highlight[] {
   try {
-    const list = JSON.parse(localStorage.getItem(KEY(bookId)) ?? "[]") as Highlight[];
+    const list = JSON.parse(userStorage.getItem(KEY(bookId)) ?? "[]") as Highlight[];
     return Array.isArray(list) ? list : [];
   } catch {
     return [];
@@ -27,8 +28,8 @@ export function loadHighlights(bookId: string): Highlight[] {
 
 export function saveHighlights(bookId: string, list: Highlight[]) {
   try {
-    if (list.length === 0) localStorage.removeItem(KEY(bookId));
-    else localStorage.setItem(KEY(bookId), JSON.stringify(list));
+    if (list.length === 0) userStorage.removeItem(KEY(bookId));
+    else userStorage.setItem(KEY(bookId), JSON.stringify(list));
   } catch {
     // Sem espaço: a marcação só não fica guardada.
   }
@@ -68,8 +69,8 @@ export function allHighlights(): { bookId: string; highlights: Highlight[] }[] {
   const prefix = KEY("");
   const out: { bookId: string; highlights: Highlight[]; latest: number }[] = [];
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < userStorage.length; i++) {
+      const key = userStorage.key(i);
       if (!key?.startsWith(prefix)) continue;
       const bookId = key.slice(prefix.length);
       const list = loadHighlights(bookId);

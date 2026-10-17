@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 /**
  * Tempo de leitura por dia, sequência de dias seguidos, meta diária e escudos — tudo no navegador.
  * Só conta o tempo em que o leitor está de fato lendo: livro aberto, aba visível e alguma
@@ -44,7 +45,7 @@ function daysAgo(n: number, from = new Date()): Date {
 
 function read(): Stats {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Stats;
+    const s = JSON.parse(userStorage.getItem(KEY) ?? "{}") as Stats;
     return s && typeof s === "object" ? s : {};
   } catch {
     return {};
@@ -53,7 +54,7 @@ function read(): Stats {
 
 function readMeta(): Meta {
   try {
-    const m = JSON.parse(localStorage.getItem(META_KEY) ?? "null") as Meta | null;
+    const m = JSON.parse(userStorage.getItem(META_KEY) ?? "null") as Meta | null;
     if (m && typeof m.shields === "number" && Array.isArray(m.frozen)) return m;
   } catch {
     // Sem armazenamento.
@@ -63,7 +64,7 @@ function readMeta(): Meta {
 
 function write(key: string, value: unknown) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    userStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Sem armazenamento.
   }
@@ -165,7 +166,7 @@ export function takeShieldNotice(): boolean {
 
 export function readingGoalMinutes(): number {
   try {
-    const g = Number(localStorage.getItem(GOAL_KEY));
+    const g = Number(userStorage.getItem(GOAL_KEY));
     return (GOAL_OPTIONS as readonly number[]).includes(g) ? g : 10;
   } catch {
     return 10;
@@ -174,7 +175,7 @@ export function readingGoalMinutes(): number {
 
 export function setReadingGoalMinutes(minutes: number) {
   try {
-    localStorage.setItem(GOAL_KEY, String(minutes));
+    userStorage.setItem(GOAL_KEY, String(minutes));
   } catch {
     // Sem armazenamento.
   }

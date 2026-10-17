@@ -1,5 +1,6 @@
 import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 import { authEnabled, supabaseConfig } from "./auth";
+import { apiBaseUrl, apiEnabled } from "./backend";
 
 /**
  * Quantas pessoas estão com o app aberto agora (Supabase Realtime Presence, sem backend).
@@ -29,6 +30,7 @@ const tabId = Math.random().toString(36).slice(2, 10);
  */
 export function watchPresence(room: string, who: string | undefined, onCount: (n: number) => void): () => void {
   if (!authEnabled) return () => {};
+  if (apiEnabled) return watchApiPresence(room, who, onCount);
   let channel: RealtimeChannel | null = null;
   let stopped = false;
   let tracking = false;
@@ -69,5 +71,38 @@ export function watchPresence(room: string, who: string | undefined, onCount: (n
       untrack();
       void realtime().then((client) => channel && client.removeChannel(channel));
     }
+  };
+}
+
+/** Mesma contagem, pela API própria: uma conexão SSE por sala (o navegador reconecta sozinho). */
+function watchApiPresence(room: string, who: string | undefined, onCount: (n: number) => void): () => void {
+  const key = who ? `u:${who}` : `v:${tabId}`;
+  let source: EventSource | null = null;
+  let stopped = false;
+
+  const open = () => {
+    if (stopped || source || document.visibilityState !== "visible") return;
+    const url = `${apiBaseUrl}/api/v1/presence/${encodeURIComponent(room)}?key=${encodeURIComponent(key)}`;
+    source = new EventSource(url);
+    source.addEventListener("count", (event) => {
+      try {
+        onCount((JSON.parse((event as MessageEvent).data) as { count?: number }).count ?? 0);
+      } catch {
+        // Mensagem inesperada: ignora.
+      }
+    });
+  };
+  const close = () => {
+    source?.close();
+    source = null;
+  };
+  const onVisibility = () => (document.visibilityState === "visible" ? open() : close());
+
+  open();
+  document.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    stopped = true;
+    document.removeEventListener("visibilitychange", onVisibility);
+    close();
   };
 }

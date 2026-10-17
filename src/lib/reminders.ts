@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 /**
  * Lembretes para voltar a ler, sem servidor:
  * - Calendário: um evento diário (Google Agenda ou arquivo .ics para iPhone/Outlook). É o próprio
@@ -19,7 +20,7 @@ export type ReminderPrefs = { time: string; notifications?: boolean };
 
 export function loadReminderPrefs(): ReminderPrefs {
   try {
-    const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null") as ReminderPrefs | null;
+    const p = JSON.parse(userStorage.getItem(PREFS_KEY) ?? "null") as ReminderPrefs | null;
     if (p && /^\d{2}:\d{2}$/.test(p.time)) return p;
   } catch {
     // Sem armazenamento.
@@ -29,7 +30,7 @@ export function loadReminderPrefs(): ReminderPrefs {
 
 export function saveReminderPrefs(p: ReminderPrefs) {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    userStorage.setItem(PREFS_KEY, JSON.stringify(p));
   } catch {
     // Sem armazenamento.
   }
@@ -122,10 +123,10 @@ const CHARACTER_KEY = "storyverse:last-character";
 /** Personagem com quem o leitor conversou por último em cada livro (para o texto do lembrete). */
 export function rememberCharacter(bookId: string, name: string) {
   try {
-    const all = JSON.parse(localStorage.getItem(CHARACTER_KEY) ?? "{}") as Record<string, string>;
+    const all = JSON.parse(userStorage.getItem(CHARACTER_KEY) ?? "{}") as Record<string, string>;
     if (all[bookId] === name) return;
     all[bookId] = name;
-    localStorage.setItem(CHARACTER_KEY, JSON.stringify(all));
+    userStorage.setItem(CHARACTER_KEY, JSON.stringify(all));
   } catch {
     // Sem armazenamento.
   }
@@ -133,7 +134,7 @@ export function rememberCharacter(bookId: string, name: string) {
 
 export function lastCharacter(bookId: string): string | undefined {
   try {
-    return (JSON.parse(localStorage.getItem(CHARACTER_KEY) ?? "{}") as Record<string, string>)[bookId];
+    return (JSON.parse(userStorage.getItem(CHARACTER_KEY) ?? "{}") as Record<string, string>)[bookId];
   } catch {
     return undefined;
   }

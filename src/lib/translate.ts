@@ -1,3 +1,4 @@
+import { userStorage } from "./dataOwner";
 /**
  * Tradução sem IA generativa (não gasta tokens) e sem chave, feita no aparelho de quem lê:
  * - "local": tradutor embutido do navegador (Chrome/Edge desktop), roda offline;
@@ -18,7 +19,7 @@ const CACHE_PREFIX = "storyverse:tr2:";
 // Traduções guardadas pela versão anterior (tr1) não servem mais: libera o espaço.
 try {
   for (const k of Object.keys(localStorage)) {
-    if (k.startsWith("storyverse:tr1:")) localStorage.removeItem(k);
+    if (k.startsWith("storyverse:tr1:")) userStorage.removeItem(k);
   }
 } catch {
   // Sem armazenamento disponível.
@@ -226,7 +227,7 @@ export function cachedTranslation(
   chunk: number,
 ): (string | null)[] | null {
   try {
-    const raw = localStorage.getItem(cacheKey(gutenbergId, chapterIndex, chunk));
+    const raw = userStorage.getItem(cacheKey(gutenbergId, chapterIndex, chunk));
     const parsed = raw ? (JSON.parse(raw) as unknown) : null;
     return Array.isArray(parsed) ? (parsed as (string | null)[]) : null;
   } catch {
@@ -243,14 +244,14 @@ export function storeTranslation(
   const key = cacheKey(gutenbergId, chapterIndex, chunk);
   const value = JSON.stringify(paragraphs);
   try {
-    localStorage.setItem(key, value);
+    userStorage.setItem(key, value);
   } catch {
     // Armazenamento cheio: descarta as traduções antigas e tenta mais uma vez.
     try {
       for (const k of Object.keys(localStorage)) {
-        if (k.startsWith("storyverse:tr")) localStorage.removeItem(k);
+        if (k.startsWith("storyverse:tr")) userStorage.removeItem(k);
       }
-      localStorage.setItem(key, value);
+      userStorage.setItem(key, value);
     } catch {
       // A tradução só não fica guardada.
     }

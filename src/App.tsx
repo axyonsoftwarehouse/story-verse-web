@@ -1,3 +1,4 @@
+import { userStorage } from "./lib/dataOwner";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
@@ -117,6 +118,7 @@ import {
   fetchRankingProfile,
   PLACE_MEDALS,
   reportReading,
+  readingHeartbeat,
   setRankingHidden,
   takeWeeklyAwards,
   type RankEntry,
@@ -220,7 +222,7 @@ function initialThreadsFor(cast: StoryCharacter[]): Record<string, Msg[]> {
 
 function loadPrefs(): { theme: ReadingTheme; fontStep: number; translate: boolean; nightLight: NightLight } {
   try {
-    const raw = localStorage.getItem(PREFS_KEY);
+    const raw = userStorage.getItem(PREFS_KEY);
     if (raw) {
       const p = JSON.parse(raw) as { theme?: string; fontStep?: number; translate?: boolean; nightLight?: number };
       return {
@@ -1951,7 +1953,7 @@ const HEAT_PERIOD_KEY = "storyverse:heat-period";
 
 function savedHeatPeriod(): HeatPeriod {
   try {
-    const v = localStorage.getItem(HEAT_PERIOD_KEY);
+    const v = userStorage.getItem(HEAT_PERIOD_KEY);
     return HEAT_PERIODS.some((p) => p.id === v) ? (v as HeatPeriod) : "3m";
   } catch {
     return "3m";
@@ -2052,7 +2054,7 @@ function ReadingHeatmap({ days: allDays, goal, streak }: { days: ReadingDay[]; g
                 clear();
                 setPeriod(p.id);
                 try {
-                  localStorage.setItem(HEAT_PERIOD_KEY, p.id);
+                  userStorage.setItem(HEAT_PERIOD_KEY, p.id);
                 } catch {
                   // Sem armazenamento: vale só nesta visita.
                 }
@@ -4543,7 +4545,7 @@ const INSTALL_BANNER_PAUSE = 14 * 24 * 60 * 60 * 1000;
 
 function installBannerHidden(): boolean {
   try {
-    return Date.now() - Number(localStorage.getItem(INSTALL_BANNER_KEY) ?? 0) < INSTALL_BANNER_PAUSE;
+    return Date.now() - Number(userStorage.getItem(INSTALL_BANNER_KEY) ?? 0) < INSTALL_BANNER_PAUSE;
   } catch {
     return false;
   }
@@ -4551,7 +4553,7 @@ function installBannerHidden(): boolean {
 
 function hideInstallBanner() {
   try {
-    localStorage.setItem(INSTALL_BANNER_KEY, String(Date.now()));
+    userStorage.setItem(INSTALL_BANNER_KEY, String(Date.now()));
   } catch {
     // Sem armazenamento: some só nesta visita.
   }
@@ -4639,14 +4641,20 @@ function shieldNoticeOnLoad(): number | null {
 
 export function App() {
   const [book, setBook] = useState<Ebook | null>(null);
+  const currentBookRef = useRef(book);
+  const readerGeneration = useRef(0);
+  currentBookRef.current = book;
   const [authSession, setAuthSession] = useState<SupabaseSession | null>(null);
   // Sem Supabase configurado não há sessão para verificar: a tela abre direto.
   const [authLoading, setAuthLoading] = useState(authEnabled);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<{ text: string; ok?: boolean } | null>(null);
   const authUser: SupabaseUser | null = authSession?.user ?? null;
+  const [readyOwner, setReadyOwner] = useState<string | null>(null);
+  const [ownerError, setOwnerError] = useState<string | null>(null);
+  const dataIsReady = !authEnabled || (!authLoading && readyOwner === (authUser?.id ?? "anon"));
   /** Pode ler e importar: login desligado, conta opcional ou já entrou. */
-  const canRead = !loginRequired || !!authUser;
+  const canRead = dataIsReady && (!loginRequired || !!authUser);
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -4710,6 +4718,7 @@ export function App() {
     // Nunca menos de 30 s entre renovações: mesmo com o relógio errado, não estoura o limite do Supabase.
     const refreshIn = Math.max(30_000, authSession.expires_at * 1000 - Date.now() - 60_000);
     let retryTimer = 0;
+    let alive = true;
     const onOnline = () => setRefreshRetry((n) => n + 1);
     const timer = window.setTimeout(() => {
       // Outra aba já renovou? Usa a sessão dela em vez de renovar de novo.
@@ -4719,8 +4728,9 @@ export function App() {
         return;
       }
       void refreshAuthSession(authSession.refresh_token)
-        .then((session) => setAuthSession(session))
+        .then((session) => { if (alive) setAuthSession(session); })
         .catch((err: unknown) => {
+          if (!alive) return;
           // Sem internet ou limite do Supabase: continua logado e tenta de novo quando a conexão
           // voltar (ou em 1 min).
           if (err instanceof AuthNetworkError) {
@@ -4735,6 +4745,7 @@ export function App() {
     return () => {
       window.clearTimeout(timer);
       window.clearTimeout(retryTimer);
+      alive = false;
       window.removeEventListener("online", onOnline);
     };
   }, [authSession, refreshRetry]);
@@ -4779,10 +4790,20 @@ export function App() {
   useLayoutEffect(() => {
     if (!authEnabled || authLoading) return;
     let alive = true;
+    setReadyOwner(null);
+    readerGeneration.current++;
+    setOwnerError(null);
+    setBook(null);
+    setThreads({});
     void activateDataOwner(authUserId ?? "anon").then((changed) => {
-      if (!alive || !changed) return;
-      setPrefs(loadPrefs());
-      setDataEpoch((n) => n + 1);
+      if (!alive) return;
+      setReadyOwner(authUserId ?? "anon");
+      if (changed) {
+        setPrefs(loadPrefs());
+        setDataEpoch((n) => n + 1);
+      }
+    }).catch(() => {
+      if (alive) setOwnerError("Não foi possível abrir os dados desta conta. Libere espaço no navegador e recarregue a página.");
     });
     return () => {
       alive = false;
@@ -5061,7 +5082,7 @@ export function App() {
   }, [book, isAvailable]);
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+      userStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     } catch {
       // Preferência só não fica salva.
     }
@@ -5201,7 +5222,9 @@ export function App() {
       return;
     }
     prevChapterIdxRef.current = null;
+    readerGeneration.current++;
     setBook(b);
+    setLoading(false);
     setCast(null);
     setActiveCharId("");
     setThreads({});
@@ -5245,12 +5268,14 @@ export function App() {
   }, []);
 
   const leaveBook = useCallback(() => {
+    readerGeneration.current++;
     stopSpeaking();
     setHighlightsOpen(false);
     setSelection(null);
     setWordCard(null);
     prevChapterIdxRef.current = null;
     setBook(null);
+    setLoading(false);
     setCast(null);
     setActiveCharId("");
     setThreads({});
@@ -5308,11 +5333,19 @@ export function App() {
   useEffect(() => {
     if (!book || loadState !== "ready") return;
     const TICK = 15;
+    const session = authSessionRef.current;
+    if (session) void readingHeartbeat(session, true).catch(() => {});
     const t = window.setInterval(() => {
       const active = Date.now() - lastActivityRef.current < 120_000 || speechRef.current !== null;
-      if (document.visibilityState === "visible" && active) celebrate(addReadingSeconds(TICK));
+      const reading = document.visibilityState === "visible" && active;
+      if (reading) celebrate(addReadingSeconds(TICK));
+      if (session && authSessionRef.current?.user.id === session.user.id)
+        void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
     }, TICK * 1000);
-    return () => window.clearInterval(t);
+    return () => {
+      window.clearInterval(t);
+      if (session) void readingHeartbeat(session, false).catch(() => {});
+    };
   }, [book, loadState]);
 
   function celebrate(ev: ReadingEvents) {
@@ -5881,6 +5914,10 @@ export function App() {
       .map((m) => ({ role: m.role, content: m.text }));
 
     setLoading(true);
+    const requestBook = book;
+    const requestOwner = authSessionRef.current?.user.id;
+    const generation = readerGeneration.current;
+    const stillCurrent = () => readerGeneration.current === generation && currentBookRef.current === requestBook && authSessionRef.current?.user.id === requestOwner;
     try {
       const reply = await characterReply({
         character,
@@ -5892,6 +5929,7 @@ export function App() {
         readingProgressPct,
         textLanguage: book.textLanguage,
       });
+      if (!stillCurrent()) return;
       const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
       if (limitApplies) setMessagesLeft(countMessage());
       setThreads((prev) => ({
@@ -5899,6 +5937,7 @@ export function App() {
         [character.id]: [...(prev[character.id] ?? []), botMsg],
       }));
     } catch (err) {
+      if (!stillCurrent()) return;
       console.warn("Falha no envio da mensagem:", err);
       setError(
         err instanceof Error
@@ -5911,7 +5950,7 @@ export function App() {
       }));
       setInput(text);
     } finally {
-      setLoading(false);
+      if (stillCurrent()) setLoading(false);
     }
   }
 
@@ -5934,7 +5973,8 @@ export function App() {
   useBackClose(chatOpen, () => setChatOpen(false));
   useBackClose(highlightsOpen, () => setHighlightsOpen(false));
 
-  if (authLoading && !book) {
+  if (ownerError) return <main className="auth-loading" role="alert"><p>{ownerError}</p><button onClick={() => window.location.reload()}>Tentar novamente</button></main>;
+  if (authLoading || !dataIsReady) {
     return (
       <main className="auth-loading" role="status" aria-live="polite">
         <img className="auth-loading-logo" src="/icons/icon.svg" alt="" aria-hidden="true" />

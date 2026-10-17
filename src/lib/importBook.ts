@@ -1,4 +1,5 @@
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8 } from "fflate";
+import { unzipBounded } from "./safeZip";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 /**
@@ -236,7 +237,7 @@ function chapterSubtitle(title: string): string {
 async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(buf);
+    files = await unzipBounded(buf);
   } catch {
     throw new Error("Não foi possível abrir este EPUB. O arquivo pode estar corrompido.");
   }
@@ -447,9 +448,11 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
+  let task;
   let doc;
   try {
-    doc = await pdfjs.getDocument({ data: buf }).promise;
+    task = pdfjs.getDocument({ data: buf });
+    doc = await task.promise;
   } catch (e) {
     if (e instanceof Error && e.name === "PasswordException") {
       throw new Error("Este PDF é protegido por senha e não pode ser aberto.");
@@ -529,7 +532,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
 
   const meta = await doc.getMetadata().catch(() => null);
   const info = (meta?.info ?? {}) as { Title?: string; Author?: string };
-  await doc.destroy();
+  await task.destroy();
 
   // A mesma imagem em muitas páginas é logotipo ou vinheta, não ilustração.
   const pagesPerKey = new Map<string, number>();

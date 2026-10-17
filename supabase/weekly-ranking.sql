@@ -108,6 +108,7 @@ security definer
 set search_path = public
 as $$
 begin
+  perform pg_advisory_xact_lock(664332);
   if (p_week + 7)::timestamp + interval '1 hour' > (now() at time zone 'America/Sao_Paulo') then
     return;
   end if;
@@ -143,22 +144,7 @@ begin
   if uid is null then
     raise exception 'Entre na sua conta para participar do ranking.';
   end if;
-  if exists (select 1 from public.weekly_closings c where c.week_start = open_from) then
-    open_from := public.ranking_week_start(0);
-  end if;
-
-  insert into public.reading_days (user_id, day, seconds)
-  select uid, v.day, v.seconds
-  from (
-    select case when e.key ~ '^\d{4}-\d{2}-\d{2}$' then e.key::date end as day,
-           case when e.value ~ '^\d{1,9}(\.\d+)?$' then least(e.value::numeric, 43200)::integer end as seconds
-    from jsonb_each_text(case when jsonb_typeof(p_days) = 'object' then p_days else '{}'::jsonb end) e
-  ) v
-  -- Até amanhã: quem está num fuso à frente de Brasília já pode estar no dia seguinte.
-  where v.day between open_from and today + 1 and v.seconds > 0
-  on conflict (user_id, day) do update
-    set seconds = greatest(reading_days.seconds, excluded.seconds),
-        updated_at = case when excluded.seconds > reading_days.seconds then now() else reading_days.updated_at end;
+  -- Client totals are untrusted; only reading_heartbeat credits server elapsed time.
 
   -- Nome e avatar do perfil. Sem nome, não expõe o e-mail: aparece só "Leitor".
   select u.raw_user_meta_data into meta from auth.users u where u.id = uid;
