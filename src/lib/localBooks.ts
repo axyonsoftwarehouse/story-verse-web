@@ -25,6 +25,8 @@ export type StoredBook = {
   images?: Record<string, Blob>;
   /** Conta que importou (sem ele: de antes da separação por conta, ver dataOwner.ts). */
   owner?: string;
+  /** Registro da migração v1→v2 sem dono: pode ser adotado pela primeira conta real. */
+  legacy?: true;
 };
 
 type StoredBookRow = StoredBook & { key: string };
@@ -74,7 +76,7 @@ function openDb(): Promise<IDBDatabase> {
           const legacy = legacyDataOwner();
           for (const row of rows) {
             const owner = row.owner ?? legacy ?? "anon";
-            store.put({ ...row, owner, key: keyOf(owner, row.id) });
+            store.put({ ...row, owner, key: keyOf(owner, row.id), ...(row.owner ? {} : { legacy: true }) });
           }
         };
       }
@@ -153,8 +155,28 @@ export async function getLocalRecord(id: number, owner = activeOwner()): Promise
   return run<StoredBook | undefined>("readonly", (s) => s.get(keyOf(owner, id)));
 }
 
+/**
+ * A primeira conta real adota os livros que a migração v1→v2 deixou em "anon" (dados de antes da
+ * separação por conta). Só os marcados como `legacy`; o uso anônimo explícito continua separado.
+ */
+export async function adoptLegacyRecords(owner: string): Promise<void> {
+  if (owner === "anon") return;
+  const rows = await run<StoredBook[]>("readonly", (s) => s.index(OWNER_INDEX).getAll("anon"));
+  for (const row of rows) {
+    if (row.legacy !== true) continue;
+    const existing = await getLocalRecord(row.id, owner);
+    if (!existing) {
+      const copy = { ...row, owner, key: keyOf(owner, row.id) };
+      delete copy.legacy;
+      await run("readwrite", (s) => s.put(copy satisfies StoredBookRow));
+    }
+    await run("readwrite", (s) => s.delete(keyOf("anon", row.id)));
+  }
+}
+
 /** Registros dos livros da conta em uso neste aparelho. */
 export async function listLocalRecords(owner = activeOwner()): Promise<StoredBook[]> {
+  if (owner !== "anon") await adoptLegacyRecords(owner);
   return run<StoredBook[]>("readonly", (s) => s.index(OWNER_INDEX).getAll(owner));
 }
 

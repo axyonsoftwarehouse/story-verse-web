@@ -1,7 +1,7 @@
 import { activateDataOwner } from "./dataOwner";
 import { describe, expect, it } from "vitest";
 import type { Ebook } from "../data/types";
-import { readLibrary, deleteLocalBook, getLocalRecord, listLocalRecords, loadLocalBookText, saveLocalBook } from "./localBooks";
+import { readLibrary, deleteLocalBook, getLocalRecord, listLocalRecords, loadLocalBookText, putLocalRecord, saveLocalBook } from "./localBooks";
 
 async function setOwner(owner: string): Promise<void> { await activateDataOwner(owner); }
 
@@ -69,5 +69,16 @@ describe("localBooks — isolamento por conta", () => {
 
     expect(readLibrary("userA")[String(id)]).toBeDefined();
     expect(readLibrary("userB")[String(id)]).toBeUndefined();
+  });
+
+  it("adota na primeira conta os registros legados deixados em 'anon'", async () => {
+    const id = -777000006;
+    await setOwner("anon");
+    await putLocalRecord({ id, book: makeBook(id, "Legado"), text: "legado", importedAt: 1, legacy: true }, "anon");
+    await setOwner("userA");
+
+    const records = await listLocalRecords();
+    expect(records.some((r) => r.id === id)).toBe(true);
+    expect(await getLocalRecord(id, "anon")).toBeUndefined();
   });
 });
