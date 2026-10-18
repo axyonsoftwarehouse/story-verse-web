@@ -1,12 +1,15 @@
 name: Deploy Storyverse (VPS)
 
+# Produção do Storyverse: todo push na `main` publica na VPS, que é o único
+# endereço público do app (os domínios na Vercel ficam atrás do Deployment
+# Protection: abrem a tela de login da Vercel para quem é de fora).
+# O disparo automático era a branch `vps`, apagada em 17/10/2026; sem ela todo
+# deploy virava manual (`workflow_dispatch`) e nenhum merge publicava.
 on:
   workflow_dispatch: {}
   push:
-    branches: [vps]
+    branches: [main]
     paths-ignore:
-      - "story-magic-api/**"
-      - ".github/workflows/story-magic-api.yml"
       - "docs/**"
 
 permissions:
