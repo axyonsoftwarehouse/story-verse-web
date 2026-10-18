@@ -1,4 +1,4 @@
-import { userStorage } from "./dataOwner";
+import { storageForOwner } from "./dataOwner";
 import type { Ebook } from "../data/types";
 import { currentDataOwner, legacyDataOwner } from "./dataOwner";
 
@@ -25,6 +25,8 @@ export type StoredBook = {
   images?: Record<string, Blob>;
   /** Conta que importou (sem ele: de antes da separação por conta, ver dataOwner.ts). */
   owner?: string;
+  /** Registro da migração v1→v2 sem dono: pode ser adotado pela primeira conta real. */
+  legacy?: true;
 };
 
 type StoredBookRow = StoredBook & { key: string };
@@ -74,7 +76,7 @@ function openDb(): Promise<IDBDatabase> {
           const legacy = legacyDataOwner();
           for (const row of rows) {
             const owner = row.owner ?? legacy ?? "anon";
-            store.put({ ...row, owner, key: keyOf(owner, row.id) });
+            store.put({ ...row, owner, key: keyOf(owner, row.id), ...(row.owner ? {} : { legacy: true }) });
           }
         };
       }
@@ -120,19 +122,23 @@ const LIBRARY_KEY = "storyverse:library";
  */
 export type LibraryEntry = { importedAt: number; deletedAt?: number; uploadedAt?: number; purgedAt?: number };
 
-export function readLibrary(): Record<string, LibraryEntry> {
+export function readLibrary(owner: string | null = currentDataOwner()): Record<string, LibraryEntry> {
   try {
-    return JSON.parse(userStorage.getItem(LIBRARY_KEY) ?? "{}") as Record<string, LibraryEntry>;
+    return JSON.parse(storageForOwner(owner).getItem(LIBRARY_KEY) ?? "{}") as Record<string, LibraryEntry>;
   } catch {
     return {};
   }
 }
 
-export function updateLibrary(id: number, change: (e: LibraryEntry | undefined) => LibraryEntry) {
+export function updateLibrary(
+  id: number,
+  change: (e: LibraryEntry | undefined) => LibraryEntry,
+  owner: string | null = currentDataOwner(),
+) {
   try {
-    const all = readLibrary();
+    const all = readLibrary(owner);
     all[String(id)] = change(all[String(id)]);
-    userStorage.setItem(LIBRARY_KEY, JSON.stringify(all));
+    storageForOwner(owner).setItem(LIBRARY_KEY, JSON.stringify(all));
   } catch {
     // Sem espaço: o livro continua aqui, só não vai para os outros aparelhos.
   }
@@ -149,14 +155,36 @@ export async function getLocalRecord(id: number, owner = activeOwner()): Promise
   return run<StoredBook | undefined>("readonly", (s) => s.get(keyOf(owner, id)));
 }
 
+/**
+ * A primeira conta real adota os livros que a migração v1→v2 deixou em "anon" (dados de antes da
+ * separação por conta). Só os marcados como `legacy`; o uso anônimo explícito continua separado.
+ */
+export async function adoptLegacyRecords(owner: string): Promise<void> {
+  if (owner === "anon") return;
+  const rows = await run<StoredBook[]>("readonly", (s) => s.index(OWNER_INDEX).getAll("anon"));
+  for (const row of rows) {
+    if (row.legacy !== true) continue;
+    const existing = await getLocalRecord(row.id, owner);
+    if (!existing) {
+      const copy = { ...row, owner, key: keyOf(owner, row.id) };
+      delete copy.legacy;
+      await run("readwrite", (s) => s.put(copy satisfies StoredBookRow));
+    }
+    await run("readwrite", (s) => s.delete(keyOf("anon", row.id)));
+  }
+}
+
 /** Registros dos livros da conta em uso neste aparelho. */
 export async function listLocalRecords(owner = activeOwner()): Promise<StoredBook[]> {
+  if (owner !== "anon") await adoptLegacyRecords(owner);
   return run<StoredBook[]>("readonly", (s) => s.index(OWNER_INDEX).getAll(owner));
 }
 
 export async function saveLocalBook(book: Ebook, text: string, images?: Record<string, Blob>): Promise<void> {
   const importedAt = Date.now();
   const owner = activeOwner();
+  // O registro e a lista da conta precisam do mesmo dono, mesmo que a conta troque durante o await.
+  const libraryOwner = currentDataOwner();
   try {
     await run("readwrite", (s) =>
       s.put({
@@ -169,7 +197,7 @@ export async function saveLocalBook(book: Ebook, text: string, images?: Record<s
         owner,
       } satisfies StoredBookRow),
     );
-    updateLibrary(book.gutenbergId, () => ({ importedAt }));
+    updateLibrary(book.gutenbergId, () => ({ importedAt }), libraryOwner);
   } catch (e) {
     if (e instanceof DOMException && e.name === "QuotaExceededError") {
       throw new Error("Não há espaço no navegador para este livro. Remova um livro importado e tente de novo.");
@@ -216,6 +244,7 @@ export async function deleteLocalBook(
   opts: { everywhere?: boolean } = { everywhere: true },
   owner = activeOwner(),
 ): Promise<void> {
+  const libraryOwner = currentDataOwner();
   await run("readwrite", (s) => s.delete(keyOf(owner, id)));
-  if (opts.everywhere) updateLibrary(id, (e) => ({ ...(e ?? { importedAt: 0 }), deletedAt: Date.now() }));
+  if (opts.everywhere) updateLibrary(id, (e) => ({ ...(e ?? { importedAt: 0 }), deletedAt: Date.now() }), libraryOwner);
 }

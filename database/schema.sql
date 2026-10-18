@@ -207,7 +207,8 @@ create policy "ver envios" on public.book_submissions
 drop policy if exists "enviar livro" on public.book_submissions;
 create policy "enviar livro" on public.book_submissions
   for insert to authenticated
-  with check (auth.uid() = user_id and status = 'pending' and reviewed_at is null and review_note is null);
+  with check (auth.uid() = user_id and status = 'pending' and reviewed_at is null and review_note is null
+    and text_path ~ ('^' || auth.uid()::text || '/[a-zA-Z0-9_-]+[.]txt$'));
 
 drop policy if exists "admin revisa" on public.book_submissions;
 create policy "admin revisa" on public.book_submissions
@@ -697,14 +698,14 @@ grant execute on function public.my_weekly_awards() to authenticated;
 grant execute on function public.mark_awards_seen() to authenticated;
 
 -- ===========================================================================
--- Admin (só tem efeito depois que a conta existir em auth.users; rode de novo após importar).
--- O Gmail ignora pontos no endereço: aceita as duas grafias.
+-- Admin: promoção MANUAL, por UUID verificado fora de banda.
+-- Não derive admin do e-mail informado no cadastro: o cadastro não confirma o e-mail e o
+-- Gmail ignora pontos (uma variante pontuada do endereço poderia virar admin).
+-- Substitua o UUID abaixo pelo id real e rode uma vez:
+--
+-- insert into public.admins (user_id) values ('00000000-0000-0000-0000-000000000000')
+--   on conflict do nothing;
 -- ===========================================================================
-insert into public.admins (user_id)
-select id from auth.users
-where lower(replace(split_part(email, '@', 1), '.', '')) = 'businesscodeplus'
-  and lower(split_part(email, '@', 2)) = 'gmail.com'
-on conflict do nothing;
 
 -- Confere: lista as tabelas criadas.
 select table_schema, table_name

@@ -1,4 +1,4 @@
-import { userStorage } from "./dataOwner";
+import { currentDataOwner, storageForOwner } from "./dataOwner";
 import { naturalizeReply } from "./naturalSpeech";
 
 /** Conversa com os personagens de cada livro, guardada no navegador para continuar depois. */
@@ -13,9 +13,9 @@ const MAX_PER_CHARACTER = 80;
 const MAX_BOOKS = 25;
 const INDEX_KEY = "storyverse:chat-index";
 
-export function loadChat(bookId: string): SavedChat | null {
+export function loadChat(bookId: string, owner: string | null = currentDataOwner()): SavedChat | null {
   try {
-    const raw = userStorage.getItem(KEY(bookId));
+    const raw = storageForOwner(owner).getItem(KEY(bookId));
     const saved = raw ? (JSON.parse(raw) as SavedChat) : null;
     if (!saved || typeof saved.threads !== "object") return null;
     // Conversas guardadas antes da limpeza de estilo (travessões, *ações*) aparecem já limpas.
@@ -28,28 +28,34 @@ export function loadChat(bookId: string): SavedChat | null {
   }
 }
 
-export function saveChat(bookId: string, threads: Record<string, ChatMsg[]>, activeCharId: string) {
+export function saveChat(
+  bookId: string,
+  threads: Record<string, ChatMsg[]>,
+  activeCharId: string,
+  owner: string | null = currentDataOwner(),
+) {
   const trimmed = Object.fromEntries(
     Object.entries(threads).map(([id, msgs]) => [id, msgs.slice(-MAX_PER_CHARACTER)]),
   );
   try {
-    userStorage.setItem(
+    const storage = storageForOwner(owner);
+    storage.setItem(
       KEY(bookId),
       JSON.stringify({ threads: trimmed, activeCharId, updatedAt: Date.now() } satisfies SavedChat),
     );
     // Índice dos livros com conversa, para apagar as mais antigas.
-    const index = (JSON.parse(userStorage.getItem(INDEX_KEY) ?? "[]") as string[]).filter((b) => b !== bookId);
+    const index = (JSON.parse(storage.getItem(INDEX_KEY) ?? "[]") as string[]).filter((b) => b !== bookId);
     index.unshift(bookId);
-    for (const old of index.splice(MAX_BOOKS)) userStorage.removeItem(KEY(old));
-    userStorage.setItem(INDEX_KEY, JSON.stringify(index));
+    for (const old of index.splice(MAX_BOOKS)) storage.removeItem(KEY(old));
+    storage.setItem(INDEX_KEY, JSON.stringify(index));
   } catch {
     // Sem espaço: a conversa só não fica guardada.
   }
 }
 
-export function forgetChat(bookId: string) {
+export function forgetChat(bookId: string, owner: string | null = currentDataOwner()) {
   try {
-    userStorage.removeItem(KEY(bookId));
+    storageForOwner(owner).removeItem(KEY(bookId));
   } catch {
     // Nada a limpar.
   }

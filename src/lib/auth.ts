@@ -1,8 +1,8 @@
 import { userStorage } from "./dataOwner";
 import { captureError, captureEvent } from "./telemetry";
-import { apiEnabled, apiRequest, AuthNetworkError } from "./backend";
+import { apiEnabled, apiRequest, AuthNetworkError, AuthSessionError } from "./backend";
 
-export { AuthNetworkError };
+export { AuthNetworkError, AuthSessionError };
 
 /**
  * O login existe com o Supabase (padrão) ou com a API própria, quando `VITE_API_URL` está
@@ -15,6 +15,8 @@ export const authEnabled = apiEnabled || Boolean(
 export const loginRequired = authEnabled && import.meta.env.VITE_LOGIN_REQUIRED?.trim() !== "false";
 
 const SESSION_KEY = "storyverse:supabase-session";
+/** Chave global (fora do namespace por conta) observada por outras abas para login/logout. */
+export const AUTH_SESSION_STORAGE_KEY = SESSION_KEY;
 const LEGACY_AUTH_KEY = "storyverse:auth";
 /** A API própria ainda não tem OTP; com ela, o código de 6 dígitos fica desligado. */
 export const EMAIL_OTP_ENABLED = !apiEnabled && import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED === "true";
@@ -250,7 +252,7 @@ export function refreshAuthSession(refreshToken: string): Promise<SupabaseSessio
   const expectedUser = storedAuthSession()?.user.id;
   const run = async () => {
     const current = storedAuthSession();
-    if (!current || current.user.id !== expectedUser) throw new AuthNetworkError("A sessão mudou durante a renovação.");
+    if (!current || current.user.id !== expectedUser) throw new AuthSessionError("A sessão mudou durante a renovação.");
     if (current.refresh_token !== refreshToken) return current;
     return refreshSessionOnce(refreshToken);
   };
@@ -263,7 +265,7 @@ export function refreshAuthSession(refreshToken: string): Promise<SupabaseSessio
 
 function storeRefreshed(session: SupabaseSession, previousToken: string): void {
   if (storedAuthSession()?.refresh_token !== previousToken)
-    throw new AuthNetworkError("A sessão mudou durante a renovação.");
+    throw new AuthSessionError("A sessão mudou durante a renovação.");
   storeSession(session);
 }
 
@@ -306,6 +308,9 @@ async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
     try {
       return await refreshAuthSession(session.refresh_token);
     } catch (error) {
+      // A sessão mudou ou foi encerrada em outra aba: a fonte da verdade é o armazenamento
+      // (null se saiu, a nova conta se trocou, ou o token já renovado pela outra aba).
+      if (error instanceof AuthSessionError) return storedAuthSession();
       // Sem internet (app instalado, lendo offline): continua logado com a sessão guardada e
       // renova quando a conexão voltar. Só sai se o Supabase recusar a sessão.
       if (error instanceof AuthNetworkError) return session;

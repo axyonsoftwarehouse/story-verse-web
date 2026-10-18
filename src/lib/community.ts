@@ -160,24 +160,32 @@ export async function submitBook(
       const payload = (await upload.json().catch(() => ({}))) as { error?: string; message?: string };
       throw new Error(payload.error ?? payload.message ?? `Erro ${upload.status}`);
     }
-    const row = await apiRequest<Submission>("/api/v1/community/submissions", {
-      method: "POST",
-      accessToken: session.access_token,
-      body: {
-        submitter_name: input.submitterName.slice(0, 60),
-        title: input.title.slice(0, 120),
-        author: input.author.slice(0, 120) || null,
-        language: input.language,
-        rights: input.rights,
-        rights_note: input.rightsNote.trim().slice(0, 500) || null,
-        characters: input.characters.trim().slice(0, 600) || null,
-        text_path: path,
-        char_count: input.text.length,
-        ...(input.coverUrl ? { cover_url: input.coverUrl } : {}),
-      },
-    });
-    approvedCache = null;
-    return row;
+    try {
+      const row = await apiRequest<Submission>("/api/v1/community/submissions", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: {
+          submitter_name: input.submitterName.slice(0, 60),
+          title: input.title.slice(0, 120),
+          author: input.author.slice(0, 120) || null,
+          language: input.language,
+          rights: input.rights,
+          rights_note: input.rightsNote.trim().slice(0, 500) || null,
+          characters: input.characters.trim().slice(0, 600) || null,
+          text_path: path,
+          char_count: input.text.length,
+          ...(input.coverUrl ? { cover_url: input.coverUrl } : {}),
+        },
+      });
+      approvedCache = null;
+      return row;
+    } catch (err) {
+      // Sem o registro, o texto e a capa enviada não servem para nada.
+      void dropObject(session, BUCKET, path);
+      const cover = uploadedCoverPath(input.coverUrl);
+      if (cover) void dropObject(session, "profile-media", cover);
+      throw err;
+    }
   }
   const insert = (withCover: boolean) =>
     sb("/rest/v1/book_submissions", {

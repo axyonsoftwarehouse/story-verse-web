@@ -238,7 +238,9 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   let files: Record<string, Uint8Array>;
   try {
     files = await unzipBounded(buf);
-  } catch {
+  } catch (error) {
+    // Preserva a mensagem de limite (ex.: EPUB grande demais) em vez de chamar tudo de corrompido.
+    if (error instanceof Error && /grande demais/i.test(error.message)) throw error;
     throw new Error("Não foi possível abrir este EPUB. O arquivo pode estar corrompido.");
   }
   const read = (path: string) => (files[path] ? strFromU8(files[path]) : null);

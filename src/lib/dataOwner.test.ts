@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { activateDataOwner, currentDataOwner, userStorage } from "./dataOwner";
+import { activateDataOwner, currentDataOwner, storageForOwner, userStorage } from "./dataOwner";
 
 const PREFS = "storyverse:reading-prefs";
 
@@ -50,5 +50,19 @@ describe("activateDataOwner", () => {
     await expect(activateDataOwner("userB")).rejects.toThrow();
     expect(currentDataOwner()).toBe("userA");
     expect(userStorage.getItem(PREFS)).toBe("private");
+  });
+  it("storageForOwner prende a escrita ao dono capturado, mesmo depois de trocar de conta", async () => {
+    await activateDataOwner("userA");
+    const captured = storageForOwner(currentDataOwner());
+    await activateDataOwner("userB");
+    captured.setItem(PREFS, "dados de A");
+    expect(storageForOwner("userA").getItem(PREFS)).toBe("dados de A");
+    expect(storageForOwner("userB").getItem(PREFS)).toBeNull();
+  });
+  it("não bloqueia a ativação se o cofre legado estiver corrompido", async () => {
+    localStorage.setItem("storyverse:data-owner", "userA");
+    localStorage.setItem("storyverse:vault:userA", "{not-json");
+    await activateDataOwner("userA");
+    expect(currentDataOwner()).toBe("userA");
   });
 });

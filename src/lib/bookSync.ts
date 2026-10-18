@@ -127,15 +127,15 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
   const here = new Map(records.map((r) => [String(r.id), r]));
 
   // Livros importados antes da sincronização entram na lista da conta.
-  const known = readLibrary();
+  const known = readLibrary(owner);
   for (const r of records) {
     if (!known[String(r.id)]) {
-      updateLibrary(r.id, () => ({ importedAt: r.importedAt }));
+      updateLibrary(r.id, () => ({ importedAt: r.importedAt }), owner);
       library = true;
     }
   }
 
-  for (const [key, entry] of Object.entries(readLibrary())) {
+  for (const [key, entry] of Object.entries(readLibrary(owner))) {
     if (currentDataOwner() !== owner) break;
     const id = Number(key);
     if (!Number.isFinite(id)) continue;
@@ -149,7 +149,7 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
         if (entry.uploadedAt && !entry.purgedAt) {
           await storage(session, `${BUCKET}/${encodePath(pathOf(session, id))}`, { method: "DELETE" });
           if (currentDataOwner() !== owner) break;
-          updateLibrary(id, (e) => ({ ...(e ?? entry), purgedAt: Date.now() }));
+          updateLibrary(id, (e) => ({ ...(e ?? entry), purgedAt: Date.now() }), owner);
           library = true;
         }
         continue;
@@ -162,15 +162,27 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
           body: new Blob([await pack(record)], { type: "application/gzip" }),
         });
         if (currentDataOwner() !== owner) break;
-        updateLibrary(id, (e) => ({ ...(e ?? entry), uploadedAt: Date.now() }));
+        updateLibrary(id, (e) => ({ ...(e ?? entry), uploadedAt: Date.now() }), owner);
         library = true;
       } else if (!record && entry.uploadedAt) {
-        const res = await storage(session, `authenticated/${BUCKET}/${encodePath(pathOf(session, id))}`);
+        let res: Response;
+        try {
+          res = await storage(session, `authenticated/${BUCKET}/${encodePath(pathOf(session, id))}`);
+        } catch (error) {
+          if (!(error instanceof Error) || !/404|not found|não encontrado/i.test(error.message)) throw error;
+          if (currentDataOwner() !== owner) break;
+          // O objeto sumiu do Storage. Se este aparelho tem o livro, reenvia; senão, remove do acervo.
+          if (await getLocalRecord(id, owner))
+            updateLibrary(id, (e) => ({ ...(e ?? entry), uploadedAt: undefined }), owner);
+          else updateLibrary(id, (e) => ({ ...(e ?? entry), deletedAt: Date.now() }), owner);
+          library = true;
+          continue;
+        }
         const downloaded = await unpack(new Uint8Array(await res.arrayBuffer()));
         if (downloaded.id !== id) throw new Error("Identificador do livro inválido.");
         if (currentDataOwner() !== owner) break;
         // Removido aqui enquanto baixava: não traz de volta.
-        if (isRemoved(readLibrary()[key] ?? entry) || (await getLocalRecord(id, owner))) continue;
+        if (isRemoved(readLibrary(owner)[key] ?? entry) || (await getLocalRecord(id, owner))) continue;
         await putLocalRecord(downloaded, owner);
         local = true;
       }

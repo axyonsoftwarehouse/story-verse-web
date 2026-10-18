@@ -12,7 +12,7 @@ import {
 } from "./lib/ai";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
-import { activateDataOwner, dataOwnerReady } from "./lib/dataOwner";
+import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
@@ -155,7 +155,9 @@ import {
 } from "./lib/speech";
 import { countMessage, DAILY_MESSAGE_LIMIT, messagesLeftToday } from "./lib/usageLimit";
 import {
+  AUTH_SESSION_STORAGE_KEY,
   AuthNetworkError,
+  AuthSessionError,
   authEnabled,
   clearLegacyCredentials,
   loginRequired,
@@ -4731,6 +4733,11 @@ export function App() {
         .then((session) => { if (alive) setAuthSession(session); })
         .catch((err: unknown) => {
           if (!alive) return;
+          if (err instanceof AuthSessionError) {
+            // Outra aba renovou/trocou/encerrou a sessão. O armazenamento é a fonte da verdade.
+            setAuthSession(storedAuthSession());
+            return;
+          }
           // Sem internet ou limite do Supabase: continua logado e tenta de novo quando a conexão
           // voltar (ou em 1 min).
           if (err instanceof AuthNetworkError) {
@@ -4752,7 +4759,7 @@ export function App() {
 
   useEffect(() => {
     function syncSession(event: StorageEvent) {
-      if (event.key !== "storyverse:supabase-session") return;
+      if (event.key !== AUTH_SESSION_STORAGE_KEY) return;
       if (!event.newValue) {
         setAuthSession(null);
         return;
@@ -4817,9 +4824,12 @@ export function App() {
    */
   const syncAccount = useCallback(async (session: SupabaseSession, opts: { keepalive: boolean; resume: boolean }) => {
     let changed = await syncNow(session, { keepalive: opts.keepalive });
+    // A conta pode ter trocado durante o await: não mistura os dados locais de uma com a sessão da outra.
+    if (currentDataOwner() !== session.user.id) return false;
     // Minutos da semana para o ranking (sem o ranking configurado no Supabase, segue sem ele).
     const reported = await reportReading(session, { keepalive: opts.keepalive }).catch(() => false);
     if (opts.keepalive) return changed;
+    if (currentDataOwner() !== session.user.id) return false;
     // Leitura do dia que rende diamantes: pede a recompensa e avisa.
     if (reported) {
       const gained = await claimReadingRewards(session).catch(() => 0);
@@ -5302,7 +5312,8 @@ export function App() {
   /** Guarda a conversa do livro para continuar na próxima vez. */
   useEffect(() => {
     if (!book || !cast || Object.keys(threads).length === 0) return;
-    const t = window.setTimeout(() => saveChat(book.id, threads, activeCharId), 400);
+    const owner = currentDataOwner();
+    const t = window.setTimeout(() => saveChat(book.id, threads, activeCharId, owner), 400);
     return () => window.clearTimeout(t);
   }, [book, cast, threads, activeCharId]);
 
@@ -5413,15 +5424,19 @@ export function App() {
     if (restoreScrollRef.current !== null) return; // Ainda não voltou para a posição salva.
     // Abrir e fechar um livro sem ler nada não o coloca em “Continue lendo”.
     if (chapterIndex === 0 && scrollRatio < 0.02 && !loadProgress(book.gutenbergId)) return;
+    const owner = currentDataOwner();
     const t = setTimeout(
       () =>
-        saveProgress({
-          book,
-          chapterIndex,
-          chapterLabel: currentChapter.label,
-          chapterCount: chapters.length,
-          scrollRatio,
-        }),
+        saveProgress(
+          {
+            book,
+            chapterIndex,
+            chapterLabel: currentChapter.label,
+            chapterCount: chapters.length,
+            scrollRatio,
+          },
+          owner,
+        ),
       300,
     );
     return () => clearTimeout(t);
