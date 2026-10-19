@@ -78,11 +78,11 @@ jobs:
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           for envfile in .vercel/.env.*.local; do
             [ -e "$envfile" ] || continue
-            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d' "$envfile"
+            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d; /^VITE_SUPABASE_/d' "$envfile"
             sed -i '/^VITE_API_URL=/d' "$envfile"
             printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
           done
-          echo "::warning::Chaves VITE_* de IA removidas do build. Remova-as do painel da Vercel (pendente)."
+          echo "::warning::Chaves VITE_* de IA e Supabase removidas do build. Remova-as do painel da Vercel (pendente)."
           vercel build --prod --token="$VERCEL_TOKEN"
           url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -135,11 +135,11 @@ jobs:
           fi
           for envfile in .vercel/.env.*.local; do
             [ -e "$envfile" ] || continue
-            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d' "$envfile"
+            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d; /^VITE_SUPABASE_/d' "$envfile"
             sed -i '/^VITE_API_URL=/d' "$envfile"
             printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
           done
-          echo "::warning::Chaves VITE_* de IA removidas do build. Remova-as do painel da Vercel (pendente)."
+          echo "::warning::Chaves VITE_* de IA e Supabase removidas do build. Remova-as do painel da Vercel (pendente)."
           if [ "$target" = "staging" ]; then
             vercel build --target=staging --token="$VERCEL_TOKEN"
             url=$(vercel deploy --prebuilt --target=staging --token="$VERCEL_TOKEN")
@@ -190,11 +190,11 @@ jobs:
           vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
           for envfile in .vercel/.env.*.local; do
             [ -e "$envfile" ] || continue
-            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d' "$envfile"
+            sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d; /^VITE_SUPABASE_/d' "$envfile"
             sed -i '/^VITE_API_URL=/d' "$envfile"
             printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
           done
-          echo "::warning::Chaves VITE_* de IA removidas do build. Remova-as do painel da Vercel (pendente)."
+          echo "::warning::Chaves VITE_* de IA e Supabase removidas do build. Remova-as do painel da Vercel (pendente)."
           vercel build --token="$VERCEL_TOKEN"
           url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
