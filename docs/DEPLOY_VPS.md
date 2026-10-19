@@ -473,3 +473,17 @@ bash /home/deploy/storyverse/deploy/promote-admin.sh email@exemplo.com
 
 Sem SMTP configurado, cadastro e recuperacao de senha respondem 503; login de contas ja
 existentes continua funcionando.
+
+## 16. Backup diario
+
+O `deploy/backup.sh` gera `database.dump` + `media.tar.gz`, registra a execucao em
+`public.backup_runs` e mantem 14 dias localmente. Na VPS, copie o script para
+`/home/deploy/storyverse/deploy/backup.sh` e agende no cron do `deploy`:
+
+```cron
+30 3 * * * /home/deploy/storyverse/deploy/backup.sh >> /home/deploy/storyverse/backups/backup.log 2>&1
+```
+
+Defina `STORYVERSE_BACKUP_REMOTE` no `.env` para copiar via `rsync` para outro host.
+Teste a restauracao em um banco descartavel antes de confiar no backup.
+
