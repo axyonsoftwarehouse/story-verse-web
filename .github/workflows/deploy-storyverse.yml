@@ -38,11 +38,8 @@ jobs:
 
       - name: Montar o site (build)
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           # A VPS usa a API própria; nunca apontar uma publicação para loopback.
           VITE_API_URL: https://api.storyverse.2.29.42.104.sslip.io
-          VITE_SUPABASE_EMAIL_OTP_ENABLED: ${{ secrets.VITE_SUPABASE_EMAIL_OTP_ENABLED }}
           VITE_LOGIN_REQUIRED: ${{ secrets.VITE_LOGIN_REQUIRED }}
         run: npm run build
 

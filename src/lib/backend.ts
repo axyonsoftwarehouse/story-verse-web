@@ -43,11 +43,24 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
     throw new AuthNetworkError("Não foi possível conectar ao serviço. Verifique sua conexão.");
   }
 
-  const payload = (await response.json().catch(() => ({}))) as { error?: string } & Record<string, unknown>;
-  const serverMessage = typeof payload.error === "string" ? payload.error : "";
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+    msg?: string;
+  } & Record<string, unknown>;
+  const serverMessage =
+    (typeof payload.error === "string" && payload.error) ||
+    (typeof payload.message === "string" && payload.message) ||
+    (typeof payload.msg === "string" && payload.msg) ||
+    "";
 
-  // Instabilidade (5xx) ou limite (429): não desloga ninguém; tenta de novo depois.
-  if (response.status === 429 || response.status >= 500) {
+  // Limite de tentativas: mantém a sessão, mas explica que é temporário.
+  if (response.status === 429) {
+    captureEvent("warn", "api-http", "API respondeu 429", { path });
+    throw new AuthNetworkError(serverMessage || "Muitas tentativas. Aguarde um pouco e tente de novo.");
+  }
+  // Instabilidade (5xx): não desloga ninguém; tenta de novo depois.
+  if (response.status >= 500) {
     captureEvent("warn", "api-http", `API respondeu ${response.status}`, { path });
     throw new AuthNetworkError(serverMessage || "O serviço está instável. Tente de novo em instantes.");
   }

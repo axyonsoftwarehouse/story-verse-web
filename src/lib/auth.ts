@@ -88,11 +88,24 @@ function describeAuthError(message: string): string {
 }
 
 /** Resposta da API própria de contas (ver story-verse-api). */
-type ApiUser = { id: string; email: string; name?: string | null };
+type ApiUser = {
+  id: string;
+  email: string;
+  created_at?: string;
+  user_metadata?: Record<string, unknown>;
+  /** Compatibilidade com a versão anterior da API. */
+  name?: string | null;
+};
 type ApiAuthResponse = { accessToken: string; refreshToken: string; expiresIn?: number; user: ApiUser };
+type ApiSignupPending = { message?: string };
 
 function apiToUser(user: ApiUser): SupabaseUser {
-  return { id: user.id, email: user.email, user_metadata: user.name ? { name: user.name } : {} };
+  return {
+    id: user.id,
+    email: user.email,
+    created_at: user.created_at,
+    user_metadata: user.user_metadata ?? (user.name ? { name: user.name } : {}),
+  };
 }
 
 function apiToSession(payload: ApiAuthResponse): SupabaseSession {
@@ -199,11 +212,15 @@ export async function signUpWithPassword(
   name: string,
 ): Promise<SupabaseSession | null> {
   if (apiEnabled) {
-    // A API própria já devolve a sessão no cadastro (sem confirmação por e-mail nesta etapa).
-    const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/signup", {
+    // Com confirmação de e-mail, a API responde 202 sem tokens: a tela mostra "confira seu e-mail".
+    const payload = await apiRequest<ApiAuthResponse | ApiSignupPending>("/api/v1/auth/signup", {
       method: "POST",
       body: { email, password, name },
     });
+    if (!("accessToken" in payload) || !payload.accessToken) {
+      storeSession(null);
+      return null;
+    }
     const session = apiToSession(payload);
     storeSession(session);
     return session;
@@ -232,7 +249,8 @@ export async function verifySignupCode(email: string, token: string): Promise<Su
 
 export async function resendSignupCode(email: string): Promise<void> {
   if (apiEnabled) {
-    throw new Error("A confirmação por código ainda não está disponível nesta versão.");
+    await apiRequest("/api/v1/auth/resend-confirmation", { method: "POST", body: { email } });
+    return;
   }
   await authRequest("resend", { type: "signup", email });
 }
@@ -327,7 +345,11 @@ async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
  * site com a sessão no endereço (#access_token=…&refresh_token=…&type=signup|recovery). Aqui ela
  * vira a sessão do app e sai da barra de endereço.
  */
-type RedirectResult = { session: SupabaseSession; type: string } | { error: string } | null;
+type RedirectResult =
+  | { session: SupabaseSession; type: string }
+  | { resetToken: string; type: "recovery" }
+  | { error: string }
+  | null;
 let redirectResult: Promise<RedirectResult> | null = null;
 
 /** Lê o link uma vez só por carregamento (o React em desenvolvimento roda os efeitos duas vezes). */
@@ -337,8 +359,7 @@ export function consumeAuthRedirect(): Promise<RedirectResult> {
 }
 
 async function readAuthRedirect(): Promise<RedirectResult> {
-  // A API própria não usa link de e-mail com tokens no endereço (nessa etapa).
-  if (apiEnabled) return null;
+  if (apiEnabled) return readApiAuthRedirect();
   const hash = window.location.hash.replace(/^#/, "");
   if (!/(access_token|error_description)=/.test(hash)) return null;
   const params = new URLSearchParams(hash);
@@ -366,19 +387,73 @@ async function readAuthRedirect(): Promise<RedirectResult> {
   return { session, type: params.get("type") ?? "" };
 }
 
+/**
+ * Links da API própria: /confirmar-email?token=… e /redefinir-senha?token=…
+ * O token sai da barra de endereço antes da chamada de rede.
+ */
+async function readApiAuthRedirect(): Promise<RedirectResult> {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  const token = new URLSearchParams(window.location.search).get("token");
+  if (!token) return null;
+  if (path.endsWith("/confirmar-email")) {
+    clearAuthLinkFromUrl();
+    return { session: await confirmEmailWithToken(token), type: "signup" };
+  }
+  if (path.endsWith("/redefinir-senha")) {
+    clearAuthLinkFromUrl();
+    return { resetToken: token, type: "recovery" };
+  }
+  return null;
+}
+
+function clearAuthLinkFromUrl(): void {
+  window.history.replaceState(null, "", "/");
+}
+
 /** Envia o e-mail de "esqueci minha senha"; o link volta para o site com type=recovery. */
 export async function requestPasswordReset(email: string): Promise<void> {
   if (apiEnabled) {
-    throw new Error("A recuperação de senha ainda não está disponível nesta versão.");
+    await apiRequest("/api/v1/auth/forgot-password", { method: "POST", body: { email } });
+    return;
   }
   const redirect = encodeURIComponent(window.location.origin);
   await authRequest(`recover?redirect_to=${redirect}`, { email });
 }
 
-/** Define a senha nova (logado pelo link de recuperação). */
-export async function updatePassword(session: SupabaseSession, password: string): Promise<void> {
+/** Define a senha nova pelo link de recuperação (só a API própria usa token no endereço). */
+export async function resetPasswordWithToken(token: string, password: string): Promise<void> {
+  if (!apiEnabled) throw new Error("Este link de recuperação não é válido.");
+  await apiRequest("/api/v1/auth/reset-password", {
+    method: "POST",
+    body: { token, password },
+  });
+}
+
+/** Confirma o e-mail pelo link e já devolve a sessão (API própria). */
+export async function confirmEmailWithToken(token: string): Promise<SupabaseSession> {
+  if (!apiEnabled) throw new Error("Este link de confirmação não é válido.");
+  const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/confirm-email", {
+    method: "POST",
+    body: { token },
+  });
+  const session = apiToSession(payload);
+  storeSession(session);
+  return session;
+}
+
+/** Troca a senha logado. Na API própria, exige a senha atual e derruba as outras sessões. */
+export async function updatePassword(
+  session: SupabaseSession,
+  currentPassword: string,
+  password: string,
+): Promise<void> {
   if (apiEnabled) {
-    throw new Error("Trocar a senha ainda não está disponível nesta versão.");
+    await apiRequest("/api/v1/auth/change-password", {
+      method: "POST",
+      body: { currentPassword, newPassword: password },
+      accessToken: session.access_token,
+    });
+    return;
   }
   await authRequest("user", { password }, session.access_token, "PUT");
 }
@@ -389,7 +464,14 @@ export async function updateProfileData(
   data: { name?: string; avatar?: string | null; photo?: string | null; cover?: string | null },
 ): Promise<SupabaseSession> {
   if (apiEnabled) {
-    throw new Error("Editar o perfil ainda não está disponível nesta versão.");
+    const user = await apiRequest<ApiUser>("/api/v1/auth/profile", {
+      method: "PATCH",
+      body: data,
+      accessToken: session.access_token,
+    });
+    const next = { ...session, user: { ...session.user, ...apiToUser(user) } };
+    storeSession(next);
+    return next;
   }
   const user = (await authRequest("user", { data }, session.access_token, "PUT")) as unknown as SupabaseUser;
   const next = { ...session, user: { ...session.user, ...user } };

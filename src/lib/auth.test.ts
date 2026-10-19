@@ -42,3 +42,63 @@ describe("session refresh races", () => {
     expect(storedAuthSession()?.refresh_token).toBe("other-refresh");
   });
 });
+
+describe("API account flows", () => {
+  it("keeps the user signed out until the e-mail is confirmed", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Confirme seu e-mail." }), { status: 202 }));
+    vi.stubGlobal("fetch", fetch);
+    const { signUpWithPassword, storedAuthSession } = await import("./auth");
+    expect(await signUpWithPassword("a@example.test", "secret1", "A")).toBeNull();
+    expect(storedAuthSession()).toBeNull();
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.example.test/api/v1/auth/signup",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("confirms an e-mail link and stores the returned session", async () => {
+    window.history.replaceState(null, "", "/confirmar-email?token=confirm-token");
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          accessToken: "access",
+          refreshToken: "refresh",
+          expiresIn: 1800,
+          user: { id: "A", email: "a@example.test", user_metadata: { name: "A" } },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { consumeAuthRedirect, storedAuthSession } = await import("./auth");
+    const result = await consumeAuthRedirect();
+    expect(result && "session" in result ? result.session.access_token : null).toBe("access");
+    expect(storedAuthSession()?.access_token).toBe("access");
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("returns the reset token without creating a session", async () => {
+    window.history.replaceState(null, "", "/redefinir-senha?token=reset-token");
+    const { consumeAuthRedirect, storedAuthSession } = await import("./auth");
+    expect(await consumeAuthRedirect()).toEqual({ resetToken: "reset-token", type: "recovery" });
+    expect(storedAuthSession()).toBeNull();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("sends the current password when changing it", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+    const { updatePassword } = await import("./auth");
+    await updatePassword(old, "current-secret", "new-secret");
+    const body = JSON.parse(String(fetch.mock.calls[0][1]?.body));
+    expect(body).toEqual({ currentPassword: "current-secret", newPassword: "new-secret" });
+  });
+
+  it("resets a password using the token", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+    const { resetPasswordWithToken } = await import("./auth");
+    await resetPasswordWithToken("reset-token", "new-secret");
+    const body = JSON.parse(String(fetch.mock.calls[0][1]?.body));
+    expect(body).toEqual({ token: "reset-token", password: "new-secret" });
+  });
+});

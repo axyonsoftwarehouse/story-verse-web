@@ -168,6 +168,7 @@ import {
   storedAuthSession,
   resendSignupCode,
   requestPasswordReset,
+  resetPasswordWithToken,
   updateProfileData,
   updatePassword,
   restoreAuthSession,
@@ -3596,16 +3597,19 @@ function ProfilePage({
 
   // ---- Senha (ação direta, com o próprio botão) ----
   const [pwOpen, setPwOpen] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState("");
   const [pw, setPw] = useState("");
   const [pwConfirm, setPwConfirm] = useState("");
   const [pwState, setPwState] = useState<{ loading?: boolean; error?: string; ok?: string }>({});
   async function savePassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!pwCurrent) return setPwState({ error: "Informe a senha atual." });
     if (pw.length < 6) return setPwState({ error: "A senha precisa ter pelo menos 6 caracteres." });
     if (pw !== pwConfirm) return setPwState({ error: "As duas senhas não são iguais." });
     setPwState({ loading: true });
     try {
-      await updatePassword(session, pw);
+      await updatePassword(session, pwCurrent, pw);
+      setPwCurrent("");
       setPw("");
       setPwConfirm("");
       setPwOpen(false);
@@ -3805,6 +3809,10 @@ function ProfilePage({
           </div>
           {pwOpen ? (
             <form className="auth-form profile-pw-form" onSubmit={savePassword}>
+              <label>
+                Senha atual
+                <PasswordInput value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} autoComplete="current-password" required disabled={pwState.loading} />
+              </label>
               <label>
                 Senha nova
                 <PasswordInput value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={6} required disabled={pwState.loading} />
@@ -4336,7 +4344,15 @@ function AuthModal({
 }
 
 /** Tela de senha nova, aberta pelo link de "esqueci minha senha" (já logado por ele). */
-function NewPasswordModal({ session, onDone }: { session: SupabaseSession; onDone: (message: string) => void }) {
+function NewPasswordModal({
+  session,
+  token,
+  onDone,
+}: {
+  session?: SupabaseSession;
+  token?: string;
+  onDone: (message: string) => void;
+}) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -4349,7 +4365,13 @@ function NewPasswordModal({ session, onDone }: { session: SupabaseSession; onDon
     setLoading(true);
     setError("");
     try {
-      await updatePassword(session, password);
+      if (token) {
+        await resetPasswordWithToken(token, password);
+        onDone("Senha nova salva. Entre com a senha nova.");
+        return;
+      }
+      if (!session) throw new Error("Link de recupera\u00e7\u00e3o inv\u00e1lido.");
+      await updatePassword(session, "", password);
       onDone("Senha nova salva. Você já está conectado.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar a senha nova.");
@@ -4676,6 +4698,8 @@ export function App() {
 
   /** Chegou pelo link "esqueci minha senha": mostra a tela de senha nova. */
   const [passwordReset, setPasswordReset] = useState(false);
+  /** Link de recuperação da API própria (token sem sessão). */
+  const [resetToken, setResetToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authEnabled) return;
@@ -4691,9 +4715,15 @@ export function App() {
           if (!cancelled) setAuthNotice({ text: redirect.error });
         } else if (redirect) {
           if (!cancelled) {
-            setAuthSession(redirect.session);
-            if (redirect.type === "recovery") setPasswordReset(true);
-            else if (redirect.type === "signup") setAuthNotice({ text: "E-mail confirmado. Boas-vindas ao Storyverse!", ok: true });
+            if ("resetToken" in redirect) {
+              setResetToken(redirect.resetToken);
+            } else {
+              setAuthSession(redirect.session);
+              if (redirect.type === "recovery") setPasswordReset(true);
+              else if (redirect.type === "signup") {
+                setAuthNotice({ text: "E-mail confirmado. Boas-vindas ao Storyverse!", ok: true });
+              }
+            }
           }
           return;
         }
@@ -6084,7 +6114,16 @@ export function App() {
             }}
           />
         ) : null}
-        {passwordReset && authSession ? (
+        {resetToken ? (
+          <NewPasswordModal
+            token={resetToken}
+            onDone={(message) => {
+              setResetToken(null);
+              setAuthNotice({ text: message, ok: true });
+              if (!authSession) setAuthModal("login");
+            }}
+          />
+        ) : passwordReset && authSession ? (
           <NewPasswordModal
             session={authSession}
             onDone={(message) => {
