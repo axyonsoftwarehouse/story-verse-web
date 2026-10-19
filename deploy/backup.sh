@@ -26,7 +26,7 @@ psql_db() {
 }
 
 record_run_start() {
-  if ! run_id=$(psql_db -tAc "insert into public.backup_runs (status) values ('running') returning id" 2>/dev/null); then
+  if ! run_id=$(psql_db -qAtc "insert into public.backup_runs (status) values ('running') returning id" 2>/dev/null); then
     run_id=""
     echo "Aviso: tabela backup_runs indisponivel; seguindo sem registrar."
   fi
@@ -40,15 +40,7 @@ record_run_end() {
   fi
   path_sql=${DEST//\'/\'\'}
   error_sql=${error//\'/\'\'}
-  psql_db >/dev/null 2>&1 <<SQL || true
-update public.backup_runs
-   set status = '$status',
-       finished_at = now(),
-       size_bytes = $size,
-       path = '$path_sql',
-       error = nullif('$error_sql', '')
- where id = $run_id;
-SQL
+  psql_db -c "update public.backup_runs set status = '$status', finished_at = now(), size_bytes = $size, path = '$path_sql', error = nullif('$error_sql', '') where id = $run_id" >/dev/null 2>&1 || true
 }
 
 on_error() {
