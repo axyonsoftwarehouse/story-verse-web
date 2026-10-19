@@ -5,6 +5,14 @@ describe("production backend configuration", () => {
     expect(() => validateProductionConfig({})).toThrow();
     expect(() => validateProductionConfig({ VITE_API_URL: "http://127.0.0.1:54421" })).toThrow();
   });
+  it("rejects leftover Supabase configuration", () => {
+    expect(() =>
+      validateProductionConfig({
+        VITE_API_URL: "https://api.example.test",
+        VITE_SUPABASE_URL: "http://127.0.0.1:54421",
+      }),
+    ).toThrow();
+  });
   it("rejects private AI credentials even when a valid API is configured", () => {
     expect(() => validateProductionConfig({ VITE_API_URL: "https://api.example.test", VITE_GROQ_API_KEY: "secret" })).toThrow();
   });

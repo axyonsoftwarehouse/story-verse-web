@@ -149,30 +149,25 @@ npm run dev
 
 ### Variáveis de ambiente
 
-| Variável | Obrigatória | Descrição |
+| Variavel | Obrigatoria | Descricao |
 |---|---|---|
-| `VITE_SUPABASE_URL` | sim para login | URL do projeto Supabase |
-| `VITE_SUPABASE_ANON_KEY` | sim para login | Chave publicável/anon do Supabase; nunca use `service_role` no frontend |
-| `VITE_LOGIN_REQUIRED` | não | `false` deixa ler e conversar sem conta. Padrão: conta obrigatória. Sem as variáveis do Supabase, o app roda sem contas |
-| `VITE_SUPABASE_EMAIL_OTP_ENABLED` | não | `true` pede o código de 6 números no cadastro. `false` (padrão): entra direto se "Confirm email" estiver desligado, ou pelo link de confirmação enviado por e-mail |
-| `VITE_GROQ_API_KEY` | uma das chaves | Chave do Groq (`gsk_...`) |
-| `VITE_GROQ_MODELS` | não | Modelos do Groq em ordem de preferência, separados por vírgula |
-| `VITE_GEMINI_API_KEY` | uma das chaves | Chave do Google AI Studio |
-| `VITE_GEMINI_MODEL` | não | Modelos do Gemini em ordem de preferência |
-| `VITE_OPENROUTER_API_KEY` | não | Chave do OpenRouter (reserva extra) |
-| `VITE_OPENROUTER_MODELS` | não | Modelos do OpenRouter (os gratuitos terminam em `:free`) |
+| `VITE_API_URL` | sim | URL da API propria na VPS |
+| `VITE_LOGIN_REQUIRED` | nao | `false` deixa ler e conversar sem conta. Padrao: conta obrigatoria |
+
+
+
+
+
+
+
 
 O Vite só lê o `.env` ao iniciar: depois de alterar o arquivo, reinicie o `npm run dev`.
 
-### Configuração do Supabase Auth
+### Contas na API propria
 
-1. Crie um projeto Supabase e copie a **Project URL** e a chave **anon/publicable** em **Project Settings → API** para `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-2. Em **Authentication → Providers → Email**, habilite e-mail/senha e desative **Confirm email** para permitir cadastro e login sem código neste momento.
-3. O fluxo OTP continua implementado, mas fica desligado com `VITE_SUPABASE_EMAIL_OTP_ENABLED=false` (padrão). Para habilitá-lo depois, ative essa variável, habilite **Confirm email** e ajuste **Email OTP Length** para `6`. No template de confirmação, use `{{ .Token }}`. Configure SMTP de produção para entrega confiável em caixas Gmail.
-4. Em **Authentication → URL Configuration**, defina a URL do site e inclua os endereços locais/de produção na lista de redirecionamento.
-5. Para testar localmente, copie `.env.example` para `.env`, preencha as duas variáveis e reinicie o Vite.
+O login, o cadastro, a confirmacao de e-mail e a recuperacao de senha usam a API da VPS.
+As chaves de IA, SMTP e banco ficam no .env do servidor; nunca use VITE_* para segredos.
 
-A chave anon/publicável não é segredo e é enviada pelo navegador para o Supabase; a segurança depende das regras do Supabase. Nunca coloque a chave `service_role` no Vite, no repositório ou no navegador. Nenhuma senha de usuário é armazenada pelo app.
 
 ### Scripts
 

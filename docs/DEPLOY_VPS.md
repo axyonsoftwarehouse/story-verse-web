@@ -441,3 +441,35 @@ docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\dt pub
 - As chaves de IA saem do site e passam para o servidor.
 - A migração dos dados (contas, progresso, diamantes, envios) vem do Supabase
   (`pg_dump` + Storage) — **Marco 3**.
+
+## 15. Contas na API propria (VPS-only)
+
+O site de producao nao usa mais Supabase. O build recebe apenas VITE_API_URL; variaveis
+VITE_SUPABASE_* fazem o build falhar de proposito.
+
+No /home/deploy/storyverse/.env, configure o SMTP para cadastro/recuperacao:
+
+`ash
+SMTP_HOST=smtp.seudominio.com
+SMTP_PORT=587
+SMTP_USERNAME=...
+SMTP_PASSWORD=...
+SMTP_FROM=no-reply@seudominio.com
+SMTP_FROM_NAME=Storyverse
+APP_PUBLIC_URL=https://storyverse.2.29.42.104.sslip.io
+APP_AUTH_REQUIRE_EMAIL_CONFIRMATION=true
+`
+
+Depois de subir a API, os links enviados apontam para:
+
+- https://storyverse.2.29.42.104.sslip.io/confirmar-email?token=...
+- https://storyverse.2.29.42.104.sslip.io/redefinir-senha?token=...
+
+Para promover um admin ja cadastrado e confirmado:
+
+`ash
+bash /home/deploy/storyverse/deploy/promote-admin.sh email@exemplo.com
+`
+
+Sem SMTP configurado, cadastro e recuperacao de senha respondem 503; login de contas ja
+existentes continua funcionando.
