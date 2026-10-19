@@ -197,7 +197,7 @@ const EMPTY_THREAD: Msg[] = [];
 type LoadState = "idle" | "loading" | "ready" | "error";
 
 type ReadingTheme = "night" | "sepia";
-const FONT_SIZES = [0.95, 1.05, 1.17, 1.3];
+const FONT_SIZES = [0.95, 1.05, 1.17, 1.3, 1.45, 1.6];
 const PREFS_KEY = "storyverse:reading-prefs";
 /** Luz noturna: 0 desligada, 1 suave, 2 forte (filtro âmbar que corta a luz azul). */
 type NightLight = 0 | 1 | 2;
@@ -5034,6 +5034,16 @@ export function App() {
   const lastActivityRef = useRef(Date.now());
 
   const [prefs, setPrefs] = useState(loadPrefs);
+  /** Ajustes de leitura no celular: fonte, tema, luz noturna e tela cheia. */
+  const [readerSettingsOpen, setReaderSettingsOpen] = useState(false);
+  /** Fallback de tela cheia para navegadores sem Fullscreen API (iOS). */
+  const [immersive, setImmersive] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
   /** Redesenha a página inicial quando um livro importado é removido (sai de "Continue lendo"). */
   const [homeTick, setHomeTick] = useState(0);
   /** Ids da comunidade aprovados agora (`null`: lista ainda não veio ou falhou — não esconde nada). */
@@ -5311,6 +5321,9 @@ export function App() {
     readerGeneration.current++;
     stopSpeaking();
     setHighlightsOpen(false);
+    setReaderSettingsOpen(false);
+    setImmersive(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     setSelection(null);
     setWordCard(null);
     prevChapterIdxRef.current = null;
@@ -5328,6 +5341,28 @@ export function App() {
     setLoadError(null);
     setChatOpen(false);
   }, [stopSpeaking]);
+
+  const toggleReadingFullscreen = useCallback(async () => {
+    setReaderSettingsOpen(false);
+    if (immersive) {
+      setImmersive(false);
+      return;
+    }
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+      return;
+    }
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        setImmersive(true);
+      }
+    } catch {
+      // iOS/Safari pode negar a Fullscreen API; usa o modo imersivo.
+      setImmersive(true);
+    }
+  }, [immersive]);
 
   const retryLoad = useCallback(() => setLoadAttempt((n) => n + 1), []);
 
@@ -6570,7 +6605,12 @@ export function App() {
   const hasNextChapter = chapterIndex < chapters.length - 1;
 
   return (
-    <div className={`reader theme-${prefs.theme}`}>
+    <div className={`reader theme-${prefs.theme}${immersive ? " is-immersive" : ""}`}>
+      {immersive || isFullscreen ? (
+        <button type="button" className="reader-immersive-exit" onClick={() => void toggleReadingFullscreen()}>
+          {Icon.back} Sair da tela cheia
+        </button>
+      ) : null}
       {/* Por cima de tudo, sem pegar cliques: tira o azul da tela para ler à noite. */}
       {prefs.nightLight ? <div className={`night-light night-light-${prefs.nightLight}`} aria-hidden="true" /> : null}
       <header className="reader-bar">
@@ -6714,7 +6754,96 @@ export function App() {
             {Icon.nightLight}
             {prefs.nightLight ? <span className="night-light-level" aria-hidden="true">{prefs.nightLight}</span> : null}
           </button>
+          <button
+            type="button"
+            className="icon-btn reader-settings-btn"
+            onClick={() => setReaderSettingsOpen((open) => !open)}
+            aria-expanded={readerSettingsOpen}
+            aria-label="Ajustes de leitura"
+            title="Ajustes de leitura"
+          >
+            Aa
+          </button>
         </div>
+
+        {readerSettingsOpen ? (
+          <div className="reader-settings" role="dialog" aria-label="Ajustes de leitura">
+            <div className="reader-settings-head">
+              <strong>Ajustes de leitura</strong>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setReaderSettingsOpen(false)}
+                aria-label="Fechar ajustes"
+              >
+                ×
+              </button>
+            </div>
+            <div className="reader-settings-row">
+              <span>Tamanho da letra</span>
+              <div className="reader-settings-actions">
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={prefs.fontStep <= 0}
+                  onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep - 1 }))}
+                  aria-label="Diminuir letra"
+                >
+                  A−
+                </button>
+                <strong>{Math.round(FONT_SIZES[prefs.fontStep] * 16)}px</strong>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={prefs.fontStep >= FONT_SIZES.length - 1}
+                  onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep + 1 }))}
+                  aria-label="Aumentar letra"
+                >
+                  A+
+                </button>
+              </div>
+            </div>
+            <div className="reader-settings-row">
+              <span>Tema</span>
+              <div className="segmented">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={prefs.theme === "night"}
+                  className={prefs.theme === "night" ? "is-on" : ""}
+                  onClick={() => setPrefs((p) => ({ ...p, theme: "night" }))}
+                >
+                  Noturno
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={prefs.theme === "sepia"}
+                  className={prefs.theme === "sepia" ? "is-on" : ""}
+                  onClick={() => setPrefs((p) => ({ ...p, theme: "sepia" }))}
+                >
+                  Sépia
+                </button>
+              </div>
+            </div>
+            <div className="reader-settings-row">
+              <span>Luz noturna</span>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setPrefs((p) => ({ ...p, nightLight: ((p.nightLight + 1) % 3) as NightLight }))}
+              >
+                {NIGHT_LIGHT_LABELS[prefs.nightLight]}
+              </button>
+            </div>
+            <div className="reader-settings-row">
+              <span>Tela cheia</span>
+              <button type="button" className="btn" onClick={() => void toggleReadingFullscreen()}>
+                {isFullscreen || immersive ? "Sair" : "Entrar"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="progress" aria-hidden="true">
           <span style={{ width: `${readingProgressPct}%` }} />
