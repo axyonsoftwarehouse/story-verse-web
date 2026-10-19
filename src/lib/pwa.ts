@@ -41,17 +41,31 @@ function markInstalled() {
   notify();
 }
 
+/** Desinstalou: a marca antiga não vale mais (senão o botão de instalar some para sempre). */
+function markUninstalled() {
+  if (window.matchMedia?.("(display-mode: standalone)").matches) return;
+  installed = false;
+  try {
+    userStorage.removeItem(INSTALLED_KEY);
+  } catch {
+    // Sem armazenamento: nada guardado.
+  }
+  notify();
+}
+
 if (typeof window !== "undefined") {
   const nav = navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> };
   void nav
     .getInstalledRelatedApps?.()
-    .then((apps) => apps.length > 0 && markInstalled())
+    .then((apps) => (apps.length > 0 ? markInstalled() : installed && markUninstalled()))
     .catch(() => undefined);
   // O evento chega cedo, antes do React montar: fica guardado aqui.
+  // O navegador só oferece instalar quando o app não está instalado: é a prova de que saiu.
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferred = e as InstallPromptEvent;
-    notify();
+    if (installed) markUninstalled();
+    else notify();
   });
   window.addEventListener("appinstalled", () => {
     deferred = null;
