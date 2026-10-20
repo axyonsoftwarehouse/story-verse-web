@@ -3626,7 +3626,7 @@ function greetingNow(d = new Date()): string {
 }
 
 /** O que o personagem manda para chamar o leitor de volta (texto fixo: não gasta IA). */
-function welcomeCallLine(chapterLabel: string, hasCharacter: boolean, d = new Date()): string {
+function welcomeCallLine(chapterLabel: string, hasCharacter: boolean, pick: number, d = new Date()): string {
   if (!hasCharacter) return `Sua história parou em ${chapterLabel}. Os personagens estão te esperando.`;
   const h = d.getHours();
   const lines =
@@ -3639,7 +3639,7 @@ function welcomeCallLine(chapterLabel: string, hasCharacter: boolean, d = new Da
             "Senti sua falta. Vamos continuar de onde paramos?",
             "Tenho uma coisa pra te contar sobre o que vem depois… mas só se você continuar lendo.",
           ];
-  return lines[Math.floor(Math.random() * lines.length)];
+  return lines[Math.floor(pick * lines.length)];
 }
 
 /**
@@ -3653,7 +3653,9 @@ function WelcomeCall({ book, chapterLabel, onOpen }: { book: Ebook; chapterLabel
     const last = lastCharacter(book.id);
     return cast.find((c) => c.name === last) ?? cast[0];
   }, [book]);
-  const [line] = useState(() => welcomeCallLine(chapterLabel, Boolean(character)));
+  // Sorteia uma vez só; a frase acompanha o personagem quando ele aparece depois do primeiro desenho.
+  const [pick] = useState(() => Math.random());
+  const line = welcomeCallLine(chapterLabel, Boolean(character), pick);
   const [phase, setPhase] = useState<"waiting" | "typing" | "said">(() => (prefersReducedMotion() ? "said" : "waiting"));
   useEffect(() => {
     if (phase === "said") return;
