@@ -34,7 +34,7 @@ As features fazem sentido, mas não têm o mesmo valor nem o mesmo custo. A tese
 | Cache de tradução | Por navegador (`localStorage`), não compartilhado | `src/lib/translate.ts:220` |
 | Diamantes | Carteira e extrato no banco, lançamento idempotente | `supabase/diamonds.sql` |
 | Fontes de diamantes | Roleta (~2,7/dia), leitura (2/dia), pódio (50/30/20 por semana) | `supabase/diamonds.sql`, `supabase/weekly-ranking.sql` |
-| Sumidouros | Apenas Salva-ofensiva: 10 por dia, máximo 2/semana | `supabase/diamonds.sql:54` |
+| Sumidouros | Salva-ofensiva (10 por dia, máximo 2/semana) e presentes (5 envios/dia; 4 itens de 5 a 50) | `supabase/diamonds.sql`, `story-verse-api` (V9) |
 | Comunidade | Envio, aprovação e acervo de livros | `supabase/community-books.sql` |
 | Elenco | Sugerido por IA uma vez e cacheado no navegador | `src/lib/cast.ts` |
 
@@ -350,9 +350,9 @@ Desligar ou restringir uma feature se:
 ### Fase 1 — Presentes e cosméticos
 
 **Entregas**
-- Catálogo, envio, recebimento e exibição no perfil/ranking.
-- Limite diário e idade mínima de conta.
-- Itens sazonais e rotação.
+- [x] Catálogo, envio, recebimento e exibição no perfil/ranking.
+- [x] Limite diário e idade mínima de conta.
+- [ ] Itens sazonais e rotação.
 
 **Critério de aceite:** presente não transfere diamantes; farming reduzido por limites; custo de IA permanece zero.
 
@@ -656,7 +656,7 @@ Cada migration deve ser idempotente e testada em banco isolado antes de produç�
 
 1. **Limite gratuito diário:** decidido em 20/10/2026: configurável por `AI_DAILY_MESSAGE_LIMIT`, com padrão 50. Calibrar pelas métricas antes de vender o excedente.
 2. **Preço dos pacotes:** quantos diamantes por quantas mensagens? (Recomendação: começar generoso e ajustar pela razão gasto/emitido.)
-3. **Presentes:** catálogo inicial e se haverá item exclusivo de ranking.
+3. **Presentes:** decidido em 20/10/2026: catálogo inicial de 4 itens (flor 5, coração 10, coroa 25, troféu 50); item exclusivo de ranking fica para depois.
 4. **Lore público:** aceitar apenas universos originais? (Recomendação: sim.)
 5. **BYOK:** será oferecido já na Fase 2 ou só quando houver demanda?
 6. **Avatar:** procedural agora e IA só com receita? (Recomendação: sim.)

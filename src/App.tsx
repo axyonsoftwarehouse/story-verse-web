@@ -117,6 +117,17 @@ import {
   type Wallet,
 } from "./lib/diamonds";
 import {
+  fetchGiftCatalog,
+  fetchGiftSummary,
+  fetchReceivedGifts,
+  fetchWeeklyGiftCounts,
+  giftDate,
+  sendGift,
+  type GiftCatalogItem,
+  type GiftSummary,
+  type ReceivedGift,
+} from "./lib/gifts";
+import {
   fetchRanking,
   fetchRankingProfile,
   PLACE_MEDALS,
@@ -2820,6 +2831,40 @@ function RankingPage({
   const [profile, setProfile] = useState<RankingProfile | null>(null);
   const [error, setError] = useState("");
   const [savingHidden, setSavingHidden] = useState(false);
+  const [giftCatalog, setGiftCatalog] = useState<GiftCatalogItem[]>([]);
+  const [giftCounts, setGiftCounts] = useState<Record<string, number>>({});
+  const [giftTarget, setGiftTarget] = useState<RankEntry | null>(null);
+  const [giftBusy, setGiftBusy] = useState<string | null>(null);
+  const [giftNotice, setGiftNotice] = useState("");
+  const [giftError, setGiftError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    fetchGiftCatalog(session)
+      .then((catalog) => {
+        if (alive) setGiftCatalog(catalog);
+      })
+      .catch(() => {
+        // Sem o catálogo, o ranking continua funcionando.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchWeeklyGiftCounts(session, tab)
+      .then((counts) => {
+        if (alive) setGiftCounts(counts);
+      })
+      .catch(() => {
+        if (alive) setGiftCounts({});
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, tab]);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -2856,6 +2901,40 @@ function RankingPage({
       setError(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
       setSavingHidden(false);
+    }
+  }
+
+  function openGift(entry: RankEntry) {
+    if (!profile) return;
+    setGiftTarget(entry);
+    setGiftNotice("");
+    setGiftError("");
+  }
+
+  async function giveGift(gift: GiftCatalogItem) {
+    if (!giftTarget || giftBusy) return;
+    setGiftBusy(gift.id);
+    setGiftNotice("");
+    setGiftError("");
+    try {
+      const result = await sendGift(session, giftTarget.user_id, gift.id);
+      setProfile((current) => (current ? { ...current, diamonds: result.balance } : current));
+      if (!result.duplicate) {
+        setGiftCounts((counts) => ({
+          ...counts,
+          [giftTarget.user_id]: (counts[giftTarget.user_id] ?? 0) + 1,
+        }));
+      }
+      setGiftNotice(
+        result.duplicate
+          ? "Esse presente já tinha sido registrado."
+          : `${gift.icon} enviado! Restam ${result.remaining_today} presentes hoje.`,
+      );
+      setGiftTarget(null);
+    } catch (err) {
+      setGiftError(err instanceof Error ? err.message : "Não foi possível enviar o presente.");
+    } finally {
+      setGiftBusy(null);
     }
   }
 
@@ -2963,6 +3042,17 @@ function RankingPage({
                         </span>
                         <strong className="podium-name">{e.is_me ? "Você" : e.name}</strong>
                         <span className="podium-minutes">{formatMinutes(e.minutes)}</span>
+                        {!e.is_me && profile && current ? (
+                          <button
+                            type="button"
+                            className="podium-gift"
+                            onClick={() => openGift(e)}
+                            aria-label={`Presentear ${e.name}`}
+                            title={`Presentear ${e.name}`}
+                          >
+                            🎁
+                          </button>
+                        ) : null}
                       </>
                     ) : (
                       <span className="podium-name is-muted">Vaga aberta</span>
@@ -2980,19 +3070,74 @@ function RankingPage({
           {rest.length > 0 || meOutside ? (
             <ol className="ranking-list" aria-label="Demais leitores">
               {rest.map((e) => (
-                <RankingRow key={e.user_id} entry={e} />
+                <RankingRow
+                  key={e.user_id}
+                  entry={e}
+                  giftsReceived={giftCounts[e.user_id] ?? 0}
+                  onGift={current && profile ? openGift : undefined}
+                />
               ))}
               {meOutside ? (
                 <>
                   <li className="ranking-gap" aria-hidden="true">
                     ⋯
                   </li>
-                  <RankingRow entry={meOutside} />
+                  <RankingRow
+                    entry={meOutside}
+                    giftsReceived={giftCounts[meOutside.user_id] ?? 0}
+                    onGift={current && profile ? openGift : undefined}
+                  />
                 </>
               ) : null}
             </ol>
           ) : null}
         </>
+      ) : null}
+
+      {giftNotice ? (
+        <p className="shop-notice" role="status">
+          {giftNotice}
+        </p>
+      ) : null}
+      {giftError ? (
+        <p className="auth-error moderation-error" role="alert">
+          {giftError}
+        </p>
+      ) : null}
+
+      {giftTarget ? (
+        <section className="gift-panel" aria-label={`Enviar presente para ${giftTarget.name}`}>
+          <header className="gift-panel-head">
+            <div>
+              <strong>Presentear {giftTarget.name.split(" ")[0]}</strong>
+              <span>Saldo: {profile?.diamonds ?? 0} 💎</span>
+            </div>
+            <button type="button" className="btn" onClick={() => setGiftTarget(null)}>
+              Fechar
+            </button>
+          </header>
+          {giftCatalog.length === 0 ? (
+            <p className="profile-empty">O catálogo de presentes ainda não está disponível.</p>
+          ) : (
+            <div className="gift-grid">
+              {giftCatalog.map((gift) => (
+                <button
+                  key={gift.id}
+                  type="button"
+                  className={`gift-option rarity-${gift.rarity}`}
+                  onClick={() => void giveGift(gift)}
+                  disabled={giftBusy !== null || (profile?.diamonds ?? 0) < gift.price}
+                >
+                  <span className="gift-option-icon" aria-hidden="true">
+                    {gift.icon}
+                  </span>
+                  <strong>{gift.name}</strong>
+                  <span>{gift.price} 💎</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       ) : null}
 
       {profile ? (
@@ -3013,13 +3158,39 @@ function RankingPage({
   );
 }
 
-function RankingRow({ entry }: { entry: RankEntry }) {
+function RankingRow({
+  entry,
+  giftsReceived,
+  onGift,
+}: {
+  entry: RankEntry;
+  giftsReceived: number;
+  onGift?: (entry: RankEntry) => void;
+}) {
   return (
     <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`}>
       <span className="ranking-place">{ordinal(entry.place)}</span>
       <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" />
       <span className="ranking-name">{entry.is_me ? `${entry.name} (você)` : entry.name}</span>
-      <span className="ranking-minutes">{formatMinutes(entry.minutes)}</span>
+      <span className="ranking-actions">
+        {giftsReceived > 0 ? (
+          <span className="gift-count" title="Presentes recebidos nesta semana">
+            🎁 {giftsReceived}
+          </span>
+        ) : null}
+        <span className="ranking-minutes">{formatMinutes(entry.minutes)}</span>
+        {!entry.is_me && onGift ? (
+          <button
+            type="button"
+            className="gift-chip"
+            onClick={() => onGift(entry)}
+            aria-label={`Presentear ${entry.name}`}
+            title={`Presentear ${entry.name}`}
+          >
+            Presentear
+          </button>
+        ) : null}
+      </span>
     </li>
   );
 }
@@ -3494,12 +3665,23 @@ function ProfilePage({
 }) {
   const user = session.user;
   const [diamonds, setDiamonds] = useState<number | null>(null);
+  const [giftSummary, setGiftSummary] = useState<GiftSummary | null>(null);
+  const [receivedGifts, setReceivedGifts] = useState<ReceivedGift[]>([]);
   useEffect(() => {
     let alive = true;
     fetchWallet(session)
       .then((w) => alive && setDiamonds(w.balance))
       .catch(() => {
         // Sem a loja no Supabase ou sem internet: o botão mostra só "Loja".
+      });
+    Promise.all([fetchGiftSummary(session), fetchReceivedGifts(session, 6)])
+      .then(([summary, gifts]) => {
+        if (!alive) return;
+        setGiftSummary(summary);
+        setReceivedGifts(gifts);
+      })
+      .catch(() => {
+        // Presentes ainda não configurados: o perfil segue normal.
       });
     return () => {
       alive = false;
@@ -3698,6 +3880,51 @@ function ProfilePage({
       <ProfileShelf title="Seus livros importados" onOpen={onOpenBook} items={imported.map((b) => ({ book: b, sub: b.author }))} />
 
       <MySubmissions session={session} />
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Presentes</h2>
+          <p>Itens que outros leitores enviaram para você.</p>
+        </div>
+        {giftSummary ? (
+          <div className="gift-summary">
+            <div>
+              <strong>{giftSummary.received_total}</strong>
+              <span>recebidos</span>
+            </div>
+            <div>
+              <strong>{giftSummary.received_this_week}</strong>
+              <span>nesta semana</span>
+            </div>
+            <div>
+              <strong>{giftSummary.sent_this_week}</strong>
+              <span>enviados na semana</span>
+            </div>
+          </div>
+        ) : null}
+        {receivedGifts.length > 0 ? (
+          <ul className="gift-received">
+            {receivedGifts.map((gift, index) => (
+              <li key={`${gift.gift_id}-${gift.created_at}-${index}`}>
+                <span className="gift-received-icon" aria-hidden="true">
+                  {gift.icon}
+                </span>
+                <span>
+                  <strong>{gift.name}</strong>
+                  <small>
+                    de {gift.from_name} · {giftDate(gift.created_at)}
+                  </small>
+                </span>
+                <span className="gift-received-price">{gift.price} 💎</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="profile-empty">
+            Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.
+          </p>
+        )}
+      </section>
 
       <section className="shelf">
         <div className="shelf-head">
