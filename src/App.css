@@ -3400,8 +3400,7 @@
 }
 
 @media (max-width: 700px) {
-  .nav-account-name,
-  .online-pill {
+  .nav-account-name {
     display: none;
   }
 }
@@ -6531,8 +6530,11 @@
 }
 
 @media (max-width: 560px) {
+  /* No celular fica só a bolinha verde e o número. */
   .online-pill {
-    padding: 0.4rem 0.6rem;
+    flex-shrink: 0;
+    gap: 0.3rem;
+    padding: 0.35rem 0.5rem;
   }
 
   .online-label {
@@ -8422,5 +8424,172 @@ button.ranking-diamonds {
   .row-card:active .cover,
   .result:active .cover {
     transform: none;
+  }
+}
+
+/* --------------------------- Movimento (parte 4) --------------------------- */
+
+/* Topo: a página de exemplo e o chat flutuam devagar, em ritmos diferentes. */
+.demo-page {
+  animation: page-float 7s ease-in-out 1s infinite;
+}
+
+.demo-chat {
+  animation: chat-float 6s ease-in-out 1.6s infinite;
+}
+
+@keyframes page-float {
+  0%,
+  100% {
+    transform: rotate(-2.5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-1.6deg) translateY(-7px);
+  }
+}
+
+@keyframes chat-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* As linhas da página de exemplo vão sendo "lidas", uma depois da outra. */
+.demo-lines span {
+  background: linear-gradient(90deg, rgba(228, 184, 106, 0.5) 50%, rgba(58, 46, 33, 0.14) 50%);
+  background-size: 200% 100%;
+  background-position: 100% 0;
+  animation: line-read 8s ease-in-out infinite;
+}
+
+.demo-lines span:nth-child(2) {
+  animation-delay: 1.1s;
+}
+
+.demo-lines span:nth-child(3) {
+  animation-delay: 2.2s;
+}
+
+@keyframes line-read {
+  0% {
+    background-position: 100% 0;
+  }
+  14%,
+  80% {
+    background-position: 0 0;
+  }
+  92%,
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+/* Luz dourada "respirando" atrás da demonstração. */
+.hero-demo::before {
+  content: "";
+  position: absolute;
+  inset: 8% 4% 4%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(228, 184, 106, 0.22), transparent 65%);
+  filter: blur(30px);
+  animation: glow-breathe 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+/* Personagens do livro se abrem ao passar o mouse no cartão. */
+.avatar-stack .avatar + .avatar {
+  transition: margin-left 0.3s var(--ease-out);
+}
+
+.row-card:hover .avatar-stack .avatar + .avatar {
+  margin-left: -1px;
+}
+
+/* Passos 1-2-3: o número estala com um anel quando o passo entra na tela. */
+.steps.will-reveal.is-in .step-n {
+  animation: step-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
+}
+
+.steps.will-reveal.is-in .step:nth-child(2) .step-n {
+  animation-delay: 0.32s;
+}
+
+.steps.will-reveal.is-in .step:nth-child(3) .step-n {
+  animation-delay: 0.39s;
+}
+
+@keyframes step-pop {
+  0% {
+    transform: scale(0.4);
+    box-shadow: 0 0 0 0 rgba(228, 184, 106, 0.55);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 12px rgba(228, 184, 106, 0);
+  }
+}
+
+/* Títulos das estantes: um traço dourado cresce embaixo quando a estante aparece. */
+.will-reveal .shelf-head h2 {
+  padding-bottom: 0.25rem;
+  background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 100% / 0 2px;
+}
+
+.will-reveal.is-in .shelf-head h2 {
+  animation: title-line 0.7s var(--ease-out) 0.25s both;
+}
+
+@keyframes title-line {
+  to {
+    background-size: 2.4rem 2px;
+  }
+}
+
+/* Meta do dia: a barra enche ao abrir a tela. */
+.streak-bar span {
+  animation: bar-fill 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-page,
+  .demo-chat,
+  .demo-lines span,
+  .hero-demo::before,
+  .steps.will-reveal.is-in .step-n,
+  .streak-bar span {
+    animation: none;
+  }
+
+  .demo-page {
+    transform: rotate(-2.5deg);
+  }
+
+  .will-reveal.is-in .shelf-head h2 {
+    animation: none;
+    background-size: 2.4rem 2px;
+  }
+
+  .avatar-stack .avatar + .avatar {
+    transition: none;
   }
 }

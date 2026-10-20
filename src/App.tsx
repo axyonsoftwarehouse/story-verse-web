@@ -4185,7 +4185,7 @@ function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
         </span>
         <div>
           <strong>
-            {summary.streak} {summary.streak === 1 ? "dia seguido" : "dias seguidos"}
+            <CountUp value={summary.streak} /> {summary.streak === 1 ? "dia seguido" : "dias seguidos"}
           </strong>
           <span>
             {summary.readToday
@@ -4222,7 +4222,7 @@ function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
           <span>Meta de hoje</span>
           <strong>
             {goalDone ? "Meta cumprida! " : ""}
-            {summary.todayMinutes} de {summary.goalMinutes} min
+            <CountUp value={summary.todayMinutes} /> de {summary.goalMinutes} min
           </strong>
         </div>
         <div className={`streak-bar ${goalDone ? "is-done" : ""}`} aria-hidden="true">
@@ -5583,6 +5583,12 @@ export function App() {
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [scrollRatio, setScrollRatio] = useState(0);
+  /**
+   * Capítulo a que a rolagem medida pertence. Fica vazio ao trocar de capítulo até o novo ser
+   * posicionado: antes disso a rolagem ainda é a do capítulo anterior (e, terminado o 2, o 3
+   * seria dado como concluído).
+   */
+  const ratioKeyRef = useRef<string | null>(null);
   /** Uma dica de “meio de capítulo” por índice de capítulo (evita várias mensagens seguidas). */
   const midChapterNudgeSentRef = useRef<Record<number, boolean>>({});
   /** Rolagem salva a reaplicar quando o capítulo onde o leitor parou for desenhado. */
@@ -5908,6 +5914,7 @@ export function App() {
   const currentChapter = chapters[chapterIndex] ?? chapters[0];
 
   useEffect(() => {
+    ratioKeyRef.current = null;
     setScrollRatio(0);
   }, [chapterIndex]);
 
@@ -5923,6 +5930,7 @@ export function App() {
       if (!el) return;
       if (jump !== null) scrollToBlock(jump);
       else el.scrollTop = ratio ? ratio * (el.scrollHeight - el.clientHeight) : 0;
+      ratioKeyRef.current = chapterKeyRef.current;
       onReadScroll();
     });
     return () => cancelAnimationFrame(frame);
@@ -5955,6 +5963,7 @@ export function App() {
   useEffect(() => {
     if (!book || loadState !== "ready" || !currentChapter || scrollRatio < 0.97) return;
     const key = `${book.gutenbergId}:${chapterIndex}`;
+    if (ratioKeyRef.current !== key) return; // Rolagem ainda é a do capítulo anterior.
     if (finishedChaptersRef.current.has(key)) return;
     // Capítulo curtíssimo cabe na tela inteira: ainda não foi "lido".
     const el = readRef.current;
