@@ -65,4 +65,29 @@ describe("activateDataOwner", () => {
     await activateDataOwner("userA");
     expect(currentDataOwner()).toBe("userA");
   });
+
+  it("recupera uma chave que sumiu do namespace da conta a partir dos dados globais", async () => {
+    localStorage.setItem("storyverse:data-owner", "userA");
+    localStorage.setItem("storyverse:data-legacy-owner", "userA");
+    localStorage.setItem("storyverse:account:userA:migrated", "1");
+    localStorage.setItem(PREFS, "dados antigos");
+    await activateDataOwner("userA");
+    expect(userStorage.getItem(PREFS)).toBe("dados antigos");
+  });
+
+  it("não copia dados globais de outra conta", async () => {
+    localStorage.setItem("storyverse:data-owner", "userA");
+    localStorage.setItem("storyverse:data-legacy-owner", "userA");
+    localStorage.setItem("storyverse:account:userB:migrated", "1");
+    localStorage.setItem(PREFS, "dados de A");
+    await activateDataOwner("userB");
+    expect(userStorage.getItem(PREFS)).toBeNull();
+  });
+
+  it("recupera uma chave que sumiu a partir do cofre da conta", async () => {
+    localStorage.setItem("storyverse:account:userA:migrated", "1");
+    localStorage.setItem("storyverse:vault:userA", JSON.stringify({ [PREFS]: "do cofre" }));
+    await activateDataOwner("userA");
+    expect(userStorage.getItem(PREFS)).toBe("do cofre");
+  });
 });

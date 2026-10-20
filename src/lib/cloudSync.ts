@@ -230,18 +230,20 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
 }
 
 /** Junta aparelho e nuvem em 3 vias (ver o topo do arquivo). */
-function merge(local: Snapshot, remote: Snapshot, base: Snapshot): Snapshot {
+export function merge(local: Snapshot, remote: Snapshot, base: Snapshot): Snapshot {
   const out: Snapshot = {};
   for (const k of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(base)])) {
     if (!isUserKey(k)) continue;
     const l = local[k];
     const r = remote[k];
     let v: string | undefined;
-    if (l === r) v = l;
+    // Ausência no outro lado nunca apaga o que existe aqui: a nuvem pode estar vazia por
+    // migração, primeira sincronização ou falha anterior. Só um valor explícito vence.
+    if (l === undefined) v = r;
+    else if (r === undefined) v = l;
+    else if (l === r) v = l;
     else if (sameAsBase(k, l, base[k])) v = r;
     else if (sameAsBase(k, r, base[k])) v = l;
-    else if (l === undefined) v = r;
-    else if (r === undefined) v = l;
     else v = mergeKey(k, l, r, base[k]);
     if (v !== undefined) out[k] = v;
   }
