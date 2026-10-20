@@ -1,5 +1,6 @@
 import { userStorage } from "./lib/dataOwner";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
@@ -6195,6 +6196,10 @@ export function App() {
                 <span className="nav-install-label">Baixar app</span>
               </button>
             ) : null}
+            <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
+              <span className="nav-community-long">Comunidade</span>
+              <span className="nav-community-short">Fórum</span>
+            </Link>
             {canRead ? (
               <button
                 type="button"

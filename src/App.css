@@ -3336,6 +3336,14 @@
   display: none;
 }
 
+.nav-community {
+  white-space: nowrap;
+}
+
+.nav-community-short {
+  display: none;
+}
+
 .install-banner {
   display: none;
 }
@@ -3344,6 +3352,14 @@
   /* No celular o convite é o banner; fechado ele, fica só o ícone no topo. */
   .nav-install.has-banner {
     display: none;
+  }
+
+  .nav-community-long {
+    display: none;
+  }
+
+  .nav-community-short {
+    display: inline;
   }
 
   .nav-install {
