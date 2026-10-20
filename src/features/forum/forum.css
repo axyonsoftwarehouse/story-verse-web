@@ -288,3 +288,66 @@
     flex: 1;
   }
 }
+
+.forum-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.forum-admin-tabs .btn.is-on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.forum-admin-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.forum-admin-filter label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.forum-admin-filter select {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-deep);
+  color: var(--text);
+  font: inherit;
+}
+
+.forum-admin-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.forum-admin-item {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.forum-admin-item strong {
+  font-family: var(--font-read);
+  font-size: 1.05rem;
+}
+
+@media (max-width: 700px) {
+  .forum-admin-tabs .btn {
+    flex: 1 1 auto;
+  }
+
+  .forum-admin-filter {
+    align-items: flex-start;
+  }
+}
+

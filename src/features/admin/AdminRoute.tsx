@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import "../../App.css";
 import { apiRequest } from "../../lib/backend";
 import { useStoredSession } from "../auth/useStoredSession";
+import { ForumModeration } from "./ForumModeration";
 
 const ADMIN_ROLES = ["superadmin", "moderator", "support"];
 
@@ -93,6 +94,7 @@ export function AdminRoute() {
   }
 
   const allowed = roles.filter((role) => ADMIN_ROLES.includes(role));
+  const canModerate = allowed.includes("superadmin") || allowed.includes("moderator");
   if (allowed.length === 0) {
     return (
       <Page>
@@ -129,6 +131,7 @@ export function AdminRoute() {
           </div>
         </div>
       </section>
+      <ForumModeration session={session} canModerate={canModerate} />
       <section className="shelf">
         <div className="shelf-head">
           <h2>Próximos módulos</h2>
