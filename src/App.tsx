@@ -17,6 +17,7 @@ import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataO
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
+import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
 import { pushLayer, removeLayer } from "./lib/backStack";
@@ -6196,10 +6197,12 @@ export function App() {
                 <span className="nav-install-label">Baixar app</span>
               </button>
             ) : null}
-            <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
-              <span className="nav-community-long">Comunidade</span>
-              <span className="nav-community-short">Fórum</span>
-            </Link>
+            {FORUM_VISIBLE ? (
+              <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
+                <span className="nav-community-long">Comunidade</span>
+                <span className="nav-community-short">Fórum</span>
+              </Link>
+            ) : null}
             {canRead ? (
               <button
                 type="button"

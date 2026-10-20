@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import "../../App.css";
 import "./forum.css";
+import { FORUM_ENABLED, FORUM_PREVIEW } from "../../lib/features";
 import { useStoredSession } from "../auth/useStoredSession";
 import {
   createTopic,
@@ -200,6 +201,11 @@ export function ForumHome() {
         <p className="forum-intro">
           Converse sobre livros, personagens e leitura. Tópicos por livro aceitam spoiler marcado.
         </p>
+        {FORUM_PREVIEW && !FORUM_ENABLED ? (
+          <p className="forum-preview-note">
+            Prévia do fórum — ainda não publicado no menu. Abra com <code>?forum=1</code>.
+          </p>
+        ) : null}
         <div className="forum-toolbar">
           <div className="filter-pills forum-spaces">
             <button
