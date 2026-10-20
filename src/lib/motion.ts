@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DependencyList, type RefObject } from "react";
 import { flushSync } from "react-dom";
 
 /**
@@ -105,4 +105,42 @@ export function useAnimatedNumber(value: number | null, opts: { from?: number; d
   }, [value]);
 
   return shown;
+}
+
+/** Vibração curta no Android (iPhone não deixa). Só vibra depois que a pessoa já tocou na página. */
+export function haptic(pattern: number | number[]) {
+  if (prefersReducedMotion()) return;
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // Sem vibração: tudo bem.
+  }
+}
+
+/**
+ * Elementos de `root` que batem com `selector` ficam escondidos (`will-reveal`) e entram
+ * quando aparecem na tela (`is-in`). Sem suporte ou com movimento reduzido, ficam visíveis.
+ */
+export function useReveal(rootRef: RefObject<HTMLElement | null>, selector: string, deps: DependencyList) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || prefersReducedMotion() || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          e.target.classList.add("is-in");
+          io.unobserve(e.target);
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    root.querySelectorAll(selector).forEach((el) => {
+      if (el.classList.contains("is-in")) return;
+      el.classList.add("will-reveal");
+      io.observe(el);
+    });
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }
