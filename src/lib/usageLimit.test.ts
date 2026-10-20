@@ -4,6 +4,7 @@ import {
   countMessage,
   dailyMessageLimit,
   DEFAULT_DAILY_MESSAGE_LIMIT,
+  extraMessages,
   messagesLeftToday,
 } from "./usageLimit";
 
@@ -16,6 +17,12 @@ describe("quota de mensagens", () => {
     applyServerQuota(7, 30);
     expect(messagesLeftToday()).toBe(7);
     expect(dailyMessageLimit()).toBe(30);
+  });
+
+  it("mantém créditos extras separados da cota gratuita", () => {
+    applyServerQuota(0, 50, 3);
+    expect(messagesLeftToday()).toBe(0);
+    expect(extraMessages()).toBe(3);
   });
 
   it("o contador local não sobrescreve o valor do servidor", () => {
