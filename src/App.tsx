@@ -16,7 +16,7 @@ import {
   type ChatTurn,
 } from "./lib/ai";
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
-import { castFromNames, forgetCast, loadCast } from "./lib/cast";
+import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
@@ -3625,6 +3625,70 @@ function greetingNow(d = new Date()): string {
   return h >= 5 && h < 12 ? "Bom dia" : h >= 12 && h < 18 ? "Boa tarde" : "Boa noite";
 }
 
+/** O que o personagem manda para chamar o leitor de volta (texto fixo: não gasta IA). */
+function welcomeCallLine(chapterLabel: string, hasCharacter: boolean, d = new Date()): string {
+  if (!hasCharacter) return `Sua história parou em ${chapterLabel}. Os personagens estão te esperando.`;
+  const h = d.getHours();
+  const lines =
+    h >= 22 || h < 5
+      ? ["Ainda por aqui a essa hora? Dá tempo de mais um capítulo comigo.", "Noite boa pra ler, né? Vem, eu te conto o resto."]
+      : h < 12
+        ? [`Bom dia! Paramos em ${chapterLabel}, lembra? Quero saber o que você acha do resto.`, "Bom dia! Que tal começar o dia com a nossa história?"]
+        : [
+            `Oi! Fiquei pensando no que você achou de ${chapterLabel}.`,
+            "Senti sua falta. Vamos continuar de onde paramos?",
+            "Tenho uma coisa pra te contar sobre o que vem depois… mas só se você continuar lendo.",
+          ];
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
+/**
+ * Boas-vindas de quem está lendo: a capa do livro e o personagem "digitando" até chegar o
+ * balão chamando de volta. A capa daqui é a que cresce e abre ao tocar em "Continuar lendo".
+ */
+function WelcomeCall({ book, chapterLabel, onOpen }: { book: Ebook; chapterLabel: string; onOpen: () => void }) {
+  const character = useMemo(() => {
+    const cast = knownCast(book);
+    if (!cast) return null;
+    const last = lastCharacter(book.id);
+    return cast.find((c) => c.name === last) ?? cast[0];
+  }, [book]);
+  const [line] = useState(() => welcomeCallLine(chapterLabel, Boolean(character)));
+  const [phase, setPhase] = useState<"waiting" | "typing" | "said">(() => (prefersReducedMotion() ? "said" : "waiting"));
+  useEffect(() => {
+    if (phase === "said") return;
+    const typing = window.setTimeout(() => setPhase("typing"), 450);
+    const said = window.setTimeout(() => setPhase("said"), 1900);
+    return () => {
+      window.clearTimeout(typing);
+      window.clearTimeout(said);
+    };
+    // Só na primeira vez que a tela aparece.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <button type="button" className="welcome-call" onClick={onOpen} aria-label={`Continuar lendo ${book.title}`}>
+      <span className="welcome-call-book">
+        <BookCover book={book} />
+        {character ? <Avatar character={character} size="sm" bookTitle={book.title} /> : null}
+      </span>
+      <span className="welcome-call-talk" aria-hidden="true">
+        <span className="welcome-call-name">{character ? shortNameOf(character) : book.title}</span>
+        {phase === "said" ? (
+          <span className="welcome-call-bubble">{line}</span>
+        ) : phase === "typing" ? (
+          <span className="welcome-call-bubble is-typing typing">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
 /**
  * Estante em destaque para quem já está lendo: fileira que rola para o lado, com cartões
  * compactos (capa, título, autor, personagens). A sinopse aparece ao passar o mouse.
@@ -6875,6 +6939,13 @@ export function App() {
                 ? `Pronto para voltar a “${recent[0].book.title}”?`
                 : "Escolha um livro e comece a conversa com os personagens."}
             </p>
+            {recent[0] ? (
+              <WelcomeCall
+                book={recent[0].book}
+                chapterLabel={recent[0].chapterLabel}
+                onOpen={() => startBook(recent[0].book)}
+              />
+            ) : null}
             <div className="welcome-actions">
               {recent[0] ? (
                 <button type="button" className="btn btn-primary" onClick={() => startBook(recent[0].book)}>

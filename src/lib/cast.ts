@@ -44,6 +44,11 @@ export function castFromNames(title: string, raw: string): StoryCharacter[] {
     .filter((c) => c.name.length > 0);
 }
 
+/** Elenco já conhecido do livro, sem chamar a IA (`null`: ainda não tem). */
+export function knownCast(book: Ebook): StoryCharacter[] | null {
+  return book.characters?.length ? book.characters : readCached(book.id);
+}
+
 export function forgetCast(bookId: string) {
   try {
     userStorage.removeItem(CAST_KEY(bookId));
