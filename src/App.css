@@ -2512,8 +2512,21 @@
   }
 
   .home-nav-actions {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 0.35rem;
+    row-gap: 0.25rem;
+  }
+
+  /* No celular o cadastro fica no modal de login; assim o topo nao estoura. */
+  .nav-register {
+    display: none;
+  }
+
+  /* O "Importar meu livro" continua logo abaixo; o topo fica com Forum + conta. */
+  .nav-import {
+    display: none;
   }
 
   .home-nav-actions .nav-login,
