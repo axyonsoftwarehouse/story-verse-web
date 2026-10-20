@@ -3,6 +3,7 @@ import { storedAuthSession } from "./auth";
 import { apiEnabled, apiRequest } from "./backend";
 import { NATURAL_SPEECH_RULES, naturalizeReply } from "./naturalSpeech";
 import { captureError, captureEvent } from "./telemetry";
+import { applyServerQuota } from "./usageLimit";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -264,6 +265,22 @@ export function providerDisplayLabel(): string {
   return "Modo demonstração";
 }
 
+/** Busca a cota oficial do servidor e atualiza o contador local. */
+export async function refreshAiQuota(): Promise<void> {
+  if (!apiEnabled) return;
+  const session = storedAuthSession();
+  if (!session) return;
+  try {
+    const out = await apiRequest<{ remaining?: number; limit?: number }>("/api/v1/ai/quota", {
+      accessToken: session.access_token,
+      timeoutMs: 8_000,
+    });
+    if (typeof out?.remaining === "number") applyServerQuota(out.remaining, out.limit);
+  } catch {
+    // Endpoint antigo/offline: mantém o contador local até a próxima resposta.
+  }
+}
+
 async function callLlmWithFallback(
   system: string,
   messages: ChatTurn[],
@@ -275,12 +292,16 @@ async function callLlmWithFallback(
       throw new Error("Nenhum serviço de IA está configurado neste ambiente.");
     }
     const session = storedAuthSession();
-    const out = await apiRequest<{ text?: string }>("/api/v1/ai/reply", {
-      method: "POST",
-      timeoutMs: 65_000,
-      accessToken: session?.access_token,
-      body: { system, messages, maxTokens },
-    });
+    const out = await apiRequest<{ text?: string; remaining?: number; limit?: number }>(
+      "/api/v1/ai/reply",
+      {
+        method: "POST",
+        timeoutMs: 65_000,
+        accessToken: session?.access_token,
+        body: { system, messages, maxTokens },
+      },
+    );
+    if (typeof out?.remaining === "number") applyServerQuota(out.remaining, out.limit);
     const text = out?.text?.trim();
     if (!text) throw new Error("Resposta vazia da IA.");
     return text;
