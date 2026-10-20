@@ -84,6 +84,48 @@ export function storageForOwner(owner: string | null) {
 
 let pending: Promise<boolean> | null = null;
 let pendingOwner: string | null = null;
+
+/**
+ * Recupera chaves que sumiram do namespace da conta. A nuvem pode chegar vazia depois de uma
+ * migração/falha, e o merge antigo tratava a ausência como remoção. O dado legado (global ou
+ * cofre da própria conta) só é copiado quando a chave não existe no namespace atual.
+ */
+function recoverMissing(owner: string): void {
+  if (owner === "anon") return;
+  const accountPrefix = ACCOUNT_PREFIX + owner + ":";
+  const sources: Record<string, string>[] = [];
+  const legacyOwner = localStorage.getItem(OWNER_KEY);
+  const firstOwner = localStorage.getItem(LEGACY_OWNER_KEY);
+  if (legacyOwner === owner || firstOwner === owner) {
+    const global: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !isUserKey(key) || key.startsWith(ACCOUNT_PREFIX)) continue;
+      const value = localStorage.getItem(key);
+      if (value !== null) global[key] = value;
+    }
+    sources.push(global);
+  }
+  const vault = localStorage.getItem(VAULT_PREFIX + owner);
+  if (vault) {
+    try {
+      const parsed = JSON.parse(vault) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        sources.push(parsed as Record<string, string>);
+      }
+    } catch {
+      // Cofre corrompido: não atrapalha a ativação.
+    }
+  }
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (!isUserKey(key) || typeof value !== "string") continue;
+      if (localStorage.getItem(accountPrefix + key) !== null) continue;
+      localStorage.setItem(accountPrefix + key, value);
+    }
+  }
+}
+
 function activate(owner: string): boolean {
   const previous = tabOwner;
   const marker = ACCOUNT_PREFIX + owner + ":migrated";
@@ -118,6 +160,7 @@ function activate(owner: string): boolean {
   }
   // Keep the original global-data owner stable until all legacy namespaces are migrated.
   if (localStorage.getItem(OWNER_KEY) === null && owner !== "anon") localStorage.setItem(OWNER_KEY, owner);
+  recoverMissing(owner);
   tabOwner = owner;
   return previous !== owner;
 }
