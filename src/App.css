@@ -1294,7 +1294,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
+  row-gap: 0.5rem;
 }
 
 .reader-settings-head strong {
@@ -1310,6 +1312,7 @@
 .reader-settings-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -1329,6 +1332,15 @@
 .reader-settings .segmented {
   display: flex;
   gap: 0.25rem;
+}
+
+/* No celular os ajustes ficam no painel "Aa"; a barra fica só com o essencial. */
+@media (max-width: 600px) {
+  .reader-tools .text-btn:not(.translate-btn),
+  .reader-theme-btn,
+  .night-light-btn {
+    display: none;
+  }
 }
 
 .reader-immersive-exit {
