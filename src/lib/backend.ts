@@ -11,7 +11,11 @@ export const apiEnabled = apiBaseUrl.length > 0;
  * Sem internet (ou API/Supabase fora do ar). Diferente de "senha errada" ou "sessão revogada":
  * nesse caso a sessão guardada continua valendo no aparelho e a renovação é tentada depois.
  */
-export class AuthNetworkError extends Error {}
+export class AuthNetworkError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+  }
+}
 
 /**
  * A sessão mudou ou foi encerrada em outra aba. Diferente de falha de rede: não é transitória,
@@ -47,6 +51,7 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
     error?: string;
     message?: string;
     msg?: string;
+    code?: string;
   } & Record<string, unknown>;
   const serverMessage =
     (typeof payload.error === "string" && payload.error) ||
@@ -57,7 +62,7 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
   // Limite de tentativas: mantém a sessão, mas explica que é temporário.
   if (response.status === 429) {
     captureEvent("warn", "api-http", "API respondeu 429", { path });
-    throw new AuthNetworkError(serverMessage || "Muitas tentativas. Aguarde um pouco e tente de novo.");
+    throw new AuthNetworkError(serverMessage || "Muitas tentativas. Aguarde um pouco e tente de novo.", payload.code);
   }
   // Instabilidade (5xx): não desloga ninguém; tenta de novo depois.
   if (response.status >= 500) {

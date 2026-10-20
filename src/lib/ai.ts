@@ -7,6 +7,22 @@ import { applyServerQuota } from "./usageLimit";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
+export type AiQuota = {
+  limit: number;
+  used: number;
+  remaining: number;
+  credits: number;
+  day: string;
+  resetsAt: string;
+};
+
+function newRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 /** Quantas mensagens anteriores vão para a IA (o custo por mensagem fica constante). */
 const HISTORY_WINDOW = 10;
 /** Mensagens antigas muito longas são cortadas antes de ir no histórico. */
@@ -265,19 +281,26 @@ export function providerDisplayLabel(): string {
   return "Modo demonstração";
 }
 
-/** Busca a cota oficial do servidor e atualiza o contador local. */
-export async function refreshAiQuota(): Promise<void> {
-  if (!apiEnabled) return;
+/** Busca a cota oficial do servidor (mensagens gratuitas + créditos extras). */
+export async function fetchAiQuota(): Promise<AiQuota | null> {
+  if (!apiEnabled) return null;
   const session = storedAuthSession();
-  if (!session) return;
+  if (!session) return null;
   try {
-    const out = await apiRequest<{ remaining?: number; limit?: number }>("/api/v1/ai/quota", {
+    return await apiRequest<AiQuota>("/api/v1/ai/quota", {
       accessToken: session.access_token,
       timeoutMs: 8_000,
     });
-    if (typeof out?.remaining === "number") applyServerQuota(out.remaining, out.limit);
   } catch {
-    // Endpoint antigo/offline: mantém o contador local até a próxima resposta.
+    return null;
+  }
+}
+
+/** Atualiza o contador local com a cota oficial. */
+export async function refreshAiQuota(): Promise<void> {
+  const out = await fetchAiQuota();
+  if (typeof out?.remaining === "number") {
+    applyServerQuota(out.remaining, out.limit, out.credits);
   }
 }
 
@@ -292,16 +315,22 @@ async function callLlmWithFallback(
       throw new Error("Nenhum serviço de IA está configurado neste ambiente.");
     }
     const session = storedAuthSession();
-    const out = await apiRequest<{ text?: string; remaining?: number; limit?: number }>(
-      "/api/v1/ai/reply",
-      {
-        method: "POST",
-        timeoutMs: 65_000,
-        accessToken: session?.access_token,
-        body: { system, messages, maxTokens },
-      },
-    );
-    if (typeof out?.remaining === "number") applyServerQuota(out.remaining, out.limit);
+    const requestId = newRequestId();
+    const out = await apiRequest<{
+      text?: string;
+      remaining?: number;
+      limit?: number;
+      credits?: number;
+      source?: "free" | "credit";
+    }>("/api/v1/ai/reply", {
+      method: "POST",
+      timeoutMs: 65_000,
+      accessToken: session?.access_token,
+      body: { system, messages, maxTokens, requestId },
+    });
+    if (typeof out?.remaining === "number") {
+      applyServerQuota(out.remaining, out.limit, out.credits);
+    }
     const text = out?.text?.trim();
     if (!text) throw new Error("Resposta vazia da IA.");
     return text;

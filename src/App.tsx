@@ -8,11 +8,14 @@ import type { Ebook, StoryCharacter } from "./data/types";
 import {
   characterReply,
   detectProvider,
+  fetchAiQuota,
   providerDisplayLabel,
   refreshAiQuota,
   USER_MESSAGE_MAX_CHARS,
+  type AiQuota,
   type ChatTurn,
 } from "./lib/ai";
+import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
 import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
@@ -169,7 +172,7 @@ import {
   type SpeechSession,
   type VoiceOption,
 } from "./lib/speech";
-import { countMessage, dailyMessageLimit, messagesLeftToday } from "./lib/usageLimit";
+import { countMessage, extraMessages, messagesLeftToday } from "./lib/usageLimit";
 import {
   AUTH_SESSION_STORAGE_KEY,
   AuthNetworkError,
@@ -2614,14 +2617,25 @@ function DiamondShopPage({
   const [showAll, setShowAll] = useState(false);
   const [spin, setSpin] = useState<{ spun_today: boolean; prize: number | null } | null>(null);
   const [spinOpen, setSpinOpen] = useState(false);
+  const [packs, setPacks] = useState<AiPack[]>([]);
+  const [quota, setQuota] = useState<AiQuota | null>(null);
+  const [buyingPack, setBuyingPack] = useState<string | null>(null);
   const shownBalance = useAnimatedNumber(wallet ? wallet.balance : null);
 
   const load = useCallback(() => {
-    return Promise.all([fetchWallet(session), fetchDiamondHistory(session), fetchSpinStatus(session).catch(() => null)])
-      .then(([w, h, sp]) => {
+    return Promise.all([
+      fetchWallet(session),
+      fetchDiamondHistory(session),
+      fetchSpinStatus(session).catch(() => null),
+      fetchAiPacks(session).catch(() => []),
+      fetchAiQuota().catch(() => null),
+    ])
+      .then(([w, h, sp, catalog, aiQuota]) => {
         setWallet(w);
         setHistory(h);
         setSpin(sp);
+        setPacks(catalog);
+        setQuota(aiQuota);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar seus diamantes."));
   }, [session]);
@@ -2645,6 +2659,26 @@ function DiamondShopPage({
       setError(err instanceof Error ? err.message : "Não foi possível salvar a sequência.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function buyPack(pack: AiPack) {
+    if (buyingPack) return;
+    setBuyingPack(pack.id);
+    setError("");
+    setNotice("");
+    try {
+      const result = await buyAiPack(session, pack.id);
+      setNotice(
+        result.duplicate
+          ? "Esse pacote já tinha sido registrado."
+          : `${pack.messages} mensagens extras adicionadas.`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível comprar o pacote.");
+    } finally {
+      setBuyingPack(null);
     }
   }
 
@@ -2747,6 +2781,38 @@ function DiamondShopPage({
                 }}
               />
             </label>
+          </section>
+
+          <section className="shop-card" aria-label="Mensagens extras">
+            <div className="shop-card-row">
+              <span className="shop-card-icon" aria-hidden="true">
+                💬
+              </span>
+              <span className="shop-card-title">
+                <strong>Mensagens extras</strong>
+                <span>
+                  {quota ? `${quota.credits} disponíveis` : "Carregando…"} · usadas quando a cota gratuita acaba
+                </span>
+              </span>
+            </div>
+            {packs.length === 0 ? (
+              <p className="profile-empty">Os pacotes de mensagens ainda não estão disponíveis.</p>
+            ) : (
+              <div className="ai-packs">
+                {packs.map((pack) => (
+                  <button
+                    key={pack.id}
+                    type="button"
+                    className="ai-pack"
+                    disabled={buyingPack !== null || (wallet?.balance ?? 0) < pack.price}
+                    onClick={() => void buyPack(pack)}
+                  >
+                    <strong>{pack.messages} mensagens</strong>
+                    <span>{pack.price} 💎</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
 
           <h2 className="shop-section-title" id="shop-earn">
@@ -5414,11 +5480,14 @@ export function App() {
   /** No celular o chat abre como painel por cima do texto. */
   const [chatOpen, setChatOpen] = useState(false);
   const [messagesLeft, setMessagesLeft] = useState(messagesLeftToday);
+  const [extraMessagesLeft, setExtraMessagesLeft] = useState(extraMessages);
   useEffect(() => {
     if (!authEnabled || !authSession) return;
     let alive = true;
     void refreshAiQuota().then(() => {
-      if (alive) setMessagesLeft(messagesLeftToday());
+      if (!alive) return;
+      setMessagesLeft(messagesLeftToday());
+      setExtraMessagesLeft(extraMessages());
     });
     return () => {
       alive = false;
@@ -6487,14 +6556,15 @@ export function App() {
   );
 
   const limitApplies = detectProvider() === "live";
-  const outOfMessages = limitApplies && messagesLeft <= 0;
+  const outOfMessages = limitApplies && messagesLeft + extraMessagesLeft <= 0;
 
   async function sendMessage(raw: string) {
     if (!book || !character || loadState !== "ready" || !displayedStory) return;
     const text = raw.trim();
     if (!text || loading) return;
-    if (limitApplies && messagesLeftToday() <= 0) {
+    if (limitApplies && messagesLeftToday() + extraMessages() <= 0) {
       setMessagesLeft(0);
+      setExtraMessagesLeft(0);
       return;
     }
 
@@ -6530,7 +6600,10 @@ export function App() {
       });
       if (!stillCurrent()) return;
       const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
-      if (limitApplies) setMessagesLeft(countMessage());
+      if (limitApplies) {
+        setMessagesLeft(countMessage());
+        setExtraMessagesLeft(extraMessages());
+      }
       setThreads((prev) => ({
         ...prev,
         [character.id]: [...(prev[character.id] ?? []), botMsg],
@@ -6538,6 +6611,10 @@ export function App() {
     } catch (err) {
       if (!stillCurrent()) return;
       console.warn("Falha no envio da mensagem:", err);
+      if (err instanceof AuthNetworkError && err.code === "AI_QUOTA_EXHAUSTED") {
+        setMessagesLeft(0);
+        setExtraMessagesLeft(0);
+      }
       setError(
         err instanceof Error
           ? err.message
@@ -7827,14 +7904,24 @@ export function App() {
               {messagesLeft === 1 ? "Resta 1 mensagem hoje." : `Restam ${messagesLeft} mensagens hoje.`}
             </p>
           ) : null}
+          {limitApplies && messagesLeft === 0 && extraMessagesLeft > 0 ? (
+            <p className="limit-note">
+              {extraMessagesLeft === 1
+                ? "Usando 1 mensagem extra."
+                : `Usando mensagens extras: ${extraMessagesLeft} restantes.`}
+            </p>
+          ) : null}
 
           {outOfMessages ? (
             <div className="limit-out" role="status">
               <strong>Por hoje é só 💛</strong>
               <span>
-                Você usou as {dailyMessageLimit()} mensagens de hoje. Os personagens voltam a conversar amanhã —
+                Você usou as mensagens gratuitas e extras de hoje. Os personagens voltam a conversar amanhã —
                 enquanto isso, a leitura continua.
               </span>
+              <button type="button" className="btn btn-primary" onClick={() => setShopOpen(true)}>
+                Comprar mensagens extras
+              </button>
             </div>
           ) : (
           <form className="composer" onSubmit={onSend}>

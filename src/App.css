@@ -8805,3 +8805,44 @@ button.ranking-diamonds {
     display: none;
   }
 }
+
+/* ---- Pacotes de mensagens extras ---- */
+
+.ai-packs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.ai-pack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.8rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-read);
+  cursor: pointer;
+}
+
+.ai-pack:hover:not(:disabled) {
+  border-color: var(--accent-dim);
+  background: rgba(228, 184, 106, 0.08);
+}
+
+.ai-pack:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ai-pack strong {
+  font-size: 0.85rem;
+}
+
+.ai-pack span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}

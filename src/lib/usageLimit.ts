@@ -13,6 +13,7 @@ type Usage = {
   count: number;
   serverRemaining?: number;
   serverLimit?: number;
+  serverCredits?: number;
 };
 
 function today(): string {
@@ -42,6 +43,10 @@ export function dailyMessageLimit(): number {
   return Math.max(1, read().serverLimit ?? DEFAULT_DAILY_MESSAGE_LIMIT);
 }
 
+export function extraMessages(): number {
+  return Math.max(0, Math.floor(read().serverCredits ?? 0));
+}
+
 export function messagesLeftToday(): number {
   const u = read();
   if (typeof u.serverRemaining === "number") {
@@ -51,12 +56,15 @@ export function messagesLeftToday(): number {
 }
 
 /** Atualiza o restante com o valor devolvido pelo servidor (fonte da verdade). */
-export function applyServerQuota(remaining: number, limit?: number): void {
+export function applyServerQuota(remaining: number, limit?: number, credits?: number): void {
   if (!Number.isFinite(remaining)) return;
   const u = read();
   u.serverRemaining = Math.max(0, Math.floor(remaining));
   if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
     u.serverLimit = Math.floor(limit);
+  }
+  if (typeof credits === "number" && Number.isFinite(credits)) {
+    u.serverCredits = Math.max(0, Math.floor(credits));
   }
   write(u);
 }

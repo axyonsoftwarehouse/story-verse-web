@@ -97,9 +97,11 @@ Adicionar `source` em `ai_usage_events` para separar chamadas pagas pela cota gr
 
 ```sql
 alter table public.ai_usage_events
-  add column if not exists source text not null default 'free'
-  check (source in ('free', 'credit'));
+  add column if not exists source text
+  check (source is null or source in ('free', 'credit'));
 ```
+
+`source` fica `null` em eventos de bloqueio (`budget_blocked`), onde não houve chamada ao provedor.
 
 Também é útil registrar `credits_after` no evento, para auditoria de custo/consumo. Não registrar conteúdo.
 
