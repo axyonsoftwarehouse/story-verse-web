@@ -22,7 +22,7 @@ import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type 
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
-import { haptic, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
+import { haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
 import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
@@ -4175,14 +4175,46 @@ function ProfilePage({
 function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
   const [summary, setSummary] = useState(readingSummary);
   const [reminderOpen, setReminderOpen] = useState(false);
+  /** Cada toque na chama solta faíscas e um recado (o número muda a key e reinicia a animação). */
+  const [flare, setFlare] = useState(0);
+  const flameRef = useRef<HTMLButtonElement>(null);
+  function poke() {
+    setFlare((n) => n + 1);
+    haptic(15);
+    if (prefersReducedMotion()) return;
+    flameRef.current?.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(1.45) rotate(-8deg)" }, { transform: "scale(0.92)" }, { transform: "scale(1)" }],
+      { duration: 550, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
+    );
+  }
   const pct = Math.min(100, (summary.todayMinutes / summary.goalMinutes) * 100);
   const goalDone = summary.todayMinutes >= summary.goalMinutes;
   return (
     <section className="streak" aria-label="Sua leitura">
       <div className="streak-main">
-        <span className={`streak-flame ${summary.readToday ? "is-lit" : ""}`} aria-hidden="true">
-          🔥
-        </span>
+        <button
+          ref={flameRef}
+          type="button"
+          className={`streak-flame ${summary.readToday ? "is-lit" : ""}`}
+          onClick={poke}
+          aria-label={`Sequência: ${summary.streak} ${summary.streak === 1 ? "dia" : "dias"}`}
+        >
+          <span aria-hidden="true">🔥</span>
+          {flare > 0 ? (
+            <span key={flare} className="flame-burst" aria-hidden="true">
+              {Array.from({ length: 8 }, (_, i) => (
+                <i key={i} style={{ "--i": i } as React.CSSProperties} />
+              ))}
+              <b className="flame-tip">
+                {summary.readToday
+                  ? summary.streak > 1
+                    ? `${summary.streak} dias! Volte amanhã 🔥`
+                    : "Começou! Volte amanhã 🔥"
+                  : "Leia hoje para acender"}
+              </b>
+            </span>
+          ) : null}
+        </button>
         <div>
           <strong>
             <CountUp value={summary.streak} /> {summary.streak === 1 ? "dia seguido" : "dias seguidos"}
@@ -4315,6 +4347,15 @@ function DemoConversation({ question, answer }: { question: string; answer: stri
       </div>
     </>
   );
+}
+
+/** Emoji que o personagem solta ao ler a mensagem (só para carinho, risada ou espanto). */
+function reactionFor(text: string): string | null {
+  if (/❤|♥|💛|😍|🥰|\bte amo\b|\bamo voc/i.test(text)) return "💛";
+  if (/\bk{3,}|\b(ha){2,}\b|\brs(rs)+\b|😂|🤣/i.test(text)) return "😂";
+  // "Nossa" só no começo ("Nossa, que final!"), senão pega "a nossa casa".
+  if (/😮|😱|\b(uau|caramba)\b|^\s*nossa\b/i.test(text)) return "😮";
+  return null;
 }
 
 /** Comemoração no centro da tela (meta do dia, sequência, livro terminado). */
@@ -5424,6 +5465,23 @@ export function App() {
   const finishedChaptersRef = useRef(new Set<string>());
   /** Aviso curto no rodapé da tela ("Imagem salva", "Trecho destacado"). */
   const [toast, setToast] = useState<string | null>(null);
+  /** Fim de capítulo: fita que desce do topo com quantos faltam. */
+  const [chapterDone, setChapterDone] = useState<{ key: string; label: string; left: number } | null>(null);
+  useEffect(() => {
+    if (!chapterDone) return;
+    const t = window.setTimeout(() => setChapterDone(null), 3200);
+    return () => window.clearTimeout(t);
+  }, [chapterDone]);
+  /** O personagem "ouviu": o avatar do topo do chat pula; com ❤️ ou risada, solta um emoji. */
+  const [chatReaction, setChatReaction] = useState<{ id: string; emoji: string | null } | null>(null);
+  const chatAvatarRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!chatReaction || prefersReducedMotion()) return;
+    chatAvatarRef.current?.animate(
+      [{ transform: "translateY(0)" }, { transform: "translateY(-7px) scale(1.06)" }, { transform: "translateY(0)" }],
+      { duration: 420, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
+    );
+  }, [chatReaction]);
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 2600);
@@ -5477,6 +5535,7 @@ export function App() {
   const [homeTick, setHomeTick] = useState(0);
   /** Página inicial: estantes entram ao aparecer na tela; a barra do topo encolhe ao rolar. */
   const homeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => installCoverTilt(), []);
   useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length]);
   const [navScrolled, setNavScrolled] = useState(false);
   useEffect(() => {
@@ -5978,7 +6037,8 @@ export function App() {
         book,
       });
     } else {
-      setToast(`✓ ${currentChapter.label} concluído`);
+      setChapterDone({ key, label: currentChapter.label, left: chapters.length - 1 - chapterIndex });
+      haptic(20);
     }
   }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length]);
 
@@ -6441,6 +6501,7 @@ export function App() {
     setError(null);
     setInput("");
     const userMsg: Msg = { id: uid(), role: "user", text };
+    setChatReaction({ id: userMsg.id, emoji: reactionFor(text) });
     setThreads((prev) => ({
       ...prev,
       [character.id]: [...(prev[character.id] ?? []), userMsg],
@@ -7623,6 +7684,20 @@ export function App() {
 
         {updateBanner}
 
+        {chapterDone ? (
+          <div key={chapterDone.key} className="chapter-ribbon" role="status">
+            <span className="chapter-ribbon-check" aria-hidden="true">
+              ✓
+            </span>
+            <span>
+              <strong>{chapterDone.label} concluído</strong>
+              <small>
+                {chapterDone.left === 1 ? "Falta 1 capítulo" : `Faltam ${chapterDone.left} capítulos`}
+              </small>
+            </span>
+          </div>
+        ) : null}
+
         {toast || sharing ? (
           <div className="toast" role="status">
             {sharing ? "Gerando a imagem…" : toast}
@@ -7632,7 +7707,14 @@ export function App() {
         <aside className={`chat ${chatOpen ? "is-open" : ""}`} aria-label="Conversa com os personagens">
           {character ? (
             <div className="chat-head">
-              <Avatar character={character} size="lg" bookTitle={book.title} generate />
+              <span className="chat-head-avatar" ref={chatAvatarRef}>
+                <Avatar character={character} size="lg" bookTitle={book.title} generate />
+                {chatReaction?.emoji ? (
+                  <span key={chatReaction.id} className="chat-reaction" aria-hidden="true">
+                    {chatReaction.emoji}
+                  </span>
+                ) : null}
+              </span>
               <div className="chat-head-text">
                 <strong>{character.name}</strong>
                 <span>{character.role}</span>

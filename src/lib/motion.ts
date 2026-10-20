@@ -164,3 +164,55 @@ export function useReveal(rootRef: RefObject<HTMLElement | null>, selector: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 }
+
+/**
+ * Capas dos cartões inclinam em 3D na direção do mouse (ou do dedo, enquanto pressiona), com um
+ * reflexo de luz que acompanha. Um único ouvinte na página serve todas as capas.
+ * Devolve a função que desliga.
+ */
+export function installCoverTilt(): () => void {
+  if (typeof window === "undefined" || prefersReducedMotion()) return () => {};
+  let current: HTMLElement | null = null;
+  const reset = () => {
+    if (!current) return;
+    current.classList.remove("is-tilting");
+    current = null;
+  };
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+  const move = (e: PointerEvent) => {
+    // No toque só inclina enquanto o dedo está apertando (senão qualquer rolagem mexeria).
+    if (e.pointerType === "touch" && e.buttons === 0) return reset();
+    const host = e.target instanceof Element ? e.target.closest(".row-card, .result") : null;
+    const cover = host?.querySelector<HTMLElement>(".cover") ?? null;
+    if (cover !== current) reset();
+    if (!cover) return;
+    const r = cover.getBoundingClientRect();
+    const x = clamp((e.clientX - r.left) / r.width);
+    const y = clamp((e.clientY - r.top) / r.height);
+    cover.style.setProperty("--rx", `${((0.5 - y) * 14).toFixed(2)}deg`);
+    cover.style.setProperty("--ry", `${((x - 0.5) * 18).toFixed(2)}deg`);
+    cover.style.setProperty("--gx", `${(x * 100).toFixed(1)}%`);
+    cover.style.setProperty("--gy", `${(y * 100).toFixed(1)}%`);
+    cover.classList.add("is-tilting");
+    current = cover;
+  };
+  const end = (e: PointerEvent) => {
+    if (e.pointerType === "touch") reset();
+  };
+  const out = (e: PointerEvent) => {
+    if (!e.relatedTarget) reset(); // Saiu da janela.
+  };
+  document.addEventListener("pointermove", move, { passive: true });
+  document.addEventListener("pointerdown", move, { passive: true });
+  document.addEventListener("pointerup", end, { passive: true });
+  document.addEventListener("pointercancel", reset, { passive: true });
+  document.addEventListener("pointerout", out, { passive: true });
+  return () => {
+    reset();
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerdown", move);
+    document.removeEventListener("pointerup", end);
+    document.removeEventListener("pointercancel", reset);
+    document.removeEventListener("pointerout", out);
+  };
+}
