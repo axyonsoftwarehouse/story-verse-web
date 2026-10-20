@@ -3626,16 +3626,16 @@ function greetingNow(d = new Date()): string {
 }
 
 /** O que o personagem manda para chamar o leitor de volta (texto fixo: não gasta IA). */
-function welcomeCallLine(chapterLabel: string, hasCharacter: boolean, pick: number, d = new Date()): string {
-  if (!hasCharacter) return `Sua história parou em ${chapterLabel}. Os personagens estão te esperando.`;
+function welcomeCallLine(hasCharacter: boolean, pick: number, d = new Date()): string {
+  if (!hasCharacter) return "Sua história está te esperando. Os personagens também.";
   const h = d.getHours();
   const lines =
     h >= 22 || h < 5
       ? ["Ainda por aqui a essa hora? Dá tempo de mais um capítulo comigo.", "Noite boa pra ler, né? Vem, eu te conto o resto."]
       : h < 12
-        ? [`Bom dia! Paramos em ${chapterLabel}, lembra? Quero saber o que você acha do resto.`, "Bom dia! Que tal começar o dia com a nossa história?"]
+        ? ["Bom dia! Que tal começar o dia com a nossa história?", "Bom dia! Quero saber o que você vai achar do que vem agora."]
         : [
-            `Oi! Fiquei pensando no que você achou de ${chapterLabel}.`,
+            "Oi! Fiquei pensando em você e na nossa história.",
             "Senti sua falta. Vamos continuar de onde paramos?",
             "Tenho uma coisa pra te contar sobre o que vem depois… mas só se você continuar lendo.",
           ];
@@ -3643,10 +3643,11 @@ function welcomeCallLine(chapterLabel: string, hasCharacter: boolean, pick: numb
 }
 
 /**
- * Boas-vindas de quem está lendo: a capa do livro e o personagem "digitando" até chegar o
- * balão chamando de volta. A capa daqui é a que cresce e abre ao tocar em "Continuar lendo".
+ * Boas-vindas de quem está lendo: a capa do livro e o personagem "digitando" (só o nome, sem a
+ * foto) até chegar o balão chamando de volta. A capa daqui é a que cresce e abre ao tocar em
+ * "Continuar lendo".
  */
-function WelcomeCall({ book, chapterLabel, onOpen }: { book: Ebook; chapterLabel: string; onOpen: () => void }) {
+function WelcomeCall({ book, onOpen }: { book: Ebook; onOpen: () => void }) {
   const character = useMemo(() => {
     const cast = knownCast(book);
     if (!cast) return null;
@@ -3655,7 +3656,7 @@ function WelcomeCall({ book, chapterLabel, onOpen }: { book: Ebook; chapterLabel
   }, [book]);
   // Sorteia uma vez só; a frase acompanha o personagem quando ele aparece depois do primeiro desenho.
   const [pick] = useState(() => Math.random());
-  const line = welcomeCallLine(chapterLabel, Boolean(character), pick);
+  const line = welcomeCallLine(Boolean(character), pick);
   const [phase, setPhase] = useState<"waiting" | "typing" | "said">(() => (prefersReducedMotion() ? "said" : "waiting"));
   useEffect(() => {
     if (phase === "said") return;
@@ -3673,7 +3674,6 @@ function WelcomeCall({ book, chapterLabel, onOpen }: { book: Ebook; chapterLabel
     <button type="button" className="welcome-call" onClick={onOpen} aria-label={`Continuar lendo ${book.title}`}>
       <span className="welcome-call-book">
         <BookCover book={book} />
-        {character ? <Avatar character={character} size="sm" bookTitle={book.title} /> : null}
       </span>
       <span className="welcome-call-talk" aria-hidden="true">
         <span className="welcome-call-name">{character ? shortNameOf(character) : book.title}</span>
@@ -6944,7 +6944,6 @@ export function App() {
             {recent[0] ? (
               <WelcomeCall
                 book={recent[0].book}
-                chapterLabel={recent[0].chapterLabel}
                 onOpen={() => startBook(recent[0].book)}
               />
             ) : null}

@@ -5336,7 +5336,7 @@
   justify-content: center;
 }
 
-/* O personagem chama de volta: capa do livro, avatar e o balão que chega depois do "digitando". */
+/* O personagem chama de volta: capa do livro e o balão que chega depois do "digitando". */
 .welcome-call {
   display: flex;
   align-items: center;
@@ -5369,14 +5369,6 @@
   width: 62px;
   border-radius: 6px;
   box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.7);
-}
-
-.welcome-call-book .avatar {
-  position: absolute;
-  right: -12px;
-  bottom: -8px;
-  box-shadow: 0 0 0 3px var(--bg, #0c0a08);
-  animation: avatar-hop 0.5s var(--ease-out) 0.3s both;
 }
 
 .welcome-call-talk {
@@ -5417,7 +5409,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .welcome-call,
-  .welcome-call-book .avatar,
   .welcome-call-bubble {
     animation: none;
   }
