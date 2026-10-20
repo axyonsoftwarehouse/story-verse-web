@@ -7,8 +7,12 @@ import { applyServerQuota } from "./usageLimit";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
-/** Quantas mensagens anteriores vão para a IA (o custo por mensagem fica constante). */
-const HISTORY_WINDOW = 10;
+/**
+ * Quantas mensagens anteriores vão para a IA (o custo por mensagem fica constante). A API aceita
+ * no máximo 10 por pedido, contando a nova: com 10 aqui, a partir da 11ª mensagem toda conversa
+ * dava "Histórico grande demais".
+ */
+const HISTORY_WINDOW = 9;
 /** Mensagens antigas muito longas são cortadas antes de ir no histórico. */
 const HISTORY_MSG_MAX_CHARS = 600;
 /** Tamanho máximo do trecho do livro enviado junto com cada mensagem. */

@@ -25,40 +25,250 @@
         margin: 0;
         background: #0c0a08;
       }
-      .boot {
-        min-height: 100vh;
-        min-height: 100dvh;
+
+      /* ---- Abertura: o livro abre dentro do balão, o nome surge letra por letra ---- */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
         display: grid;
         place-content: center;
         justify-items: center;
-        gap: 22px;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse 70% 50% at 50% 42%, rgba(228, 184, 106, 0.1), transparent 70%),
+          #0c0a08;
+        color: #f6efe3;
+        font-family: "Literata", Georgia, serif;
+        text-align: center;
+        transition:
+          opacity 0.6s ease,
+          transform 0.6s ease;
       }
-      .boot img {
-        border-radius: 14px;
-        box-shadow: 0 8px 30px -10px rgba(228, 184, 106, 0.5);
+      #splash.is-leaving {
+        opacity: 0;
+        transform: scale(1.04);
+        pointer-events: none;
       }
-      .boot-spinner {
-        width: 26px;
-        height: 26px;
+
+      .sp-glow {
+        position: absolute;
+        top: 42%;
+        left: 50%;
+        width: 420px;
+        height: 420px;
+        margin: -210px 0 0 -210px;
         border-radius: 50%;
-        border: 2px solid rgba(230, 200, 160, 0.14);
-        border-top-color: #e4b86a;
-        animation: boot-spin 0.8s linear infinite;
+        background: radial-gradient(circle, rgba(228, 184, 106, 0.28), transparent 62%);
+        filter: blur(20px);
+        animation: sp-breathe 3.2s ease-in-out infinite;
       }
-      @keyframes boot-spin {
+
+      .sp-logo {
+        position: relative;
+        width: 132px;
+        height: 132px;
+        overflow: visible;
+        filter: drop-shadow(0 14px 34px rgba(228, 184, 106, 0.35));
+      }
+      .sp-bubble {
+        transform-box: fill-box;
+        transform-origin: 20% 100%;
+        animation: sp-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+      }
+      .sp-page {
+        transform-box: fill-box;
+        animation: sp-open 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+      }
+      .sp-page-l {
+        transform-origin: 100% 50%;
+      }
+      .sp-page-r {
+        transform-origin: 0% 50%;
+      }
+      .sp-spine {
+        animation: sp-fade 0.4s ease 0.75s both;
+      }
+      .sp-star {
+        transform-box: fill-box;
+        transform-origin: 50% 50%;
+        animation:
+          sp-star-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.95s both,
+          sp-twinkle 2.4s ease-in-out 1.6s infinite;
+      }
+
+      .sp-name {
+        position: relative;
+        margin: 26px 0 0;
+        font-size: 2.1rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+      }
+      .sp-name span {
+        display: inline-block;
+        animation: sp-letter 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: calc(0.7s + var(--i) * 40ms);
+      }
+      .sp-tagline {
+        position: relative;
+        margin: 10px 0 0;
+        padding: 0 16px;
+        color: #c9b99c;
+        font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+        font-size: 0.86rem;
+        font-style: italic;
+        animation: sp-fade 0.6s ease 1.3s both;
+      }
+      .sp-line {
+        position: relative;
+        width: 120px;
+        height: 2px;
+        margin-top: 26px;
+        border-radius: 2px;
+        overflow: hidden;
+        background: rgba(230, 200, 160, 0.12);
+        animation: sp-fade 0.5s ease 1.5s both;
+      }
+      .sp-line::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: 40%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, transparent, #e4b86a, transparent);
+        animation: sp-slide 1.2s ease-in-out infinite;
+      }
+
+      /* Partículas douradas subindo devagar, como poeira de luz sobre as páginas. */
+      .sp-dust i {
+        position: absolute;
+        bottom: -10px;
+        left: var(--x);
+        width: var(--s);
+        height: var(--s);
+        border-radius: 50%;
+        background: #e4b86a;
+        box-shadow: 0 0 8px rgba(228, 184, 106, 0.9);
+        opacity: 0;
+        animation: sp-rise var(--d) linear var(--w) infinite;
+      }
+
+      @keyframes sp-breathe {
+        0%,
+        100% {
+          opacity: 0.6;
+          transform: scale(0.92);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.06);
+        }
+      }
+      @keyframes sp-pop {
+        from {
+          opacity: 0;
+          transform: scale(0.4);
+        }
+      }
+      @keyframes sp-open {
+        from {
+          opacity: 0;
+          transform: scaleX(0);
+        }
+      }
+      @keyframes sp-fade {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes sp-star-in {
+        from {
+          opacity: 0;
+          transform: scale(0) rotate(-90deg);
+        }
+      }
+      @keyframes sp-twinkle {
+        0%,
+        100% {
+          transform: scale(1) rotate(0);
+        }
+        50% {
+          transform: scale(1.25) rotate(20deg);
+        }
+      }
+      @keyframes sp-letter {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+          filter: blur(4px);
+        }
+      }
+      @keyframes sp-slide {
+        from {
+          transform: translateX(-100%);
+        }
         to {
-          transform: rotate(360deg);
+          transform: translateX(250%);
+        }
+      }
+      @keyframes sp-rise {
+        0% {
+          opacity: 0;
+          transform: translateY(0);
+        }
+        15% {
+          opacity: 0.8;
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(-75vh);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #splash *,
+        #splash *::after {
+          animation: none !important;
+        }
+        .sp-dust {
+          display: none;
         }
       }
     </style>
   </head>
   <body>
-    <div id="root">
-      <div class="boot" role="status" aria-label="Abrindo o Storyverse">
-        <img src="/icons/icon.svg" width="56" height="56" alt="" />
-        <span class="boot-spinner" aria-hidden="true"></span>
-      </div>
+    <!-- Abertura: aparece antes de qualquer script e sai quando o app fica pronto (src/lib/splash.ts). -->
+    <div id="splash" role="status" aria-label="Abrindo o Storyverse">
+      <div class="sp-glow" aria-hidden="true"></div>
+      <div class="sp-dust" aria-hidden="true"><i style="--x:8%;--s:3px;--d:9s;--w:0s"></i><i style="--x:18%;--s:2px;--d:11s;--w:2.5s"></i><i style="--x:29%;--s:4px;--d:8s;--w:1.2s"></i><i style="--x:41%;--s:2px;--d:12s;--w:4s"></i><i style="--x:52%;--s:3px;--d:10s;--w:0.6s"></i><i style="--x:63%;--s:2px;--d:9s;--w:3.1s"></i><i style="--x:71%;--s:4px;--d:11s;--w:1.8s"></i><i style="--x:82%;--s:3px;--d:8s;--w:0.3s"></i><i style="--x:91%;--s:2px;--d:12s;--w:2.2s"></i><i style="--x:35%;--s:2px;--d:10s;--w:5s"></i><i style="--x:57%;--s:3px;--d:9s;--w:4.4s"></i><i style="--x:76%;--s:2px;--d:10s;--w:3.6s"></i></div>
+      <svg class="sp-logo" viewBox="76 90 360 344" aria-hidden="true">
+        <defs>
+          <linearGradient id="sp-pageL" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#f8dc9c" />
+            <stop offset="1" stop-color="#d49a45" />
+          </linearGradient>
+          <linearGradient id="sp-pageR" x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f1cf88" />
+            <stop offset="1" stop-color="#b97d33" />
+          </linearGradient>
+          <linearGradient id="sp-cream" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fbf5ea" />
+            <stop offset="1" stop-color="#e9dcc4" />
+          </linearGradient>
+        </defs>
+        <path class="sp-bubble" d="M150 100 H 362 A 64 64 0 0 1 426 164 V 300 A 64 64 0 0 1 362 364 H 214 L 142 424 L 158 364 H 150 A 64 64 0 0 1 86 300 V 164 A 64 64 0 0 1 150 100 Z" fill="url(#sp-cream)" />
+        <path class="sp-page sp-page-l" d="M256 322 C 226 302, 184 296, 140 304 L 140 190 C 184 182, 226 188, 256 212 Z" fill="url(#sp-pageL)" />
+        <path class="sp-page sp-page-r" d="M256 322 C 286 302, 328 296, 372 304 L 372 190 C 328 182, 286 188, 256 212 Z" fill="url(#sp-pageR)" />
+        <path class="sp-spine" d="M256 212 L 256 322" stroke="#7a4f1c" stroke-width="4" stroke-linecap="round" opacity=".5" />
+        <g transform="translate(357 147) scale(0.54)">
+          <path class="sp-star" d="M0 -50 C 6 -14, 14 -6, 50 0 C 14 6, 6 14, 0 50 C -6 14, -14 6, -50 0 C -14 -6, -6 -14, 0 -50 Z" fill="#8fb8a8" />
+        </g>
+      </svg>
+      <p class="sp-name" aria-hidden="true"><span style="--i:0">S</span><span style="--i:1">t</span><span style="--i:2">o</span><span style="--i:3">r</span><span style="--i:4">y</span><span style="--i:5">v</span><span style="--i:6">e</span><span style="--i:7">r</span><span style="--i:8">s</span><span style="--i:9">e</span></p>
+      <p class="sp-tagline">Leia o livro. Converse com quem vive nele.</p>
+      <div class="sp-line" aria-hidden="true"></div>
     </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
