@@ -2230,10 +2230,9 @@
 }
 
 .auth-loading-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  box-shadow: 0 8px 30px -10px rgba(228, 184, 106, 0.5);
+  width: 60px;
+  height: 58px;
+  filter: drop-shadow(0 8px 20px rgba(228, 184, 106, 0.35));
 }
 
 .auth-loading p {
@@ -8731,6 +8730,40 @@ button.ranking-diamonds {
   }
 }
 
+/* Reação do personagem presa no canto da sua mensagem (como nos apps de conversa). */
+.msg-user.has-reaction {
+  padding-bottom: 0.7rem;
+}
+
+.msg-user .bubble {
+  position: relative;
+}
+
+.bubble-reaction {
+  position: absolute;
+  bottom: -0.85rem;
+  left: -0.35rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--r-panel, #1a1511);
+  border: 1px solid var(--r-border, rgba(255, 240, 220, 0.12));
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.45);
+  font-size: 0.95rem;
+  line-height: 1;
+  animation: reaction-stick 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes reaction-stick {
+  from {
+    opacity: 0;
+    transform: scale(0.2) rotate(-25deg);
+  }
+}
+
 /* Fim de capítulo: cartão no rodapé do capítulo, logo acima de "Próximo capítulo". */
 .chapter-done {
   display: flex;
@@ -8839,6 +8872,7 @@ button.ranking-diamonds {
 
   .streak-main .flame-tip,
   .chat-reaction,
+  .bubble-reaction,
   .chapter-done,
   .chapter-done-bar span,
   .chapter-end .btn-primary.is-ready {

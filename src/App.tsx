@@ -14,7 +14,7 @@ import {
   type ChatTurn,
 } from "./lib/ai";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
-import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
+import { forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -207,7 +207,7 @@ import {
 } from "./lib/translate";
 import "./App.css";
 
-type Msg = { id: string; role: "user" | "assistant"; text: string };
+type Msg = ChatMsg;
 
 const EMPTY_THREAD: Msg[] = [];
 
@@ -4350,15 +4350,6 @@ function DemoConversation({ question, answer }: { question: string; answer: stri
   );
 }
 
-/** Emoji que o personagem solta ao ler a mensagem (só para carinho, risada ou espanto). */
-function reactionFor(text: string): string | null {
-  if (/❤|♥|💛|😍|🥰|\bte amo\b|\bamo voc/i.test(text)) return "💛";
-  if (/\bk{3,}|\b(ha){2,}\b|\brs(rs)+\b|😂|🤣/i.test(text)) return "😂";
-  // "Nossa" só no começo ("Nossa, que final!"), senão pega "a nossa casa".
-  if (/😮|😱|\b(uau|caramba)\b|^\s*nossa\b/i.test(text)) return "😮";
-  return null;
-}
-
 /** Comemoração no centro da tela (meta do dia, sequência, livro terminado). */
 type Celebration = {
   emoji: string;
@@ -5477,7 +5468,7 @@ export function App() {
    * progresso do livro. Some sozinho ao trocar de capítulo (a chave deixa de bater).
    */
   const [chapterDone, setChapterDone] = useState<{ key: string; label: string; done: number; total: number } | null>(null);
-  /** O personagem "ouviu": o avatar do topo do chat pula; com ❤️ ou risada, solta um emoji. */
+  /** O personagem "ouviu": o avatar do topo do chat pula; quando ele reage à mensagem, solta o emoji. */
   const [chatReaction, setChatReaction] = useState<{ id: string; emoji: string | null } | null>(null);
   const chatAvatarRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -6454,7 +6445,7 @@ export function App() {
     setError(null);
     setInput("");
     const userMsg: Msg = { id: uid(), role: "user", text };
-    setChatReaction({ id: userMsg.id, emoji: reactionFor(text) });
+    setChatReaction({ id: userMsg.id, emoji: null });
     setThreads((prev) => ({
       ...prev,
       [character.id]: [...(prev[character.id] ?? []), userMsg],
@@ -6471,7 +6462,7 @@ export function App() {
     const generation = readerGeneration.current;
     const stillCurrent = () => readerGeneration.current === generation && currentBookRef.current === requestBook && authSessionRef.current?.user.id === requestOwner;
     try {
-      const reply = await characterReply({
+      const { text: reply, reaction } = await characterReply({
         character,
         history: history.slice(0, -1),
         userMessage: text,
@@ -6484,9 +6475,14 @@ export function App() {
       if (!stillCurrent()) return;
       const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
       if (limitApplies) setMessagesLeft(countMessage());
+      // Achou a mensagem fofa ou engraçada: o emoji fica preso nela (e sobe do avatar).
+      if (reaction) setChatReaction({ id: botMsg.id, emoji: reaction });
       setThreads((prev) => ({
         ...prev,
-        [character.id]: [...(prev[character.id] ?? []), botMsg],
+        [character.id]: [
+          ...(prev[character.id] ?? []).map((m) => (m.id === userMsg.id && reaction ? { ...m, reaction } : m)),
+          botMsg,
+        ],
       }));
     } catch (err) {
       if (!stillCurrent()) return;
@@ -6529,7 +6525,7 @@ export function App() {
   if (authLoading || !dataIsReady) {
     return (
       <main className="auth-loading" role="status" aria-live="polite">
-        <img className="auth-loading-logo" src="/icons/icon.svg" alt="" aria-hidden="true" />
+        <img className="auth-loading-logo" src="/icons/logo.svg" alt="" aria-hidden="true" />
         <span className="spinner" aria-hidden="true" />
         <p>Abrindo o Storyverse…</p>
       </main>
@@ -7750,8 +7746,15 @@ export function App() {
                   </button>
                 </div>
               ) : (
-                <div key={m.id} className="msg msg-user">
-                  <div className="bubble user">{m.text}</div>
+                <div key={m.id} className={`msg msg-user ${m.reaction ? "has-reaction" : ""}`}>
+                  <div className="bubble user">
+                    {m.text}
+                    {m.reaction ? (
+                      <span className="bubble-reaction" role="img" aria-label={`${character?.name ?? "O personagem"} reagiu com ${m.reaction}`}>
+                        {m.reaction}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ),
             )}

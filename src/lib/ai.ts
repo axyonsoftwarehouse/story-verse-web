@@ -43,6 +43,36 @@ function mockReply(_character: StoryCharacter, userText: string): string {
   return "Entendi. Não sei se isso muda tudo… mas muda como eu te olho daqui pra frente.";
 }
 
+/** Emojis que o personagem pode deixar na mensagem do leitor. */
+const REACTION_EMOJIS = ["💛", "🥰", "😂", "😮", "🥺"];
+/** Marca que a IA põe na resposta para reagir: "[reação: 😂]". Sai do texto antes de aparecer. */
+const REACTION_TAG = /\[\s*rea[cç][aã]o\s*:\s*([^\]]{1,16}?)\s*\]/giu;
+
+const REACTION_RULES =
+  `Se a mensagem do leitor for carinhosa, fofa, engraçada ou surpreendente, reaja a ela começando a resposta com [reação: emoji], usando só um destes: ${REACTION_EMOJIS.join(" ")}. ` +
+  "Use 💛 para carinho, 🥰 para algo fofo, 😂 para algo engraçado, 😮 para surpresa e 🥺 para algo tocante. Em mensagens comuns (perguntas, comentários sobre a história), não reaja.";
+
+/** Separa a reação do texto da resposta; só vale emoji da lista. */
+export function splitReaction(raw: string): { text: string; reaction: string | null } {
+  let reaction: string | null = null;
+  const text = raw.replace(REACTION_TAG, (_m, emoji: string) => {
+    const e = emoji.trim().replace(/️/g, "");
+    const found = REACTION_EMOJIS.find((r) => r.replace(/️/g, "") === e);
+    if (found && !reaction) reaction = found;
+    return " ";
+  });
+  return { text: text.trim(), reaction };
+}
+
+/** Sem IA (modo demonstração): reage só a sinais claros de carinho, risada ou espanto. */
+function mockReaction(text: string): string | null {
+  if (/❤|♥|💛|😍|🥰|\bte amo\b|\bamo voc/i.test(text)) return "💛";
+  if (/\bk{3,}|\b(ha){2,}\b|\brs(rs)+\b|😂|🤣/i.test(text)) return "😂";
+  // "Nossa" só no começo ("Nossa, que final!"), senão pega "a nossa casa".
+  if (/😮|😱|\b(uau|caramba)\b|^\s*nossa\b/i.test(text)) return "😮";
+  return null;
+}
+
 class LlmHttpError extends Error {
   constructor(
     readonly status: number,
@@ -374,7 +404,7 @@ export async function characterReply(params: {
   readingProgressPct: number;
   /** Idioma principal do texto na tela. */
   textLanguage: "pt" | "en";
-}): Promise<string> {
+}): Promise<{ text: string; reaction: string | null }> {
   const {
     character,
     history,
@@ -389,7 +419,7 @@ export async function characterReply(params: {
   await ensureAiStatus();
   if (detectProvider() === "mock") {
     await new Promise((r) => setTimeout(r, 350 + Math.random() * 400));
-    return mockReply(character, userMessage);
+    return { text: mockReply(character, userMessage), reaction: mockReaction(userMessage) };
   }
 
   const langNote =
@@ -411,6 +441,7 @@ export async function characterReply(params: {
     character.systemHint,
     "Responda como o personagem, de forma breve. Não resuma o livro nem narre cenas novas; seja fiel à obra.",
     NATURAL_SPEECH_RULES,
+    REACTION_RULES,
     "Não revele acontecimentos que vêm depois do trecho em que o leitor está (sem spoilers).",
     `Posição de leitura: ~${Math.round(readingProgressPct)}% do livro.`,
     langNote,
@@ -422,8 +453,10 @@ export async function characterReply(params: {
     { role: "user", content: userMessage.slice(0, USER_MESSAGE_MAX_CHARS) },
   ];
 
-  const reply = await callLlmWithFallback(system, messages);
-  return naturalizeReply(reply, [character.name, character.shortName ?? ""]);
+  const { text, reaction } = splitReaction(await callLlmWithFallback(system, messages));
+  const reply = naturalizeReply(text, [character.name, character.shortName ?? ""]);
+  if (!reply) throw new Error("Resposta vazia da IA.");
+  return { text: reply, reaction };
 }
 
 export const CAST_COLORS = ["#c9a88c", "#9eb8c9", "#c49ab8", "#9cb9a8", "#c4b07a"];
