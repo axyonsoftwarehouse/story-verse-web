@@ -60,6 +60,10 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
     volumes:
       # A pasta precisa pertencer ao uid do app (10001). Em volume novo na VPS:
       #   docker run --rm -v storyverse_storyverse_media:/m alpine chown -R 10001:10001 /m

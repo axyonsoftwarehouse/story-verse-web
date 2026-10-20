@@ -17,7 +17,7 @@ import {
 } from "./lib/ai";
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, loadCast } from "./lib/cast";
-import { forgetChat, loadChat, saveChat } from "./lib/chatHistory";
+import { forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -25,6 +25,7 @@ import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type 
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
+import { holdSplash, releaseSplash } from "./lib/splash";
 import { haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
 import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
@@ -79,7 +80,7 @@ import {
   saveProgress,
   type ReadingProgress,
 } from "./lib/progress";
-import { chapterTransitionMessage, midChapterReadingHint, missYouMessage } from "./lib/readingAmbient";
+import { missYouMessage } from "./lib/readingAmbient";
 import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
 import { cachedPortrait, requestPortrait } from "./lib/portraits";
 import { excerptNearScrollRatio } from "./lib/readingContext";
@@ -209,7 +210,7 @@ import {
 } from "./lib/translate";
 import "./App.css";
 
-type Msg = { id: string; role: "user" | "assistant"; text: string };
+type Msg = ChatMsg;
 
 const EMPTY_THREAD: Msg[] = [];
 
@@ -4415,15 +4416,6 @@ function DemoConversation({ question, answer }: { question: string; answer: stri
   );
 }
 
-/** Emoji que o personagem solta ao ler a mensagem (só para carinho, risada ou espanto). */
-function reactionFor(text: string): string | null {
-  if (/❤|♥|💛|😍|🥰|\bte amo\b|\bamo voc/i.test(text)) return "💛";
-  if (/\bk{3,}|\b(ha){2,}\b|\brs(rs)+\b|😂|🤣/i.test(text)) return "😂";
-  // "Nossa" só no começo ("Nossa, que final!"), senão pega "a nossa casa".
-  if (/😮|😱|\b(uau|caramba)\b|^\s*nossa\b/i.test(text)) return "😮";
-  return null;
-}
-
 /** Comemoração no centro da tela (meta do dia, sequência, livro terminado). */
 type Celebration = {
   emoji: string;
@@ -5190,6 +5182,12 @@ export function App() {
   const [authSession, setAuthSession] = useState<SupabaseSession | null>(null);
   // Sem Supabase configurado não há sessão para verificar: a tela abre direto.
   const [authLoading, setAuthLoading] = useState(authEnabled);
+  // A tela de abertura espera o login carregar (no primeiro desenho, antes de ela poder sair).
+  useState(() => holdSplash());
+  useEffect(() => {
+    if (!authLoading) releaseSplash();
+  }, [authLoading]);
+  useEffect(() => () => releaseSplash(), []);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<{ text: string; ok?: boolean } | null>(null);
   const authUser: SupabaseUser | null = authSession?.user ?? null;
@@ -5534,14 +5532,12 @@ export function App() {
   const finishedChaptersRef = useRef(new Set<string>());
   /** Aviso curto no rodapé da tela ("Imagem salva", "Trecho destacado"). */
   const [toast, setToast] = useState<string | null>(null);
-  /** Fim de capítulo: fita que desce do topo com quantos faltam. */
-  const [chapterDone, setChapterDone] = useState<{ key: string; label: string; left: number } | null>(null);
-  useEffect(() => {
-    if (!chapterDone) return;
-    const t = window.setTimeout(() => setChapterDone(null), 3200);
-    return () => window.clearTimeout(t);
-  }, [chapterDone]);
-  /** O personagem "ouviu": o avatar do topo do chat pula; com ❤️ ou risada, solta um emoji. */
+  /**
+   * Fim de capítulo: cartão no rodapé do próprio capítulo (onde o leitor está olhando), com o
+   * progresso do livro. Some sozinho ao trocar de capítulo (a chave deixa de bater).
+   */
+  const [chapterDone, setChapterDone] = useState<{ key: string; label: string; done: number; total: number } | null>(null);
+  /** O personagem "ouviu": o avatar do topo do chat pula; quando ele reage à mensagem, solta o emoji. */
   const [chatReaction, setChatReaction] = useState<{ id: string; emoji: string | null } | null>(null);
   const chatAvatarRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -5717,8 +5713,6 @@ export function App() {
    * seria dado como concluído).
    */
   const ratioKeyRef = useRef<string | null>(null);
-  /** Uma dica de “meio de capítulo” por índice de capítulo (evita várias mensagens seguidas). */
-  const midChapterNudgeSentRef = useRef<Record<number, boolean>>({});
   /** Rolagem salva a reaplicar quando o capítulo onde o leitor parou for desenhado. */
   const restoreScrollRef = useRef<number | null>(null);
   /** Livro + capítulo na tela: resultados de tradução de outro capítulo são descartados. */
@@ -5737,7 +5731,6 @@ export function App() {
     setFullText("");
     setChapterIndex(0);
     setScrollRatio(0);
-    midChapterNudgeSentRef.current = {};
 
     (isLocalBook(book)
       ? loadLocalBookText(book.gutenbergId)
@@ -5768,8 +5761,6 @@ export function App() {
         } else if (saved && savedIndex >= 0) {
           setChapterIndex(savedIndex);
           restoreScrollRef.current = saved.scrollRatio;
-          // Quem volta para o meio do capítulo não precisa da dica de “meio de capítulo”.
-          if (saved.scrollRatio >= 0.42) midChapterNudgeSentRef.current[savedIndex] = true;
         }
         setFullText(text);
         setLoadState("ready");
@@ -5838,15 +5829,12 @@ export function App() {
     setVisibleChunk((v) => (v?.key === key && v.chunk === chunk ? v : { key, chunk }));
   }, []);
 
-  const prevChapterIdxRef = useRef<number | null>(null);
-
   const startBook = useCallback((b: Ebook) => {
     if (authLoading) return;
     if (!canRead) {
       setAuthModal("login");
       return;
     }
-    prevChapterIdxRef.current = null;
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
@@ -5903,7 +5891,6 @@ export function App() {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     setSelection(null);
     setWordCard(null);
-    prevChapterIdxRef.current = null;
     setBook(null);
     setLoading(false);
     setCast(null);
@@ -5913,7 +5900,6 @@ export function App() {
     setInput("");
     setFullText("");
     setChapterIndex(0);
-    midChapterNudgeSentRef.current = {};
     setLoadState("idle");
     setLoadError(null);
     setChatOpen(false);
@@ -6106,52 +6092,10 @@ export function App() {
         book,
       });
     } else {
-      setChapterDone({ key, label: currentChapter.label, left: chapters.length - 1 - chapterIndex });
+      setChapterDone({ key, label: currentChapter.label, done: chapterIndex + 1, total: chapters.length });
       haptic(20);
     }
   }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length]);
-
-  /** Ao trocar de personagem, não dispara de novo a dica do meio se a rolagem já passou do meio. */
-  useEffect(() => {
-    const el = readRef.current;
-    const max = el ? el.scrollHeight - el.clientHeight : 0;
-    const r = !el || max <= 0 ? 0 : el.scrollTop / max;
-    if (r >= 0.42) {
-      midChapterNudgeSentRef.current[chapterIndex] = true;
-    }
-  }, [activeCharId, chapterIndex]);
-
-  useEffect(() => {
-    if (!character || loadState !== "ready" || !currentChapter) return;
-
-    if (prevChapterIdxRef.current === null) {
-      prevChapterIdxRef.current = chapterIndex;
-      return;
-    }
-    if (prevChapterIdxRef.current === chapterIndex) return;
-
-    prevChapterIdxRef.current = chapterIndex;
-    const line = chapterTransitionMessage(currentChapter.label);
-    setThreads((prev) => {
-      const thread = prev[character.id] ?? [];
-      // Pulando vários capítulos seguidos, sem conversa no meio: troca o aviso em vez de empilhar.
-      const last = thread[thread.length - 1];
-      const keep = last?.id.startsWith("capitulo-") ? thread.slice(0, -1) : thread;
-      return { ...prev, [character.id]: [...keep, { id: `capitulo-${uid()}`, role: "assistant", text: line }] };
-    });
-  }, [chapterIndex, character, loadState, currentChapter, activeCharId]);
-
-  useEffect(() => {
-    if (!character || !currentChapter || loadState !== "ready" || loading) return;
-    if (scrollRatio < 0.42) return;
-    if (midChapterNudgeSentRef.current[chapterIndex]) return;
-    midChapterNudgeSentRef.current[chapterIndex] = true;
-    const line = midChapterReadingHint(currentChapter.label);
-    setThreads((prev) => ({
-      ...prev,
-      [character.id]: [...(prev[character.id] ?? []), { id: uid(), role: "assistant", text: line }],
-    }));
-  }, [scrollRatio, character, currentChapter, loadState, loading, chapterIndex]);
 
   const displayedStory = currentChapter?.body ?? "";
 
@@ -6571,7 +6515,7 @@ export function App() {
     setError(null);
     setInput("");
     const userMsg: Msg = { id: uid(), role: "user", text };
-    setChatReaction({ id: userMsg.id, emoji: reactionFor(text) });
+    setChatReaction({ id: userMsg.id, emoji: null });
     setThreads((prev) => ({
       ...prev,
       [character.id]: [...(prev[character.id] ?? []), userMsg],
@@ -6588,7 +6532,7 @@ export function App() {
     const generation = readerGeneration.current;
     const stillCurrent = () => readerGeneration.current === generation && currentBookRef.current === requestBook && authSessionRef.current?.user.id === requestOwner;
     try {
-      const reply = await characterReply({
+      const { text: reply, reaction } = await characterReply({
         character,
         history: history.slice(0, -1),
         userMessage: text,
@@ -6604,9 +6548,14 @@ export function App() {
         setMessagesLeft(countMessage());
         setExtraMessagesLeft(extraMessages());
       }
+      // Achou a mensagem fofa ou engraçada: o emoji fica preso nela (e sobe do avatar).
+      if (reaction) setChatReaction({ id: botMsg.id, emoji: reaction });
       setThreads((prev) => ({
         ...prev,
-        [character.id]: [...(prev[character.id] ?? []), botMsg],
+        [character.id]: [
+          ...(prev[character.id] ?? []).map((m) => (m.id === userMsg.id && reaction ? { ...m, reaction } : m)),
+          botMsg,
+        ],
       }));
     } catch (err) {
       if (!stillCurrent()) return;
@@ -6653,7 +6602,7 @@ export function App() {
   if (authLoading || !dataIsReady) {
     return (
       <main className="auth-loading" role="status" aria-live="polite">
-        <img className="auth-loading-logo" src="/icons/icon.svg" alt="" aria-hidden="true" />
+        <img className="auth-loading-logo" src="/icons/logo.svg" alt="" aria-hidden="true" />
         <span className="spinner" aria-hidden="true" />
         <p>Abrindo o Storyverse…</p>
       </main>
@@ -6939,6 +6888,12 @@ export function App() {
               <button type="button" className="btn" onClick={() => goToHomeSection("acervo")}>
                 {Icon.search} Buscar no acervo
               </button>
+              {/* No celular o "Importar" do topo some; aqui ele fica à mão (e dá para sugerir à comunidade). */}
+              {canRead ? (
+                <button type="button" className="btn" onClick={() => requestImport()}>
+                  {Icon.upload} Importar livro
+                </button>
+              ) : null}
             </div>
           </header>
         ) : (
@@ -7544,10 +7499,28 @@ export function App() {
               })}
 
               <footer className="chapter-end">
+                {chapterDone?.key === chapterKey ? (
+                  <div className="chapter-done" role="status">
+                    <svg className="chapter-done-check" viewBox="0 0 52 52" aria-hidden="true">
+                      <circle cx="26" cy="26" r="23" />
+                      <path d="M15 27 l7.5 7.5 L37.5 19" />
+                    </svg>
+                    <strong>{chapterDone.label} concluído</strong>
+                    <div className="chapter-done-bar" aria-hidden="true">
+                      <span style={{ width: `${(chapterDone.done / chapterDone.total) * 100}%` }} />
+                    </div>
+                    <small>
+                      {chapterDone.done} de {chapterDone.total} capítulos ·{" "}
+                      {chapterDone.total - chapterDone.done === 1
+                        ? "falta 1"
+                        : `faltam ${chapterDone.total - chapterDone.done}`}
+                    </small>
+                  </div>
+                ) : null}
                 {hasNextChapter ? (
                   <button
                     type="button"
-                    className="btn btn-primary btn-lg"
+                    className={`btn btn-primary btn-lg ${chapterDone?.key === chapterKey ? "is-ready" : ""}`}
                     onClick={() => setChapterIndex((i) => i + 1)}
                   >
                     Próximo capítulo {Icon.next}
@@ -7761,20 +7734,6 @@ export function App() {
 
         {updateBanner}
 
-        {chapterDone ? (
-          <div key={chapterDone.key} className="chapter-ribbon" role="status">
-            <span className="chapter-ribbon-check" aria-hidden="true">
-              ✓
-            </span>
-            <span>
-              <strong>{chapterDone.label} concluído</strong>
-              <small>
-                {chapterDone.left === 1 ? "Falta 1 capítulo" : `Faltam ${chapterDone.left} capítulos`}
-              </small>
-            </span>
-          </div>
-        ) : null}
-
         {toast || sharing ? (
           <div className="toast" role="status">
             {sharing ? "Gerando a imagem…" : toast}
@@ -7870,8 +7829,15 @@ export function App() {
                   </button>
                 </div>
               ) : (
-                <div key={m.id} className="msg msg-user">
-                  <div className="bubble user">{m.text}</div>
+                <div key={m.id} className={`msg msg-user ${m.reaction ? "has-reaction" : ""}`}>
+                  <div className="bubble user">
+                    {m.text}
+                    {m.reaction ? (
+                      <span className="bubble-reaction" role="img" aria-label={`${character?.name ?? "O personagem"} reagiu com ${m.reaction}`}>
+                        {m.reaction}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ),
             )}

@@ -13,6 +13,7 @@ import { TopicPage } from "./features/forum/TopicPage";
 import { FORUM_VISIBLE } from "./lib/features";
 import { installTelemetry } from "./lib/telemetry";
 import { registerServiceWorker } from "./lib/pwa";
+import { startSplashExit } from "./lib/splash";
 
 installTelemetry();
 
@@ -45,3 +46,6 @@ createRoot(document.getElementById("root")!).render(
     <DiagnosticsPanel />
   </StrictMode>,
 );
+
+// A abertura sai quando o app está pronto (a página inicial espera o login carregar).
+startSplashExit();

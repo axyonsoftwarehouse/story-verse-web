@@ -3,7 +3,8 @@ import { naturalizeReply } from "./naturalSpeech";
 
 /** Conversa com os personagens de cada livro, guardada no navegador para continuar depois. */
 
-export type ChatMsg = { id: string; role: "user" | "assistant"; text: string };
+/** `reaction`: emoji que o personagem deixou na mensagem do leitor (carinho, risada…). */
+export type ChatMsg = { id: string; role: "user" | "assistant"; text: string; reaction?: string };
 type SavedChat = { threads: Record<string, ChatMsg[]>; activeCharId: string; updatedAt: number };
 
 const KEY = (bookId: string) => `storyverse:chat:${bookId}`;
