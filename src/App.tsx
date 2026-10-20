@@ -6811,6 +6811,12 @@ export function App() {
               <button type="button" className="btn" onClick={() => goToHomeSection("acervo")}>
                 {Icon.search} Buscar no acervo
               </button>
+              {/* No celular o "Importar" do topo some; aqui ele fica à mão (e dá para sugerir à comunidade). */}
+              {canRead ? (
+                <button type="button" className="btn" onClick={() => requestImport()}>
+                  {Icon.upload} Importar livro
+                </button>
+              ) : null}
             </div>
           </header>
         ) : (
