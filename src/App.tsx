@@ -1,5 +1,6 @@
 import { userStorage } from "./lib/dataOwner";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
@@ -21,6 +22,7 @@ import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type 
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
+import { openBookWithTransition, prefersReducedMotion, useAnimatedNumber } from "./lib/motion";
 import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
@@ -1728,10 +1730,6 @@ function EditProfileModal({
 }
 
 /** Quem pediu menos movimento no sistema vê tudo parado. */
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
-
 /** Número que sobe de 0 até `value` ao aparecer (≈0,9 s, desacelerando no fim). */
 function useCountUp(value: number, duration = 900): number {
   const [shown, setShown] = useState(() => (prefersReducedMotion() ? value : 0));
@@ -2380,7 +2378,17 @@ function RightsAlert({ title, author, onProtected }: { title: string; author?: s
 }
 
 /** Desenho da roleta: 8 fatias com os prêmios, a de cima é a sorteada. */
-function SpinWheel({ angle, spinning, onStop }: { angle: number; spinning: boolean; onStop: () => void }) {
+function SpinWheel({
+  angle,
+  spinning,
+  onStop,
+  wrapRef,
+}: {
+  angle: number;
+  spinning: boolean;
+  onStop: () => void;
+  wrapRef?: (el: HTMLDivElement | null) => void;
+}) {
   const n = SPIN_SEGMENTS.length;
   const seg = 360 / n;
   const point = (deg: number, r: number) => {
@@ -2388,7 +2396,7 @@ function SpinWheel({ angle, spinning, onStop }: { angle: number; spinning: boole
     return `${100 + r * Math.sin(rad)} ${100 - r * Math.cos(rad)}`;
   };
   return (
-    <div className="spin-wheel-wrap">
+    <div className="spin-wheel-wrap" ref={wrapRef}>
       <span className="spin-pointer" aria-hidden="true" />
       <svg
         className={`spin-wheel ${spinning ? "is-spinning" : ""}`}
@@ -2423,6 +2431,43 @@ function SpinWheel({ angle, spinning, onStop }: { angle: number; spinning: boole
   );
 }
 
+/** Diamantes que saem de `from` e voam até `to` (ex.: da roleta até o saldo). */
+function GemFlight({ from, to, count }: { from: HTMLElement | null; to: HTMLElement | null; count: number }) {
+  const [path, setPath] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!from || !to || prefersReducedMotion()) return;
+    const a = from.getBoundingClientRect();
+    const b = to.getBoundingClientRect();
+    const x = a.left + a.width / 2;
+    const y = a.top + a.height / 2;
+    setPath({ x, y, dx: b.left + b.width / 2 - x, dy: b.top + b.height / 2 - y });
+  }, [from, to]);
+  if (!path) return null;
+  return createPortal(
+    <div className="gem-flight" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          style={
+            {
+              left: path.x,
+              top: path.y,
+              "--i": i,
+              "--dx": `${path.dx}px`,
+              "--dy": `${path.dy}px`,
+              // Espalha para os lados antes de seguir até o saldo.
+              "--spread": `${(i % 2 ? 1 : -1) * (24 + ((i * 29) % 60))}px`,
+            } as React.CSSProperties
+          }
+        >
+          💎
+        </span>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 /** Roleta diária: um giro por dia, o prêmio vem do banco e a roleta para nele. */
 function DailySpinModal({
   session,
@@ -2437,6 +2482,14 @@ function DailySpinModal({
   const [result, setResult] = useState<SpinResult | null>(null);
   const [angle, setAngle] = useState(0);
   const [error, setError] = useState("");
+  const [wheelEl, setWheelEl] = useState<HTMLDivElement | null>(null);
+  const [balanceEl, setBalanceEl] = useState<HTMLElement | null>(null);
+  const celebrate = phase === "done" && !!result?.is_new;
+  // O saldo conta a partir do valor de antes do prêmio, enquanto os diamantes chegam.
+  const balance = useAnimatedNumber(phase === "done" && result ? result.balance : null, {
+    from: celebrate && result ? result.balance - result.prize : undefined,
+    delay: 700,
+  });
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -2490,13 +2543,29 @@ function DailySpinModal({
             : "Um giro por dia, de 1 a 20 💎."}
         </p>
 
-        <SpinWheel angle={angle} spinning={phase === "spinning"} onStop={() => result && phase === "spinning" && finish(result)} />
+        <SpinWheel
+          angle={angle}
+          spinning={phase === "spinning"}
+          onStop={() => result && phase === "spinning" && finish(result)}
+          wrapRef={setWheelEl}
+        />
+        {celebrate && result ? <GemFlight from={wheelEl} to={balanceEl} count={Math.min(10, Math.max(4, result.prize))} /> : null}
 
         <div className="spin-foot" aria-live="polite">
           {phase === "done" && result ? (
             <>
               <strong className="spin-prize">+{result.prize} 💎</strong>
-              <span className="spin-balance">Saldo: {result.balance}</span>
+              <span className="spin-balance">
+                Saldo:{" "}
+                <strong
+                  ref={setBalanceEl}
+                  className={`count-up ${balance !== result.balance ? "is-counting" : ""}`}
+                  aria-hidden="true"
+                >
+                  {balance ?? result.balance}
+                </strong>
+                <span className="sr-only">{result.balance}</span>
+              </span>
               <button type="button" className="btn btn-primary" onClick={onClose}>
                 Boa!
               </button>
@@ -2533,6 +2602,7 @@ function DiamondShopPage({
   const [showAll, setShowAll] = useState(false);
   const [spin, setSpin] = useState<{ spun_today: boolean; prize: number | null } | null>(null);
   const [spinOpen, setSpinOpen] = useState(false);
+  const shownBalance = useAnimatedNumber(wallet ? wallet.balance : null);
 
   const load = useCallback(() => {
     return Promise.all([fetchWallet(session), fetchDiamondHistory(session), fetchSpinStatus(session).catch(() => null)])
@@ -2593,7 +2663,9 @@ function DiamondShopPage({
         <span className="shop-hero-gem" aria-hidden="true">
           💎
         </span>
-        <strong>{wallet ? wallet.balance : "–"}</strong>
+        <strong className={`count-up ${wallet && shownBalance !== wallet.balance ? "is-counting" : ""}`}>
+          {shownBalance ?? "–"}
+        </strong>
         <span>diamantes</span>
       </header>
 
@@ -3494,6 +3566,7 @@ function ProfilePage({
 }) {
   const user = session.user;
   const [diamonds, setDiamonds] = useState<number | null>(null);
+  const shownDiamonds = useAnimatedNumber(diamonds);
   useEffect(() => {
     let alive = true;
     fetchWallet(session)
@@ -3645,7 +3718,8 @@ function ProfilePage({
           {Icon.back} Voltar
         </button>
         <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
-          <span aria-hidden="true">💎</span> <strong>{diamonds ?? "–"}</strong>
+          <span aria-hidden="true">💎</span>{" "}
+          <strong className={`count-up ${shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
           <span className="sr-only"> diamantes</span> · Loja
         </button>
       </nav>
@@ -5286,15 +5360,17 @@ export function App() {
     }
     prevChapterIdxRef.current = null;
     readerGeneration.current++;
-    setBook(b);
-    setLoading(false);
-    setCast(null);
-    setActiveCharId("");
-    setThreads({});
-    setError(null);
-    setInput("");
-    setChatOpen(false);
-    window.scrollTo({ top: 0 });
+    openBookWithTransition(() => {
+      setBook(b);
+      setLoading(false);
+      setCast(null);
+      setActiveCharId("");
+      setThreads({});
+      setError(null);
+      setInput("");
+      setChatOpen(false);
+      window.scrollTo({ top: 0 });
+    });
   }, [authLoading, canRead]);
 
   const requestImport = useCallback(
@@ -7302,7 +7378,7 @@ export function App() {
               ),
             )}
             {loading && character ? (
-              <div className="msg msg-assistant">
+              <div className="msg msg-assistant is-typing">
                 <Avatar character={character} size="sm" bookTitle={book.title} generate />
                 <div className="bubble assistant typing" aria-label={`${character.name} está escrevendo`}>
                   <span />

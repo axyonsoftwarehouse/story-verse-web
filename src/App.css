@@ -1658,7 +1658,7 @@
   display: flex;
   align-items: flex-end;
   gap: 0.5rem;
-  animation: rise 0.35s var(--ease-out) both;
+  animation: fade-in 0.2s var(--ease-out) both;
 }
 
 .msg-user {
@@ -7579,4 +7579,174 @@ button.ranking-diamonds {
 
 .install-copy {
   width: 100%;
+}
+
+/* ------------------------------ Movimento ------------------------------ */
+
+/* Toque: o botão afunda um pouco, como um botão de verdade. */
+.btn:active:not(:disabled),
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.95);
+  transition-duration: 0.06s;
+}
+
+/* Chat: a fala do personagem nasce do avatar; a sua, do canto de onde sai. */
+.msg-assistant .bubble {
+  transform-origin: 0% 100%;
+  animation: bubble-in 0.42s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.msg-user .bubble {
+  transform-origin: 100% 100%;
+  animation: bubble-in 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.msg-assistant .avatar {
+  animation: avatar-hop 0.4s var(--ease-out) both;
+}
+
+/* Enquanto o personagem escreve, o retrato "respira". */
+.msg-assistant.is-typing .avatar {
+  animation: avatar-think 1.4s ease-in-out infinite;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes avatar-hop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes avatar-think {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 2px rgba(0, 0, 0, 0.35),
+      0 0 0 0 var(--c);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow:
+      0 0 0 2px rgba(0, 0, 0, 0.35),
+      0 0 0 5px color-mix(in srgb, var(--c) 35%, transparent);
+  }
+}
+
+/* Diamantes ganhos voam até o saldo. */
+.gem-flight {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.gem-flight span {
+  position: absolute;
+  font-size: 1.35rem;
+  line-height: 1;
+  translate: -50% -50%;
+  opacity: 0;
+  animation: gem-fly 1s cubic-bezier(0.55, 0, 0.7, 0.2) calc(var(--i) * 60ms) forwards;
+}
+
+@keyframes gem-fly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(var(--spread), -60px) scale(1.15);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0.45);
+  }
+}
+
+/* Número contando: brilha e cresce um pouco até parar. */
+.count-up {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color 0.3s,
+    transform 0.3s var(--ease-out);
+}
+
+.count-up.is-counting {
+  color: var(--accent-2);
+  transform: scale(1.15);
+}
+
+/* Abrir livro: a capa tocada cresce até virar a tela de leitura. */
+.vt-open-book .reader {
+  view-transition-name: sv-book;
+}
+
+::view-transition-group(sv-book) {
+  overflow: clip;
+  border-radius: 12px;
+  animation-duration: 0.5s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(sv-book),
+::view-transition-new(sv-book) {
+  height: 100%;
+  object-fit: cover;
+}
+
+::view-transition-old(sv-book) {
+  animation-duration: 0.3s;
+}
+
+::view-transition-new(sv-book) {
+  animation-duration: 0.45s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not(:disabled),
+  .icon-btn:active:not(:disabled) {
+    transform: none;
+  }
+
+  .msg .bubble,
+  .msg .avatar,
+  .msg-assistant.is-typing .avatar {
+    animation: none;
+  }
+
+  .gem-flight {
+    display: none;
+  }
+
+  .count-up.is-counting {
+    transform: none;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
