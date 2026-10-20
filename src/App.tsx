@@ -22,7 +22,7 @@ import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type 
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
-import { openBookWithTransition, prefersReducedMotion, useAnimatedNumber } from "./lib/motion";
+import { haptic, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
 import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
@@ -2512,6 +2512,7 @@ function DailySpinModal({
 
   function finish(r: SpinResult) {
     setPhase("done");
+    if (r.is_new) haptic([20, 40, 20]);
     onWon(r);
   }
 
@@ -4260,8 +4261,115 @@ function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
   );
 }
 
+/**
+ * Exemplo do topo da página "acontecendo": a pergunta chega, o personagem escreve e a resposta
+ * vai sendo digitada; depois recomeça. Os balões guardam o espaço desde o início (nada pula).
+ */
+function DemoConversation({ question, answer }: { question: string; answer: string }) {
+  const [step, setStep] = useState(() => (prefersReducedMotion() ? 3 : 0));
+  const [typed, setTyped] = useState(() => (prefersReducedMotion() ? answer.length : 0));
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    let alive = true;
+    const timers: number[] = [];
+    const wait = (ms: number) => new Promise<void>((r) => timers.push(window.setTimeout(r, ms)));
+    void (async () => {
+      while (alive) {
+        setStep(0);
+        setTyped(0);
+        await wait(700);
+        if (!alive) return;
+        setStep(1);
+        await wait(1100);
+        if (!alive) return;
+        setStep(2);
+        await wait(1600);
+        if (!alive) return;
+        setStep(3);
+        for (let i = 2; i < answer.length && alive; i += 2) {
+          setTyped(i);
+          await wait(26);
+        }
+        setTyped(answer.length);
+        await wait(7000);
+      }
+    })();
+    return () => {
+      alive = false;
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [answer]);
+  return (
+    <>
+      <div className={`bubble user demo-bubble ${step >= 1 ? "is-shown" : ""}`}>{question}</div>
+      <div className={`bubble assistant demo-bubble ${step >= 2 ? "is-shown" : ""}`}>
+        {answer.slice(0, step >= 3 ? typed : 0)}
+        <span className="demo-rest">{answer.slice(step >= 3 ? typed : 0)}</span>
+        {step === 2 ? (
+          <span className="demo-typing typing" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 /** Comemoração no centro da tela (meta do dia, sequência, livro terminado). */
-type Celebration = { emoji: string; title: string; text?: string };
+type Celebration = {
+  emoji: string;
+  title: string;
+  text?: string;
+  /** Livro terminado: a capa aparece no lugar do emoji, com brilho dourado. */
+  book?: Ebook;
+  /** Sequência que subiu: o número antigo sai e o novo entra. */
+  roll?: { from: number; to: number; suffix: string };
+};
+
+function CelebrationOverlay({ celebration, onClose }: { celebration: Celebration; onClose: () => void }) {
+  useEffect(() => {
+    haptic(celebration.book ? [30, 60, 30, 60, 90] : [25, 50, 40]);
+  }, [celebration]);
+  const { book, roll } = celebration;
+  const pieces = book ? 24 : 14;
+  return (
+    <div className={`celebration ${book ? "is-book" : ""} ${roll ? "is-streak" : ""}`} role="status" onClick={onClose}>
+      <div className="celebration-card">
+        {book ? (
+          <div className="celebration-cover" aria-hidden="true">
+            <BookCover book={book} />
+          </div>
+        ) : (
+          <span className="celebration-emoji" aria-hidden="true">
+            {celebration.emoji}
+          </span>
+        )}
+        {roll ? (
+          <strong>
+            <span className="sr-only">{celebration.title}</span>
+            <span className="roll-title" aria-hidden="true">
+              <span className="roll">
+                <span className="roll-old">{roll.from}</span>
+                <span className="roll-new">{roll.to}</span>
+              </span>{" "}
+              {roll.suffix}
+            </span>
+          </strong>
+        ) : (
+          <strong>{celebration.title}</strong>
+        )}
+        {celebration.text ? <span>{celebration.text}</span> : null}
+      </div>
+      <div className="celebration-burst" aria-hidden="true" style={{ "--step": `${360 / pieces}deg` } as React.CSSProperties}>
+        {Array.from({ length: pieces }, (_, i) => (
+          <i key={i} style={{ "--i": i } as React.CSSProperties} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** Quantos livros "Continue lendo" mostra antes de "Ver todos". */
 const CONTINUE_PREVIEW = 4;
@@ -5271,7 +5379,7 @@ export function App() {
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   useEffect(() => {
     if (!celebration) return;
-    const t = window.setTimeout(() => setCelebration(null), 4200);
+    const t = window.setTimeout(() => setCelebration(null), celebration.book ? 6500 : 4200);
     return () => window.clearTimeout(t);
   }, [celebration]);
   /** Semana do ranking fechada: parabéns para quem ficou no pódio (uma vez só, ao abrir o app). */
@@ -5360,6 +5468,17 @@ export function App() {
   }, []);
   /** Redesenha a página inicial quando um livro importado é removido (sai de "Continue lendo"). */
   const [homeTick, setHomeTick] = useState(0);
+  /** Página inicial: estantes entram ao aparecer na tela; a barra do topo encolhe ao rolar. */
+  const homeRef = useRef<HTMLDivElement>(null);
+  useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length]);
+  const [navScrolled, setNavScrolled] = useState(false);
+  useEffect(() => {
+    if (book) return;
+    const onScroll = () => setNavScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [book]);
   /** Ids da comunidade aprovados agora (`null`: lista ainda não veio ou falhou — não esconde nada). */
   const [communityIds, setCommunityIds] = useState<Set<string> | null>(null);
   useEffect(() => {
@@ -5747,6 +5866,7 @@ export function App() {
       setCelebration({
         emoji: "🔥",
         title: n === 1 ? "Sequência começou!" : `${n} dias seguidos!`,
+        roll: n > 1 ? { from: n - 1, to: n, suffix: "dias seguidos!" } : undefined,
         text: ev.shieldEarned
           ? "Você ganhou um escudo 🛡️: se um dia passar sem leitura, ele salva a sua sequência."
           : milestone
@@ -5834,7 +5954,12 @@ export function App() {
     finishedChaptersRef.current.add(key);
     if (chapterIndex >= chapters.length - 1) {
       markBookFinished(book);
-      setCelebration({ emoji: "🏆", title: `Você terminou “${book.title}”!`, text: "Que jornada. Conte para os personagens o que achou do final." });
+      setCelebration({
+        emoji: "🏆",
+        title: `Você terminou “${book.title}”!`,
+        text: "Que jornada. Conte para os personagens o que achou do final.",
+        book,
+      });
     } else {
       setToast(`✓ ${currentChapter.label} concluído`);
     }
@@ -6453,7 +6578,7 @@ export function App() {
     /** Já entrou e pode ler: sem a apresentação do app, direto para os livros. */
     const returning = Boolean(authUser) && canRead;
     return (
-      <div className={`home ${returning ? "is-returning" : ""}`} key={dataEpoch}>
+      <div className={`home ${returning ? "is-returning" : ""}`} key={dataEpoch} ref={homeRef}>
         {authModal ? (
           <AuthModal
             mode={authModal}
@@ -6483,7 +6608,7 @@ export function App() {
             }}
           />
         ) : null}
-        <nav className="home-nav">
+        <nav className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
             Storyverse
@@ -6720,8 +6845,7 @@ export function App() {
                     <small>{heroBook.title}</small>
                   </div>
                 </div>
-                <div className="bubble user">{heroBook.demo.question}</div>
-                <div className="bubble assistant">{heroBook.demo.answer}</div>
+                <DemoConversation question={heroBook.demo.question} answer={heroBook.demo.answer} />
               </div>
             </button>
           ) : null}
@@ -6886,22 +7010,7 @@ export function App() {
           </>
         ) : null}
 
-        {celebration ? (
-          <div className="celebration" role="status" onClick={() => setCelebration(null)}>
-            <div className="celebration-card">
-              <span className="celebration-emoji" aria-hidden="true">
-                {celebration.emoji}
-              </span>
-              <strong>{celebration.title}</strong>
-              {celebration.text ? <span>{celebration.text}</span> : null}
-            </div>
-            <div className="celebration-burst" aria-hidden="true">
-              {Array.from({ length: 14 }, (_, i) => (
-                <i key={i} style={{ "--i": i } as React.CSSProperties} />
-              ))}
-            </div>
-          </div>
-        ) : null}
+        {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
 
         {updateBanner}
 
@@ -7492,22 +7601,7 @@ export function App() {
           </div>
         ) : null}
 
-        {celebration ? (
-          <div className="celebration" role="status" onClick={() => setCelebration(null)}>
-            <div className="celebration-card">
-              <span className="celebration-emoji" aria-hidden="true">
-                {celebration.emoji}
-              </span>
-              <strong>{celebration.title}</strong>
-              {celebration.text ? <span>{celebration.text}</span> : null}
-            </div>
-            <div className="celebration-burst" aria-hidden="true">
-              {Array.from({ length: 14 }, (_, i) => (
-                <i key={i} style={{ "--i": i } as React.CSSProperties} />
-              ))}
-            </div>
-          </div>
-        ) : null}
+        {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
 
         {updateBanner}
 

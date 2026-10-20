@@ -3940,7 +3940,7 @@
   line-height: 1.25;
 }
 
-.celebration-card span {
+.celebration-card > span {
   font-size: 0.88rem;
   line-height: 1.5;
   color: var(--muted);
@@ -3967,7 +3967,7 @@
   height: 10px;
   border-radius: 2px;
   background: var(--accent);
-  transform: rotate(calc(var(--i) * 25.7deg)) translateY(0);
+  transform: rotate(calc(var(--i) * var(--step, 25.7deg))) translateY(0);
   opacity: 0;
   animation: burst 1.6s var(--ease-out) 0.15s forwards;
 }
@@ -3984,14 +3984,14 @@
 @keyframes burst {
   0% {
     opacity: 1;
-    transform: rotate(calc(var(--i) * 25.7deg)) translateY(0) scale(1);
+    transform: rotate(calc(var(--i) * var(--step, 25.7deg))) translateY(0) scale(1);
   }
   70% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: rotate(calc(var(--i) * 25.7deg)) translateY(-190px) scale(0.6);
+    transform: rotate(calc(var(--i) * var(--step, 25.7deg))) translateY(-190px) scale(0.6);
   }
 }
 
@@ -7950,5 +7950,281 @@ button.ranking-diamonds {
 
   .ranking-actions {
     gap: 0.3rem;
+  }
+}
+
+/* --------------------------- Movimento (parte 2) --------------------------- */
+
+/* Topo: a demonstração conversa sozinha. O balão guarda o espaço desde o início. */
+.demo-bubble {
+  position: relative;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.3s var(--ease-out),
+    transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.demo-bubble.user {
+  transform-origin: 100% 100%;
+}
+
+.demo-bubble.assistant {
+  transform-origin: 0% 100%;
+}
+
+.demo-bubble.is-shown {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.demo-rest {
+  opacity: 0;
+}
+
+.demo-typing {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.demo-typing span {
+  background: var(--muted);
+}
+
+/* Barra do topo: fica presa ao rolar, mais baixa e com fundo desfocado. */
+.home-nav-main {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  transition:
+    padding 0.25s var(--ease-out),
+    background 0.25s,
+    box-shadow 0.25s;
+}
+
+.home-nav-main.is-scrolled {
+  padding: 0.6rem 0;
+  background: rgba(12, 10, 8, 0.82);
+  backdrop-filter: blur(14px);
+  /* O fundo vai de ponta a ponta da tela, além da largura do conteúdo. */
+  box-shadow: 0 0 0 100vmax rgba(12, 10, 8, 0.82);
+  clip-path: inset(0 -100vmax);
+}
+
+/* Continue lendo: a barra enche até onde você parou. */
+.continue-bar > span {
+  animation: bar-fill 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+@keyframes bar-fill {
+  from {
+    width: 0;
+  }
+}
+
+/* Estantes e passos: entram quando aparecem na tela, um item depois do outro. */
+.will-reveal .shelf-head,
+.will-reveal .row-card,
+.will-reveal .result-grid > *,
+.steps.will-reveal .step {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.will-reveal.is-in .shelf-head,
+.will-reveal.is-in .row-card,
+.will-reveal.is-in .result-grid > *,
+.steps.will-reveal.is-in .step {
+  animation: reveal-in 0.55s var(--ease-out) both;
+}
+
+.will-reveal.is-in :is(.row-card, .result-grid > *, .step):nth-child(2) {
+  animation-delay: 0.07s;
+}
+.will-reveal.is-in :is(.row-card, .result-grid > *, .step):nth-child(3) {
+  animation-delay: 0.14s;
+}
+.will-reveal.is-in :is(.row-card, .result-grid > *, .step):nth-child(4) {
+  animation-delay: 0.21s;
+}
+.will-reveal.is-in :is(.row-card, .result-grid > *, .step):nth-child(5) {
+  animation-delay: 0.28s;
+}
+.will-reveal.is-in :is(.row-card, .result-grid > *, .step):nth-child(n + 6) {
+  animation-delay: 0.35s;
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Livro terminado: a capa no centro, com um brilho dourado passando. */
+.celebration-cover {
+  position: relative;
+  width: 110px;
+  margin-bottom: 0.4rem;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(228, 184, 106, 0.5),
+    0 14px 40px -10px rgba(228, 184, 106, 0.6);
+  animation: cover-rise 0.8s cubic-bezier(0.34, 1.4, 0.64, 1) 0.1s both;
+}
+
+.celebration-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 230, 170, 0.65) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: cover-shine 1.4s ease-in-out 0.8s 2;
+}
+
+.celebration.is-book .celebration-card {
+  border-color: rgba(228, 184, 106, 0.6);
+}
+
+.celebration.is-book .celebration-burst i {
+  background: #e4b86a;
+}
+
+.celebration.is-book .celebration-burst i:nth-child(3n) {
+  background: #fff1c9;
+}
+
+@keyframes cover-rise {
+  from {
+    opacity: 0;
+    transform: translateY(30px) rotate(-6deg) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cover-shine {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+/* Sequência: o número antigo sobe e sai, o novo entra; a chama dá um estouro. */
+.roll {
+  display: inline-grid;
+  overflow: hidden;
+  vertical-align: bottom;
+  color: var(--accent);
+}
+
+.roll > span {
+  grid-area: 1 / 1;
+}
+
+.roll-old {
+  animation: roll-out 0.5s cubic-bezier(0.55, 0, 0.45, 1) 0.6s both;
+}
+
+.roll-new {
+  animation: roll-in 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) 0.6s both;
+}
+
+.celebration.is-streak .celebration-emoji {
+  animation:
+    bounce 1s var(--ease-out) 0.2s both,
+    flame-flare 0.7s ease-out 0.6s both;
+}
+
+@keyframes roll-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes roll-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes flame-flare {
+  40% {
+    transform: scale(1.35);
+    filter: drop-shadow(0 0 18px rgba(255, 140, 40, 0.9));
+  }
+  100% {
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+/* Celular: janelas sobem de baixo, como as gavetas do sistema. */
+@media (max-width: 640px) {
+  .about-backdrop,
+  .import-overlay {
+    place-items: end center;
+    padding-bottom: 0;
+  }
+
+  .about-backdrop > section,
+  .import-overlay > .import-panel {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    animation: sheet-up 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-bubble,
+  .demo-rest {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .home-nav-main {
+    transition: none;
+  }
+
+  .continue-bar > span,
+  .celebration-cover,
+  .celebration-cover::after,
+  .roll-old,
+  .roll-new,
+  .celebration.is-streak .celebration-emoji,
+  .about-backdrop > section,
+  .import-overlay > .import-panel {
+    animation: none;
+  }
+
+  .roll-old {
+    display: none;
   }
 }
