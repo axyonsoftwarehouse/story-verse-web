@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/react";
+
 export type TelemetryLevel = "error" | "warn" | "info";
 
 export type TelemetryEvent = {
@@ -18,11 +20,66 @@ let events: TelemetryEvent[] = [];
 let vitals: TelemetryVitals = {};
 const listeners = new Set<() => void>();
 let installed = false;
+let sentryEnabled = false;
 
 function redact(text: string): string {
   return text.replace(/https?:\/\/[^\s"'<>]+/g, (value) => {
     try { const url = new URL(value); return url.origin + url.pathname; } catch { return "[URL]"; }
   }).replace(/((?:access_token|refresh_token|password|authorization|api[_-]?key)\s*[=:]\s*)[^&\s]+/gi, "$1[redacted]");
+}
+
+function initSentry(): void {
+  const dsn = import.meta.env.VITE_SENTRY_DSN?.trim();
+  if (!dsn) return;
+  const sampleRate = Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE ?? "0");
+  try {
+    Sentry.init({
+      dsn,
+      environment: import.meta.env.VITE_SENTRY_ENVIRONMENT?.trim() || import.meta.env.MODE,
+      release: import.meta.env.VITE_SENTRY_RELEASE?.trim() || appVersion(),
+      dataCollection: {
+        userInfo: false,
+        cookies: false,
+        httpHeaders: false,
+        httpBodies: [],
+        urlQueryParams: false,
+        graphQL: { document: false, variables: false },
+        genAI: { inputs: false, outputs: false },
+        databaseQueryData: false,
+        queues: false,
+        stackFrameVariables: false,
+      },
+      tracesSampleRate: Number.isFinite(sampleRate) ? Math.min(1, Math.max(0, sampleRate)) : 0,
+      // Os erros globais já passam pelo buffer local abaixo; evita evento duplicado.
+      integrations: (defaults) => defaults.filter((integration) => integration.name !== "GlobalHandlers"),
+      beforeSend(event) {
+        event.user = undefined;
+        event.request = undefined;
+        event.breadcrumbs = undefined;
+        if (event.extra) event.extra = sanitizeTelemetry(event.extra);
+        if (event.contexts) event.contexts = sanitizeTelemetry(event.contexts);
+        if (event.tags) event.tags = sanitizeTelemetry(event.tags);
+        return event;
+      },
+      beforeBreadcrumb(breadcrumb) {
+        if (breadcrumb.message) breadcrumb.message = redact(breadcrumb.message);
+        if (breadcrumb.data) breadcrumb.data = sanitizeTelemetry(breadcrumb.data);
+        return breadcrumb;
+      },
+    });
+    sentryEnabled = true;
+  } catch (error) {
+    console.warn("Sentry não inicializou:", error);
+  }
+}
+
+/** Dispara um evento de teste para confirmar a integração no painel do Sentry. */
+export function sendSentryTest(): boolean {
+  if (!sentryEnabled) return false;
+  Sentry.captureException(new Error("Storyverse: teste de integração com o Sentry"), {
+    tags: { kind: "sentry-test" },
+  });
+  return true;
 }
 
 export function sanitizeTelemetry<T>(value: T): T {
@@ -101,14 +158,19 @@ function detailOf(error: unknown): string | undefined {
 }
 
 export function captureError(kind: string, error: unknown, context?: Record<string, unknown>): void {
+  const safeContext = context ? sanitizeTelemetry(context) : undefined;
   push({
     at: Date.now(),
     level: "error",
     kind,
     message: messageOf(error),
     detail: detailOf(error),
-    context,
+    context: safeContext,
   });
+  if (sentryEnabled) {
+    const exception = error instanceof Error ? error : new Error(messageOf(error));
+    Sentry.captureException(exception, { tags: { kind }, extra: safeContext });
+  }
 }
 
 export function captureEvent(
@@ -117,7 +179,18 @@ export function captureEvent(
   message: string,
   context?: Record<string, unknown>,
 ): void {
-  push({ at: Date.now(), level, kind, message, context });
+  const safeContext = context ? sanitizeTelemetry(context) : undefined;
+  push({ at: Date.now(), level, kind, message, context: safeContext });
+  if (!sentryEnabled) return;
+  if (level === "info") {
+    Sentry.addBreadcrumb({ category: kind, message, level: "info", data: safeContext });
+  } else {
+    Sentry.captureMessage(message, {
+      level: level === "error" ? "error" : "warning",
+      tags: { kind },
+      extra: safeContext,
+    });
+  }
 }
 
 function appVersion(): string {
@@ -181,6 +254,7 @@ function observeVitals(): void {
 export function installTelemetry(): void {
   if (installed) return;
   installed = true;
+  initSentry();
   restore();
 
   window.addEventListener("error", (event) => {

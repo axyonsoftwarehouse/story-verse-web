@@ -36,6 +36,9 @@ jobs:
       - name: Build
         env:
           VITE_API_URL: https://api.storyverse.2.29.42.104.sslip.io
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: test
+          VITE_SENTRY_RELEASE: ${{ github.sha }}
         run: npm run build
 
   # Push na main: produção (só depois de lint, testes e build passarem).
@@ -73,14 +76,18 @@ jobs:
         if: steps.token.outputs.ok == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
         run: |
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           for envfile in .vercel/.env.*.local; do
             [ -e "$envfile" ] || continue
             sed -i -E '/^VITE_(GROQ|GEMINI|OPENROUTER)_/d; /^VITE_SUPABASE_/d' "$envfile"
-            sed -i '/^VITE_API_URL=/d' "$envfile"
+            sed -i '/^VITE_API_URL=/d; /^VITE_SENTRY_/d' "$envfile"
             printf 'VITE_API_URL=%s\n' "$STORYVERSE_API_URL" >> "$envfile"
+            printf 'VITE_SENTRY_DSN=%s\n' "$SENTRY_DSN" >> "$envfile"
+            printf 'VITE_SENTRY_ENVIRONMENT=production\n' >> "$envfile"
+            printf 'VITE_SENTRY_RELEASE=%s\n' "$GITHUB_SHA" >> "$envfile"
           done
           echo "::warning::Chaves VITE_* de IA e Supabase removidas do build. Remova-as do painel da Vercel (pendente)."
           vercel build --prod --token="$VERCEL_TOKEN"
