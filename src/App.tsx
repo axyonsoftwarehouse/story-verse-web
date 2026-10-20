@@ -2571,7 +2571,7 @@ function DailySpinModal({
                 Saldo:{" "}
                 <strong
                   ref={setBalanceEl}
-                  className={`count-up ${balance !== result.balance ? "is-counting" : ""}`}
+                  className={`count-up ${balance !== null && balance !== result.balance ? "is-counting" : ""}`}
                   aria-hidden="true"
                 >
                   {balance ?? result.balance}
@@ -2675,7 +2675,7 @@ function DiamondShopPage({
         <span className="shop-hero-gem" aria-hidden="true">
           💎
         </span>
-        <strong className={`count-up ${wallet && shownBalance !== wallet.balance ? "is-counting" : ""}`}>
+        <strong className={`count-up ${wallet && shownBalance !== null && shownBalance !== wallet.balance ? "is-counting" : ""}`}>
           {shownBalance ?? "–"}
         </strong>
         <span>diamantes</span>
@@ -3902,7 +3902,7 @@ function ProfilePage({
         </button>
         <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
           <span aria-hidden="true">💎</span>{" "}
-          <strong className={`count-up ${shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
+          <strong className={`count-up ${shownDiamonds !== null && shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
           <span className="sr-only"> diamantes</span> · Loja
         </button>
       </nav>
