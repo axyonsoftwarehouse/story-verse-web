@@ -18,7 +18,14 @@ export type Wallet = {
   goal_reward: number;
 };
 
-export type DiamondReason = "ranking" | "reading_goal" | "streak_freeze" | "purchase" | "adjustment";
+export type DiamondReason =
+  | "ranking"
+  | "reading_goal"
+  | "streak_freeze"
+  | "daily_spin"
+  | "purchase"
+  | "adjustment"
+  | "gift_sent";
 
 export type DiamondEntry = { amount: number; balance_after: number; reason: DiamondReason; ref: string; created_at: string };
 
@@ -49,6 +56,10 @@ export function diamondEntryLabel(e: DiamondEntry): string {
       return `Leitura do dia ${day(e.ref)}`;
     case "streak_freeze":
       return `Salva-ofensiva (${day(e.ref)})`;
+    case "daily_spin":
+      return `Roleta do dia ${day(e.ref)}`;
+    case "gift_sent":
+      return "Presente enviado";
     case "purchase":
       return "Compra de diamantes";
     default:
