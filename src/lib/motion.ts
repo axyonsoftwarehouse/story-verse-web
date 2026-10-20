@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type DependencyList, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type DependencyList,
+  type RefObject,
+} from "react";
 import { flushSync } from "react-dom";
 
 /**
@@ -14,11 +21,17 @@ type ViewTransitionDoc = { startViewTransition?: (update: () => void) => { finis
 
 /** Último toque: de onde saiu o pedido para abrir o livro (cartão, botão "Ler"...). */
 let lastPress: { el: Element; at: number } | null = null;
+let lastPressTimer = 0;
 if (typeof window !== "undefined") {
   window.addEventListener(
     "pointerdown",
     (e) => {
-      if (e.target instanceof Element) lastPress = { el: e.target, at: Date.now() };
+      if (!(e.target instanceof Element)) return;
+      lastPress = { el: e.target, at: Date.now() };
+      window.clearTimeout(lastPressTimer);
+      lastPressTimer = window.setTimeout(() => {
+        lastPress = null;
+      }, 1500);
     },
     true,
   );
@@ -26,7 +39,10 @@ if (typeof window !== "undefined") {
 
 /** A capa do cartão tocado agora há pouco, subindo alguns níveis a partir do toque. */
 function pressedCover(): HTMLElement | null {
-  if (!lastPress || Date.now() - lastPress.at > 1500) return null;
+  if (!lastPress || Date.now() - lastPress.at > 1500) {
+    lastPress = null;
+    return null;
+  }
   let el: Element | null = lastPress.el;
   for (let i = 0; el && i < 5; i++, el = el.parentElement) {
     const cover = el.matches(".cover") ? el : el.querySelector(".cover");
@@ -47,20 +63,24 @@ export function openBookWithTransition(update: () => void) {
   }
   const cover = pressedCover();
   lastPress = null;
+  window.clearTimeout(lastPressTimer);
   // Só um elemento pode ter o nome por vez: a capa na foto "antes", o leitor na foto "depois".
   cover?.style.setProperty("view-transition-name", "sv-book");
   const root = document.documentElement;
   root.classList.add("vt-open-book");
+  const cleanup = () => {
+    cover?.style.removeProperty("view-transition-name");
+    root.classList.remove("vt-open-book");
+  };
   try {
     doc
       .startViewTransition(() => {
         cover?.style.removeProperty("view-transition-name");
         flushSync(update);
       })
-      .finished.finally(() => root.classList.remove("vt-open-book"));
+      .finished.finally(cleanup);
   } catch {
-    cover?.style.removeProperty("view-transition-name");
-    root.classList.remove("vt-open-book");
+    cleanup();
     update();
   }
 }
@@ -74,7 +94,7 @@ export function useAnimatedNumber(value: number | null, opts: { from?: number; d
   const shownRef = useRef<number | null>(value);
   const { from, delay = 0, duration = 900 } = opts;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const set = (v: number | null) => {
       shownRef.current = v;
       setShown(v);
