@@ -2524,6 +2524,11 @@
     display: none;
   }
 
+  /* O "Importar meu livro" continua logo abaixo; o topo fica com Forum + conta. */
+  .nav-import {
+    display: none;
+  }
+
   .home-nav-actions .nav-login,
   .home-nav-actions .nav-register {
     min-height: 38px;
