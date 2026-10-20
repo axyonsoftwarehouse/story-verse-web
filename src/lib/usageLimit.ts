@@ -1,13 +1,19 @@
 import { userStorage } from "./dataOwner";
+
 /**
- * Limite diário de mensagens para os personagens, por navegador. Protege a cota das chaves de IA
- * de quem manda mensagem sem parar. Não é uma trava de segurança: as chaves `VITE_*` continuam
- * visíveis no navegador (a trava de verdade precisa de uma função no servidor).
+ * Limite diário de mensagens para os personagens. O valor oficial vem do servidor
+ * (`/api/v1/ai/quota`); o contador local continua como reserva para resposta instantânea e
+ * para o modo sem API.
  */
-export const DAILY_MESSAGE_LIMIT = 50;
+export const DEFAULT_DAILY_MESSAGE_LIMIT = 50;
 const KEY = "storyverse:usage";
 
-type Usage = { day: string; count: number };
+type Usage = {
+  day: string;
+  count: number;
+  serverRemaining?: number;
+  serverLimit?: number;
+};
 
 function today(): string {
   const d = new Date();
@@ -24,18 +30,41 @@ function read(): Usage {
   return { day: today(), count: 0 };
 }
 
+function write(u: Usage) {
+  try {
+    userStorage.setItem(KEY, JSON.stringify(u));
+  } catch {
+    // Sem armazenamento: o limite só não é aplicado no aparelho.
+  }
+}
+
+export function dailyMessageLimit(): number {
+  return Math.max(1, read().serverLimit ?? DEFAULT_DAILY_MESSAGE_LIMIT);
+}
+
 export function messagesLeftToday(): number {
-  return Math.max(0, DAILY_MESSAGE_LIMIT - read().count);
+  const u = read();
+  if (typeof u.serverRemaining === "number") {
+    return Math.max(0, Math.floor(u.serverRemaining));
+  }
+  return Math.max(0, dailyMessageLimit() - u.count);
+}
+
+/** Atualiza o restante com o valor devolvido pelo servidor (fonte da verdade). */
+export function applyServerQuota(remaining: number, limit?: number): void {
+  if (!Number.isFinite(remaining)) return;
+  const u = read();
+  u.serverRemaining = Math.max(0, Math.floor(remaining));
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    u.serverLimit = Math.floor(limit);
+  }
+  write(u);
 }
 
 /** Conta uma resposta recebida da IA (falhas não contam). */
 export function countMessage(): number {
   const u = read();
   u.count += 1;
-  try {
-    userStorage.setItem(KEY, JSON.stringify(u));
-  } catch {
-    // Sem armazenamento: o limite só não é aplicado.
-  }
-  return Math.max(0, DAILY_MESSAGE_LIMIT - u.count);
+  write(u);
+  return messagesLeftToday();
 }

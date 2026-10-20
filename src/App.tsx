@@ -8,6 +8,7 @@ import {
   characterReply,
   detectProvider,
   providerDisplayLabel,
+  refreshAiQuota,
   USER_MESSAGE_MAX_CHARS,
   type ChatTurn,
 } from "./lib/ai";
@@ -155,7 +156,7 @@ import {
   type SpeechSession,
   type VoiceOption,
 } from "./lib/speech";
-import { countMessage, DAILY_MESSAGE_LIMIT, messagesLeftToday } from "./lib/usageLimit";
+import { countMessage, dailyMessageLimit, messagesLeftToday } from "./lib/usageLimit";
 import {
   AUTH_SESSION_STORAGE_KEY,
   AuthNetworkError,
@@ -4956,6 +4957,16 @@ export function App() {
   /** No celular o chat abre como painel por cima do texto. */
   const [chatOpen, setChatOpen] = useState(false);
   const [messagesLeft, setMessagesLeft] = useState(messagesLeftToday);
+  useEffect(() => {
+    if (!authEnabled || !authSession) return;
+    let alive = true;
+    void refreshAiQuota().then(() => {
+      if (alive) setMessagesLeft(messagesLeftToday());
+    });
+    return () => {
+      alive = false;
+    };
+  }, [authSession]);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   useEffect(() => {
     if (!celebration) return;
@@ -7324,7 +7335,7 @@ export function App() {
             <div className="limit-out" role="status">
               <strong>Por hoje é só 💛</strong>
               <span>
-                Você usou as {DAILY_MESSAGE_LIMIT} mensagens de hoje. Os personagens voltam a conversar amanhã —
+                Você usou as {dailyMessageLimit()} mensagens de hoje. Os personagens voltam a conversar amanhã —
                 enquanto isso, a leitura continua.
               </span>
             </div>
