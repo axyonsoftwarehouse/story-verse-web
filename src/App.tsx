@@ -6746,7 +6746,7 @@ export function App() {
           </button>
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn reader-theme-btn"
             onClick={() => setPrefs((p) => ({ ...p, theme: p.theme === "night" ? "sepia" : "night" }))}
             aria-label={prefs.theme === "night" ? "Mudar para modo sépia" : "Mudar para modo noturno"}
           >
