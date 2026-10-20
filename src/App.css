@@ -2542,7 +2542,8 @@
   }
 
   .home-nav-actions .nav-login,
-  .home-nav-actions .nav-register {
+  .home-nav-actions .nav-register,
+  .home-nav-actions .nav-community {
     min-height: 38px;
     padding: 0.4rem 0.62rem;
     font-size: 0.72rem;
@@ -2571,7 +2572,8 @@
   }
 
   .home-nav-actions .nav-login,
-  .home-nav-actions .nav-register {
+  .home-nav-actions .nav-register,
+  .home-nav-actions .nav-community {
     min-height: 36px;
     padding-inline: 0.48rem;
     font-size: 0.66rem;
@@ -3362,6 +3364,9 @@
 }
 
 .nav-community {
+  flex-shrink: 0;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.85rem;
   white-space: nowrap;
 }
 
@@ -7993,23 +7998,24 @@ button.ranking-diamonds {
 }
 
 /* Barra do topo: fica presa ao rolar, mais baixa e com fundo desfocado. */
+/* A altura nunca muda (senão a página pula e a barra pisca perto do topo): só o fundo aparece. */
 .home-nav-main {
   position: sticky;
   top: 0;
   z-index: 15;
+  /* O fundo vai de ponta a ponta da tela, além da largura do conteúdo. O recorte fica sempre
+     ligado: se saísse junto com o fundo, a sombra cobriria a tela por um instante. */
+  box-shadow: 0 0 0 100vmax transparent;
+  clip-path: inset(0 -100vmax);
   transition:
-    padding 0.25s var(--ease-out),
     background 0.25s,
     box-shadow 0.25s;
 }
 
 .home-nav-main.is-scrolled {
-  padding: 0.6rem 0;
   background: rgba(12, 10, 8, 0.82);
   backdrop-filter: blur(14px);
-  /* O fundo vai de ponta a ponta da tela, além da largura do conteúdo. */
   box-shadow: 0 0 0 100vmax rgba(12, 10, 8, 0.82);
-  clip-path: inset(0 -100vmax);
 }
 
 /* Continue lendo: a barra enche até onde você parou. */
@@ -8226,5 +8232,195 @@ button.ranking-diamonds {
 
   .roll-old {
     display: none;
+  }
+}
+
+/* --------------------------- Movimento (parte 3) --------------------------- */
+
+/* Capítulo novo desliza do lado para onde você foi (avançar: da direita; voltar: da esquerda). */
+.page {
+  overflow-x: hidden;
+}
+
+.prose.from-next {
+  animation: chapter-in-next 0.45s var(--ease-out) backwards;
+}
+
+.prose.from-prev {
+  animation: chapter-in-prev 0.45s var(--ease-out) backwards;
+}
+
+@keyframes chapter-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes chapter-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
+/* Título do topo: um reflexo claro atravessa "Converse com quem vive nele." de tempos em tempos.
+   O degradê se repete (início = fim) para o laço não dar salto de cor. */
+.hero-title em {
+  background: linear-gradient(110deg, #f6dcae 0%, #e4b86a 20%, #b9d6ca 40%, #fff6e0 50%, #f6dcae 60%, #e4b86a 80%, #b9d6ca 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: text-shine 7s ease-in-out 1.5s infinite;
+}
+
+@keyframes text-shine {
+  0% {
+    background-position: 0% 0;
+  }
+  30%,
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+/* Botão principal do topo: um brilho passa por ele de vez em quando. */
+.hero-actions .btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-actions .btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 250, 235, 0.55) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: btn-sheen 5s ease-in-out 2.5s infinite;
+  pointer-events: none;
+}
+
+@keyframes btn-sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  25%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+/* Avisos rápidos chegam com um pulinho. */
+.toast {
+  animation: toast-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.9);
+  }
+}
+
+/* Ranking: o troféu balança de vez em quando, chamando para o pódio. */
+.ranking-teaser-icon {
+  display: inline-block;
+  transform-origin: 50% 90%;
+  animation: trophy-wiggle 4.5s ease-in-out 1s infinite;
+}
+
+@keyframes trophy-wiggle {
+  0%,
+  78%,
+  100% {
+    transform: rotate(0);
+  }
+  82% {
+    transform: rotate(-14deg) scale(1.1);
+  }
+  86% {
+    transform: rotate(11deg) scale(1.1);
+  }
+  90% {
+    transform: rotate(-7deg);
+  }
+  94% {
+    transform: rotate(3deg);
+  }
+}
+
+/* Semana da sequência: as bolinhas aparecem uma a uma; a de hoje pulsa se ainda falta ler. */
+.streak-week li {
+  animation: dot-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.streak-week li:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.streak-week li:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.streak-week li:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.streak-week li:nth-child(5) {
+  animation-delay: 0.2s;
+}
+.streak-week li:nth-child(6) {
+  animation-delay: 0.25s;
+}
+.streak-week li:nth-child(7) {
+  animation-delay: 0.3s;
+}
+
+.streak-week li.is-today:not(.is-read):not(.is-frozen) {
+  animation:
+    dot-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both,
+    today-pulse 2.2s ease-in-out 1s infinite;
+}
+
+@keyframes dot-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+@keyframes today-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--bg-deep), 0 0 0 3px var(--accent-dim);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--bg-deep), 0 0 0 7px rgba(228, 184, 106, 0.25);
+  }
+}
+
+/* Celular: a capa afunda ao toque (no computador já inclina com o mouse). */
+.row-card:active .cover,
+.result:active .cover {
+  transform: scale(0.96);
+  transition-duration: 0.08s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose.from-next,
+  .prose.from-prev,
+  .hero-title em,
+  .hero-actions .btn-primary::after,
+  .toast,
+  .ranking-teaser-icon,
+  .streak-week li,
+  .streak-week li.is-today:not(.is-read):not(.is-frozen) {
+    animation: none;
+  }
+
+  .hero-actions .btn-primary::after {
+    display: none;
+  }
+
+  .row-card:active .cover,
+  .result:active .cover {
+    transform: none;
   }
 }

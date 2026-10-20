@@ -5352,6 +5352,13 @@ export function App() {
 
   const [fullText, setFullText] = useState("");
   const [chapterIndex, setChapterIndex] = useState(0);
+  /** Para que lado o capítulo novo entra: avançando vem da direita, voltando vem da esquerda. */
+  const shownChapterRef = useRef(chapterIndex);
+  const chapterDirRef = useRef<"next" | "prev">("next");
+  if (shownChapterRef.current !== chapterIndex) {
+    chapterDirRef.current = chapterIndex > shownChapterRef.current ? "next" : "prev";
+    shownChapterRef.current = chapterIndex;
+  }
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -5474,7 +5481,8 @@ export function App() {
   const [navScrolled, setNavScrolled] = useState(false);
   useEffect(() => {
     if (book) return;
-    const onScroll = () => setNavScrolled(window.scrollY > 24);
+    // Margem entre ligar e desligar: perto do limite a barra não fica alternando.
+    const onScroll = () => setNavScrolled((on) => (on ? window.scrollY > 8 : window.scrollY > 40));
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -7306,7 +7314,8 @@ export function App() {
 
           {ready && currentChapter ? (
             <article
-              className="prose"
+              key={chapterIndex}
+              className={`prose from-${chapterDirRef.current}`}
               aria-label="Texto do capítulo"
               onMouseUp={handleSelection}
               onTouchEnd={handleSelection}
