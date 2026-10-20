@@ -5,6 +5,7 @@ import {
   clearTelemetry,
   getVitals,
   listTelemetry,
+  sendSentryTest,
   subscribeTelemetry,
 } from "../lib/telemetry";
 
@@ -75,6 +76,7 @@ export function DiagnosticsPanel() {
   const events = useSyncExternalStore(subscribeTelemetry, listTelemetry, listTelemetry);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sentryTest, setSentryTest] = useState<string | null>(null);
 
   if (!enabled) return null;
 
@@ -100,6 +102,15 @@ export function DiagnosticsPanel() {
             </button>
             <button style={miniButton} onClick={() => clearTelemetry()}>
               limpar
+            </button>
+            <button
+              style={miniButton}
+              onClick={() => {
+                setSentryTest(sendSentryTest() ? "enviado" : "sem DSN");
+                window.setTimeout(() => setSentryTest(null), 1500);
+              }}
+            >
+              {sentryTest ?? "testar Sentry"}
             </button>
           </div>
           <div>

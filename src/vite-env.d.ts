@@ -9,6 +9,11 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** Opcional. "false" deixa ler e conversar sem conta (a conta vira opcional). */
   readonly VITE_LOGIN_REQUIRED?: string;
+  /** Opcional. DSN do projeto Storyverse Web no Sentry; sem ele o SDK não envia eventos. */
+  readonly VITE_SENTRY_DSN?: string;
+  readonly VITE_SENTRY_ENVIRONMENT?: string;
+  readonly VITE_SENTRY_RELEASE?: string;
+  readonly VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
   /** Opcional. "true" pede o código de 6 números no cadastro (OTP configurado no Supabase). */
   readonly VITE_SUPABASE_EMAIL_OTP_ENABLED?: string;
   readonly VITE_GROQ_API_KEY?: string;
