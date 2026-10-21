@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   AUTH_SESSION_STORAGE_KEY,
+  AuthSessionError,
+  refreshAuthSession,
   restoreAuthSession,
   storedAuthSession,
   type SupabaseSession,
@@ -25,7 +27,17 @@ export function useStoredSession() {
       });
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key === AUTH_SESSION_STORAGE_KEY) setSession(storedAuthSession());
+      if (event.key !== AUTH_SESSION_STORAGE_KEY) return;
+      if (!event.newValue) {
+        setSession(null);
+        return;
+      }
+      // O refresh token está no cookie compartilhado; a memória desta aba precisa renovar.
+      void refreshAuthSession(true)
+        .then((next) => setSession(next))
+        .catch((err: unknown) =>
+          setSession(err instanceof AuthSessionError ? null : storedAuthSession()),
+        );
     };
     window.addEventListener("storage", onStorage);
     return () => {

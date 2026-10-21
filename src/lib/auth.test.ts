@@ -1,49 +1,108 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const KEY = "storyverse:supabase-session";
-beforeEach(() => { localStorage.clear(); vi.resetModules(); vi.stubEnv("VITE_API_URL", "https://api.example.test"); });
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-const old = { access_token: "old-access", refresh_token: "old-refresh", expires_at: 1, user: { id: "A", email: "a@example.test" } };
-const refreshed = { accessToken: "new-access", refreshToken: "new-refresh", expiresIn: 1800, user: { id: "A", email: "a@example.test" } };
+beforeEach(() => {
+  localStorage.clear();
+  vi.resetModules();
+  vi.stubEnv("VITE_API_URL", "https://api.example.test");
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+const user = { id: "A", email: "a@example.test" };
+const old = {
+  access_token: "old-access",
+  refresh_token: "",
+  expires_at: 1,
+  user,
+};
+const refreshed = { accessToken: "new-access", expiresIn: 1800, user };
 
 describe("session refresh races", () => {
-  it("serializes concurrent refreshes and reuses the first result", async () => {
-    localStorage.setItem(KEY, JSON.stringify(old));
+  it("serializes concurrent restores and reuses the first result", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(refreshed)));
     vi.stubGlobal("fetch", fetch);
-    const { refreshAuthSession } = await import("./auth");
-    const sessions = await Promise.all([refreshAuthSession(old.refresh_token), refreshAuthSession(old.refresh_token)]);
+    const { restoreAuthSession } = await import("./auth");
+
+    const sessions = await Promise.all([restoreAuthSession(), restoreAuthSession()]);
+
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(sessions.map((s) => s.refresh_token)).toEqual(["new-refresh", "new-refresh"]);
+    expect(sessions.map((s) => s?.access_token)).toEqual(["new-access", "new-access"]);
   });
+
   it("a response arriving after logout cannot restore the session", async () => {
-    localStorage.setItem(KEY, JSON.stringify(old));
     let release!: (response: Response) => void;
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
-    const { refreshAuthSession, storedAuthSession, AuthSessionError } = await import("./auth");
-    const refresh = refreshAuthSession(old.refresh_token);
+    const fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { restoreAuthSession, signOut, storedAuthSession } = await import("./auth");
+
+    const refresh = restoreAuthSession();
     await vi.waitFor(() => expect(release).toBeDefined());
-    localStorage.removeItem(KEY);
+    await signOut(old);
     release(new Response(JSON.stringify(refreshed)));
-    await expect(refresh).rejects.toBeInstanceOf(AuthSessionError);
+
+    await expect(refresh).resolves.toBeNull();
     expect(storedAuthSession()).toBeNull();
   });
+
   it("another tab rotating the token wins over the in-flight refresh", async () => {
-    localStorage.setItem(KEY, JSON.stringify(old));
     let release!: (response: Response) => void;
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
-    const { refreshAuthSession, storedAuthSession, AuthSessionError } = await import("./auth");
-    const refresh = refreshAuthSession(old.refresh_token);
+    const fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/auth/login")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ accessToken: "other-access", expiresIn: 1800, user: { ...user, id: "B" } }),
+          ),
+        );
+      }
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { restoreAuthSession, signInWithPassword, storedAuthSession } = await import("./auth");
+
+    const refresh = restoreAuthSession();
     await vi.waitFor(() => expect(release).toBeDefined());
-    // A outra aba já renovou: o token guardado é outro.
-    localStorage.setItem(KEY, JSON.stringify({ ...old, refresh_token: "other-refresh" }));
+    await signInWithPassword("b@example.test", "secret1");
     release(new Response(JSON.stringify(refreshed)));
-    await expect(refresh).rejects.toBeInstanceOf(AuthSessionError);
-    expect(storedAuthSession()?.refresh_token).toBe("other-refresh");
+
+    await expect(refresh).resolves.toMatchObject({ access_token: "other-access" });
+    expect(storedAuthSession()?.access_token).toBe("other-access");
   });
 });
 
 describe("API account flows", () => {
+  it("never persists the refresh token and ignores a leaked JSON field", async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          accessToken: "access",
+          refreshToken: "should-not-be-stored",
+          expiresIn: 1800,
+          user,
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { signInWithPassword, storedAuthSession } = await import("./auth");
+
+    const session = await signInWithPassword("a@example.test", "secret1");
+
+    expect(session.access_token).toBe("access");
+    expect(session.refresh_token).toBe("");
+    expect(storedAuthSession()?.refresh_token).toBe("");
+    expect(localStorage.getItem("storyverse:supabase-session")).toBeNull();
+    expect(JSON.stringify(localStorage)).not.toContain("should-not-be-stored");
+    expect(fetch.mock.calls[0][1]).toMatchObject({ credentials: "include" });
+  });
+
   it("keeps the user signed out until the e-mail is confirmed", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Confirme seu e-mail." }), { status: 202 }));
     vi.stubGlobal("fetch", fetch);
@@ -56,13 +115,12 @@ describe("API account flows", () => {
     );
   });
 
-  it("confirms an e-mail link and stores the returned session", async () => {
-    window.history.replaceState(null, "", "/confirmar-email?token=confirm-token");
+  it("confirms an e-mail link and stores the returned access token", async () => {
+    window.history.replaceState(null, "", "/confirmar-email#token=confirm-token");
     const fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
           accessToken: "access",
-          refreshToken: "refresh",
           expiresIn: 1800,
           user: { id: "A", email: "a@example.test", user_metadata: { name: "A" } },
         }),
@@ -73,6 +131,7 @@ describe("API account flows", () => {
     const result = await consumeAuthRedirect();
     expect(result && "session" in result ? result.session.access_token : null).toBe("access");
     expect(storedAuthSession()?.access_token).toBe("access");
+    expect(storedAuthSession()?.refresh_token).toBe("");
     expect(window.location.pathname).toBe("/");
   });
 

@@ -14,10 +14,13 @@ export const authEnabled = apiEnabled || Boolean(
 /** Conta obrigatória para ler e importar. `VITE_LOGIN_REQUIRED=false` deixa a conta opcional. */
 export const loginRequired = authEnabled && import.meta.env.VITE_LOGIN_REQUIRED?.trim() !== "false";
 
+/** Chave antiga que guardava a sessão inteira (tokens). Só é lida para apagar. */
 const SESSION_KEY = "storyverse:supabase-session";
-/** Chave global (fora do namespace por conta) observada por outras abas para login/logout. */
-export const AUTH_SESSION_STORAGE_KEY = SESSION_KEY;
+/** Metadados não sensíveis da sessão (sem tokens), observados por outras abas. */
+const SESSION_META_KEY = "storyverse:session-meta";
+export const AUTH_SESSION_STORAGE_KEY = SESSION_META_KEY;
 const LEGACY_AUTH_KEY = "storyverse:auth";
+const LOGOUT_PENDING_KEY = "storyverse:logout-pending";
 /** A API própria ainda não tem OTP; com ela, o código de 6 dígitos fica desligado. */
 export const EMAIL_OTP_ENABLED = !apiEnabled && import.meta.env.VITE_SUPABASE_EMAIL_OTP_ENABLED === "true";
 
@@ -30,9 +33,12 @@ export type SupabaseUser = {
 
 export type SupabaseSession = {
   access_token: string;
+  /** Vazio na API própria: o refresh token fica em cookie HttpOnly, fora do JavaScript. */
   refresh_token: string;
   expires_at: number;
   user: SupabaseUser;
+  /** Sessão restaurada do marcador local sem rede; não serve para chamadas autenticadas. */
+  offline?: boolean;
 };
 
 type AuthResponse = {
@@ -74,7 +80,7 @@ function describeAuthError(message: string): string {
   if (normalized.includes("invalid login credentials")) return "E-mail ou senha incorretos.";
   if (normalized.includes("user already registered")) return "Já existe uma conta com este e-mail. Faça login.";
   if (normalized.includes("email not confirmed")) return "Confirme seu e-mail antes de fazer login.";
-  if (normalized.includes("password should be at least")) return "A senha precisa ter pelo menos 6 caracteres.";
+  if (normalized.includes("password should be at least")) return "A senha precisa ter pelo menos 8 caracteres.";
   if (normalized.includes("signup is disabled")) return "O cadastro está temporariamente indisponível.";
   if (normalized.includes("too many requests")) return "Muitas tentativas. Aguarde um pouco e tente novamente.";
   if (normalized.includes("token has expired or is invalid")) {
@@ -96,7 +102,7 @@ type ApiUser = {
   /** Compatibilidade com a versão anterior da API. */
   name?: string | null;
 };
-type ApiAuthResponse = { accessToken: string; refreshToken: string; expiresIn?: number; user: ApiUser };
+type ApiAuthResponse = { accessToken: string; expiresIn?: number; user: ApiUser };
 type ApiSignupPending = { message?: string };
 
 function apiToUser(user: ApiUser): SupabaseUser {
@@ -109,12 +115,13 @@ function apiToUser(user: ApiUser): SupabaseUser {
 }
 
 function apiToSession(payload: ApiAuthResponse): SupabaseSession {
-  if (!payload?.accessToken || !payload?.refreshToken || !payload?.user) {
+  if (!payload?.accessToken || !payload?.user) {
     throw new Error("O serviço não retornou uma sessão válida.");
   }
   return {
     access_token: payload.accessToken,
-    refresh_token: payload.refreshToken,
+    // O refresh token vive no cookie HttpOnly; qualquer campo devolvido no JSON é ignorado.
+    refresh_token: "",
     // Pelo relógio do aparelho (expiresIn), como no caminho do Supabase.
     expires_at:
       Math.floor(Date.now() / 1000) + (payload.expiresIn && payload.expiresIn > 0 ? payload.expiresIn : 3600),
@@ -183,13 +190,85 @@ function makeSession(payload: AuthResponse): SupabaseSession | null {
   };
 }
 
-function storeSession(session: SupabaseSession | null) {
-  if (session) userStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  else userStorage.removeItem(SESSION_KEY);
+let currentSession: SupabaseSession | null = null;
+let authGeneration = 0;
+
+function metaUserId(): string | null {
+  try {
+    const raw = localStorage.getItem(SESSION_META_KEY);
+    if (!raw) return null;
+    const meta = JSON.parse(raw) as { user?: SupabaseUser };
+    return meta?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Metadados sem tokens: permitem lembrar quem estava logado e sincronizar abas. */
+function writeSessionMeta(session: SupabaseSession | null): void {
+  try {
+    if (session) {
+      localStorage.setItem(
+        SESSION_META_KEY,
+        JSON.stringify({ user: session.user, expires_at: session.expires_at }),
+      );
+    } else {
+      localStorage.removeItem(SESSION_META_KEY);
+    }
+  } catch {
+    // Sem armazenamento: a sessão segue só em memória.
+  }
+}
+
+/** Sessão offline (sem access token) para o app abrir com os dados locais sem rede. */
+function offlineSession(): SupabaseSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_META_KEY);
+    if (!raw) return null;
+    const meta = JSON.parse(raw) as { user?: SupabaseUser; expires_at?: number };
+    if (!meta?.user?.id || !Number.isFinite(meta.expires_at)) return null;
+    return {
+      access_token: "",
+      refresh_token: "",
+      expires_at: Number(meta.expires_at),
+      user: meta.user,
+      offline: true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function storeSession(session: SupabaseSession | null, signal = true) {
+  authGeneration += 1;
+  currentSession = session;
+  if (!apiEnabled) {
+    // Caminho legado do Supabase (desenvolvimento): mantém o comportamento antigo.
+    if (session) userStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else userStorage.removeItem(SESSION_KEY);
+    return;
+  }
+  // Só login/logout/troca de conta sinalizam outras abas. Renovação e edição de perfil não
+  // escrevem de novo; senão as abas ficariam disparando renovação uma da outra (e uma renovação
+  // atrasada poderia ressuscitar uma sessão que a outra aba acabou de encerrar).
+  const nextUser = session?.user.id ?? null;
+  const previousUser = metaUserId();
+  if (nextUser === null) {
+    if (previousUser !== null) writeSessionMeta(null);
+  } else if (signal && nextUser !== previousUser) {
+    writeSessionMeta(session);
+  }
 }
 
 export function clearLegacyCredentials() {
   userStorage.removeItem(LEGACY_AUTH_KEY);
+  if (!apiEnabled) return;
+  // A versão antiga guardava a sessão inteira (com refresh token) nesta chave.
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Sem armazenamento.
+  }
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<SupabaseSession> {
@@ -255,8 +334,12 @@ export async function resendSignupCode(email: string): Promise<void> {
   await authRequest("resend", { type: "signup", email });
 }
 
-/** Sessão guardada neste aparelho (pode ter sido renovada por outra aba). */
+/**
+ * Sessão atual em memória (API própria). Na API os tokens nunca vão para o localStorage; o
+ * refresh token fica no cookie HttpOnly e o access token só vive aqui.
+ */
 export function storedAuthSession(): SupabaseSession | null {
+  if (apiEnabled) return currentSession;
   try {
     const raw = userStorage.getItem(SESSION_KEY);
     return raw ? (JSON.parse(raw) as SupabaseSession) : null;
@@ -266,13 +349,26 @@ export function storedAuthSession(): SupabaseSession | null {
 }
 
 let refreshQueue: Promise<unknown> = Promise.resolve();
-export function refreshAuthSession(refreshToken: string): Promise<SupabaseSession> {
-  const expectedUser = storedAuthSession()?.user.id;
+
+/**
+ * Renova pelo cookie HttpOnly. Chamadas concorrentes são serializadas e reaproveitam a sessão
+ * recém-criada, sem girar o refresh token várias vezes.
+ */
+export function refreshAuthSession(force = false): Promise<SupabaseSession> {
+  const callGeneration = authGeneration;
   const run = async () => {
     const current = storedAuthSession();
-    if (!current || current.user.id !== expectedUser) throw new AuthSessionError("A sessão mudou durante a renovação.");
-    if (current.refresh_token !== refreshToken) return current;
-    return refreshSessionOnce(refreshToken);
+    // Outra aba renovou/trocou a sessão enquanto esta chamada esperava na fila.
+    if (authGeneration !== callGeneration) {
+      if (current && !current.offline && current.expires_at * 1000 > Date.now() + 60_000) {
+        return current;
+      }
+      throw new AuthSessionError("A sessão mudou durante a renovação.");
+    }
+    if (!force && current && !current.offline && current.expires_at * 1000 > Date.now() + 60_000) {
+      return current;
+    }
+    return refreshSessionOnce();
   };
   const locked = () => navigator.locks?.request
     ? navigator.locks.request("storyverse:auth-refresh", run) : run();
@@ -281,31 +377,63 @@ export function refreshAuthSession(refreshToken: string): Promise<SupabaseSessio
   return result;
 }
 
-function storeRefreshed(session: SupabaseSession, previousToken: string): void {
-  if (storedAuthSession()?.refresh_token !== previousToken)
-    throw new AuthSessionError("A sessão mudou durante a renovação.");
-  storeSession(session);
-}
+async function refreshSessionOnce(): Promise<SupabaseSession> {
+  const startedGeneration = authGeneration;
 
-async function refreshSessionOnce(refreshToken: string): Promise<SupabaseSession> {
   if (apiEnabled) {
-    const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/refresh", { method: "POST", body: { refreshToken } });
+    const payload = await apiRequest<ApiAuthResponse>("/api/v1/auth/refresh", { method: "POST", body: {} });
+    if (authGeneration !== startedGeneration) {
+      throw new AuthSessionError("A sessão mudou durante a renovação.");
+    }
     const session = apiToSession(payload);
-    storeRefreshed(session, refreshToken);
+    storeSession(session, false);
     return session;
   }
+
+  const refreshToken = storedAuthSession()?.refresh_token;
+  if (!refreshToken) throw new AuthSessionError("Sessão expirada. Entre novamente.");
   const payload = await authRequest("token?grant_type=refresh_token", { refresh_token: refreshToken });
+  if (authGeneration !== startedGeneration) {
+    throw new AuthSessionError("A sessão mudou durante a renovação.");
+  }
   const session = makeSession(payload);
   if (!session) throw new Error("Não foi possível renovar a sessão. Entre novamente.");
-  storeRefreshed(session, refreshToken);
+  storeSession(session, false);
   return session;
 }
 
 async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
   clearLegacyCredentials();
+  if (apiEnabled) {
+    // Logout feito offline: revoga o cookie assim que a rede voltar, antes de restaurar.
+    try {
+      if (localStorage.getItem(LOGOUT_PENDING_KEY)) {
+        await apiRequest("/api/v1/auth/logout", { method: "POST", body: {} });
+        localStorage.removeItem(LOGOUT_PENDING_KEY);
+      }
+    } catch (error) {
+      if (error instanceof AuthNetworkError) return null;
+    }
+    const generation = authGeneration;
+    try {
+      return await refreshAuthSession();
+    } catch (error) {
+      // Sem internet (app instalado/offline): abre com os dados locais e renova depois.
+      if (error instanceof AuthNetworkError) {
+        currentSession = offlineSession();
+        return currentSession;
+      }
+      // Outra aba pode ter trocado/encerrado a sessão enquanto esta renovava.
+      if (authGeneration !== generation) return storedAuthSession();
+      // Cookie inválido/expirado: não há como autenticar.
+      storeSession(null);
+      return null;
+    }
+  }
+
+  // Caminho legado do Supabase (desenvolvimento): a sessão completa fica no armazenamento.
   const stored = userStorage.getItem(SESSION_KEY);
   if (!stored) return null;
-
   let session: SupabaseSession;
   try {
     session = JSON.parse(stored) as SupabaseSession;
@@ -324,19 +452,14 @@ async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
   }
   if (session.expires_at * 1000 <= Date.now() + 60_000) {
     try {
-      return await refreshAuthSession(session.refresh_token);
+      return await refreshAuthSession();
     } catch (error) {
-      // A sessão mudou ou foi encerrada em outra aba: a fonte da verdade é o armazenamento
-      // (null se saiu, a nova conta se trocou, ou o token já renovado pela outra aba).
-      if (error instanceof AuthSessionError) return storedAuthSession();
-      // Sem internet (app instalado, lendo offline): continua logado com a sessão guardada e
-      // renova quando a conexão voltar. Só sai se o Supabase recusar a sessão.
       if (error instanceof AuthNetworkError) return session;
-      if (storedAuthSession()?.refresh_token !== session.refresh_token) return storedAuthSession();
       storeSession(null);
       throw error;
     }
   }
+  currentSession = session;
   return session;
 }
 
@@ -388,12 +511,14 @@ async function readAuthRedirect(): Promise<RedirectResult> {
 }
 
 /**
- * Links da API própria: /confirmar-email?token=… e /redefinir-senha?token=…
+ * Links da API própria: /confirmar-email#token=… e /redefinir-senha#token=…
+ * O fragmento não vai para logs do proxy. O ?token= antigo continua aceito para links já enviados.
  * O token sai da barra de endereço antes da chamada de rede.
  */
 async function readApiAuthRedirect(): Promise<RedirectResult> {
   const path = window.location.pathname.replace(/\/+$/, "");
-  const token = new URLSearchParams(window.location.search).get("token");
+  const hashToken = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token");
+  const token = hashToken ?? new URLSearchParams(window.location.search).get("token");
   if (!token) return null;
   if (path.endsWith("/confirmar-email")) {
     clearAuthLinkFromUrl();
@@ -470,12 +595,12 @@ export async function updateProfileData(
       accessToken: session.access_token,
     });
     const next = { ...session, user: { ...session.user, ...apiToUser(user) } };
-    storeSession(next);
+    storeSession(next, false);
     return next;
   }
   const user = (await authRequest("user", { data }, session.access_token, "PUT")) as unknown as SupabaseUser;
   const next = { ...session, user: { ...session.user, ...user } };
-  storeSession(next);
+  storeSession(next, false);
   return next;
 }
 
@@ -499,7 +624,7 @@ export async function refreshProfile(session: SupabaseSession): Promise<Supabase
     if (!base) return session;
     if (base.user.id !== session.user.id) return session;
     const next = { ...base, user: { ...base.user, ...user } };
-    storeSession(next);
+    storeSession(next, false);
     return next;
   }
   const user = (await authRequest("user", undefined, session.access_token, "GET")) as unknown as SupabaseUser;
@@ -512,7 +637,7 @@ export async function refreshProfile(session: SupabaseSession): Promise<Supabase
   if (!base) return session;
   if (base.user.id !== session.user.id) return session;
   const next = { ...base, user: { ...base.user, ...user } };
-  storeSession(next);
+  storeSession(next, false);
   return next;
 }
 
@@ -528,14 +653,29 @@ export function restoreAuthSession(): Promise<SupabaseSession | null> {
 }
 
 export async function signOut(session: SupabaseSession): Promise<void> {
-  if (storedAuthSession()?.user.id === session.user.id) storeSession(null);
+  // Sempre invalida a geração local; isso impede que uma renovação em voo ressuscite a sessão.
+  storeSession(null);
   if (apiEnabled) {
+    try {
+      localStorage.setItem(LOGOUT_PENDING_KEY, "1");
+    } catch {
+      // Sem armazenamento: o logout local ainda vale nesta aba.
+    }
+    try {
       await apiRequest("/api/v1/auth/logout", {
         method: "POST",
-        body: { refreshToken: session.refresh_token },
+        body: {},
         accessToken: session.access_token,
       });
+      try {
+        localStorage.removeItem(LOGOUT_PENDING_KEY);
+      } catch {
+        // Sem armazenamento.
+      }
+    } catch {
+      // Sem rede: a próxima abertura tenta revogar o cookie antes de restaurar a sessão.
+    }
     return;
   }
-    await authRequest("logout", undefined, session.access_token);
+  await authRequest("logout", undefined, session.access_token);
 }

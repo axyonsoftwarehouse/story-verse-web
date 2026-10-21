@@ -180,6 +180,12 @@ export async function listLocalRecords(owner = activeOwner()): Promise<StoredBoo
   return run<StoredBook[]>("readonly", (s) => s.index(OWNER_INDEX).getAll(owner));
 }
 
+/** Remove os livros importados de uma conta excluída neste aparelho. */
+export async function deleteAllLocalRecords(owner: string): Promise<void> {
+  const rows = await listLocalRecords(owner);
+  for (const row of rows) await deleteLocalBook(row.id, { everywhere: false }, owner);
+}
+
 export async function saveLocalBook(book: Ebook, text: string, images?: Record<string, Blob>): Promise<void> {
   const importedAt = Date.now();
   const owner = activeOwner();

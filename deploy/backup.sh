@@ -57,7 +57,7 @@ mkdir "$DEST"
 # Snapshot coordenado: para uma copia consistente de migracao, pare a API antes.
 docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$DEST/database.dump"
 docker run --rm --network none --read-only \
-  -v storyverse_storyverse_media:/media:ro alpine:3.22 \
+  -v storyverse_storyverse_media:/media:ro alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8 \
   tar -C /media -czf - . > "$DEST/media.tar.gz"
 
 test -s "$DEST/database.dump"

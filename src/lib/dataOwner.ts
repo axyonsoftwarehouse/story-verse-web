@@ -69,6 +69,22 @@ export const userStorage = {
 export function currentDataOwner(): string | null { return tabOwner; }
 export function legacyDataOwner(): string | null { return safeGet(LEGACY_OWNER_KEY); }
 
+/** Remove os dados locais de uma conta excluída, sem tocar nas outras contas do aparelho. */
+export function clearAccountStorage(owner: string): void {
+  const prefix = ACCOUNT_PREFIX + owner + ":";
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) localStorage.removeItem(key);
+    }
+    localStorage.removeItem(VAULT_PREFIX + owner);
+    if (localStorage.getItem(OWNER_KEY) === owner) localStorage.removeItem(OWNER_KEY);
+    if (localStorage.getItem(LEGACY_OWNER_KEY) === owner) localStorage.removeItem(LEGACY_OWNER_KEY);
+  } catch {
+    // Sem armazenamento: nada a limpar.
+  }
+}
+
 /**
  * Storage para um dono **capturado** no início de uma operação assíncrona. Evita que uma troca
  * de conta no meio do `await` redirecione a escrita para a conta nova. `null` = sem conta/ativação:
