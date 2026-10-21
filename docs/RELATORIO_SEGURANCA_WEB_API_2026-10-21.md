@@ -36,7 +36,7 @@ Além disso, a suíte de testes do frontend falhou localmente (6 de 78), o que c
 | P1-03 CSP incompleta | **Corrigido** | CSP completa e headers no Caddy e no `vercel.json`; `COOP`, `Permissions-Policy`, `Referrer-Policy`; PDF.js 6 sem eval. |
 | P1-04 admin por e-mail | **Corrigido** | `promote-admin.sh` agora exige UUID existente e e-mail confirmado; grava auditoria. |
 | P1-05 defaults de banco owner | **Corrigido** | Default `storyverse_api`; `RuntimeRoleGuard` falha o boot se o runtime for owner/superuser/bypassrls. |
-| P2-01 senha mínima | **Parcial** | Mínimo passou a 8 no frontend e na API; falta lista de senhas vazadas. |
+| P2-01 senha mínima | **Corrigido (blocklist local)** | Mínimo 8, limite do BCrypt, blocklist local de senhas comuns/vazadas e rejeição de senha contendo e-mail/nome. HIBP não está integrado; a lista é embarcada e atualizada com o código. |
 | P2-02 enumeração/timing | **Corrigido (produção)** | Cadastro com confirmação responde igual para conta existente/inexistente (e envia aviso ao dono); login usa BCrypt fictício. O modo dev com confirmação desligada ainda usa 409. |
 | P2-03 lockout de conta | **Mitigado** | Limite de falhas passou a contar só o erro; senha correta não é bloqueada por tentativas de terceiros. Rate limit por IP/conta e falta CAPTCHA continuam como risco residual. |
 | P2-04 `select *` em aprovados | **Corrigido** | Colunas explícitas, sem `review_note`/`reviewed_by`. |
@@ -46,12 +46,12 @@ Além disso, a suíte de testes do frontend falhou localmente (6 de 78), o que c
 | P2-08 upload confia no Content-Type | **Corrigido** | API valida assinatura real de JPEG/PNG/WebP/gzip e rejeita texto com bytes de controle/NUL. |
 | P2-09 tokens de e-mail em URL | **Corrigido** | Links usam `#token=` (não vai para logs); `?token=` antigo continua aceito na transição. |
 | P2-10 tradução remota sem aviso | **Mitigado** | Livros locais/importados só enviam trechos a Google/MyMemory após consentimento explícito; Gutenberg/comunidade (públicos) não pedem. Se o tradutor local falhar, o livro privado **não** cai no remoto sem aceite. A tradução continua remota depois do consentimento. |
-| P2-11 supply chain | **Parcial** | Dependabot (npm/Maven/actions/Docker), `npm audit` no CI, Actions pinadas por SHA, CLI Vercel fixada e imagens por digest. Faltam SBOM/assinatura e scan Maven. |
-| P2-12 alertas de segurança | **Mitigado** | `SecurityEvents` (sem PII) para reuso de refresh, reset/troca de senha e exclusão de conta; tag `security.event` no Sentry. Regras de alerta no painel ainda precisam ser ativadas. |
-| P2-13 exclusão/exportação | **Corrigido** | API `GET /api/v1/account/export` e `DELETE /api/v1/account` com senha; remove arquivos e conta via função `security definer` (V13); UI em Ajustes baixa JSON, exige senha/confirmação e limpa dados locais do aparelho. |
+| P2-11 supply chain | **Parcial** | Dependabot (npm/Maven/actions/Docker), `npm audit` no CI, Actions pinadas por SHA, CLI Vercel fixada, imagens por digest, SBOM CycloneDX (API/web), Trivy (relatório) e assinatura keyless da imagem da API com cosign. Faltam scan Maven bloqueante e assinatura do SBOM. |
+| P2-12 alertas de segurança | **Mitigado** | `SecurityEvents` (sem PII) para reuso de refresh, reset/troca de senha e exclusão de conta; tag `security.event` no Sentry. Runbook em `docs/ALERTAS_SEGURANCA.md`; as regras no painel ainda precisam ser ativadas. |
+| P2-13 exclusão/exportação | **Corrigido** | API exporta JSON e arquivos em ZIP (`/account/export` e `/account/export/files`), exclui com senha e função `security definer` (V13), remove arquivos e limpa dados locais do aparelho. UI em Ajustes baixa JSON/ZIP, exige senha/confirmação e limpa dados locais. |
 | Gate de testes web | **Corrigido** | `vitest.config.ts` usa `pool: "vmThreads"` e timeout maior; 87/87 testes passam. |
 
-Verificação desta rodada: API compila e passa **52 testes unitários** (22 de integração pulados por falta de Postgres local); web passa **87/87 testes**, lint com 0 erros e build de produção concluído. As novas funções de voz (Piper/ONNX) foram consideradas na CSP; os modelos são baixados de Hugging Face/CDNs e a síntese ocorre no aparelho.
+Verificação desta rodada: API compila e passa **55 testes unitários** (22 de integração pulados por falta de Postgres local); web passa **87/87 testes**, lint com 0 erros e build de produção concluído. As novas funções de voz (Piper/ONNX) foram consideradas na CSP; os modelos são baixados de Hugging Face/CDNs e a síntese ocorre no aparelho.
 
 ### Pré-requisitos de deploy da sessão por cookie
 
@@ -424,7 +424,7 @@ Fronteiras relevantes:
 ### API
 
 - Revisão estática de 75 arquivos Java, 10 migrations Flyway, `application.yaml`, Dockerfile, CI e deploy.
-- Compilação e **52 testes unitários passando** com `-Dmaven.compiler.release=21`.
+- Compilação e **55 testes unitários passando** com `-Dmaven.compiler.release=21`.
 - Os **22 testes de integração** usam PostgreSQL descartável e foram pulados localmente (sem Docker/Postgres e sem JDK 25); a CI usa JDK 25 e PostgreSQL 16.
 - **Não foi executado** OWASP Dependency-Check/Snyk/Trivy no Maven; não há SBOM.
 

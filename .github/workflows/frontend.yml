@@ -43,6 +43,15 @@ jobs:
           VITE_SENTRY_RELEASE: ${{ github.sha }}
         run: npm run build
 
+      - name: Gerar SBOM (CycloneDX)
+        run: npm sbom --sbom-format=cyclonedx > sbom-web.cdx.json
+
+      - name: Publicar SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-web
+          path: sbom-web.cdx.json
+
   # Push na main: produção (só depois de lint, testes e build passarem).
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

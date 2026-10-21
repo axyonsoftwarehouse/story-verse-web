@@ -20,7 +20,7 @@ import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
-import { deleteAccount, exportAccount } from "./lib/account";
+import { deleteAccount, exportAccount, exportAccountFiles } from "./lib/account";
 import { quoteOfTheDay } from "./data/dailyQuotes";
 import { APP_THEMES, applyAppTheme, loadAppTheme, saveAppTheme, type AppThemeId } from "./lib/appTheme";
 import { downloadNaturalVoice, naturalVoiceReady, naturalVoiceSupported, naturalVoiceUri } from "./lib/naturalVoice";
@@ -4274,7 +4274,7 @@ function ProfilePage({
   }
 
   // ---- Dados da conta: exportar/excluir ----
-  const [accountBusy, setAccountBusy] = useState<"export" | "delete" | null>(null);
+  const [accountBusy, setAccountBusy] = useState<"export" | "files" | "delete" | null>(null);
   const [accountError, setAccountError] = useState("");
   const [accountOk, setAccountOk] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -4298,6 +4298,28 @@ function ProfilePage({
       setAccountOk("Cópia dos seus dados gerada.");
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : "Não foi possível exportar seus dados.");
+    } finally {
+      setAccountBusy(null);
+    }
+  }
+
+  async function downloadFiles() {
+    setAccountBusy("files");
+    setAccountError("");
+    setAccountOk("");
+    try {
+      const blob = await exportAccountFiles(session);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "storyverse-arquivos.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setAccountOk("Arquivos da conta gerados em ZIP.");
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Não foi possível exportar os arquivos.");
     } finally {
       setAccountBusy(null);
     }
@@ -4753,6 +4775,15 @@ function ProfilePage({
             </div>
             <button type="button" className="btn" onClick={() => void downloadData()} disabled={accountBusy !== null}>
               {accountBusy === "export" ? "Preparando…" : "Baixar meus dados"}
+            </button>
+          </div>
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">Arquivos</span>
+              <strong>Fotos, livros importados e textos enviados, em um ZIP.</strong>
+            </div>
+            <button type="button" className="btn" onClick={() => void downloadFiles()} disabled={accountBusy !== null}>
+              {accountBusy === "files" ? "Preparando…" : "Baixar arquivos"}
             </button>
           </div>
           {accountOk ? <p className="auth-success" role="status">{accountOk}</p> : null}
