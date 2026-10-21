@@ -1561,6 +1561,9 @@
   align-items: center;
   gap: 0.8rem;
   padding: 1rem 1.1rem 0.8rem;
+  /* Um toque da cor do personagem no topo: muda junto quando troca de personagem. */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c, transparent) 14%, transparent), transparent);
+  transition: background 0.5s ease;
 }
 
 .chat-head-text {
@@ -2672,6 +2675,101 @@
 
 .reader.theme-sepia .prose mark {
   background: rgba(214, 160, 60, 0.3);
+}
+
+/* Trecho que acabou de ser marcado: pintado da esquerda para a direita, como caneta. */
+.prose mark.is-new {
+  background: linear-gradient(rgba(228, 184, 106, 0.28), rgba(228, 184, 106, 0.28)) no-repeat 0 0 / 0% 100%;
+  animation: mark-paint 0.7s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+}
+
+.reader.theme-sepia .prose mark.is-new {
+  background-image: linear-gradient(rgba(214, 160, 60, 0.3), rgba(214, 160, 60, 0.3));
+}
+
+@keyframes mark-paint {
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+/* Buscar no livro */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--r-border, var(--border-strong));
+  border-radius: var(--radius-sm);
+  background: var(--r-chip, var(--surface-2));
+  color: var(--r-muted, var(--muted));
+}
+
+.search-field svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--r-text, var(--text));
+  font: inherit;
+  font-size: 1rem;
+}
+
+.search-count {
+  margin: 0 0 0.6rem;
+  color: var(--r-muted, var(--muted));
+  font-size: 0.8rem;
+}
+
+.search-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-hit:hover,
+.search-hit:focus-visible {
+  background: var(--r-chip, var(--surface-2));
+}
+
+.search-snippet {
+  font-family: var(--font-read);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.search-snippet mark {
+  border-radius: 3px;
+  background: rgba(228, 184, 106, 0.35);
+  color: inherit;
+}
+
+.search-list {
+  gap: 0.2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose mark.is-new {
+    animation: none;
+    background-size: 100% 100%;
+  }
 }
 
 .prose .is-speaking {
@@ -7425,6 +7523,178 @@ button.identity-card:hover {
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.03em;
+}
+
+/* Conquista nova: pílula no topo da tela, some sozinha (tocar fecha antes). */
+.achievement-toast {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: calc(100vw - 32px);
+  padding: 0.55rem 1.1rem 0.55rem 0.6rem;
+  border: 1px solid rgba(228, 184, 106, 0.5);
+  border-radius: var(--radius-pill);
+  background: var(--surface-deep);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.8), 0 0 24px -6px rgba(228, 184, 106, 0.35);
+  color: var(--text);
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: achievement-in 3.6s var(--ease-out) both;
+}
+
+.achievement-toast-medal {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fbe7b8, #c48a38 75%);
+  font-size: 1.15rem;
+  animation: badge-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+
+.achievement-toast span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.achievement-toast small {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.achievement-toast strong {
+  overflow: hidden;
+  font-family: var(--font-read);
+  font-size: 0.98rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes achievement-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -16px) scale(0.92);
+  }
+  8%,
+  88% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+}
+
+/* Retrospectiva do mês: uma faixa só, na primeira semana do mês, com fechar. */
+.month-recap {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0 0 1.4rem;
+  padding: 0.85rem 0.9rem 0.85rem 1.2rem;
+  border: 1px solid rgba(228, 184, 106, 0.3);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(228, 184, 106, 0.16), transparent 60%),
+    var(--surface);
+  animation: rise 0.5s var(--ease-out) both;
+}
+
+.month-recap-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.month-recap-text strong {
+  font-family: var(--font-read);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.month-recap-text > span:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.month-recap .btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 560px) {
+  .month-recap {
+    flex-wrap: wrap;
+  }
+
+  .month-recap-text {
+    flex-basis: calc(100% - 3rem);
+  }
+
+  .month-recap-close {
+    order: -1;
+    margin-left: auto;
+  }
+}
+
+/* Frase do dia: citação em letra de livro; tocar revela de qual livro é. */
+.daily-quote {
+  max-width: 44rem;
+  margin: 0 auto 2.2rem;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+}
+
+.daily-quote blockquote {
+  margin: 0.5rem 0 0.7rem;
+  color: var(--text-read);
+  font-family: var(--font-read);
+  font-size: clamp(1.1rem, 2.6vw, 1.35rem);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.daily-quote-guess {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.daily-quote-book {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  animation: seen-in 0.35s var(--ease-out) both;
+}
+
+.daily-quote-book strong {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-toast,
+  .achievement-toast-medal,
+  .month-recap,
+  .daily-quote-book {
+    animation: none;
+  }
 }
 
 /* Conquistas: medalha dourada nas conquistadas; as que faltam ficam apagadas, com a barra. */

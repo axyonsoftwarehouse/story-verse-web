@@ -373,3 +373,25 @@ export function mergeBoughtFreezes(days: string[]): boolean {
   write(META_KEY, meta);
   return true;
 }
+
+export type MonthReading = { minutes: number; daysRead: number; bestStreak: number };
+
+/** Leitura de um mês (`month` de 0 a 11): minutos, dias com leitura e a maior sequência dentro dele. */
+export function monthReading(year: number, month: number): MonthReading {
+  const stats = read();
+  const days = new Date(year, month + 1, 0).getDate();
+  let seconds = 0;
+  let daysRead = 0;
+  let run = 0;
+  let bestStreak = 0;
+  for (let d = 1; d <= days; d++) {
+    const s = stats[dayKey(new Date(year, month, d))] ?? 0;
+    seconds += s;
+    if (s >= MIN_SECONDS_FOR_STREAK) {
+      daysRead++;
+      run++;
+      bestStreak = Math.max(bestStreak, run);
+    } else run = 0;
+  }
+  return { minutes: Math.floor(seconds / 60), daysRead, bestStreak };
+}

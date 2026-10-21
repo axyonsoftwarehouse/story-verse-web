@@ -251,3 +251,101 @@ export async function shareOrDownload(blob: Blob, fileName: string, text: string
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
   return "downloaded";
 }
+
+/** Retrospectiva do mês: números da leitura e o personagem favorito, para postar. */
+export type RecapCardInput = {
+  /** "setembro de 2026". */
+  monthLabel: string;
+  minutes: number;
+  daysRead: number;
+  finished: number;
+  bestStreak: number;
+  favoriteCharacter?: string;
+  favoriteBook?: string;
+};
+
+export async function renderRecapCard(input: RecapCardInput): Promise<Blob> {
+  await document.fonts?.ready;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  const bg = ctx.createLinearGradient(0, 0, W * 0.4, H);
+  bg.addColorStop(0, "#241b14");
+  bg.addColorStop(1, "#0c0a08");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W * 0.5, H * 0.38, 0, W * 0.5, H * 0.38, W * 0.75);
+  glow.addColorStop(0, "rgba(228, 184, 106, 0.2)");
+  glow.addColorStop(1, "rgba(228, 184, 106, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  const bodyW = W - PAD * 2;
+  ctx.fillStyle = "#e4b86a";
+  ctx.font = `700 28px ${SANS}`;
+  ctx.fillText("MINHA LEITURA EM".split("").join(" "), PAD, PAD + 50);
+  const title = fitText(ctx, clean(input.monthLabel), (s) => `600 ${s}px ${SERIF}`, bodyW, 220, 96, 60);
+  ctx.fillStyle = "#f5f0e8";
+  title.lines.forEach((l, i) => ctx.fillText(l, PAD, PAD + 150 + i * title.lineHeight));
+
+  // Quatro números em grade 2×2.
+  const hours = input.minutes >= 120 ? `${Math.round(input.minutes / 60)} h` : `${input.minutes} min`;
+  const stats: [string, string][] = [
+    [hours, "lendo"],
+    [String(input.daysRead), input.daysRead === 1 ? "dia com leitura" : "dias com leitura"],
+    [String(input.finished), input.finished === 1 ? "livro terminado" : "livros terminados"],
+    [String(input.bestStreak), input.bestStreak === 1 ? "dia seguido" : "dias seguidos"],
+  ];
+  const gridTop = PAD + 200 + title.lines.length * title.lineHeight;
+  const cellW = (bodyW - 32) / 2;
+  const cellH = 220;
+  stats.forEach(([value, label], i) => {
+    const x = PAD + (i % 2) * (cellW + 32);
+    const y = gridTop + Math.floor(i / 2) * (cellH + 32);
+    ctx.fillStyle = "rgba(255, 248, 235, 0.06)";
+    roundRect(ctx, x, y, cellW, cellH, 30);
+    ctx.fill();
+    ctx.fillStyle = "#e4b86a";
+    ctx.font = `600 96px ${SERIF}`;
+    ctx.fillText(value, x + 40, y + 120);
+    ctx.fillStyle = "#c9b99c";
+    ctx.font = `500 30px ${SANS}`;
+    ctx.fillText(label, x + 40, y + 175);
+  });
+
+  if (input.favoriteCharacter) {
+    const y = gridTop + 2 * (cellH + 32) + 40;
+    ctx.fillStyle = "#9c948a";
+    ctx.font = `600 26px ${SANS}`;
+    ctx.fillText("PERSONAGEM FAVORITO".split("").join(" "), PAD, y);
+    ctx.fillStyle = "#f5f0e8";
+    const fav = fitText(ctx, clean(input.favoriteCharacter), (s) => `600 ${s}px ${SERIF}`, bodyW, 70, 56, 36);
+    ctx.font = `600 ${fav.size}px ${SERIF}`;
+    ctx.fillText(fav.lines[0] ?? "", PAD, y + 66);
+    if (input.favoriteBook) {
+      ctx.fillStyle = "#9c948a";
+      ctx.font = `500 28px ${SANS}`;
+      ctx.fillText(wrap(ctx, clean(input.favoriteBook), bodyW)[0] ?? "", PAD, y + 110);
+    }
+  }
+
+  const footerTop = H - PAD - 60;
+  ctx.fillStyle = "rgba(220, 190, 150, 0.16)";
+  ctx.fillRect(PAD, footerTop, bodyW, 2);
+  const logo = await loadImage("/icons/icon-192.png");
+  if (logo) ctx.drawImage(logo, PAD, footerTop + 22, 50, 50);
+  ctx.fillStyle = "#e4b86a";
+  ctx.font = `600 40px ${SERIF}`;
+  ctx.fillText(logo ? "Storyverse" : "✦ Storyverse", logo ? PAD + 66 : PAD, footerTop + 60);
+  ctx.fillStyle = "#9c948a";
+  ctx.font = `500 26px ${SANS}`;
+  ctx.textAlign = "right";
+  ctx.fillText("Leia e converse com os personagens", W - PAD, footerTop + 56);
+  ctx.textAlign = "left";
+
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Não foi possível gerar a imagem."))), "image/png"),
+  );
+}

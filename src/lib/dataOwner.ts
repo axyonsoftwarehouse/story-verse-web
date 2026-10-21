@@ -27,6 +27,8 @@ const USER_KEYS = new Set([
   "storyverse:voice-prefs",
   "storyverse:chat-index",
   "storyverse:library",
+  "storyverse:achievements-seen",
+  "storyverse:recap-dismissed",
 ]);
 const USER_PREFIXES = ["storyverse:highlights:", "storyverse:chat:"];
 

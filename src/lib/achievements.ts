@@ -78,3 +78,29 @@ export function achievements(input: AchievementInput): Achievement[] {
     };
   });
 }
+
+const SEEN_KEY = "storyverse:achievements-seen";
+
+/**
+ * Conquistas que acabaram de sair (para o aviso na hora). Na primeira vez guarda as que a pessoa
+ * já tem sem avisar nada: quem já usava o app não recebe uma enxurrada de avisos de uma vez.
+ */
+export function takeNewAchievements(list: Achievement[], storage: Pick<Storage, "getItem" | "setItem">): Achievement[] {
+  const unlocked = list.filter((a) => a.unlocked);
+  let seen: string[] | null = null;
+  try {
+    const raw = storage.getItem(SEEN_KEY);
+    seen = raw ? (JSON.parse(raw) as string[]) : null;
+  } catch {
+    seen = null;
+  }
+  const fresh = seen ? unlocked.filter((a) => !seen!.includes(a.id)) : [];
+  if (!seen || fresh.length > 0) {
+    try {
+      storage.setItem(SEEN_KEY, JSON.stringify([...new Set([...(seen ?? []), ...unlocked.map((a) => a.id)])]));
+    } catch {
+      // Sem armazenamento: o aviso pode repetir na próxima visita.
+    }
+  }
+  return fresh;
+}

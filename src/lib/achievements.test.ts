@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { achievements, type AchievementInput } from "./achievements";
+import { achievements, takeNewAchievements, type AchievementInput } from "./achievements";
 
 const base: AchievementInput = {
   totalMinutes: 0,
@@ -36,5 +36,20 @@ describe("achievements", () => {
   it("presentes ainda não carregados contam como zero", () => {
     expect(byId({ giftsReceived: null }).get("gift")?.unlocked).toBe(false);
     expect(byId({ giftsReceived: 2 }).get("gift")?.unlocked).toBe(true);
+  });
+});
+
+describe("takeNewAchievements", () => {
+  const memory = () => {
+    const data = new Map<string, string>();
+    return { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+  };
+
+  it("na primeira vez guarda sem avisar; depois avisa só a nova, uma vez", () => {
+    const store = memory();
+    expect(takeNewAchievements(achievements({ ...base, totalMinutes: 5 }), store)).toEqual([]);
+    const fresh = takeNewAchievements(achievements({ ...base, totalMinutes: 5, messagesSent: 1 }), store);
+    expect(fresh.map((a) => a.id)).toEqual(["first-chat"]);
+    expect(takeNewAchievements(achievements({ ...base, totalMinutes: 5, messagesSent: 1 }), store)).toEqual([]);
   });
 });

@@ -201,6 +201,10 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
     const newer = (lc.updatedAt ?? 0) >= (rc.updatedAt ?? 0) ? lc : rc;
     return JSON.stringify({ ...newer, threads, updatedAt: Math.max(lc.updatedAt ?? 0, rc.updatedAt ?? 0) });
   }
+  // Conquistas já avisadas: as dos dois aparelhos.
+  if (key === "storyverse:achievements-seen") {
+    return JSON.stringify([...new Set([...(l as string[]), ...(r as string[])])]);
+  }
   // Minutos por dia: o maior dos dois.
   if (key === "storyverse:reading-stats") {
     const a = l as Record<string, number>;

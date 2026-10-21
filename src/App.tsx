@@ -1,5 +1,5 @@
 import { userStorage } from "./lib/dataOwner";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
@@ -19,7 +19,8 @@ import {
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
-import { achievements } from "./lib/achievements";
+import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
+import { quoteOfTheDay } from "./data/dailyQuotes";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -105,6 +106,7 @@ import {
   dayKey,
   streakRescue,
   weekStartDate,
+  monthReading,
 } from "./lib/readingStats";
 import {
   autoFreezeEnabled,
@@ -161,7 +163,7 @@ import {
   syncEngagementState,
 } from "./lib/reminders";
 import { installPlatform, storeLinks, useAppInstall, useUpdateReady, type InstallPlatform } from "./lib/pwa";
-import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
+import { renderRecapCard, renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
   listVoices,
   RATE_OPTIONS,
@@ -325,6 +327,56 @@ function isHeading(p: string, next: string | undefined): boolean {
  * ("…encontrei no trem da" + "Central um rapaz…"): esses pedaços voltam a ser um parágrafo só.
  * Só vira subtítulo (em destaque) o que é mesmo título de seção.
  */
+type BookSearchHit = {
+  chapterIndex: number;
+  chapterLabel: string;
+  paragraph: number;
+  start: number;
+  before: string;
+  match: string;
+  after: string;
+};
+
+/** Até 60 trechos onde o termo aparece (sem diferenciar maiúsculas nem acentos). */
+function searchBook(
+  blocksByChapter: Block[][],
+  chapters: { label: string }[],
+  term: string,
+): { hits: BookSearchHit[]; total: number } {
+  const plainText = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const needle = plainText(term.trim());
+  if (needle.length < 2) return { hits: [], total: 0 };
+  const hits: BookSearchHit[] = [];
+  let total = 0;
+  blocksByChapter.forEach((blocks, chapterIndex) => {
+    blocks.forEach((b, paragraph) => {
+      if (b.kind === "image") return;
+      const text = b.text.replace(/_/g, "");
+      // A normalização mantém o tamanho do texto (só tira os acentos combinados depois de NFD).
+      const hay = plainText(text);
+      let at = hay.indexOf(needle);
+      while (at !== -1) {
+        total++;
+        if (hits.length < 60) {
+          const from = Math.max(0, at - 50);
+          const to = Math.min(text.length, at + needle.length + 70);
+          hits.push({
+            chapterIndex,
+            chapterLabel: chapters[chapterIndex]?.label ?? "",
+            paragraph,
+            start: at,
+            before: `${from > 0 ? "…" : ""}${text.slice(from, at)}`,
+            match: text.slice(at, at + needle.length),
+            after: `${text.slice(at + needle.length, to)}${to < text.length ? "…" : ""}`,
+          });
+        }
+        at = hay.indexOf(needle, at + needle.length);
+      }
+    });
+  });
+  return { hits, total };
+}
+
 function toBlocks(text: string, skipHeadline?: string): Block[] {
   // Ignora o "(1/2)" que o app acrescenta quando divide um capítulo longo em partes.
   const norm = (s: string) =>
@@ -3637,6 +3689,152 @@ function usePresenceCount(room: string | null, who: string | undefined): number 
 }
 
 /** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
+/** Conquistas da conta agora (sem presentes: esses dependem do servidor e só contam no perfil). */
+function currentAchievements(): Achievement[] {
+  const talks = characterTalks();
+  const markGroups = new Set(allHighlights().flatMap(({ bookId, highlights }) => highlights.map((h) => `${bookId}:${h.group ?? h.id}`)));
+  const totals = readingTotals();
+  return achievements({
+    totalMinutes: totals.totalMinutes,
+    bestStreak: totals.bestStreak,
+    finishedBooks: finishedBooks().length,
+    marks: markGroups.size,
+    messagesSent: talks.reduce((n, t) => n + t.sent, 0),
+    charactersTalked: talks.length,
+    giftsReceived: null,
+  });
+}
+
+/** Aviso pequeno no topo quando sai uma conquista nova; some sozinho e não cobre a leitura. */
+function AchievementToast({ achievement, onDone }: { achievement: Achievement; onDone: () => void }) {
+  useEffect(() => {
+    haptic([20, 40, 20]);
+    const t = window.setTimeout(onDone, 3600);
+    return () => window.clearTimeout(t);
+  }, [achievement, onDone]);
+  return createPortal(
+    <div className="achievement-toast" role="status" onClick={onDone}>
+      <span className="achievement-toast-medal" aria-hidden="true">
+        {achievement.emoji}
+      </span>
+      <span>
+        <small>Conquista desbloqueada</small>
+        <strong>{achievement.title}</strong>
+      </span>
+    </div>,
+    document.body,
+  );
+}
+
+const MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const RECAP_DISMISSED_KEY = "storyverse:recap-dismissed";
+
+/**
+ * Retrospectiva do mês que passou: aparece só na primeira semana do mês, para quem leu, e sai
+ * de vez ao fechar. Gera um cartão para postar com os números e o personagem favorito.
+ */
+function MonthRecap({ favorite }: { favorite?: { name: string; book: string } }) {
+  const now = new Date();
+  const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const month = (now.getMonth() + 11) % 12;
+  const key = `${year}-${month + 1}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return userStorage.getItem(RECAP_DISMISSED_KEY) === key;
+    } catch {
+      return false;
+    }
+  });
+  const [busy, setBusy] = useState(false);
+  const data = useMemo(() => monthReading(year, month), [year, month]);
+  const finished = useMemo(
+    () =>
+      finishedBooks().filter((f) => {
+        const d = new Date(f.finishedAt);
+        return d.getFullYear() === year && d.getMonth() === month;
+      }).length,
+    [year, month],
+  );
+  if (now.getDate() > 7 || dismissed || data.minutes < 1) return null;
+  const monthLabel = `${MONTHS[month]} de ${year}`;
+
+  function dismiss() {
+    setDismissed(true);
+    try {
+      userStorage.setItem(RECAP_DISMISSED_KEY, key);
+    } catch {
+      // Sem armazenamento: volta a aparecer na próxima visita.
+    }
+  }
+
+  async function share() {
+    setBusy(true);
+    try {
+      const blob = await renderRecapCard({
+        monthLabel,
+        minutes: data.minutes,
+        daysRead: data.daysRead,
+        finished,
+        bestStreak: data.bestStreak,
+        favoriteCharacter: favorite?.name,
+        favoriteBook: favorite?.book,
+      });
+      await shareOrDownload(blob, `storyverse-${MONTHS[month]}-${year}.png`, `Minha leitura em ${monthLabel} no Storyverse`);
+    } catch (e) {
+      console.warn("Falha ao gerar a retrospectiva:", e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="month-recap" aria-label={`Sua leitura em ${monthLabel}`}>
+      <div className="month-recap-text">
+        <span className="eyebrow">Retrospectiva</span>
+        <strong>Sua leitura em {MONTHS[month]}</strong>
+        <span>
+          {data.minutes >= 120 ? `${Math.round(data.minutes / 60)} horas` : `${data.minutes} min`} · {data.daysRead}{" "}
+          {data.daysRead === 1 ? "dia" : "dias"} lendo · {finished} {finished === 1 ? "livro terminado" : "livros terminados"}
+        </span>
+      </div>
+      <button type="button" className="btn btn-primary" onClick={() => void share()} disabled={busy}>
+        {Icon.share} {busy ? "Gerando…" : "Compartilhar"}
+      </button>
+      <button type="button" className="icon-btn month-recap-close" onClick={dismiss} aria-label="Fechar a retrospectiva">
+        {Icon.close}
+      </button>
+    </section>
+  );
+}
+
+/** Frase do dia: um trecho conhecido; tocar revela de qual livro é e abre a leitura. */
+function DailyQuote({ books, onOpen }: { books: Ebook[]; onOpen: (b: Ebook) => void }) {
+  const quote = useMemo(() => quoteOfTheDay(), []);
+  const book = books.find((b) => b.title === quote.bookTitle);
+  const [revealed, setRevealed] = useState(false);
+  if (!book) return null;
+  return (
+    <section className="daily-quote" aria-label="Frase do dia">
+      <span className="eyebrow">✦ Frase do dia</span>
+      <blockquote>“{quote.text}”</blockquote>
+      {revealed ? (
+        <div className="daily-quote-book">
+          <span>
+            <strong>{book.title}</strong> · {book.author}
+          </span>
+          <button type="button" className="btn" onClick={() => onOpen(book)}>
+            Ler o livro
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="link-btn daily-quote-guess" onClick={() => setRevealed(true)}>
+          De qual livro é? Tocar para ver
+        </button>
+      )}
+    </section>
+  );
+}
+
 function greetingNow(d = new Date()): string {
   const h = d.getHours();
   return h >= 5 && h < 12 ? "Bom dia" : h >= 12 && h < 18 ? "Boa tarde" : "Boa noite";
@@ -5755,6 +5953,14 @@ export function App() {
     };
   }, [authSession]);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
+  /** Conquistas novas na fila do aviso (uma por vez). */
+  const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
+  const noticeAchievements = useCallback(() => {
+    const fresh = takeNewAchievements(currentAchievements(), userStorage);
+    // Várias de uma vez é dado chegando de outro aparelho (já avisado lá): só registra.
+    if (fresh.length > 0 && fresh.length <= 2) setAchievementQueue((q) => [...q, ...fresh]);
+  }, []);
+  const nextAchievement = useCallback(() => setAchievementQueue((q) => q.slice(1)), []);
   /** Meta do dia batida durante a leitura: a barra do topo brilha (a chave recomeça a animação). */
   const [goalFlash, setGoalFlash] = useState<number | null>(null);
   useEffect(() => {
@@ -6267,7 +6473,13 @@ export function App() {
     };
   }, [book, loadState]);
 
+  // Conquista nova ao conversar, marcar um trecho ou ao abrir o app com os dados prontos.
+  useEffect(() => {
+    if (dataIsReady) noticeAchievements();
+  }, [dataIsReady, threads, highlights, noticeAchievements]);
+
   function celebrate(ev: ReadingEvents) {
+    noticeAchievements();
     if (ev.dayCompleted) {
       const n = ev.streak;
       const milestone = [3, 7, 14, 30, 50, 100, 365].includes(n);
@@ -6289,6 +6501,19 @@ export function App() {
       setGoalFlash(Date.now());
     }
   }
+
+  /** Trocou de personagem no chat: o retrato do topo gira como uma moeda. */
+  const flippedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = character?.id ?? null;
+    const before = flippedForRef.current;
+    flippedForRef.current = id;
+    if (!id || !before || before === id || prefersReducedMotion()) return;
+    chatAvatarRef.current?.animate(
+      [{ transform: "perspective(400px) rotateY(0)" }, { transform: "perspective(400px) rotateY(180deg) scale(0.9)" }, { transform: "perspective(400px) rotateY(360deg)" }],
+      { duration: 520, easing: "cubic-bezier(0.45, 0, 0.25, 1)" },
+    );
+  }, [character?.id]);
 
   /** Guarda com quem o leitor conversou por último (usado no texto dos lembretes). */
   useEffect(() => {
@@ -6381,6 +6606,25 @@ export function App() {
   }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length]);
 
   const displayedStory = currentChapter?.body ?? "";
+
+  /** Buscar no livro: palavra ou nome em todos os capítulos, com o trecho e o salto até lá. */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const deferredTerm = useDeferredValue(searchTerm);
+  const bookBlocks = useMemo(
+    () => (searchOpen ? chapters.map((ch) => toBlocks(ch.body, ch.label)) : []),
+    [searchOpen, chapters],
+  );
+  const searchResults = useMemo(() => searchBook(bookBlocks, chapters, deferredTerm), [bookBlocks, chapters, deferredTerm]);
+  function openSearchResult(r: BookSearchHit) {
+    setSearchOpen(false);
+    if (r.chapterIndex === chapterIndex) {
+      requestAnimationFrame(() => scrollToBlock(r.paragraph));
+    } else {
+      jumpToBlockRef.current = r.paragraph;
+      setChapterIndex(r.chapterIndex);
+    }
+  }
 
   /** Rola até um parágrafo do capítulo aberto e o destaca por um instante. */
   function scrollToBlock(i: number) {
@@ -6910,6 +7154,12 @@ export function App() {
         }
       : undefined;
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
+    const favoriteTalk = (() => {
+      const top = characterTalks()[0];
+      const talkBook = top && (currentBook.get(top.bookId) ?? recent.find((p) => p.book.id === top.bookId)?.book);
+      const who = talkBook && (top.characterId === "narrador" ? narratorCharacter(talkBook.title) : knownCast(talkBook)?.find((c) => c.id === top.characterId));
+      return who && talkBook ? { name: who.name, book: talkBook.title } : undefined;
+    })();
     if (moderationOpen && authSession && isAdmin) {
       return (
         <ModerationPage
@@ -7270,6 +7520,8 @@ export function App() {
         </>
         )}
 
+        {canRead ? <MonthRecap favorite={favoriteTalk} /> : null}
+
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
 
         {authSession ? <RankingTeaser onOpen={() => setRankingOpen(true)} /> : null}
@@ -7291,6 +7543,8 @@ export function App() {
             }}
           />
         ) : null}
+
+        {canRead ? <DailyQuote books={featuredBooks} onOpen={startBook} /> : null}
 
         {communityBooks.some(isNewCommunityBook) ? (
           <ProfileShelf
@@ -7410,6 +7664,7 @@ export function App() {
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {bookmarkDrop ? (
           <div key={bookmarkDrop.id} className="bookmark-drop" role="status">
@@ -7544,6 +7799,16 @@ export function App() {
               </button>
             </>
           ) : null}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Buscar no livro"
+            title="Buscar no livro"
+            disabled={!ready}
+          >
+            {Icon.search}
+          </button>
           <button
             type="button"
             className="icon-btn marks-btn"
@@ -7779,14 +8044,21 @@ export function App() {
                   ) : null;
                 }
                 const pending = translateOn && !translations[c];
-                const marks = highlights
-                  .filter((h) => h.chapterIndex === chapterIndex && h.paragraph === i)
-                  .map((h) => h.text);
+                const here = highlights.filter((h) => h.chapterIndex === chapterIndex && h.paragraph === i);
+                const marks = here.map((h) => h.text);
+                // Acabou de marcar: o trecho é pintado como caneta passando (só esse, só agora).
+                const fresh = new Set(here.filter((h) => Date.now() - h.createdAt < 4000).map((h) => h.text));
                 // Com destaque, o itálico (_assim_) sai: o trecho marcado precisa bater com o texto.
                 const text =
                   marks.length > 0
                     ? splitByHighlights(shownTexts[i].replace(/_/g, ""), marks).map((piece, k) =>
-                        piece.marked ? <mark key={k}>{piece.text}</mark> : piece.text,
+                        piece.marked ? (
+                          <mark key={k} className={fresh.has(piece.text) ? "is-new" : undefined}>
+                            {piece.text}
+                          </mark>
+                        ) : (
+                          piece.text
+                        ),
                       )
                     : withItalics(shownTexts[i]);
                 const className =
@@ -7995,6 +8267,62 @@ export function App() {
           </div>
         ) : null}
 
+        {searchOpen ? (
+          <div className="import-overlay" onClick={() => setSearchOpen(false)}>
+            <div
+              className="import-panel marks-panel search-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="search-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="import-head">
+                <h3 id="search-title">Buscar no livro</h3>
+                <button type="button" className="icon-btn" onClick={() => setSearchOpen(false)} aria-label="Fechar">
+                  {Icon.close}
+                </button>
+              </div>
+              <label className="search-field">
+                {Icon.search}
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Uma palavra ou um nome"
+                  aria-label="O que buscar no livro"
+                  autoFocus
+                />
+              </label>
+              {deferredTerm.trim().length < 2 ? (
+                <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
+              ) : searchResults.hits.length === 0 ? (
+                <p className="import-note">Nada encontrado para “{deferredTerm.trim()}”.</p>
+              ) : (
+                <>
+                  <p className="search-count">
+                    {searchResults.total} {searchResults.total === 1 ? "trecho" : "trechos"}
+                    {searchResults.total > searchResults.hits.length ? ` (mostrando os ${searchResults.hits.length} primeiros)` : ""}
+                  </p>
+                  <ul className="marks-list search-list">
+                    {searchResults.hits.map((r) => (
+                      <li key={`${r.chapterIndex}-${r.paragraph}-${r.start}`}>
+                        <button type="button" className="search-hit" onClick={() => openSearchResult(r)}>
+                          <span className="marks-chapter">{r.chapterLabel}</span>
+                          <span className="search-snippet">
+                            {r.before}
+                            <mark>{r.match}</mark>
+                            {r.after}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
+
         {highlightsOpen ? (
           <div className="import-overlay" onClick={() => setHighlightsOpen(false)}>
             <div
@@ -8041,6 +8369,7 @@ export function App() {
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {updateBanner}
 
@@ -8052,7 +8381,7 @@ export function App() {
 
         <aside className={`chat ${chatOpen ? "is-open" : ""}`} aria-label="Conversa com os personagens">
           {character ? (
-            <div className="chat-head">
+            <div className="chat-head" style={{ "--c": character.color } as React.CSSProperties}>
               <span className="chat-head-avatar" ref={chatAvatarRef}>
                 <Avatar character={character} size="lg" bookTitle={book.title} generate />
                 {chatReaction?.emoji ? (
