@@ -7,6 +7,7 @@ import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
 import {
   characterReply,
+  narratorCharacter,
   detectProvider,
   fetchAiQuota,
   providerDisplayLabel,
@@ -17,7 +18,7 @@ import {
 } from "./lib/ai";
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
-import { forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
+import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -617,6 +618,13 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
       <path d="M16 3.5v3M14.5 5h3" />
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
     </svg>
   ),
   pencil: (
@@ -3995,6 +4003,30 @@ function ProfilePage({
   const markCount = marks.reduce((n, m) => n + m.items.length, 0);
   const lendo = reading.filter((p) => !finished.some((f) => f.book.id === p.book.id));
 
+  /** Com quem você mais conversou (das conversas guardadas), com o livro e o retrato de cada um. */
+  const talks = useMemo(() => {
+    const out: { book: Ebook; character: StoryCharacter; sent: number }[] = [];
+    for (const t of characterTalks()) {
+      const book = bookById.get(t.bookId);
+      if (!book) continue;
+      const character =
+        t.characterId === "narrador" ? narratorCharacter(book.title) : knownCast(book)?.find((c) => c.id === t.characterId);
+      if (!character) continue;
+      out.push({ book, character, sent: t.sent });
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [bookById]);
+  const favorite = talks[0];
+  const nowReading = lendo[0];
+
+  /** Preferências e conta ficam numa tela à parte; o perfil é sobre a leitura. */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useBackClose(settingsOpen, () => setSettingsOpen(false));
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [settingsOpen]);
+
   // ---- Senha (ação direta, com o próprio botão) ----
   const [pwOpen, setPwOpen] = useState(false);
   const [pwCurrent, setPwCurrent] = useState("");
@@ -4038,15 +4070,25 @@ function ProfilePage({
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
       {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
       <nav className="home-nav profile-nav nav-split">
-        <button type="button" className="btn" onClick={leave}>
-          {Icon.back} Voltar
+        <button type="button" className="btn" onClick={settingsOpen ? () => setSettingsOpen(false) : leave}>
+          {Icon.back} {settingsOpen ? "Perfil" : "Voltar"}
         </button>
+        <span className="profile-nav-actions">
+          {settingsOpen ? null : (
+            <button type="button" className="btn" onClick={() => setSettingsOpen(true)}>
+              {Icon.settings} Ajustes
+            </button>
+          )}
         <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
           <span aria-hidden="true">💎</span>{" "}
           <strong className={`count-up ${shownDiamonds !== null && shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
           <span className="sr-only"> diamantes</span> · Loja
         </button>
+        </span>
       </nav>
+
+      {settingsOpen ? null : (
+      <>
 
       <header
         className={`profile-hero ${metaString(user, "cover") ? "has-cover" : ""}`}
@@ -4066,15 +4108,71 @@ function ProfilePage({
         </button>
         <div className="profile-id">
           <h1>{name}</h1>
-          <p>
-            {user.email}
-            {since ? ` · lendo no Storyverse desde ${since}` : ""}
-          </p>
+          {since ? <p>Lendo no Storyverse desde {since}</p> : null}
         </div>
       </header>
 
+      {nowReading || favorite ? (
+        <div className="profile-identity">
+          {nowReading ? (
+            <button type="button" className="identity-card identity-book" onClick={() => onOpenBook(nowReading.book)}>
+              <span className="identity-cover">
+                <BookCover book={nowReading.book} />
+              </span>
+              <span className="identity-text">
+                <small>Lendo agora</small>
+                <strong>{nowReading.book.title}</strong>
+                <span className="identity-progress" aria-label={`${Math.round(progressPct(nowReading))}% lido`}>
+                  <span style={{ width: `${Math.max(3, Math.round(progressPct(nowReading)))}%` }} />
+                </span>
+              </span>
+            </button>
+          ) : null}
+          {favorite ? (
+            <div className="identity-card identity-character" style={{ "--c": favorite.character.color } as React.CSSProperties}>
+              <Avatar character={favorite.character} size="lg" bookTitle={favorite.book.title} />
+              <span className="identity-text">
+                <small>Personagem favorito</small>
+                <strong>{favorite.character.name}</strong>
+                <span>
+                  {favorite.sent} {favorite.sent === 1 ? "mensagem" : "mensagens"} · {favorite.book.title}
+                </span>
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <ReadingDashboard summary={summary} totals={totals} finishedCount={finished.length} markCount={markCount} />
       <p className="profile-device-note">Os números, as marcações e os livros são da sua conta: aparecem igual na Web e no app.</p>
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Seus personagens</h2>
+          <p>Com quem você mais conversou nos livros.</p>
+        </div>
+        {talks.length === 0 ? (
+          <p className="profile-empty">
+            Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.
+          </p>
+        ) : (
+          <ol className="talk-grid">
+            {talks.map(({ book, character, sent }, i) => (
+              <li key={`${book.id}-${character.id}`} style={{ "--c": character.color, "--i": i } as React.CSSProperties}>
+                <button type="button" className={`talk-card ${i === 0 ? "is-top" : ""}`} onClick={() => onOpenBook(book)}>
+                  {i === 0 ? <span className="talk-badge">Favorito</span> : null}
+                  <Avatar character={character} size="lg" bookTitle={book.title} />
+                  <strong>{character.name}</strong>
+                  <span className="talk-book">{book.title}</span>
+                  <span className="talk-count">
+                    {sent} {sent === 1 ? "mensagem" : "mensagens"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       <ProfileShelf
         title="Lendo agora"
@@ -4174,6 +4272,16 @@ function ProfilePage({
           </div>
         )}
       </section>
+
+      </>
+      )}
+
+      {settingsOpen ? (
+      <>
+      <header className="profile-settings-head">
+        <h1>Ajustes</h1>
+        <p>Leitura, conta e sessão.</p>
+      </header>
 
       <section className="shelf">
         <div className="shelf-head">
@@ -4290,6 +4398,8 @@ function ProfilePage({
           </div>
         </div>
       </section>
+      </>
+      ) : null}
 
       {dirty ? (
         <div className="profile-savebar" role="region" aria-label="Alterações não salvas">

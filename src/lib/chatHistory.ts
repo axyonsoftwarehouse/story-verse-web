@@ -61,3 +61,26 @@ export function forgetChat(bookId: string, owner: string | null = currentDataOwn
     // Nada a limpar.
   }
 }
+
+/** Quantas mensagens você mandou para cada personagem, em todos os livros (para o perfil). */
+export type CharacterTalk = { bookId: string; characterId: string; sent: number; lastAt: number };
+
+export function characterTalks(owner: string | null = currentDataOwner()): CharacterTalk[] {
+  let index: string[] = [];
+  try {
+    index = JSON.parse(storageForOwner(owner).getItem(INDEX_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+  const out: CharacterTalk[] = [];
+  index.forEach((bookId, position) => {
+    const saved = loadChat(bookId, owner);
+    if (!saved) return;
+    for (const [characterId, msgs] of Object.entries(saved.threads)) {
+      const sent = msgs.filter((m) => m.role === "user").length;
+      // O índice vem do mais recente para o mais antigo: serve de desempate.
+      if (sent > 0) out.push({ bookId, characterId, sent, lastAt: (saved.updatedAt ?? 0) - position });
+    }
+  });
+  return out.sort((a, b) => b.sent - a.sent || b.lastAt - a.lastAt);
+}
