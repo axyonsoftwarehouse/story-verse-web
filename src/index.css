@@ -186,6 +186,8 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-ui);
+  /* A fonte junta "fi" num caractere só: "Perfil" parecia "Perfl" nos botões. */
+  font-variant-ligatures: no-common-ligatures;
   color: var(--text);
   background-color: var(--bg-deep);
 }

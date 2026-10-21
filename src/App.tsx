@@ -3809,8 +3809,8 @@ function MonthRecap({ favorite }: { favorite?: { name: string; book: string } })
   );
 }
 
-/** Frase do dia: um trecho conhecido; tocar revela de qual livro é e abre a leitura. */
-function DailyQuote({ books, onOpen }: { books: Ebook[]; onOpen: (b: Ebook) => void }) {
+/** Frase do dia: um trecho conhecido; tocar revela de qual livro é. */
+function DailyQuote({ books }: { books: Ebook[] }) {
   const quote = useMemo(() => quoteOfTheDay(), []);
   const book = books.find((b) => b.title === quote.bookTitle);
   const [revealed, setRevealed] = useState(false);
@@ -3820,14 +3820,9 @@ function DailyQuote({ books, onOpen }: { books: Ebook[]; onOpen: (b: Ebook) => v
       <span className="eyebrow">✦ Frase do dia</span>
       <blockquote>“{quote.text}”</blockquote>
       {revealed ? (
-        <div className="daily-quote-book">
-          <span>
-            <strong>{book.title}</strong> · {book.author}
-          </span>
-          <button type="button" className="btn btn-primary" onClick={() => onOpen(book)}>
-            Ler o livro
-          </button>
-        </div>
+        <p className="daily-quote-book">
+          <strong>{book.title}</strong> · {book.author}
+        </p>
       ) : (
         <button type="button" className="btn daily-quote-guess" onClick={() => setRevealed(true)}>
           De qual livro é?
@@ -4296,8 +4291,9 @@ function ProfilePage({
         </button>
         <span className="profile-nav-actions">
           {settingsOpen ? null : (
-            <button type="button" className="btn" onClick={() => setSettingsOpen(true)}>
-              {Icon.settings} Ajustes
+            <button type="button" className="btn profile-settings-btn" onClick={() => setSettingsOpen(true)} aria-label="Ajustes">
+              {Icon.settings}
+              <span className="profile-settings-label">Ajustes</span>
             </button>
           )}
         <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
@@ -7602,7 +7598,7 @@ export function App() {
           />
         ) : null}
 
-        {canRead ? <DailyQuote books={featuredBooks} onOpen={startBook} /> : null}
+        {canRead ? <DailyQuote books={featuredBooks} /> : null}
 
         {communityBooks.some(isNewCommunityBook) ? (
           <ProfileShelf

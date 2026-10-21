@@ -1410,6 +1410,8 @@
   margin: 0 auto;
   padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 5vw, 2.5rem) 5rem;
   font-family: var(--font-read);
+  /* No texto do livro as ligaduras (fi, fl) ficam bonitas: só a interface as desliga. */
+  font-variant-ligatures: common-ligatures;
   font-size: var(--read-size);
   line-height: 1.8;
   color: var(--r-text);
@@ -7391,7 +7393,24 @@
 
 .profile-nav-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+/* Loja com a mesma altura de Voltar e Ajustes. */
+.profile-nav .ranking-diamonds {
+  padding-block: 0.6rem;
+}
+
+/* No celular a fileira não cabe: Ajustes vira só o ícone (o nome fica para leitores de tela). */
+@media (max-width: 480px) {
+  .profile-settings-label {
+    display: none;
+  }
+
+  .profile-settings-btn {
+    padding-inline: 0.75rem;
+  }
 }
 
 .profile-nav-actions .btn svg {
@@ -7768,12 +7787,9 @@ button.identity-card:hover {
   font-size: 0.82rem;
 }
 
-/* Revelado: o livro numa linha e o botão centralizado embaixo (lado a lado ficava desnivelado). */
+/* Revelado: só o livro e o autor, centralizados. */
 .daily-quote-book {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.7rem;
+  margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.4;
