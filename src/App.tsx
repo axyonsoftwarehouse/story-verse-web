@@ -4036,6 +4036,7 @@ function ProfilePage({
     [totals, finished.length, markCount, allTalks, giftSummary],
   );
   const unlockedCount = badges.filter((b) => b.unlocked).length;
+  const allBadges = unlockedCount === badges.length;
   const nowReading = lendo[0];
 
   /** Preferências e conta ficam numa tela à parte; o perfil é sobre a leitura. */
@@ -4126,6 +4127,7 @@ function ProfilePage({
         </button>
         <div className="profile-id">
           <h1>{name}</h1>
+          {allBadges ? <span className="legend-seal">🏆 Lenda da leitura</span> : null}
           {since ? <p>Lendo no Storyverse desde {since}</p> : null}
         </div>
       </header>
@@ -4202,11 +4204,24 @@ function ProfilePage({
       <section className="shelf">
         <div className="shelf-head">
           <h2>Conquistas</h2>
-          <p>
-            {unlockedCount} de {badges.length} conquistadas. As apagadas mostram quanto falta.
-          </p>
+          {allBadges ? null : (
+            <p>
+              {unlockedCount} de {badges.length} conquistadas. As apagadas mostram quanto falta.
+            </p>
+          )}
         </div>
-        <ol className="badge-grid">
+        {allBadges ? (
+          <div className="badge-complete" role="status">
+            <span className="badge-complete-trophy" aria-hidden="true">
+              🏆
+            </span>
+            <div>
+              <strong>Você conquistou todas as {badges.length} conquistas!</strong>
+              <span>Lenda da leitura: não sobrou nenhum marco para trás.</span>
+            </div>
+          </div>
+        ) : null}
+        <ol className={`badge-grid ${allBadges ? "is-complete" : ""}`}>
           {/* Conquistadas primeiro; depois as que estão mais perto de sair. */}
           {[...badges]
             .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.current / b.target - a.current / a.target)
