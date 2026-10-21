@@ -29,6 +29,7 @@ const USER_KEYS = new Set([
   "storyverse:library",
   "storyverse:achievements-seen",
   "storyverse:recap-dismissed",
+  "storyverse:app-theme",
 ]);
 const USER_PREFIXES = ["storyverse:highlights:", "storyverse:chat:"];
 

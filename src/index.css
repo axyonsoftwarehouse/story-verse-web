@@ -2,31 +2,174 @@
   color-scheme: dark;
   /* Tom biblioteca: papel envelhecido à luz baixa — confortável para leitura longa */
   --bg-deep: #0c0a08;
+  --bg-deep-rgb: 12, 10, 8;
   --bg: #14110e;
   --surface: rgba(30, 26, 22, 0.94);
   --surface-2: rgba(42, 36, 30, 0.75);
   --surface-deep: rgba(12, 10, 8, 0.97);
+  /* Cartões: degradê do topo para baixo. */
+  --card-top-rgb: 40, 34, 28;
+  --card-bottom-rgb: 16, 13, 10;
   --border: rgba(220, 190, 150, 0.08);
   --border-strong: rgba(230, 200, 160, 0.14);
   --text: #f5f0e8;
   --text-read: #e8e0d4;
   --muted: #9c948a;
-  /* Destaque: âmbar suave (convida a clicar sem gritar) */
+  /* Destaque: âmbar suave (convida a clicar sem gritar), com a família de tons que o acompanha */
   --accent: #e4b86a;
-  --accent-dim: rgba(228, 184, 106, 0.42);
+  --accent-rgb: 228, 184, 106;
+  --accent-deep: #c48a38;
+  --accent-deep-rgb: 200, 140, 50;
+  --accent-light: #f1cf88;
+  --accent-light-rgb: 240, 200, 130;
+  --accent-pale: #fbe7b8;
+  /* Texto escuro em cima de botões com a cor de destaque */
+  --on-accent: #1c140c;
+  --accent-dim: rgba(var(--accent-rgb), 0.42);
   /* Secundária: verde-sálvia para links e detalhes frios */
   --accent-2: #9bc4b5;
-  --accent-2-dim: rgba(155, 196, 181, 0.35);
+  --accent-2-rgb: 155, 196, 181;
+  --accent-2-light: #b9d6ca;
+  --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
+  /* Brilhos do fundo da página */
+  --glow-a-rgb: 120, 80, 50;
+  --glow-b-rgb: 90, 120, 100;
+  --glow-c-rgb: 140, 100, 60;
   --danger: #e8a8a8;
   --radius: 18px;
   --radius-sm: 12px;
   --radius-pill: 999px;
   --shadow-elevated: 0 24px 56px -18px rgba(0, 0, 0, 0.55);
   --shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.38);
-  --glow-warm: 0 0 80px rgba(200, 150, 80, 0.08);
+  --glow-warm: 0 0 80px rgba(var(--accent-deep-rgb), 0.08);
   --font-ui: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-read: "Literata", "Georgia", serif;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Cores do app (Ajustes › Cor do app). Cada tema troca a família inteira: destaque, secundária,
+ * fundo, cartões e bordas, para tudo combinar. Fogo da sequência, metais do pódio e o papel do
+ * leitor não mudam: têm significado próprio.
+ */
+:root[data-accent="esmeralda"] {
+  --bg-deep: #08100c;
+  --bg-deep-rgb: 8, 16, 12;
+  --bg: #0e1612;
+  --surface: rgba(22, 32, 27, 0.94);
+  --surface-2: rgba(32, 46, 39, 0.75);
+  --surface-deep: rgba(8, 14, 11, 0.97);
+  --card-top-rgb: 28, 40, 34;
+  --card-bottom-rgb: 10, 16, 13;
+  --border: rgba(160, 220, 190, 0.08);
+  --border-strong: rgba(170, 230, 200, 0.14);
+  --text: #eef5f0;
+  --text-read: #dde8e1;
+  --muted: #8fa298;
+  --accent: #6fcf9f;
+  --accent-rgb: 111, 207, 159;
+  --accent-deep: #2f8f66;
+  --accent-deep-rgb: 47, 143, 102;
+  --accent-light: #9fe0bf;
+  --accent-light-rgb: 159, 224, 191;
+  --accent-pale: #d4f4e3;
+  --on-accent: #07170f;
+  --accent-2: #d8c48a;
+  --accent-2-rgb: 216, 196, 138;
+  --accent-2-light: #e8dab0;
+  --glow-a-rgb: 50, 110, 80;
+  --glow-b-rgb: 120, 110, 60;
+  --glow-c-rgb: 40, 90, 70;
+}
+
+:root[data-accent="rosa"] {
+  --bg-deep: #0f0a0c;
+  --bg-deep-rgb: 15, 10, 12;
+  --bg: #171014;
+  --surface: rgba(34, 24, 29, 0.94);
+  --surface-2: rgba(48, 34, 41, 0.75);
+  --surface-deep: rgba(14, 9, 11, 0.97);
+  --card-top-rgb: 44, 30, 37;
+  --card-bottom-rgb: 18, 12, 15;
+  --border: rgba(240, 190, 210, 0.08);
+  --border-strong: rgba(245, 200, 220, 0.14);
+  --text: #f7eef2;
+  --text-read: #ecdfe5;
+  --muted: #a3929a;
+  --accent: #ee9fbf;
+  --accent-rgb: 238, 159, 191;
+  --accent-deep: #c4618b;
+  --accent-deep-rgb: 196, 97, 139;
+  --accent-light: #f6c3d8;
+  --accent-light-rgb: 246, 195, 216;
+  --accent-pale: #fde3ee;
+  --on-accent: #200b14;
+  --accent-2: #b8a6e0;
+  --accent-2-rgb: 184, 166, 224;
+  --accent-2-light: #d3c8ef;
+  --glow-a-rgb: 120, 50, 80;
+  --glow-b-rgb: 90, 70, 130;
+  --glow-c-rgb: 130, 60, 90;
+}
+
+:root[data-accent="oceano"] {
+  --bg-deep: #080b10;
+  --bg-deep-rgb: 8, 11, 16;
+  --bg: #0e131a;
+  --surface: rgba(22, 28, 38, 0.94);
+  --surface-2: rgba(32, 41, 55, 0.75);
+  --surface-deep: rgba(8, 11, 16, 0.97);
+  --card-top-rgb: 28, 36, 48;
+  --card-bottom-rgb: 10, 14, 20;
+  --border: rgba(170, 200, 240, 0.08);
+  --border-strong: rgba(180, 210, 245, 0.14);
+  --text: #eef3f8;
+  --text-read: #dde5ee;
+  --muted: #8f9aa8;
+  --accent: #7fb6ec;
+  --accent-rgb: 127, 182, 236;
+  --accent-deep: #3f7fc0;
+  --accent-deep-rgb: 63, 127, 192;
+  --accent-light: #b0d3f5;
+  --accent-light-rgb: 176, 211, 245;
+  --accent-pale: #dcebfb;
+  --on-accent: #07121d;
+  --accent-2: #9fd6c9;
+  --accent-2-rgb: 159, 214, 201;
+  --accent-2-light: #c3e6dd;
+  --glow-a-rgb: 40, 70, 120;
+  --glow-b-rgb: 50, 110, 110;
+  --glow-c-rgb: 40, 60, 110;
+}
+
+:root[data-accent="lavanda"] {
+  --bg-deep: #0c0a10;
+  --bg-deep-rgb: 12, 10, 16;
+  --bg: #131019;
+  --surface: rgba(28, 24, 38, 0.94);
+  --surface-2: rgba(40, 34, 54, 0.75);
+  --surface-deep: rgba(11, 9, 15, 0.97);
+  --card-top-rgb: 36, 30, 48;
+  --card-bottom-rgb: 14, 12, 20;
+  --border: rgba(205, 190, 240, 0.08);
+  --border-strong: rgba(215, 200, 245, 0.14);
+  --text: #f2eff8;
+  --text-read: #e3dfee;
+  --muted: #9a94a8;
+  --accent: #b9a2f0;
+  --accent-rgb: 185, 162, 240;
+  --accent-deep: #7d63c9;
+  --accent-deep-rgb: 125, 99, 201;
+  --accent-light: #d6c8f8;
+  --accent-light-rgb: 214, 200, 248;
+  --accent-pale: #ece5fd;
+  --on-accent: #120c22;
+  --accent-2: #f0b8c8;
+  --accent-2-rgb: 240, 184, 200;
+  --accent-2-light: #f6d3dd;
+  --glow-a-rgb: 80, 60, 130;
+  --glow-b-rgb: 120, 60, 90;
+  --glow-c-rgb: 70, 50, 120;
 }
 
 *,
@@ -58,9 +201,9 @@ body::before {
   content: "";
   pointer-events: none;
   background-image:
-    radial-gradient(ellipse 100% 70% at 50% -25%, rgba(120, 80, 50, 0.2), transparent 52%),
-    radial-gradient(ellipse 50% 45% at 100% 0%, rgba(90, 120, 100, 0.12), transparent 45%),
-    radial-gradient(ellipse 40% 35% at 0% 100%, rgba(140, 100, 60, 0.1), transparent 48%),
+    radial-gradient(ellipse 100% 70% at 50% -25%, rgba(var(--glow-a-rgb), 0.2), transparent 52%),
+    radial-gradient(ellipse 50% 45% at 100% 0%, rgba(var(--glow-b-rgb), 0.12), transparent 45%),
+    radial-gradient(ellipse 40% 35% at 0% 100%, rgba(var(--glow-c-rgb), 0.1), transparent 48%),
     linear-gradient(175deg, var(--bg) 0%, var(--bg-deep) 100%);
   transform: translateZ(0);
 }
@@ -70,7 +213,7 @@ body::before {
 }
 
 ::selection {
-  background: rgba(228, 184, 106, 0.28);
+  background: rgba(var(--accent-rgb), 0.28);
   color: var(--text);
 }
 

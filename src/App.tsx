@@ -21,6 +21,7 @@ import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
+import { APP_THEMES, applyAppTheme, loadAppTheme, saveAppTheme, type AppThemeId } from "./lib/appTheme";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -3822,13 +3823,13 @@ function DailyQuote({ books, onOpen }: { books: Ebook[]; onOpen: (b: Ebook) => v
           <span>
             <strong>{book.title}</strong> · {book.author}
           </span>
-          <button type="button" className="btn" onClick={() => onOpen(book)}>
+          <button type="button" className="btn btn-primary" onClick={() => onOpen(book)}>
             Ler o livro
           </button>
         </div>
       ) : (
-        <button type="button" className="link-btn daily-quote-guess" onClick={() => setRevealed(true)}>
-          De qual livro é? Tocar para ver
+        <button type="button" className="btn daily-quote-guess" onClick={() => setRevealed(true)}>
+          De qual livro é?
         </button>
       )}
     </section>
@@ -4237,6 +4238,8 @@ function ProfilePage({
   const allBadges = unlockedCount === badges.length;
   const nowReading = lendo[0];
 
+  /** Cor do app: vale na hora (sem "Salvar"), e o app inteiro troca junto. */
+  const [appTheme, setAppTheme] = useState<AppThemeId>(loadAppTheme);
   /** Preferências e conta ficam numa tela à parte; o perfil é sobre a leitura. */
   const [settingsOpen, setSettingsOpen] = useState(false);
   useBackClose(settingsOpen, () => setSettingsOpen(false));
@@ -4563,6 +4566,29 @@ function ProfilePage({
           <h2>Preferências</h2>
         </div>
         <div className="profile-card profile-prefs">
+          <div className="profile-pref">
+            <span>Cor do app</span>
+            <div className="theme-swatches" role="radiogroup" aria-label="Cor do app">
+              {APP_THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={appTheme === t.id}
+                  className={`theme-swatch ${appTheme === t.id ? "is-on" : ""}`}
+                  style={{ "--a": t.swatch[0], "--b": t.swatch[1], "--bg": t.bg } as React.CSSProperties}
+                  onClick={() => {
+                    setAppTheme(t.id);
+                    saveAppTheme(t.id);
+                  }}
+                  title={t.label}
+                >
+                  <span className="theme-swatch-dot" aria-hidden="true" />
+                  <span className="theme-swatch-label">{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="profile-pref">
             <span>Meta diária</span>
             <div className="segmented" role="radiogroup" aria-label="Meta diária">
@@ -5799,6 +5825,10 @@ export function App() {
    * antes de desenhar a tela, para não aparecer nada da conta anterior nem por um instante.
    */
   const [dataEpoch, setDataEpoch] = useState(0);
+  // Cor do app da conta: ao entrar, trocar de conta ou chegar do outro aparelho.
+  useEffect(() => {
+    if (dataIsReady) applyAppTheme();
+  }, [dataIsReady, dataEpoch]);
   const onlineCount = usePresenceCount(authEnabled ? "app" : null, authUserId);
   const bookRoomId = book?.id;
   const readingHere = usePresenceCount(authEnabled && bookRoomId ? `book:${bookRoomId}` : null, authUserId);

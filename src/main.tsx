@@ -14,8 +14,12 @@ import { FORUM_VISIBLE } from "./lib/features";
 import { installTelemetry } from "./lib/telemetry";
 import { registerServiceWorker } from "./lib/pwa";
 import { startSplashExit } from "./lib/splash";
+import { applyAppTheme } from "./lib/appTheme";
 
 installTelemetry();
+
+// Cor escolhida pela pessoa antes do primeiro desenho (sem piscar o dourado antes).
+applyAppTheme();
 
 // App instalável e leitura offline (só no build de produção).
 registerServiceWorker();
