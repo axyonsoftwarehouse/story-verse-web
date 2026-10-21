@@ -26,7 +26,7 @@ import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
-import { haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
+import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
 import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
@@ -3051,8 +3051,10 @@ function RankingPage({
     setGiftError("");
   }
 
-  async function giveGift(gift: GiftCatalogItem) {
+  async function giveGift(gift: GiftCatalogItem, from: HTMLElement) {
     if (!giftTarget || giftBusy) return;
+    // Posição do botão agora: a janela fecha antes do presente sair voando.
+    const origin = from.getBoundingClientRect();
     setGiftBusy(gift.id);
     setGiftNotice("");
     setGiftError("");
@@ -3070,7 +3072,13 @@ function RankingPage({
           ? "Esse presente já tinha sido registrado."
           : `${gift.icon} enviado! Restam ${result.remaining_today} presentes hoje.`,
       );
+      const target = giftTarget.user_id;
       setGiftTarget(null);
+      // Com a janela fechada, o presente voa do lugar do botão até o avatar de quem ganhou.
+      requestAnimationFrame(() => {
+        const box = document.querySelector(`[data-gift-to="${target}"]`);
+        flyEmoji(gift.icon, origin, box?.querySelector(".podium-face, .ranking-face") ?? box);
+      });
     } catch (err) {
       setGiftError(err instanceof Error ? err.message : "Não foi possível enviar o presente.");
     } finally {
@@ -3174,7 +3182,7 @@ function RankingPage({
                   >
                     {e ? (
                       <>
-                        <span className="podium-avatar">
+                        <span className="podium-avatar" data-gift-to={e.user_id}>
                           <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" />
                           <span className="podium-medal" aria-hidden="true">
                             {PLACE_MEDALS[place as 1 | 2 | 3]}
@@ -3265,7 +3273,7 @@ function RankingPage({
                   key={gift.id}
                   type="button"
                   className={`gift-option rarity-${gift.rarity}`}
-                  onClick={() => void giveGift(gift)}
+                  onClick={(e) => void giveGift(gift, e.currentTarget)}
                   disabled={giftBusy !== null || (profile?.diamonds ?? 0) < gift.price}
                 >
                   <span className="gift-option-icon" aria-hidden="true">
@@ -3308,7 +3316,7 @@ function RankingRow({
   onGift?: (entry: RankEntry) => void;
 }) {
   return (
-    <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`}>
+    <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`} data-gift-to={entry.user_id}>
       <span className="ranking-place">{ordinal(entry.place)}</span>
       <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" />
       <span className="ranking-name">{entry.is_me ? `${entry.name} (você)` : entry.name}</span>
@@ -5558,6 +5566,20 @@ export function App() {
     };
   }, [authSession]);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
+  /** Meta do dia batida durante a leitura: a barra do topo brilha (a chave recomeça a animação). */
+  const [goalFlash, setGoalFlash] = useState<number | null>(null);
+  useEffect(() => {
+    if (goalFlash === null) return;
+    const t = window.setTimeout(() => setGoalFlash(null), 3600);
+    return () => window.clearTimeout(t);
+  }, [goalFlash]);
+  /** Fechou o livro: a fita do marcador desce na página inicial, mostrando que o ponto ficou guardado. */
+  const [bookmarkDrop, setBookmarkDrop] = useState<{ id: number; label: string } | null>(null);
+  useEffect(() => {
+    if (!bookmarkDrop) return;
+    const t = window.setTimeout(() => setBookmarkDrop(null), 2800);
+    return () => window.clearTimeout(t);
+  }, [bookmarkDrop]);
   useEffect(() => {
     if (!celebration) return;
     const t = window.setTimeout(() => setCelebration(null), celebration.book ? 6500 : 4200);
@@ -5948,8 +5970,11 @@ export function App() {
     setVoicePanelOpen(false);
   }, []);
 
+  /** Livro aberto e já carregado: ao sair, a fita do marcador lembra que o ponto ficou guardado. */
+  const leavingTitleRef = useRef<string | null>(null);
   const leaveBook = useCallback(() => {
     readerGeneration.current++;
+    if (leavingTitleRef.current) setBookmarkDrop({ id: Date.now(), label: leavingTitleRef.current });
     stopSpeaking();
     setHighlightsOpen(false);
     setReaderSettingsOpen(false);
@@ -6070,7 +6095,9 @@ export function App() {
               : "Continue assim — volte amanhã para manter a sequência.",
       });
     } else if (ev.goalReached) {
-      setCelebration({ emoji: "🎯", title: "Meta do dia cumprida!", text: "Você leu tudo o que planejou hoje." });
+      // Sem janela por cima do texto: a barra do topo brilha e um aviso pequeno some sozinho.
+      haptic([20, 40, 20]);
+      setGoalFlash(Date.now());
     }
   }
 
@@ -6092,6 +6119,7 @@ export function App() {
 
   const chapters = useMemo(() => (fullText ? splitIntoChapters(fullText) : []), [fullText]);
   const currentChapter = chapters[chapterIndex] ?? chapters[0];
+  leavingTitleRef.current = book && loadState === "ready" ? book.title : null;
 
   useEffect(() => {
     ratioKeyRef.current = null;
@@ -7194,6 +7222,16 @@ export function App() {
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
 
+        {bookmarkDrop ? (
+          <div key={bookmarkDrop.id} className="bookmark-drop" role="status">
+            <span className="bookmark-ribbon" aria-hidden="true" />
+            <span className="bookmark-label">
+              <strong>Marcamos onde você parou</strong>
+              <span>{bookmarkDrop.label}</span>
+            </span>
+          </div>
+        ) : null}
+
         {updateBanner}
 
         <footer className="home-foot">
@@ -7227,6 +7265,17 @@ export function App() {
       {/* Por cima de tudo, sem pegar cliques: tira o azul da tela para ler à noite. */}
       {prefs.nightLight ? <div className={`night-light night-light-${prefs.nightLight}`} aria-hidden="true" /> : null}
       <header className="reader-bar">
+        {goalFlash !== null ? (
+          <div key={goalFlash} className="goal-flash" role="status">
+            <span className="goal-flash-line" aria-hidden="true" />
+            <span className="goal-flash-sparks" aria-hidden="true">
+              {Array.from({ length: 8 }, (_, i) => (
+                <i key={i} style={{ "--i": i } as React.CSSProperties} />
+              ))}
+            </span>
+            <span className="goal-flash-pill">🎯 Meta do dia cumprida!</span>
+          </div>
+        ) : null}
         <button type="button" className="icon-btn" onClick={leaveBook} aria-label="Voltar para a estante">
           {Icon.back}
         </button>

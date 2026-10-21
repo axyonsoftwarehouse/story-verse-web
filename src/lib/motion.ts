@@ -216,3 +216,46 @@ export function installCoverTilt(): () => void {
     document.removeEventListener("pointerout", out);
   };
 }
+
+/**
+ * Um emoji sai de `from` e voa em arco até `to`, que dá um pulinho ao receber (ex.: presente
+ * chegando no avatar de quem ganhou). `from` pode ser a posição guardada de um botão que já
+ * saiu da tela. Com movimento reduzido não anima; não segura nada da tela.
+ */
+export function flyEmoji(emoji: string, from: Element | DOMRect | null, to: Element | null) {
+  if (!from || !to || prefersReducedMotion() || typeof document.body.animate !== "function") return;
+  const a = from instanceof Element ? from.getBoundingClientRect() : from;
+  const b = to.getBoundingClientRect();
+  if (b.bottom < 0 || b.top > window.innerHeight) return;
+  const x = a.left + a.width / 2;
+  const y = a.top + a.height / 2;
+  const dx = b.left + b.width / 2 - x;
+  const dy = b.top + b.height / 2 - y;
+  const el = document.createElement("span");
+  el.className = "emoji-flight";
+  el.textContent = emoji;
+  el.setAttribute("aria-hidden", "true");
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  document.body.appendChild(el);
+  // Sobe um pouco acima da reta antes de descer no alvo.
+  const lift = Math.min(-60, dy / 2 - 80);
+  const flight = el.animate(
+    [
+      { transform: "translate(-50%, -50%) scale(0.6)", opacity: 0 },
+      { transform: "translate(-50%, -50%) scale(1.4)", opacity: 1, offset: 0.15 },
+      { transform: `translate(calc(-50% + ${dx / 2}px), calc(-50% + ${lift}px)) scale(1.2) rotate(-12deg)`, offset: 0.5 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.7) rotate(8deg)`, opacity: 1, offset: 0.92 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.3)`, opacity: 0 },
+    ],
+    { duration: 900, easing: "cubic-bezier(0.45, 0, 0.25, 1)" },
+  );
+  flight.onfinish = () => {
+    el.remove();
+    to.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(1.22) rotate(-6deg)" }, { transform: "scale(0.95)" }, { transform: "scale(1)" }],
+      { duration: 480, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
+    );
+  };
+  flight.oncancel = () => el.remove();
+}

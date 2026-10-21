@@ -8927,6 +8927,167 @@ button.ranking-diamonds {
   }
 }
 
+/* Presente voando do botão até o avatar de quem ganhou (src/lib/motion.ts › flyEmoji). */
+.emoji-flight {
+  position: fixed;
+  z-index: 10000;
+  font-size: 1.8rem;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+/* Fechou o livro: a fita dourada desce no canto e um aviso diz que o ponto ficou guardado. */
+.bookmark-drop {
+  position: fixed;
+  top: 0;
+  right: clamp(16px, 4vw, 40px);
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  pointer-events: none;
+  animation: bookmark-out 0.45s ease-in 2.3s both;
+}
+
+.bookmark-ribbon {
+  width: 26px;
+  height: 64px;
+  background: linear-gradient(180deg, #c48a38, #e4b86a 60%, #f1cf88);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.15);
+  transform-origin: 50% 0;
+  animation: ribbon-drop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.bookmark-label {
+  display: flex;
+  flex-direction: column;
+  max-width: 15rem;
+  margin-top: 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 10px 28px -12px rgba(0, 0, 0, 0.7);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  order: -1;
+  animation: seen-in 0.35s var(--ease-out) 0.4s both;
+}
+
+.bookmark-label strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.bookmark-label span {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes ribbon-drop {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes bookmark-out {
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+/* Meta do dia na leitura: um brilho corre pela borda de baixo da barra, faíscas sobem do meio
+   e um aviso pequeno aparece embaixo da barra, sem cobrir o texto por muito tempo. */
+.goal-flash {
+  position: absolute;
+  inset: auto 0 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.goal-flash-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #f1cf88 45%, #fff6e0 50%, #f1cf88 55%, transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 12px rgba(228, 184, 106, 0.8);
+  animation: goal-sweep 1.1s ease-in-out 2 both;
+}
+
+.goal-flash-sparks i {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f1cf88;
+  box-shadow: 0 0 8px rgba(228, 184, 106, 0.9);
+  animation: goal-spark 0.9s var(--ease-out) calc(var(--i) * 40ms) both;
+}
+
+.goal-flash-pill {
+  position: absolute;
+  top: 0.55rem;
+  left: 50%;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-pill);
+  background: var(--r-panel, var(--surface));
+  color: var(--r-text, var(--text));
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.6);
+  transform: translateX(-50%);
+  animation: goal-pill 3.4s var(--ease-out) both;
+}
+
+@keyframes goal-sweep {
+  from {
+    background-position: -100% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes goal-spark {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + (var(--i) - 3.5) * 22px), calc(-22px - var(--i) * 3px)) scale(0.4);
+  }
+}
+
+@keyframes goal-pill {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.9);
+  }
+  10%,
+  85% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+
 /* Reação do personagem presa no canto da sua mensagem (como nos apps de conversa). */
 .msg-user.has-reaction {
   padding-bottom: 0.7rem;
@@ -9071,6 +9232,10 @@ button.ranking-diamonds {
   .chat-reaction,
   .bubble-reaction,
   .msg-seen,
+  .bookmark-ribbon,
+  .bookmark-label,
+  .goal-flash-line,
+  .goal-flash-pill,
   .msg-assistant.is-typing,
   .podium-block,
   .podium-spot > :not(.podium-block),
@@ -9087,8 +9252,20 @@ button.ranking-diamonds {
     stroke-dashoffset: 0;
   }
 
-  .chat-reaction {
+  .chat-reaction,
+  .goal-flash-sparks {
     display: none;
+  }
+
+  .bookmark-drop {
+    animation-name: fade-out-soft;
+    animation-timing-function: linear;
+  }
+}
+
+@keyframes fade-out-soft {
+  to {
+    opacity: 0;
   }
 }
 
