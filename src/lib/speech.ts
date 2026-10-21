@@ -1,4 +1,5 @@
 import { userStorage } from "./dataOwner";
+import { isNaturalVoiceUri, naturalVoiceLabel, naturalVoiceReady, naturalVoiceUri, synthesize } from "./naturalVoice";
 /**
  * Leitura em voz alta com as vozes do próprio aparelho (Web Speech API): grátis e sem chave.
  * A qualidade depende do navegador: o Edge tem vozes "Natural" quase humanas; Chrome e Android,
@@ -115,15 +116,19 @@ function shortLabel(v: SpeechSynthesisVoice): string {
     .trim();
 }
 
-/** Vozes do idioma para o painel de escolha, da melhor para a pior. */
+/** Vozes do idioma para o painel de escolha, da melhor para a pior (a natural baixada vem primeiro). */
 export async function listVoices(lang: "pt" | "en"): Promise<VoiceOption[]> {
   if (!speechSupported()) return [];
-  return sortedVoices(await voicesReady(), lang).map((v) => ({
+  const device = sortedVoices(await voicesReady(), lang).map((v) => ({
     uri: v.voiceURI,
     label: shortLabel(v),
     lang: v.lang,
     natural: isNatural(v),
   }));
+  const piper = (await naturalVoiceReady(lang))
+    ? [{ uri: naturalVoiceUri(lang), label: naturalVoiceLabel(lang), lang: lang === "pt" ? "pt-BR" : "en-US", natural: true }]
+    : [];
+  return [...piper, ...device];
 }
 
 /** Voz escolhida pelo leitor (se ainda existir) ou a melhor disponível. */
@@ -151,11 +156,123 @@ function pieces(text: string): string[] {
 
 export type SpeechSession = { stop: () => void };
 
+/** WAV vazio: toca no toque do botão para o iPhone liberar o áudio que vem depois. */
+const SILENCE =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+let player: HTMLAudioElement | null = null;
+/** Um só player, reaproveitado: liberado uma vez no toque, segue tocando as próximas frases. */
+function audioPlayer(): HTMLAudioElement {
+  player ??= new Audio();
+  return player;
+}
+
+function playBlob(audio: HTMLAudioElement, blob: Blob, rate: number): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      audio.onended = null;
+      audio.onerror = null;
+      URL.revokeObjectURL(url);
+      resolve();
+    };
+    audio.onended = done;
+    audio.onerror = done;
+    audio.src = url;
+    audio.playbackRate = rate;
+    void audio.play().catch(done);
+  });
+}
+
+/**
+ * Voz natural: gera um trecho enquanto o anterior toca (sem pausa entre as frases). Se a
+ * geração falhar (sem internet para o motor, aparelho sem suporte), segue com a voz do aparelho.
+ */
+function speakNatural(
+  paragraphs: string[],
+  start: number,
+  lang: "pt" | "en",
+  rate: number,
+  onParagraph: (index: number) => void,
+  onEnd: () => void,
+): SpeechSession {
+  const audio = audioPlayer();
+  audio.src = SILENCE;
+  void audio.play().catch(() => {});
+  let stopped = false;
+  let fallback: SpeechSession | null = null;
+
+  const items: { i: number; text: string }[] = [];
+  for (let i = start; i < paragraphs.length; i++) {
+    const text = paragraphs[i].replace(/_/g, "").trim();
+    if (text) for (const part of pieces(text)) items.push({ i, text: part });
+  }
+
+  void (async () => {
+    let k = 0;
+    let shown = -1;
+    let next: Promise<Blob> | null = items[0] ? synthesize(items[0].text, lang) : null;
+    try {
+      while (!stopped && k < items.length && next) {
+        const blob = await next;
+        next = items[k + 1] ? synthesize(items[k + 1].text, lang) : null;
+        // A próxima falha cedo não pode virar erro sem dono enquanto esta toca.
+        next?.catch(() => {});
+        if (stopped) return;
+        if (items[k].i !== shown) {
+          shown = items[k].i;
+          onParagraph(shown);
+        }
+        await playBlob(audio, blob, rate);
+        k++;
+      }
+      if (!stopped) onEnd();
+    } catch (e) {
+      console.warn("Voz natural falhou; seguindo com a voz do aparelho:", e);
+      if (!stopped) fallback = speakSystem(paragraphs, items[k]?.i ?? start, lang, rate, onParagraph, onEnd);
+    }
+  })();
+
+  return {
+    stop: () => {
+      stopped = true;
+      audio.pause();
+      fallback?.stop();
+    },
+  };
+}
+
 /**
  * Lê os parágrafos a partir de `start`. `onParagraph` recebe o índice do parágrafo atual;
  * `onEnd` é chamado ao terminar o último (não é chamado se `stop()` interromper).
  */
 export function speakParagraphs(
+  paragraphs: string[],
+  start: number,
+  lang: "pt" | "en",
+  rate: number,
+  onParagraph: (index: number) => void,
+  onEnd: () => void,
+): SpeechSession {
+  if (!isNaturalVoiceUri(savedVoiceUri(lang))) return speakSystem(paragraphs, start, lang, rate, onParagraph, onEnd);
+  // Voz natural escolhida: confere se continua baixada (pode ter sido apagada pelo navegador).
+  let stopped = false;
+  let inner: SpeechSession | null = null;
+  void naturalVoiceReady(lang).then((ready) => {
+    if (stopped) return;
+    inner = ready
+      ? speakNatural(paragraphs, start, lang, rate, onParagraph, onEnd)
+      : speakSystem(paragraphs, start, lang, rate, onParagraph, onEnd);
+  });
+  return {
+    stop: () => {
+      stopped = true;
+      inner?.stop();
+    },
+  };
+}
+
+function speakSystem(
   paragraphs: string[],
   start: number,
   lang: "pt" | "en",
@@ -217,6 +334,20 @@ export function speakParagraphs(
 export function speakSample(uri: string, lang: "pt" | "en", rate: number) {
   const synth = window.speechSynthesis;
   synth.cancel();
+  if (isNaturalVoiceUri(uri)) {
+    const audio = audioPlayer();
+    audio.src = SILENCE;
+    void audio.play().catch(() => {});
+    void synthesize(
+      lang === "pt"
+        ? "Era uma vez uma história que ganhava vida enquanto alguém a lia."
+        : "Once upon a time, there was a story that came alive while someone read it.",
+      lang,
+    )
+      .then((blob) => playBlob(audio, blob, rate))
+      .catch(() => {});
+    return;
+  }
   const voice = synth.getVoices().find((v) => v.voiceURI === uri);
   const u = new SpeechSynthesisUtterance(
     lang === "pt"

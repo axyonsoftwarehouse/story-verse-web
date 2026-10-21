@@ -22,6 +22,7 @@ import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
 import { APP_THEMES, applyAppTheme, loadAppTheme, saveAppTheme, type AppThemeId } from "./lib/appTheme";
+import { downloadNaturalVoice, naturalVoiceReady, naturalVoiceSupported, naturalVoiceUri } from "./lib/naturalVoice";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -6785,6 +6786,33 @@ export function App() {
   const canSpeak = speechSupported();
   const speakLang: "pt" | "en" = !book ? "pt" : translateOn ? "pt" : book.textLanguage;
 
+  /** Voz natural (Piper): já baixada, baixando (0–100) ou ainda não baixada. */
+  const [naturalVoice, setNaturalVoice] = useState<"checking" | "absent" | number | "ready" | "error">("checking");
+  useEffect(() => {
+    if (!voicePanelOpen || !naturalVoiceSupported()) return;
+    let alive = true;
+    void naturalVoiceReady(speakLang).then((ready) => {
+      if (alive) setNaturalVoice((s) => (typeof s === "number" ? s : ready ? "ready" : "absent"));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [voicePanelOpen, speakLang]);
+
+  async function getNaturalVoice() {
+    const lang = speakLang;
+    setNaturalVoice(0);
+    try {
+      await downloadNaturalVoice(lang, (pct) => setNaturalVoice(pct));
+      setNaturalVoice("ready");
+      setVoices(await listVoices(lang));
+      chooseVoice(naturalVoiceUri(lang));
+    } catch (e) {
+      console.warn("Falha ao baixar a voz natural:", e);
+      setNaturalVoice("error");
+    }
+  }
+
   useEffect(() => {
     if (!voicePanelOpen) return;
     let alive = true;
@@ -8186,6 +8214,26 @@ export function App() {
               </div>
 
               <span className="voice-label">Voz</span>
+              {naturalVoiceSupported() && naturalVoice !== "ready" && naturalVoice !== "checking" ? (
+                <div className="voice-natural">
+                  <strong>✨ Voz natural</strong>
+                  <span>
+                    Bem mais humana que as vozes do aparelho. Baixa uma vez (cerca de 60 MB) e fica guardada aqui;
+                    prefira usar o Wi-Fi.
+                  </span>
+                  {typeof naturalVoice === "number" ? (
+                    <span className="voice-natural-bar" role="progressbar" aria-valuenow={naturalVoice} aria-valuemin={0} aria-valuemax={100}>
+                      <span style={{ width: `${Math.max(3, naturalVoice)}%` }} />
+                    </span>
+                  ) : (
+                    <button type="button" className="btn btn-primary" onClick={() => void getNaturalVoice()}>
+                      {naturalVoice === "error" ? "Tentar de novo" : "Baixar voz natural"}
+                    </button>
+                  )}
+                  {typeof naturalVoice === "number" ? <small>Baixando… {naturalVoice}%</small> : null}
+                  {naturalVoice === "error" ? <small>Não deu para baixar agora. Confira a internet e tente de novo.</small> : null}
+                </div>
+              ) : null}
               {voices.length === 0 ? (
                 <p className="voice-tip">Procurando as vozes deste aparelho…</p>
               ) : (
