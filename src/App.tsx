@@ -19,6 +19,7 @@ import {
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
+import { achievements } from "./lib/achievements";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -4004,20 +4005,37 @@ function ProfilePage({
   const lendo = reading.filter((p) => !finished.some((f) => f.book.id === p.book.id));
 
   /** Com quem você mais conversou (das conversas guardadas), com o livro e o retrato de cada um. */
+  const allTalks = useMemo(() => characterTalks(), []);
   const talks = useMemo(() => {
     const out: { book: Ebook; character: StoryCharacter; sent: number }[] = [];
-    for (const t of characterTalks()) {
+    for (const t of allTalks) {
       const book = bookById.get(t.bookId);
       if (!book) continue;
       const character =
         t.characterId === "narrador" ? narratorCharacter(book.title) : knownCast(book)?.find((c) => c.id === t.characterId);
       if (!character) continue;
       out.push({ book, character, sent: t.sent });
-      if (out.length >= 6) break;
     }
     return out;
-  }, [bookById]);
+  }, [allTalks, bookById]);
+  const [allCharacters, setAllCharacters] = useState(false);
+  const shownTalks = allCharacters ? talks : talks.slice(0, TALKS_PREVIEW);
   const favorite = talks[0];
+
+  const badges = useMemo(
+    () =>
+      achievements({
+        totalMinutes: totals.totalMinutes,
+        bestStreak: totals.bestStreak,
+        finishedBooks: finished.length,
+        marks: markCount,
+        messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
+        charactersTalked: allTalks.length,
+        giftsReceived: giftSummary?.received_total ?? null,
+      }),
+    [totals, finished.length, markCount, allTalks, giftSummary],
+  );
+  const unlockedCount = badges.filter((b) => b.unlocked).length;
   const nowReading = lendo[0];
 
   /** Preferências e conta ficam numa tela à parte; o perfil é sobre a leitura. */
@@ -4157,7 +4175,7 @@ function ProfilePage({
           </p>
         ) : (
           <ol className="talk-grid">
-            {talks.map(({ book, character, sent }, i) => (
+            {shownTalks.map(({ book, character, sent }, i) => (
               <li key={`${book.id}-${character.id}`} style={{ "--c": character.color, "--i": i } as React.CSSProperties}>
                 <button type="button" className={`talk-card ${i === 0 ? "is-top" : ""}`} onClick={() => onOpenBook(book)}>
                   {i === 0 ? <span className="talk-badge">Favorito</span> : null}
@@ -4172,6 +4190,50 @@ function ProfilePage({
             ))}
           </ol>
         )}
+        {talks.length > TALKS_PREVIEW ? (
+          <div className="shelf-more">
+            <button type="button" className="btn" onClick={() => setAllCharacters((v) => !v)}>
+              {allCharacters ? "Mostrar menos" : `Ver todos (${talks.length})`}
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2>Conquistas</h2>
+          <p>
+            {unlockedCount} de {badges.length} conquistadas. As apagadas mostram quanto falta.
+          </p>
+        </div>
+        <ol className="badge-grid">
+          {/* Conquistadas primeiro; depois as que estão mais perto de sair. */}
+          {[...badges]
+            .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.current / b.target - a.current / a.target)
+            .map((b, i) => (
+              <li
+                key={b.id}
+                className={`badge-card ${b.unlocked ? "is-unlocked" : ""}`}
+                style={{ "--i": i } as React.CSSProperties}
+              >
+                <span className="badge-medal" aria-hidden="true">
+                  {b.emoji}
+                </span>
+                <strong>{b.title}</strong>
+                <span className="badge-desc">{b.description}</span>
+                {b.unlocked ? (
+                  <span className="badge-done">Conquistada</span>
+                ) : (
+                  <>
+                    <span className="badge-bar" aria-hidden="true">
+                      <span style={{ width: `${Math.max(4, (b.current / b.target) * 100)}%` }} />
+                    </span>
+                    <span className="badge-missing">{b.missing}</span>
+                  </>
+                )}
+              </li>
+            ))}
+        </ol>
       </section>
 
       <ProfileShelf
@@ -4656,6 +4718,8 @@ function CelebrationOverlay({ celebration, onClose }: { celebration: Celebration
 
 /** Quantos livros "Continue lendo" mostra antes de "Ver todos". */
 const CONTINUE_PREVIEW = 4;
+/** Personagens no perfil antes do "Ver todos". */
+const TALKS_PREVIEW = 6;
 
 /**
  * O livro ainda pode ser aberto por esta conta? Importado: precisa estar em "Seus livros" neste

@@ -7427,6 +7427,127 @@ button.identity-card:hover {
   letter-spacing: 0.03em;
 }
 
+/* Conquistas: medalha dourada nas conquistadas; as que faltam ficam apagadas, com a barra. */
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.badge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1rem 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  animation: rise 0.45s var(--ease-out) calc(var(--i) * 45ms) both;
+}
+
+.badge-card.is-unlocked {
+  border-color: rgba(228, 184, 106, 0.35);
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(228, 184, 106, 0.2), transparent 70%),
+    var(--surface);
+}
+
+.badge-medal {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 0.35rem;
+  border-radius: 50%;
+  background: rgba(255, 240, 220, 0.05);
+  border: 2px dashed rgba(255, 240, 220, 0.14);
+  font-size: 1.6rem;
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.badge-card.is-unlocked .badge-medal {
+  border: 2px solid #e4b86a;
+  background: radial-gradient(circle at 35% 30%, #fbe7b8, #c48a38 75%);
+  box-shadow:
+    0 0 0 4px rgba(228, 184, 106, 0.15),
+    0 0 24px rgba(228, 184, 106, 0.35);
+  filter: none;
+  opacity: 1;
+  animation: badge-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--i) * 45ms + 0.15s) both;
+}
+
+.badge-card strong {
+  font-family: var(--font-read);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.badge-card:not(.is-unlocked) strong {
+  color: var(--muted);
+}
+
+.badge-desc {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.badge-done {
+  margin-top: 0.35rem;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.badge-bar {
+  display: block;
+  width: 80%;
+  height: 4px;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 240, 220, 0.08);
+}
+
+.badge-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(228, 184, 106, 0.55);
+}
+
+.badge-missing {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@keyframes badge-pop {
+  from {
+    transform: scale(0.4) rotate(-20deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .badge-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-card,
+  .badge-card.is-unlocked .badge-medal {
+    animation: none;
+  }
+}
+
 .profile-settings-head {
   margin: 0.6rem 0 0.4rem;
   animation: fade-in 0.3s var(--ease-out) both;
