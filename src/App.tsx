@@ -22,7 +22,14 @@ import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
 import { APP_THEMES, applyAppTheme, loadAppTheme, saveAppTheme, type AppThemeId } from "./lib/appTheme";
-import { downloadNaturalVoice, naturalVoiceReady, naturalVoiceSupported, naturalVoiceUri } from "./lib/naturalVoice";
+import {
+  dismissNaturalOffer,
+  downloadNaturalVoice,
+  naturalOfferDismissed,
+  naturalVoiceReady,
+  naturalVoiceSupported,
+  naturalVoiceUri,
+} from "./lib/naturalVoice";
 import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -4554,8 +4561,11 @@ function ProfilePage({
       {settingsOpen ? (
       <>
       <header className="profile-settings-head">
+        <span className="profile-settings-icon" aria-hidden="true">
+          {Icon.settings}
+        </span>
         <h1>Ajustes</h1>
-        <p>Leitura, conta e sessão.</p>
+        <p>Cor do app, leitura, conta e sessão.</p>
       </header>
 
       <section className="shelf">
@@ -6795,6 +6805,20 @@ export function App() {
     };
   }, [voicePanelOpen, speakLang]);
 
+  /** Começa a ler e, enquanto a voz natural não foi baixada (nem recusada), já mostra a oferta. */
+  function listenAloud() {
+    startSpeaking(firstVisibleBlock());
+    if (!naturalVoiceSupported() || naturalOfferDismissed()) return;
+    void naturalVoiceReady(speakLang).then((ready) => {
+      if (!ready) setVoicePanelOpen(true);
+    });
+  }
+
+  function declineNaturalVoice() {
+    dismissNaturalOffer();
+    setVoicePanelOpen(false);
+  }
+
   async function getNaturalVoice() {
     const lang = speakLang;
     setNaturalVoice(0);
@@ -7844,7 +7868,7 @@ export function App() {
               <button
                 type="button"
                 className={`icon-btn ${speaking ? "is-active" : ""}`}
-                onClick={() => (speaking ? stopSpeaking() : startSpeaking(firstVisibleBlock()))}
+                onClick={() => (speaking ? stopSpeaking() : listenAloud())}
                 aria-pressed={speaking}
                 aria-label={speaking ? "Parar a leitura em voz alta" : "Ouvir o capítulo em voz alta"}
                 title={speaking ? "Parar" : "Ouvir em voz alta"}
@@ -8228,6 +8252,11 @@ export function App() {
                   )}
                   {typeof naturalVoice === "number" ? <small>Baixando… {naturalVoice}%</small> : null}
                   {naturalVoice === "error" ? <small>Não deu para baixar agora. Confira a internet e tente de novo.</small> : null}
+                  {typeof naturalVoice !== "number" ? (
+                    <button type="button" className="link-btn voice-natural-later" onClick={declineNaturalVoice}>
+                      Agora não
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {voices.length === 0 ? (
