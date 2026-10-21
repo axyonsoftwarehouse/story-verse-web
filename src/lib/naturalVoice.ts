@@ -53,6 +53,25 @@ export async function downloadNaturalVoice(lang: "pt" | "en", onProgress: (pct: 
   justDownloaded.add(VOICE_IDS[lang]);
 }
 
+const OFFER_KEY = "storyverse:natural-voice-offer";
+
+/** A pessoa tocou em "Agora não": a oferta para de abrir sozinha ao tocar em "Ouvir". */
+export function naturalOfferDismissed(): boolean {
+  try {
+    return localStorage.getItem(OFFER_KEY) === "0";
+  } catch {
+    return false;
+  }
+}
+
+export function dismissNaturalOffer() {
+  try {
+    localStorage.setItem(OFFER_KEY, "0");
+  } catch {
+    // Sem armazenamento: a oferta pode aparecer de novo.
+  }
+}
+
 /** Gera o áudio de um trecho (WAV). */
 export async function synthesize(text: string, lang: "pt" | "en"): Promise<Blob> {
   const tts = await load();

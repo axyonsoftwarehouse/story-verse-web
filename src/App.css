@@ -3467,6 +3467,12 @@
   font-size: 0.82rem;
 }
 
+.voice-natural-later {
+  align-self: flex-start;
+  color: var(--r-muted);
+  font-size: 0.78rem;
+}
+
 .voice-natural-bar {
   display: block;
   height: 6px;
@@ -8005,21 +8011,57 @@ button.identity-card:hover {
   }
 }
 
+/* Título dos Ajustes: selo com o ícone, nome grande e uma linha do que tem ali, centralizados. */
 .profile-settings-head {
-  margin: 0.6rem 0 0.4rem;
-  animation: fade-in 0.3s var(--ease-out) both;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0.4rem 0 1.4rem;
+  text-align: center;
+  animation: rise 0.4s var(--ease-out) both;
+}
+
+.profile-settings-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 0.7rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--accent-rgb), 0.28), rgba(var(--accent-rgb), 0.06));
+  box-shadow: 0 0 28px -6px rgba(var(--accent-rgb), 0.45);
+  color: var(--accent);
+}
+
+.profile-settings-icon svg {
+  width: 26px;
+  height: 26px;
 }
 
 .profile-settings-head h1 {
   margin: 0;
   font-family: var(--font-read);
-  font-size: clamp(1.7rem, 5vw, 2.3rem);
+  font-size: clamp(1.9rem, 6vw, 2.5rem);
   font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Fio dourado (na cor do app) embaixo do título. */
+.profile-settings-head h1::after {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 2px;
+  margin: 0.55rem auto 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
 }
 
 .profile-settings-head p {
-  margin: 0.2rem 0 0;
+  margin: 0.55rem 0 0;
   color: var(--muted);
+  font-size: 0.9rem;
 }
 
 @media (max-width: 520px) {
