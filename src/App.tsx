@@ -3163,7 +3163,7 @@ function RankingPage({
               {current ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚" : "Ninguém leu na semana passada."}
             </p>
           ) : (
-            <ol className="podium" aria-label="Pódio">
+            <ol key={current ? "esta" : "passada"} className="podium" aria-label="Pódio">
               {/* Ordem visual de pódio: prata, ouro, bronze. */}
               {[2, 1, 3].map((place) => {
                 const e = podium.find((p) => p.place === place);
@@ -7910,6 +7910,11 @@ export function App() {
                       </span>
                     ) : null}
                   </div>
+                  {loading && messages[messages.length - 1]?.id === m.id ? (
+                    <span className="msg-seen" aria-label={`${character?.name ?? "O personagem"} viu a mensagem`}>
+                      Visto
+                    </span>
+                  ) : null}
                 </div>
               ),
             )}
