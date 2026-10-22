@@ -8,6 +8,25 @@ import { userStorage } from "./dataOwner";
  */
 export type TranslationEngine = "local" | "google";
 
+/** Consentimento para enviar trechos de um livro local a Google/MyMemory. */
+const CONSENT_KEY = "storyverse:translate-consent";
+
+export function hasRemoteTranslationConsent(): boolean {
+  try {
+    return localStorage.getItem(CONSENT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function grantRemoteTranslationConsent(): void {
+  try {
+    localStorage.setItem(CONSENT_KEY, "1");
+  } catch {
+    // Sem armazenamento: o aviso volta na próxima vez.
+  }
+}
+
 /** Tamanho de cada pedido de tradução. */
 const CHUNK_CHARS = 2500;
 /**
@@ -177,6 +196,8 @@ async function translateRemote(paragraphs: string[]): Promise<(string | null)[]>
 export async function translateParagraphs(
   engine: TranslationEngine,
   original: string[],
+  /** Livros privados só podem cair no Google/MyMemory depois do consentimento. */
+  allowRemoteFallback = true,
 ): Promise<(string | null)[]> {
   // As marcações de itálico do Gutenberg (_assim_) confundem os tradutores.
   const cleaned = original.map((p) => p.replace(/_([^_]+)_/g, "$1"));
@@ -191,11 +212,15 @@ export async function translateParagraphs(
     try {
       translated = await translateLocal(paragraphs);
     } catch (err) {
+      if (!allowRemoteFallback) throw err;
       // Pacote de idioma ainda não baixado ou recusado: o Google cobre este trecho.
       console.warn("Tradutor do navegador falhou, usando o Google:", err);
     }
   }
-  translated ??= await translateRemote(paragraphs);
+  if (!translated) {
+    if (!allowRemoteFallback) throw new Error("Tradutor local indisponível.");
+    translated = await translateRemote(paragraphs);
+  }
   indexes.forEach((orig, k) => (out[orig] = translated![k] ?? null));
   return out;
 }

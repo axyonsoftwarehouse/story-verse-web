@@ -453,6 +453,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   let task;
   let doc;
   try {
+    // O pdf.js 6 não usa eval/Function, então combina com a CSP.
     task = pdfjs.getDocument({ data: buf });
     doc = await task.promise;
   } catch (e) {

@@ -82,7 +82,7 @@ Cada janela aberta empilha um passo no histórico para o botão voltar do celula
 
 ```mermaid
 flowchart TD
-  START([Abre o app]) --> LOAD[Bolinha de carregamento<br/>lê sessão salva]
+  START([Abre o app]) --> LOAD[Bolinha de carregamento<br/>renova pelo cookie HttpOnly]
   LOAD --> LOGGED{Tem sessão?}
 
   LOGGED -- não --> LAND[Página inicial pública<br/>carrossel · Novidades · Sobre]
@@ -115,31 +115,30 @@ flowchart TD
 
 ## 3. Conta: cadastro, login e sessão
 
-Código: `src/lib/auth.ts`. Fala com a API REST do Supabase Auth (`/auth/v1/*`) sem o SDK.
-O e-mail de confirmação sai pelo **SMTP próprio** (Gmail da Codeplus) com os modelos de
-`supabase/templates/`.
+Código: `src/lib/auth.ts`. Em produção fala com a **API própria** (`/api/v1/auth/*`). O e-mail de
+confirmação sai pelo **SMTP próprio** configurado no servidor.
 
 ```mermaid
 sequenceDiagram
   actor L as Leitor
   participant A as App
-  participant SA as Supabase Auth
+  participant API as API própria
   participant M as E-mail (SMTP)
 
   L->>A: Cadastrar (nome, e-mail, senha)
-  A->>SA: POST /auth/v1/signup
-  SA->>M: envia confirm-signup.html
+  A->>API: POST /api/v1/auth/signup
+  API->>M: envia link de confirmação
   A-->>L: tela "Confira seu e-mail" (reenviar)
-  L->>SA: clica no link do e-mail
-  SA-->>A: volta ao site com a sessão
-  A->>A: salva storyverse:supabase-session
+  L->>API: clica no link do e-mail
+  API-->>A: access token no JSON + cookie HttpOnly de refresh
+  A->>A: guarda o access token só em memória
   A->>A: activateDataOwner(id) + pullAndMerge()
 
-  Note over A,SA: Depois: o token é renovado antes de vencer<br/>(uma renovação por vez, sem loop).
+  Note over A,API: O access token é renovado antes de vencer pelo cookie<br/>(uma renovação por vez, sem loop).
 
   L->>A: Sair
   A->>A: envia dados pendentes (push) e guarda no cofre da conta
-  A->>SA: POST /auth/v1/logout
+  A->>API: POST /api/v1/auth/logout (limpa o cookie)
 ```
 
 - `VITE_LOGIN_REQUIRED=false` deixa a conta opcional. Sem as variáveis do Supabase o app funciona
@@ -617,7 +616,7 @@ e atualiza com atraso, então alguns MB aparecem como "0 GB".
 
 | Chave | O quê | Por conta | Sobe p/ nuvem |
 |---|---|---|---|
-| `supabase-session` | sessão (tokens) | — | não |
+| `session-meta` | quem está logado (sem tokens; o refresh vive em cookie HttpOnly) | — | não |
 | `data-owner`, `data-legacy-owner` | conta ativa / dona dos dados antigos | — | não |
 | `vault:<uid>` | cofre das outras contas | — | não |
 | `reading-progress` | onde parou em cada livro | sim | sim |

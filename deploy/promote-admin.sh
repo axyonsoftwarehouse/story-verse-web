@@ -1,16 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Promove uma conta ja cadastrada e confirmada a administrador do acervo.
-# Uso: bash promote-admin.sh email@exemplo.com
+# Promove uma conta existente e com e-mail confirmado a administrador do acervo.
+# Uso: bash promote-admin.sh <uuid-da-conta>
 # Rode na VPS, dentro de /home/deploy/storyverse (ou ajuste o cd abaixo).
+#
+# NUNCA promova por e-mail: o cadastro pode não ter confirmado o endereço e variantes do
+# Gmail (pontos) apontam para a mesma caixa. Pegue o UUID na tabela auth.users e confirme
+# a titularidade por um canal fora da aplicação.
 
 cd /home/deploy/storyverse
 set -a
 . ./.env
 set +a
 
-email="${1:?uso: promote-admin.sh email@exemplo.com}"
+user_id="${1:?uso: promote-admin.sh <uuid-da-conta>}"
+if [[ ! "$user_id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  echo "UUID inválido: use o id da conta em auth.users." >&2
+  exit 1
+fi
+
 db_user="${POSTGRES_USER:-storyverse}"
 db_name="${POSTGRES_DB:-storyverse}"
 
@@ -18,17 +27,34 @@ psql_db() {
   docker compose exec -T db psql -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 "$@"
 }
 
-psql_db -v email="$email" <<'SQL'
+confirmed=$(psql_db -v uid="$user_id" -tAc \
+  "select count(*) from auth.users where id = :'uid'::uuid and email_confirmed_at is not null")
+if [ "$confirmed" != "1" ]; then
+  echo "Conta não encontrada ou e-mail ainda não confirmado." >&2
+  exit 1
+fi
+
+psql_db -v uid="$user_id" <<'SQL'
 insert into public.admins (user_id)
-select id from auth.users where lower(email) = lower(:'email')
+select id from auth.users where id = :'uid'::uuid and email_confirmed_at is not null
 on conflict do nothing;
 SQL
 
 # A V6 introduziu papeis. Mantem compatibilidade com bancos ainda sem a migration.
 if psql_db -tAc "select to_regclass('public.user_roles')" | grep -q user_roles; then
-  psql_db -v email="$email" <<'SQL'
+  psql_db -v uid="$user_id" <<'SQL'
 insert into public.user_roles (user_id, role)
-select id, 'superadmin' from auth.users where lower(email) = lower(:'email')
+select id, 'superadmin' from auth.users where id = :'uid'::uuid and email_confirmed_at is not null
 on conflict do nothing;
 SQL
 fi
+
+# Auditoria quando a V6 já foi aplicada; actor_id fica nulo porque a promoção é operacional.
+if psql_db -tAc "select to_regclass('public.admin_audit_log')" | grep -q admin_audit_log; then
+  psql_db -v uid="$user_id" <<'SQL'
+insert into public.admin_audit_log (actor_id, action, target_type, target_id, metadata)
+values (null, 'admin.promote', 'user', :'uid', jsonb_build_object('via', 'promote-admin.sh'));
+SQL
+fi
+
+echo "Conta $user_id promovida a superadmin."

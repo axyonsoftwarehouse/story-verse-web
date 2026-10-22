@@ -38,6 +38,8 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      // O refresh token vive em cookie HttpOnly; sem isto o navegador não o envia.
+      credentials: "include",
       keepalive,
       // Rede muito lenta não pode prender o app na tela de abertura.
       signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(timeoutMs) : undefined,
@@ -69,6 +71,9 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
     captureEvent("warn", "api-http", `API respondeu ${response.status}`, { path });
     throw new AuthNetworkError(serverMessage || "O serviço está instável. Tente de novo em instantes.");
   }
+  if (response.status === 401) {
+    throw new AuthSessionError(serverMessage || "Sessão expirada. Entre novamente.");
+  }
   if (!response.ok) {
     throw new Error(serverMessage || "Falha na requisição.");
   }
@@ -88,6 +93,7 @@ export async function apiFetch(
         ...init.headers,
       },
       body: init.body,
+      credentials: "include",
       signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(60_000) : undefined,
     });
   } catch (error) {

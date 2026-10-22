@@ -20,6 +20,7 @@ import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
+import { deleteAccount, exportAccount, exportAccountFiles } from "./lib/account";
 import { quoteOfTheDay } from "./data/dailyQuotes";
 import { APP_THEMES, applyAppTheme, loadAppTheme, saveAppTheme, type AppThemeId } from "./lib/appTheme";
 import {
@@ -30,7 +31,7 @@ import {
   naturalVoiceSupported,
   naturalVoiceUri,
 } from "./lib/naturalVoice";
-import { activateDataOwner, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
+import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
@@ -75,6 +76,7 @@ import { splitIntoChapters } from "./lib/chapters";
 import { fetchBookText, searchBooks, type SearchLanguage } from "./lib/gutenberg";
 import { ACCEPTED_EXTENSIONS, importBookFile, type ImportedBook } from "./lib/importBook";
 import {
+  deleteAllLocalRecords,
   deleteLocalBook,
   isLocalBook,
   listLocalBooks,
@@ -216,6 +218,8 @@ import {
   cachedTranslation,
   chunkRanges,
   detectTranslationEngine,
+  grantRemoteTranslationConsent,
+  hasRemoteTranslationConsent,
   storeTranslation,
   translateParagraphs,
   warmUpLocalTranslator,
@@ -4061,6 +4065,7 @@ function ProfilePage({
   onSessionChange,
   onClose,
   onLogout,
+  onAccountDeleted,
   loggingOut,
   onOpenBook,
   onOpenHighlight,
@@ -4076,6 +4081,7 @@ function ProfilePage({
   onSessionChange: (session: SupabaseSession) => void;
   onClose: () => void;
   onLogout: () => void;
+  onAccountDeleted: () => void;
   loggingOut: boolean;
   onOpenBook: (book: Ebook) => void;
   onOpenHighlight: (book: Ebook, h: Highlight) => void;
@@ -4259,7 +4265,7 @@ function ProfilePage({
   async function savePassword(e: React.FormEvent) {
     e.preventDefault();
     if (!pwCurrent) return setPwState({ error: "Informe a senha atual." });
-    if (pw.length < 6) return setPwState({ error: "A senha precisa ter pelo menos 6 caracteres." });
+    if (pw.length < 8) return setPwState({ error: "A senha precisa ter pelo menos 8 caracteres." });
     if (pw !== pwConfirm) return setPwState({ error: "As duas senhas não são iguais." });
     setPwState({ loading: true });
     try {
@@ -4271,6 +4277,74 @@ function ProfilePage({
       setPwState({ ok: "Senha trocada." });
     } catch (err) {
       setPwState({ error: err instanceof Error ? err.message : "Não foi possível trocar a senha." });
+    }
+  }
+
+  // ---- Dados da conta: exportar/excluir ----
+  const [accountBusy, setAccountBusy] = useState<"export" | "files" | "delete" | null>(null);
+  const [accountError, setAccountError] = useState("");
+  const [accountOk, setAccountOk] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+
+  async function downloadData() {
+    setAccountBusy("export");
+    setAccountError("");
+    setAccountOk("");
+    try {
+      const data = await exportAccount(session);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "storyverse-dados.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setAccountOk("Cópia dos seus dados gerada.");
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Não foi possível exportar seus dados.");
+    } finally {
+      setAccountBusy(null);
+    }
+  }
+
+  async function downloadFiles() {
+    setAccountBusy("files");
+    setAccountError("");
+    setAccountOk("");
+    try {
+      const blob = await exportAccountFiles(session);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "storyverse-arquivos.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setAccountOk("Arquivos da conta gerados em ZIP.");
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Não foi possível exportar os arquivos.");
+    } finally {
+      setAccountBusy(null);
+    }
+  }
+
+  async function removeAccount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deletePassword) return setAccountError("Informe sua senha para excluir a conta.");
+    if (!window.confirm("Excluir permanentemente a conta, os livros importados, as conversas e os arquivos? Não dá para desfazer.")) return;
+    setAccountBusy("delete");
+    setAccountError("");
+    setAccountOk("");
+    try {
+      await deleteAccount(session, deletePassword);
+      onAccountDeleted();
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Não foi possível excluir a conta.");
+      setAccountBusy(null);
     }
   }
 
@@ -4677,11 +4751,11 @@ function ProfilePage({
               </label>
               <label>
                 Senha nova
-                <PasswordInput value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={6} required disabled={pwState.loading} />
+                <PasswordInput value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={8} required disabled={pwState.loading} />
               </label>
               <label>
                 Repita a senha
-                <PasswordInput value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" minLength={6} required disabled={pwState.loading} />
+                <PasswordInput value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" minLength={8} required disabled={pwState.loading} />
               </label>
               {pwState.error ? <p className="auth-error" role="alert">{pwState.error}</p> : null}
               <div className="profile-pw-actions">
@@ -4704,6 +4778,57 @@ function ProfilePage({
               {loggingOut ? "Saindo…" : "Sair da conta"}
             </button>
           </div>
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">Seus dados</span>
+              <strong>Baixe uma cópia em JSON (perfil, leitura e envios).</strong>
+            </div>
+            <button type="button" className="btn" onClick={() => void downloadData()} disabled={accountBusy !== null}>
+              {accountBusy === "export" ? "Preparando…" : "Baixar meus dados"}
+            </button>
+          </div>
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">Arquivos</span>
+              <strong>Fotos, livros importados e textos enviados, em um ZIP.</strong>
+            </div>
+            <button type="button" className="btn" onClick={() => void downloadFiles()} disabled={accountBusy !== null}>
+              {accountBusy === "files" ? "Preparando…" : "Baixar arquivos"}
+            </button>
+          </div>
+          {accountOk ? <p className="auth-success" role="status">{accountOk}</p> : null}
+          {accountError ? <p className="auth-error" role="alert">{accountError}</p> : null}
+          <div className="profile-account-row">
+            <div>
+              <span className="profile-account-label">Excluir conta</span>
+              <strong>Apaga a conta, os livros importados, as conversas e os arquivos.</strong>
+            </div>
+            <button type="button" className="btn" onClick={() => setDeleteOpen((open) => !open)} disabled={accountBusy !== null}>
+              Excluir conta
+            </button>
+          </div>
+          {deleteOpen ? (
+            <form className="auth-form profile-pw-form" onSubmit={removeAccount}>
+              <label>
+                Senha atual
+                <PasswordInput
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  disabled={accountBusy !== null}
+                />
+              </label>
+              <div className="profile-pw-actions">
+                <button type="button" className="btn" onClick={() => { setDeleteOpen(false); setDeletePassword(""); }} disabled={accountBusy !== null}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={accountBusy !== null}>
+                  {accountBusy === "delete" ? "Excluindo…" : "Excluir definitivamente"}
+                </button>
+              </div>
+            </form>
+          ) : null}
         </div>
       </section>
       </>
@@ -5177,8 +5302,8 @@ function AuthModal({
       setError("Informe um endereço de e-mail válido.");
       return;
     }
-    if (kind !== "forgot" && (!password || (kind === "register" && password.length < 6))) {
-      setError(kind === "register" ? "A senha precisa ter pelo menos 6 caracteres." : "Informe sua senha.");
+    if (kind !== "forgot" && (!password || (kind === "register" && password.length < 8))) {
+      setError(kind === "register" ? "A senha precisa ter pelo menos 8 caracteres." : "Informe sua senha.");
       return;
     }
     if (kind === "register" && !name.trim()) {
@@ -5232,7 +5357,7 @@ function AuthModal({
           {sent === "code"
             ? "Enviamos um código de 6 números para"
             : sent === "confirm"
-              ? "Enviamos um link de confirmação para"
+              ? "Se este e-mail puder ser usado, enviamos as instruções para"
               : "Se houver uma conta com este e-mail, enviamos um link para criar uma senha nova em"}
           <strong className="auth-email">{normalizedEmail}</strong>
         </p>
@@ -5310,7 +5435,7 @@ function AuthModal({
           {kind !== "forgot" ? (
             <label>
               Senha
-              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 6 : undefined} required disabled={loading} />
+              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 8 : undefined} required disabled={loading} />
             </label>
           ) : null}
           {kind === "login" ? (
@@ -5365,7 +5490,7 @@ function NewPasswordModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (password.length < 6) return setError("A senha precisa ter pelo menos 6 caracteres.");
+    if (password.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
     if (password !== confirm) return setError("As duas senhas não são iguais.");
     setLoading(true);
     setError("");
@@ -5394,11 +5519,11 @@ function NewPasswordModal({
         <form onSubmit={submit} className="auth-form">
           <label>
             Senha nova
-            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required disabled={loading} />
           </label>
           <label>
             Repita a senha
-            <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={6} required disabled={loading} />
+            <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={8} required disabled={loading} />
           </label>
           {error ? <p className="auth-error" role="alert">{error}</p> : null}
           <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
@@ -5764,19 +5889,14 @@ export function App() {
     let alive = true;
     const onOnline = () => setRefreshRetry((n) => n + 1);
     const timer = window.setTimeout(() => {
-      // Outra aba já renovou? Usa a sessão dela em vez de renovar de novo.
-      const stored = storedAuthSession();
-      if (stored && stored.refresh_token !== authSession.refresh_token && stored.expires_at > authSession.expires_at) {
-        setAuthSession(stored);
-        return;
-      }
-      void refreshAuthSession(authSession.refresh_token)
+      void refreshAuthSession()
         .then((session) => { if (alive) setAuthSession(session); })
         .catch((err: unknown) => {
           if (!alive) return;
           if (err instanceof AuthSessionError) {
-            // Outra aba renovou/trocou/encerrou a sessão. O armazenamento é a fonte da verdade.
-            setAuthSession(storedAuthSession());
+            // Cookie inválido/expirado ou sessão encerrada: não há access token novo.
+            setAuthSession(null);
+            setAuthNotice({ text: "Sua sessão expirou. Entre novamente." });
             return;
           }
           // Sem internet ou limite do Supabase: continua logado e tenta de novo quando a conexão
@@ -5805,11 +5925,10 @@ export function App() {
         setAuthSession(null);
         return;
       }
-      try {
-        setAuthSession(JSON.parse(event.newValue) as SupabaseSession);
-      } catch {
-        setAuthSession(null);
-      }
+      // O cookie HttpOnly é compartilhado entre abas; força uma renovação para esta aba.
+      void refreshAuthSession(true)
+        .then((next) => setAuthSession(next))
+        .catch((err: unknown) => setAuthSession(err instanceof AuthSessionError ? null : storedAuthSession()));
     }
     window.addEventListener("storage", syncSession);
     return () => window.removeEventListener("storage", syncSession);
@@ -6691,7 +6810,11 @@ export function App() {
     };
   }, []);
   const canTranslate = book?.textLanguage === "en";
-  const translateOn = canTranslate && prefs.translate;
+  // Livros locais/importados podem ser privados: o tradutor remoto só roda com consentimento.
+  const [translateConsent, setTranslateConsent] = useState(() => hasRemoteTranslationConsent());
+  const remoteTranslationNeedsConsent =
+    book?.source === "local" && engine !== "local" && !translateConsent;
+  const translateOn = canTranslate && prefs.translate && !remoteTranslationNeedsConsent;
   const chunks = useMemo(() => chunkRanges(blocks.map((b) => b.text)), [blocks]);
   const [translated, setTranslated] = useState<{
     key: string;
@@ -6700,6 +6823,34 @@ export function App() {
   const translations = translated.key === chapterKey ? translated.byChunk : {};
   const [translatingChunk, setTranslatingChunk] = useState<number | null>(null);
   const [failedChunks, setFailedChunks] = useState<number[]>([]);
+
+  async function toggleTranslation() {
+    const active = prefs.translate && !remoteTranslationNeedsConsent;
+    if (active) {
+      setPrefs((p) => ({ ...p, translate: false }));
+      return;
+    }
+    const detected = await detectTranslationEngine();
+    if (detected !== "local" && book?.source === "local" && !hasRemoteTranslationConsent()) {
+      const ok = window.confirm(
+        "Para traduzir este livro local, trechos do texto serão enviados ao Google Tradutor/MyMemory. " +
+          "Se o livro for privado, cancele e use o tradutor do próprio navegador quando disponível. Continuar?",
+      );
+      if (!ok) {
+        setPrefs((p) => ({ ...p, translate: false }));
+        return;
+      }
+      grantRemoteTranslationConsent();
+    }
+    if (detected === "local") {
+      warmUpLocalTranslator();
+      setEngine("local");
+      setTranslateConsent(true);
+    } else if (hasRemoteTranslationConsent()) {
+      setTranslateConsent(true);
+    }
+    setPrefs((p) => ({ ...p, translate: true }));
+  }
 
   /** Troca de capítulo: começa com o que já foi traduzido antes e está guardado. */
   useEffect(() => {
@@ -6730,7 +6881,11 @@ export function App() {
     const t = setTimeout(() => {
       setTranslatingChunk(c);
       // Ilustrações não têm o que traduzir.
-      translateParagraphs(engine, blocks.slice(start, end).map((b) => (b.kind === "image" ? "" : b.text)))
+      translateParagraphs(
+        engine,
+        blocks.slice(start, end).map((b) => (b.kind === "image" ? "" : b.text)),
+        book.source !== "local" || translateConsent,
+      )
         .then((result) => {
           storeTranslation(book.gutenbergId, chapterIndex, c, result);
           if (chapterKeyRef.current === key) {
@@ -6750,6 +6905,7 @@ export function App() {
     engine,
     book,
     translateOn,
+    translateConsent,
     loadState,
     translatingChunk,
     visibleChunk,
@@ -7275,6 +7431,17 @@ export function App() {
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
           onLogout={() => void logout()}
+          onAccountDeleted={() => {
+            const owner = authSession?.user.id;
+            if (owner) {
+              clearAccountStorage(owner);
+              void deleteAllLocalRecords(owner).catch(() => {});
+            }
+            if (authSession) void signOut(authSession).catch(() => {});
+            setAuthSession(null);
+            setProfileOpen(false);
+            setAuthNotice({ text: "Conta excluída.", ok: true });
+          }}
           loggingOut={authActionLoading}
           onOpenBook={startBook}
           onOpenHighlight={(b, h) => {
@@ -7900,16 +8067,13 @@ export function App() {
           {canTranslate ? (
             <button
               type="button"
-              className={`icon-btn text-btn translate-btn ${prefs.translate ? "is-active" : ""}`}
-              onClick={() => {
-                if (!prefs.translate && engine === "local") warmUpLocalTranslator();
-                setPrefs((p) => ({ ...p, translate: !p.translate }));
-              }}
-              aria-pressed={prefs.translate}
-              aria-label={prefs.translate ? "Ver o texto original em inglês" : "Traduzir para o português"}
-              title={prefs.translate ? "Ver o original em inglês" : "Traduzir para o português"}
+              className={`icon-btn text-btn translate-btn ${translateOn ? "is-active" : ""}`}
+              onClick={() => void toggleTranslation()}
+              aria-pressed={translateOn}
+              aria-label={translateOn ? "Ver o texto original em inglês" : "Traduzir para o português"}
+              title={translateOn ? "Ver o original em inglês" : "Traduzir para o português"}
             >
-              {prefs.translate ? "PT" : "EN"}
+              {translateOn ? "PT" : "EN"}
             </button>
           ) : null}
           <button

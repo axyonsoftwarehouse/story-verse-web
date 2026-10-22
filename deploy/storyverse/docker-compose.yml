@@ -2,7 +2,7 @@ name: storyverse
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     mem_limit: 512m
     cpus: 1.0
@@ -40,9 +40,15 @@ services:
       SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://storyverse.2.29.42.104.sslip.io}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://storyverse.2.29.42.104.sslip.io}
+      APP_PUBLIC_API_URL: ${APP_PUBLIC_API_URL:-https://api.storyverse.2.29.42.104.sslip.io}
+      APP_COMMUNITY_COVER_HOSTS: ${APP_COMMUNITY_COVER_HOSTS:-covers.openlibrary.org,openlibrary.org,www.openlibrary.org,archive.org,www.archive.org}
       APP_AUTH_REQUIRE_EMAIL_CONFIRMATION: ${APP_AUTH_REQUIRE_EMAIL_CONFIRMATION:-true}
       APP_AUTH_CONFIRMATION_TTL: ${APP_AUTH_CONFIRMATION_TTL:-PT24H}
       APP_AUTH_RESET_TTL: ${APP_AUTH_RESET_TTL:-PT1H}
+      APP_AUTH_REFRESH_COOKIE_SECURE: ${APP_AUTH_REFRESH_COOKIE_SECURE:-true}
+      APP_AUTH_REFRESH_COOKIE_SAME_SITE: ${APP_AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+      APP_RATE_LIMIT_PERSISTENT: ${APP_RATE_LIMIT_PERSISTENT:-true}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
