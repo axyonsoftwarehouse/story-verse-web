@@ -241,7 +241,9 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   } catch (error) {
     // Preserva a mensagem de limite (ex.: EPUB grande demais) em vez de chamar tudo de corrompido.
     if (error instanceof Error && /grande demais/i.test(error.message)) throw error;
-    throw new Error("Não foi possível abrir este EPUB. O arquivo pode estar corrompido.");
+    throw new Error("Não foi possível abrir este EPUB. O arquivo pode estar corrompido.", {
+      cause: error,
+    });
   }
   const read = (path: string) => (files[path] ? strFromU8(files[path]) : null);
 
@@ -458,9 +460,11 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
     doc = await task.promise;
   } catch (e) {
     if (e instanceof Error && e.name === "PasswordException") {
-      throw new Error("Este PDF é protegido por senha e não pode ser aberto.");
+      throw new Error("Este PDF é protegido por senha e não pode ser aberto.", { cause: e });
     }
-    throw new Error("Não foi possível abrir este PDF. O arquivo pode estar corrompido.");
+    throw new Error("Não foi possível abrir este PDF. O arquivo pode estar corrompido.", {
+      cause: e,
+    });
   }
 
   const pages: PdfLine[][] = [];
