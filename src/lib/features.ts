@@ -22,9 +22,3 @@ function readForumPreview(): boolean {
 export const FORUM_ENABLED = import.meta.env.VITE_FORUM_ENABLED === "true";
 export const FORUM_PREVIEW = readForumPreview();
 export const FORUM_VISIBLE = FORUM_ENABLED || FORUM_PREVIEW;
-
-/**
- * Kill switch global da biblioteca pessoal. A autorização real é por conta no servidor
- * (`feature_access`); esta flag só evita publicar a UI antes da hora.
- */
-export const LIBRARY_ENABLED = import.meta.env.VITE_LIBRARY_ENABLED === "true";
