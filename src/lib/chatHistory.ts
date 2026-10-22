@@ -66,7 +66,7 @@ export function forgetChat(bookId: string, owner: string | null = currentDataOwn
 export type CharacterTalk = { bookId: string; characterId: string; sent: number; lastAt: number };
 
 export function characterTalks(owner: string | null = currentDataOwner()): CharacterTalk[] {
-  let index: string[] = [];
+  let index: string[];
   try {
     index = JSON.parse(storageForOwner(owner).getItem(INDEX_KEY) ?? "[]") as string[];
   } catch {

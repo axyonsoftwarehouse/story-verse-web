@@ -206,7 +206,9 @@ export async function saveLocalBook(book: Ebook, text: string, images?: Record<s
     updateLibrary(book.gutenbergId, () => ({ importedAt }), libraryOwner);
   } catch (e) {
     if (e instanceof DOMException && e.name === "QuotaExceededError") {
-      throw new Error("Não há espaço no navegador para este livro. Remova um livro importado e tente de novo.");
+      throw new Error("Não há espaço no navegador para este livro. Remova um livro importado e tente de novo.", {
+        cause: e,
+      });
     }
     throw e;
   }
