@@ -195,6 +195,19 @@ export function recordFinished(book: Ebook): void {
   });
 }
 
+/** Cria a entrada com valores prontos (migração dos dados antigos). Não mexe em entrada existente. */
+export function seedShelfEntry(book: Ebook, fields: ShelfPending, auto: boolean): boolean {
+  let created = false;
+  mutate((store) => {
+    const key = bookKeyOf(book);
+    if (!key || (store[key] && !store[key].pendingDelete && !store[key].deletedAt)) return;
+    ensure(store, book, fields.status ?? "reading");
+    change(store, key, fields, auto);
+    created = true;
+  });
+  return created;
+}
+
 export function addToShelf(book: Ebook, status: "want_to_read"): void {
   mutate((store) => {
     const key = bookKeyOf(book);
