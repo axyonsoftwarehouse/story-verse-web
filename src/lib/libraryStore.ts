@@ -285,6 +285,17 @@ function promptedSet(owner: string | null): Set<string> {
   }
 }
 
+/** Números para as conquistas da estante: notas, resenhas de 200+, gêneros terminados e terminados no ano. */
+export function shelfAchievementInput(entries: LocalShelfEntry[], year: number) {
+  const finished = entries.filter((e) => e.status === "finished");
+  return {
+    ratings: entries.filter((e) => e.rating !== null).length,
+    reviews: entries.filter((e) => (e.review?.trim().length ?? 0) >= 200).length,
+    genresFinished: new Set(finished.map((e) => e.genre).filter((g) => g && g !== "Da comunidade")).size,
+    finishedThisYear: finished.filter((e) => e.finishedOn?.startsWith(`${year}-`)).length,
+  };
+}
+
 // ---- Para o librarySync -------------------------------------------------------------------
 
 /** Entradas com algo a enviar: novas, removidas ou com campos pendentes. */

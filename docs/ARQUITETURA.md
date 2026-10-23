@@ -358,6 +358,25 @@ dados. Depois de cada sincronização:
 
 Livros importados antes disso entram na lista na primeira sincronização.
 
+### Estante (biblioteca pessoal) — `library*.ts` + `/api/v1/me/library`
+
+Só para contas com a feature `library` (`feature_access`, lida por `useAccountFeatures`). Sem ela
+nada é gravado nem enviado. Spec: [SPEC_BIBLIOTECA_PESSOAL.md](SPEC_BIBLIOTECA_PESSOAL.md).
+
+- **`libraryStore.ts`**: cópia local por conta (`storyverse:shelf-entries`). Cada entrada guarda o que
+  veio do servidor e, em `pending`, os campos alterados aqui que ainda não subiram. Abrir/ler o livro
+  gera status automático (`auto`); terminar, dar nota, abandonar e retomar são explícitos.
+- **`librarySync.ts`**: a cada 30 s (e ao voltar para o app/à internet) sobe as pendências (PUT ao
+  criar, PATCH só com os campos mudados, DELETE ao remover) e desce o que mudou por `updatedSince`,
+  inclusive remoções. O marco volta 5 s para não perder gravações no limite.
+- **`libraryMerge.ts`**: resolve o 409 campo a campo (spec 9.3). "Lendo" automático nunca troca um
+  "terminado"/"abandonado" de outro aparelho.
+- **`libraryMigration.ts`**: na primeira vez, `finished-books` e `reading-progress` viram estante. As
+  chaves antigas continuam.
+- A estante **não** vai para o `reading_state` (`cloudSync.isSyncedKey` exclui `storyverse:shelf-*`).
+- Telas em `src/features/library/`: "Minha estante" (perfil), painel "Na estante" (leitor), nota e
+  resenha ao terminar, abandono com motivo.
+
 ---
 
 ## 9. Perfil: fotos e painel de leitura
@@ -684,6 +703,8 @@ esses sites não liberam CORS, ou são bloqueados pelo navegador (ORB).
 | `lib/profileMedia.ts` | reduzir imagem e subir/apagar no Storage |
 | `lib/bookCovers.ts`, `openLibrary.ts` | capas e ano de publicação (Open Library) |
 | `lib/cloudSync.ts` | sincronização com `reading_state` (junção em 3 vias) |
+| `lib/library.ts`, `libraryStore.ts`, `librarySync.ts`, `libraryMerge.ts` | estante: API, cópia local, sync e merge |
+| `features/library/` | telas da estante (Minha estante, painel do livro, nota, abandono) |
 | `lib/bookSync.ts` | livros importados entre aparelhos (bucket `user-books`) |
 | `lib/dataOwner.ts` | separação de dados por conta no aparelho |
 | `lib/localBooks.ts`, `importBook.ts` | livros importados (IndexedDB) e leitura de .txt/.epub/.pdf |

@@ -163,6 +163,16 @@ npm run dev
 
 O Vite só lê o `.env` ao iniciar: depois de alterar o arquivo, reinicie o `npm run dev`.
 
+### Estante (biblioteca pessoal)
+
+Fica escondida até a conta receber a feature `library`. Para liberar (na VPS, pelo UUID da conta):
+
+```bash
+bash deploy/grant-feature.sh <uuid-da-conta> library true
+```
+
+`false` no último argumento retira o acesso. Detalhes em `docs/SPEC_BIBLIOTECA_PESSOAL.md`.
+
 ### Contas na API propria
 
 O login, o cadastro, a confirmacao de e-mail e a recuperacao de senha usam a API da VPS.

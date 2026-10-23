@@ -13,6 +13,21 @@ const base: AchievementInput = {
 
 const byId = (input: Partial<AchievementInput>) => new Map(achievements({ ...base, ...input }).map((a) => [a.id, a]));
 
+describe("conquistas da estante", () => {
+  it("só aparecem com a estante", () => {
+    expect(achievements({ ...base, shelf: null }).some((a) => a.id === "first-rating")).toBe(false);
+    expect(achievements(base).some((a) => a.id === "first-rating")).toBe(false);
+    const all = new Map(
+      achievements({ ...base, shelf: { ratings: 1, reviews: 0, genresFinished: 3, finishedThisYear: 2 } }).map((a) => [a.id, a]),
+    );
+    expect(all.get("first-rating")?.unlocked).toBe(true);
+    expect(all.get("genres-3")?.unlocked).toBe(true);
+    expect(all.get("year-10")?.missing).toBe("faltam 8 livros");
+    expect(all.get("first-review")?.missing).toBe("falta 1 resenha");
+    expect([...all.keys()]).toEqual(expect.arrayContaining(["ratings-5", "reviews-3"]));
+  });
+});
+
 describe("achievements", () => {
   it("conta nova: nada liberado e cada uma diz quanto falta", () => {
     const all = byId({});

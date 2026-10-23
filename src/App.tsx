@@ -42,8 +42,18 @@ import { BookStatusControl } from "./features/library/BookStatusControl";
 import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
-import { bookKeyOf } from "./lib/library";
-import { recordFinished, recordOpened, recordProgress, shelfEntries, shouldPromptFinish, type LocalShelfEntry } from "./lib/libraryStore";
+import { bookKeyOf, todayInBrazil } from "./lib/library";
+import {
+  recordFinished,
+  recordOpened,
+  recordProgress,
+  shelfAchievementInput,
+  shelfEnabled,
+  shelfEntries,
+  shelfEntry,
+  shouldPromptFinish,
+  type LocalShelfEntry,
+} from "./lib/libraryStore";
 import { connectShelf } from "./lib/libraryWiring";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
@@ -3710,6 +3720,19 @@ function usePresenceCount(room: string | null, who: string | undefined): number 
 }
 
 /** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
+/** Números da estante para as conquistas (`null` sem a estante: as conquistas dela não aparecem). */
+function shelfAchievements() {
+  return shelfEnabled() ? shelfAchievementInput(shelfEntries(), Number(todayInBrazil().slice(0, 4))) : null;
+}
+
+/** Status e nota deste livro na estante, para o chat (só com a estante ligada). */
+function shelfContextFor(book: Ebook) {
+  if (!shelfEnabled()) return undefined;
+  const key = bookKeyOf(book);
+  const entry = key ? shelfEntry(key) : null;
+  return entry ? { status: entry.status, rating: entry.rating } : undefined;
+}
+
 /** Conquistas da conta agora (sem presentes: esses dependem do servidor e só contam no perfil). */
 function currentAchievements(): Achievement[] {
   const talks = characterTalks();
@@ -3723,6 +3746,7 @@ function currentAchievements(): Achievement[] {
     messagesSent: talks.reduce((n, t) => n + t.sent, 0),
     charactersTalked: talks.length,
     giftsReceived: null,
+    shelf: shelfAchievements(),
   });
 }
 
@@ -4271,6 +4295,7 @@ function ProfilePage({
         messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
         charactersTalked: allTalks.length,
         giftsReceived: giftSummary?.received_total ?? null,
+        shelf: shelfAchievements(),
       }),
     [totals, finished.length, markCount, allTalks, giftSummary],
   );
@@ -7391,6 +7416,7 @@ export function App() {
         textExcerpt,
         readingProgressPct,
         textLanguage: book.textLanguage,
+        shelf: shelfContextFor(book),
       });
       if (!stillCurrent()) return;
       const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
