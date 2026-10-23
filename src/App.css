@@ -4621,6 +4621,69 @@
   overflow-wrap: anywhere;
 }
 
+.privacy-center p {
+  max-width: 62ch;
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.privacy-center strong {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.privacy-center .profile-account-row > .btn {
+  flex: none;
+}
+
+.privacy-center .privacy-center-done {
+  margin: 0.8rem 0 0;
+  color: var(--accent-2);
+}
+
+/* Aviso curto de privacidade (conversa e buscas). Usa as cores do leitor quando está dentro dele. */
+.privacy-note {
+  flex-basis: 100%;
+  color: var(--r-muted, var(--muted));
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.privacy-note p {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.privacy-note svg {
+  flex: none;
+  margin-top: 0.12rem;
+}
+
+.privacy-note .link-btn {
+  color: inherit;
+  font-weight: 600;
+}
+
+.privacy-note .privacy-note-more {
+  display: block;
+  margin-top: 0.35rem;
+  padding-left: calc(14px + 0.4rem);
+}
+
+.chat .privacy-note {
+  flex: none;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--r-border);
+}
+
+.search-panel .privacy-note {
+  margin-top: 0.6rem;
+}
+
 .profile-account-label {
   color: var(--muted);
   font-size: 0.75rem;
@@ -5510,6 +5573,27 @@
   color: var(--accent-2);
   font-size: 0.74rem;
   font-weight: 600;
+}
+
+/* Leitores do livro, logo abaixo do autor. ".result > span" também se aplica: o seletor repete
+   a classe para ganhar dele e manter ícone e número na mesma linha. */
+.reader-count,
+.result > .reader-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  margin-top: 0.1rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reader-count svg {
+  flex: none;
+  color: var(--accent-2);
 }
 
 .row-card-cast .avatar-sm {
