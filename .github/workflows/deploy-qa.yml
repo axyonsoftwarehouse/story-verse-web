@@ -1,0 +1,71 @@
+name: Deploy QA (VPS)
+
+# Ambiente de QA: https://qa.storyverse.2.29.42.104.sslip.io (API: api.qa…). Dados de teste.
+# Publica em push no branch `qa` ou à mão, escolhendo o branch/commit:
+#   gh workflow run deploy-qa.yml -f ref=feat/minha-branch
+# Manual: docs/QA.md.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag ou commit para publicar no QA
+        required: true
+        default: main
+  push:
+    branches: [qa]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-qa
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testar
+        run: npm test
+
+      - name: Montar o site de QA (build)
+        env:
+          VITE_API_URL: https://api.qa.storyverse.2.29.42.104.sslip.io
+          VITE_APP_ENV: qa
+        run: npm run build
+
+      - name: Configurar chave SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$VPS_KNOWN_HOSTS" || { echo "Configure VPS_KNOWN_HOSTS com a chave verificada da VPS"; exit 1; }
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Enviar o build para a VPS
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_deploy" \
+            dist/ \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/deploy/storyverse/_incoming-qa/"
+
+      - name: Publicar no QA (troca a versão e confere)
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'STORYVERSE_WEB_DIR=/home/deploy/storyverse/web/qa STORYVERSE_INCOMING=/home/deploy/storyverse/_incoming-qa STORYVERSE_URL=https://qa.storyverse.2.29.42.104.sslip.io bash /home/deploy/storyverse/deploy/publish.sh'
