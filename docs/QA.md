@@ -13,8 +13,12 @@ mostra a faixa "Ambiente de QA" no rodapé e nenhum dos dois domínios é indexa
 ## O que o QA não tem
 
 - **E-mail**: cadastro entra direto, sem confirmação; "esqueci a senha" não envia nada.
-- **IA paga**: o chat com personagens roda em modo demonstração.
+- **IA de produção**: o QA usa uma chave Gemini exclusiva, com teto de 20 mensagens por conta/dia e
+  100/dia no QA inteiro. Não consome a cota de produção.
 - **Dados de produção**: o banco começa vazio e só tem as contas de teste.
+
+Erros do site e da API vão para os projetos Sentry `storyverse-web-qa` e `storyverse-api-qa`, com
+`environment=qa`.
 
 ## Contas de teste
 
@@ -27,17 +31,28 @@ mostra a faixa "Ambiente de QA" no rodapé e nenhum dos dois domínios é indexa
 Senha: `QA_TEST_PASSWORD` no `.env` de QA da VPS (`/home/deploy/storyverse-qa/.env`). `example.com`
 é reservado: nenhum e-mail real recebe nada. Para criar mais contas, use o cadastro do próprio site.
 
+## Fluxo de branches
+
+- `main` = produção. Só recebe release do `develop`, pelo workflow `deploy-storyverse.yml`.
+- `develop` = integração/próxima release e **branch padrão do repositório**. Todo push no `develop`
+  publica no QA sozinho; PRs de feature já nascem com ele como base.
+- Feature: PR para `develop`; review + `verify`; merge publica no QA; teste.
+- Release: PR `develop` → `main`; depois merge de `main` de volta no `develop`.
+- Hotfix: branch a partir da `main`, PR para `main`, e back-merge no `develop`.
+- Para testar uma branch antes do merge, publique à mão; o QA mostra essa branch até o próximo
+  deploy do `develop`.
+
 ## Publicar no QA
 
-Push no branch `qa` publica sozinho. Para testar um PR sem mexer em branch nenhum:
+Push no `develop` publica sozinho. Para testar uma branch sem mergear:
 
 ```bash
 gh workflow run deploy-qa.yml -f ref=feat/minha-branch                                   # site
 gh workflow run deploy-api-qa.yml -R axyonsoftwarehouse/story-verse-api -f ref=feat/minha-branch   # API
 ```
 
-Sem `-f ref`, publica a `main`. Site e API são independentes: publique os dois quando a mudança
-mexer nos dois.
+Sem `-f ref`, publica a `develop`. Na API, o push no `develop` também publica no QA pelo
+`deploy-api-qa.yml`. Site e API são independentes: publique os dois quando a mudança mexer nos dois.
 
 ## Banco do QA
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAccountCapabilities, type AccountCapabilities } from "../../lib/accountFeatures";
+import { cachedAccountCapabilities, fetchAccountCapabilities, type AccountCapabilities } from "../../lib/accountFeatures";
 import type { SupabaseSession } from "../../lib/auth";
 
 /** Carrega papéis/features da conta para telas que dependem de beta fechado. */
@@ -20,7 +20,8 @@ export function useAccountFeatures(session: SupabaseSession | null) {
         if (alive) setCapabilities(next);
       })
       .catch(() => {
-        if (alive) setCapabilities({ roles: [], features: [] });
+        // Sem internet: vale a última resposta desta conta (não a de outra conta do aparelho).
+        if (alive) setCapabilities(cachedAccountCapabilities(session.user.id) ?? { roles: [], features: [] });
       })
       .finally(() => {
         if (alive) setLoading(false);

@@ -80,12 +80,17 @@ function saveBase(userId: string, snapshot: Snapshot) {
   }
 }
 
+/** Chaves que vão para o `reading_state`. A estante (`shelf-*`) tem sync próprio (librarySync). */
+export function isSyncedKey(key: string): boolean {
+  return isUserKey(key) && !key.startsWith("storyverse:shelf-");
+}
+
 function localSnapshot(): Snapshot {
   const out: Snapshot = {};
   try {
     for (let i = 0; i < userStorage.length; i++) {
       const k = userStorage.key(i);
-      if (k && isUserKey(k)) out[k] = userStorage.getItem(k) ?? "";
+      if (k && isSyncedKey(k)) out[k] = userStorage.getItem(k) ?? "";
     }
   } catch {
     // Sem armazenamento.
@@ -237,7 +242,7 @@ function mergeKey(key: string, local: string, remote: string, base: string | und
 export function merge(local: Snapshot, remote: Snapshot, base: Snapshot): Snapshot {
   const out: Snapshot = {};
   for (const k of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(base)])) {
-    if (!isUserKey(k)) continue;
+    if (!isSyncedKey(k)) continue;
     const l = local[k];
     const r = remote[k];
     let v: string | undefined;

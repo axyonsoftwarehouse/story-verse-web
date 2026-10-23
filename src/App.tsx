@@ -18,7 +18,15 @@ import {
 } from "./lib/ai";
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
-import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
+import {
+  characterTalks,
+  forgetAllChats,
+  forgetChat,
+  loadChat,
+  saveChat,
+  storedChatSummary,
+  type ChatMsg,
+} from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { deleteAccount, exportAccount, exportAccountFiles } from "./lib/account";
 import { quoteOfTheDay } from "./data/dailyQuotes";
@@ -37,6 +45,24 @@ import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
+import { useAccountFeatures } from "./features/auth/useAccountFeatures";
+import { BookStatusControl } from "./features/library/BookStatusControl";
+import { FinishBookDialog } from "./features/library/FinishBookDialog";
+import { LibraryPage } from "./features/library/LibraryPage";
+import { hasFeature } from "./lib/accountFeatures";
+import { bookKeyOf, todayInBrazil } from "./lib/library";
+import {
+  recordFinished,
+  recordOpened,
+  recordProgress,
+  shelfAchievementInput,
+  shelfEnabled,
+  shelfEntries,
+  shelfEntry,
+  type LocalShelfEntry,
+} from "./lib/libraryStore";
+import { useFinishPrompt } from "./features/library/useFinishPrompt";
+import { connectShelf } from "./lib/libraryWiring";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
 import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
@@ -765,6 +791,12 @@ const Icon = {
       <path d="M20 20l-3.5-3.5" />
     </svg>
   ),
+  lock: (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  ),
   moon: (
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
@@ -918,6 +950,17 @@ function Explore({
             aria-label="Buscar livros"
           />
         </label>
+        <PrivacyNote
+          details={
+            <>
+              O Storyverse não guarda o que você busca nem mostra para ninguém. O termo vai, por conexão
+              criptografada (HTTPS), só até os catálogos de livros para trazer os resultados. Veja tudo em
+              Perfil › Ajustes › Privacidade.
+            </>
+          }
+        >
+          Suas buscas são privadas e não ficam salvas.
+        </PrivacyNote>
         <div className="filter-pills" role="group" aria-label="Idioma do texto">
           {LANGUAGE_FILTERS.map((f) => (
             <button
@@ -3702,6 +3745,19 @@ function usePresenceCount(room: string | null, who: string | undefined): number 
 }
 
 /** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
+/** Números da estante para as conquistas (`null` sem a estante: as conquistas dela não aparecem). */
+function shelfAchievements() {
+  return shelfEnabled() ? shelfAchievementInput(shelfEntries(), Number(todayInBrazil().slice(0, 4))) : null;
+}
+
+/** Status e nota deste livro na estante, para o chat (só com a estante ligada). */
+function shelfContextFor(book: Ebook) {
+  if (!shelfEnabled()) return undefined;
+  const key = bookKeyOf(book);
+  const entry = key ? shelfEntry(key) : null;
+  return entry ? { status: entry.status, rating: entry.rating } : undefined;
+}
+
 /** Conquistas da conta agora (sem presentes: esses dependem do servidor e só contam no perfil). */
 function currentAchievements(): Achievement[] {
   const talks = characterTalks();
@@ -3715,6 +3771,7 @@ function currentAchievements(): Achievement[] {
     messagesSent: talks.reduce((n, t) => n + t.sent, 0),
     charactersTalked: talks.length,
     giftsReceived: null,
+    shelf: shelfAchievements(),
   });
 }
 
@@ -3998,6 +4055,121 @@ function FeaturedRow({
   );
 }
 
+/** Card do perfil que leva à "Minha estante", com os totais. */
+function ShelfSummary({ onOpen }: { onOpen: () => void }) {
+  const entries = shelfEntries();
+  const finished = entries.filter((e) => e.status === "finished").length;
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h2>Minha estante</h2>
+        <p>
+          {entries.length === 1 ? "1 livro" : `${entries.length} livros`} ·{" "}
+          {finished === 1 ? "1 terminado" : `${finished} terminados`}
+        </p>
+      </div>
+      <button type="button" className="btn" onClick={onOpen}>
+        Abrir minha estante
+      </button>
+    </section>
+  );
+}
+
+/**
+ * Aviso curto de privacidade nas telas de conversa e busca: o que acontece com o que a pessoa
+ * digita, com o detalhe a um toque. A lista completa fica na Central de Privacidade (Ajustes).
+ */
+function PrivacyNote({ children, details }: { children: React.ReactNode; details: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="privacy-note">
+      <p>
+        {Icon.lock}
+        <span>
+          {children}{" "}
+          <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            {open ? "Fechar" : "Saiba mais"}
+          </button>
+        </span>
+      </p>
+      {open ? <p className="privacy-note-more">{details}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Central de Privacidade (Ajustes): o que fica guardado sobre o leitor, para quê, e a limpeza
+ * do histórico de conversas a qualquer momento. Buscas não são guardadas.
+ */
+function PrivacyCenter() {
+  const [chats, setChats] = useState(() => storedChatSummary());
+  const [cleared, setCleared] = useState(false);
+  const clearChats = () => {
+    if (!window.confirm("Apagar todas as suas conversas com os personagens, em todos os aparelhos da conta? Não dá para desfazer.")) {
+      return;
+    }
+    forgetAllChats();
+    setChats(storedChatSummary());
+    setCleared(true);
+  };
+  return (
+    <section className="shelf" id="privacidade">
+      <div className="shelf-head">
+        <h2>Privacidade</h2>
+        <p>O que fica guardado sobre você, para quê, e como apagar. Ninguém da comunidade vê nada disso.</p>
+      </div>
+      <div className="profile-card profile-account privacy-center">
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Conversas com os personagens</span>
+            <p>
+              Guardadas no seu aparelho e na sua conta para continuar de onde parou. Cada mensagem vai
+              criptografada até a IA só para o personagem responder.
+            </p>
+            <strong>
+              {chats.books === 0
+                ? "Nenhuma conversa guardada."
+                : `${chats.books} ${chats.books === 1 ? "conversa" : "conversas"} · ${chats.messages} ${chats.messages === 1 ? "mensagem sua" : "mensagens suas"}`}
+            </strong>
+          </div>
+          <button type="button" className="btn" onClick={clearChats} disabled={chats.books === 0}>
+            Apagar histórico
+          </button>
+        </div>
+        {cleared ? (
+          <p className="privacy-center-done" role="status">
+            Histórico de conversas apagado. Os outros aparelhos da conta apagam na próxima sincronização.
+          </p>
+        ) : null}
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Buscas</span>
+            <p>
+              Não ficam salvas. A busca no acervo vai só até os catálogos de livros para trazer resultados;
+              a busca dentro de um livro roda no seu aparelho.
+            </p>
+          </div>
+        </div>
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Leitura</span>
+            <p>
+              Progresso, livros terminados, marcações e minutos lidos ficam na sua conta para você continuar em
+              qualquer aparelho e manter a sequência.
+            </p>
+          </div>
+        </div>
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Tudo de uma vez</span>
+            <p>Para apagar a conta e todos os dados dela, use Excluir conta, logo abaixo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
 function ProfileShelf({
   title,
@@ -4076,6 +4248,7 @@ function ProfilePage({
   isAdmin,
   onOpenModeration,
   onOpenShop,
+  onOpenShelf,
 }: {
   session: SupabaseSession;
   onSessionChange: (session: SupabaseSession) => void;
@@ -4093,6 +4266,8 @@ function ProfilePage({
   isAdmin?: boolean;
   onOpenModeration?: () => void;
   onOpenShop: () => void;
+  /** Abre "Minha estante"; ausente quando a conta não tem a estante. */
+  onOpenShelf?: () => void;
 }) {
   const user = session.user;
   const [diamonds, setDiamonds] = useState<number | null>(null);
@@ -4240,6 +4415,7 @@ function ProfilePage({
         messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
         charactersTalked: allTalks.length,
         giftsReceived: giftSummary?.received_total ?? null,
+        shelf: shelfAchievements(),
       }),
     [totals, finished.length, markCount, allTalks, giftSummary],
   );
@@ -4530,6 +4706,8 @@ function ProfilePage({
         </ol>
       </section>
 
+      {onOpenShelf ? <ShelfSummary onOpen={onOpenShelf} /> : null}
+
       <ProfileShelf
         title="Lendo agora"
         empty="Nenhum livro começado ainda."
@@ -4639,7 +4817,7 @@ function ProfilePage({
           {Icon.settings}
         </span>
         <h1>Ajustes</h1>
-        <p>Cor do app, leitura, conta e sessão.</p>
+        <p>Cor do app, leitura, privacidade, conta e sessão.</p>
       </header>
 
       <section className="shelf">
@@ -4720,6 +4898,8 @@ function ProfilePage({
           </div>
         </section>
       ) : null}
+
+      <PrivacyCenter />
 
       <section className="shelf">
         <div className="shelf-head">
@@ -5821,6 +6001,13 @@ export function App() {
   const [moderationOpen, setModerationOpen] = useState(false);
   const [rankingOpen, setRankingOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  /** Estante (biblioteca pessoal): só para contas com a feature `library`. */
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [shelfPanelOpen, setShelfPanelOpen] = useState(false);
+  const { capabilities } = useAccountFeatures(authSession);
+  const shelfOn = hasFeature(capabilities, "library");
+  // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
+  useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
   const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
   const [freezeBusy, setFreezeBusy] = useState(false);
@@ -6272,13 +6459,18 @@ export function App() {
   }, [book, authUserId, communityTick]);
   /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
   const [localIds, setLocalIds] = useState<Set<number> | null>(null);
+  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
   useEffect(() => {
     // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
     if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
     if (book) return;
     let alive = true;
     void listLocalBooks()
-      .then((list) => alive && setLocalIds(new Set(list.map((b) => b.gutenbergId))))
+      .then((list) => {
+        if (!alive) return;
+        setLocalIds(new Set(list.map((b) => b.gutenbergId)));
+        setLocalBookList(list);
+      })
       .catch(() => alive && setLocalIds(new Set()));
     return () => {
       alive = false;
@@ -6288,6 +6480,42 @@ export function App() {
     (b: Ebook) => bookAvailable(b, { localIds, communityIds }),
     [localIds, communityIds],
   );
+  /** Estante: o livro da entrada ainda abre aqui? (mesma regra de bookAvailable, pela chave) */
+  const shelfAvailable = useCallback(
+    (bookKey: string) => {
+      if (bookKey.startsWith("local:")) return localIds?.has(Number(bookKey.slice(6))) ?? false;
+      if (bookKey.startsWith("cm:")) return communityIds?.has(`cm-${bookKey.slice(3)}`) ?? true;
+      return true;
+    },
+    [localIds, communityIds],
+  );
+  /** Estante: o Ebook completo da entrada (os conhecidos aqui ou um do Gutenberg montado da entrada). */
+  const shelfBookFor = useCallback(
+    (entry: LocalShelfEntry): Ebook => {
+      const known = [
+        ...localBookList,
+        ...communityBooks,
+        ...recentProgress().map((p) => p.book),
+        ...finishedBooks().map((f) => f.book),
+      ].find((b) => bookKeyOf(b) === entry.bookKey);
+      if (known) return known;
+      const id = entry.bookKey.slice(entry.bookKey.indexOf(":") + 1);
+      return {
+        id: entry.bookKey.replace(":", "-"),
+        gutenbergId: Number(id) || 0,
+        title: entry.title,
+        author: entry.author ?? "",
+        genre: entry.genre ?? undefined,
+        coverUrl: entry.coverUrl ?? undefined,
+        textLanguage: entry.language ?? "pt",
+        source: entry.source,
+      };
+    },
+    [localBookList, communityBooks],
+  );
+  /** Nota/resenha do livro terminado: abre quando a comemoração some (toque ou timer). */
+  const finishPrompt = useFinishPrompt(celebration !== null);
+  const queueFinishPrompt = finishPrompt.queue;
   /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
   useEffect(() => {
     const session = authSessionRef.current;
@@ -6474,6 +6702,7 @@ export function App() {
       setAuthModal("login");
       return;
     }
+    recordOpened(b);
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
@@ -6720,20 +6949,21 @@ export function App() {
     // Abrir e fechar um livro sem ler nada não o coloca em “Continue lendo”.
     if (chapterIndex === 0 && scrollRatio < 0.02 && !loadProgress(book.gutenbergId)) return;
     const owner = currentDataOwner();
-    const t = setTimeout(
-      () =>
-        saveProgress(
-          {
-            book,
-            chapterIndex,
-            chapterLabel: currentChapter.label,
-            chapterCount: chapters.length,
-            scrollRatio,
-          },
-          owner,
-        ),
-      300,
-    );
+    const t = setTimeout(() => {
+      saveProgress(
+        {
+          book,
+          chapterIndex,
+          chapterLabel: currentChapter.label,
+          chapterCount: chapters.length,
+          scrollRatio,
+        },
+        owner,
+      );
+      if (owner === currentDataOwner()) {
+        recordProgress(book, ((chapterIndex + scrollRatio) / Math.max(1, chapters.length)) * 100, currentChapter.label);
+      }
+    }, 300);
     return () => clearTimeout(t);
   }, [book, loadState, chapterIndex, currentChapter, chapters.length, scrollRatio]);
 
@@ -6749,6 +6979,8 @@ export function App() {
     finishedChaptersRef.current.add(key);
     if (chapterIndex >= chapters.length - 1) {
       markBookFinished(book);
+      recordFinished(book);
+      if (shelfEnabled()) queueFinishPrompt(book);
       setCelebration({
         emoji: "🏆",
         title: `Você terminou “${book.title}”!`,
@@ -6759,7 +6991,7 @@ export function App() {
       setChapterDone({ key, label: currentChapter.label, done: chapterIndex + 1, total: chapters.length });
       haptic(20);
     }
-  }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length]);
+  }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length, queueFinishPrompt]);
 
   const displayedStory = currentChapter?.body ?? "";
 
@@ -7302,6 +7534,7 @@ export function App() {
         textExcerpt,
         readingProgressPct,
         textLanguage: book.textLanguage,
+        shelf: shelfContextFor(book),
       });
       if (!stillCurrent()) return;
       const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
@@ -7350,6 +7583,7 @@ export function App() {
   useBackClose(profileOpen, () => setProfileOpen(false));
   useBackClose(moderationOpen, () => setModerationOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
+  useBackClose(libraryOpen, () => setLibraryOpen(false));
   useBackClose(shopOpen, () => setShopOpen(false));
   useBackClose(spinOpen, () => setSpinOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
@@ -7418,6 +7652,20 @@ export function App() {
         />
       );
     }
+    if (libraryOpen && authSession && shelfOn) {
+      return (
+        <LibraryPage
+          onClose={() => setLibraryOpen(false)}
+          onOpenBook={(b) => {
+            setLibraryOpen(false);
+            setProfileOpen(false);
+            startBook(b);
+          }}
+          available={shelfAvailable}
+          bookFor={shelfBookFor}
+        />
+      );
+    }
     if (rankingOpen && authSession) {
       return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
     }
@@ -7427,6 +7675,7 @@ export function App() {
           isAdmin={isAdmin}
           onOpenModeration={() => setModerationOpen(true)}
           onOpenShop={() => setShopOpen(true)}
+          onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
           session={authSession}
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
@@ -7909,6 +8158,7 @@ export function App() {
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {finishPrompt.open ? <FinishBookDialog book={finishPrompt.open} onClose={finishPrompt.close} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {bookmarkDrop ? (
@@ -8054,6 +8304,18 @@ export function App() {
           >
             {Icon.search}
           </button>
+          {shelfOn ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setShelfPanelOpen(true)}
+              aria-label="Na estante"
+              title="Na estante: status, nota e resenha"
+            >
+              {Icon.book}
+            </button>
+          ) : null}
+          {shelfOn && shelfPanelOpen ? <BookStatusControl book={book} onClose={() => setShelfPanelOpen(false)} /> : null}
           <button
             type="button"
             className="icon-btn marks-btn"
@@ -8561,7 +8823,12 @@ export function App() {
                 />
               </label>
               {deferredTerm.trim().length < 2 ? (
-                <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
+                <>
+                  <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
+                  <PrivacyNote details="O livro já está aberto aqui, então a busca roda no seu aparelho: o que você digita não vai para a internet nem fica salvo.">
+                    Busca privada: acontece só neste aparelho.
+                  </PrivacyNote>
+                </>
               ) : searchResults.hits.length === 0 ? (
                 <p className="import-note">Nada encontrado para “{deferredTerm.trim()}”.</p>
               ) : (
@@ -8636,6 +8903,7 @@ export function App() {
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {finishPrompt.open ? <FinishBookDialog book={finishPrompt.open} onClose={finishPrompt.close} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {updateBanner}
@@ -8717,6 +8985,18 @@ export function App() {
               ))}
             </div>
           ) : null}
+
+          <PrivacyNote
+            details={
+              <>
+                Ninguém da comunidade vê suas conversas. Cada mensagem vai por conexão criptografada (HTTPS) até a
+                IA que dá voz ao personagem, só para ele responder, e o histórico fica no seu aparelho e na sua conta, para continuar de
+                onde parou. Você pode apagar tudo em Perfil › Ajustes › Privacidade.
+              </>
+            }
+          >
+            Conversa privada: só você vê.
+          </PrivacyNote>
 
           <div ref={chatBodyRef} className="chat-body">
             {messages.map((m) =>
