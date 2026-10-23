@@ -34,7 +34,8 @@ Senha: `QA_TEST_PASSWORD` no `.env` de QA da VPS (`/home/deploy/storyverse-qa/.e
 ## Fluxo de branches
 
 - `main` = produção. Só recebe release do `develop`, pelo workflow `deploy-storyverse.yml`.
-- `develop` = integração/próxima release. Todo push no `develop` publica no QA sozinho.
+- `develop` = integração/próxima release e **branch padrão do repositório**. Todo push no `develop`
+  publica no QA sozinho; PRs de feature já nascem com ele como base.
 - Feature: PR para `develop`; review + `verify`; merge publica no QA; teste.
 - Release: PR `develop` → `main`; depois merge de `main` de volta no `develop`.
 - Hotfix: branch a partir da `main`, PR para `main`, e back-merge no `develop`.
@@ -50,7 +51,7 @@ gh workflow run deploy-qa.yml -f ref=feat/minha-branch                          
 gh workflow run deploy-api-qa.yml -R axyonsoftwarehouse/story-verse-api -f ref=feat/minha-branch   # API
 ```
 
-Sem `-f ref`, publica a `main`. Na API, o push no `develop` também publica no QA pelo
+Sem `-f ref`, publica a `develop`. Na API, o push no `develop` também publica no QA pelo
 `deploy-api-qa.yml`. Site e API são independentes: publique os dois quando a mudança mexer nos dois.
 
 ## Banco do QA
