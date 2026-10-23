@@ -186,6 +186,12 @@ As chaves de IA, SMTP e banco ficam no .env do servidor; nunca use VITE_* para s
 
 O `vercel.json` redireciona `/gutenberg/*` para o gutenberg.org e `/gutenberg-mirror/*` para o espelho oficial `aleph.pglaf.org`, já que os arquivos de texto do Gutenberg não liberam acesso direto pelo navegador (CORS).
 
+## Ambiente de QA
+
+Cópia para testes em https://qa.storyverse.2.29.42.104.sslip.io (API em `api.qa.…`), com banco
+próprio e contas de teste. Para publicar um PR lá: `gh workflow run deploy-qa.yml -f ref=<branch>`.
+Tudo em [docs/QA.md](docs/QA.md).
+
 ## Limitações conhecidas
 
 - O Supabase autentica usuários e persiste suas sessões. Os livros importados e dados de leitura ainda ficam neste navegador e não são sincronizados entre dispositivos/contas.
