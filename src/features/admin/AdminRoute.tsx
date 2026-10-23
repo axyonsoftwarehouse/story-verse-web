@@ -3,6 +3,8 @@ import { Link, Navigate, Route, Routes } from "react-router-dom";
 import "../../App.css";
 import { apiRequest } from "../../lib/backend";
 import { useStoredSession } from "../auth/useStoredSession";
+import { AccountDetail } from "./AccountDetail";
+import { AccountsSection } from "./AccountsSection";
 import { AdminNav } from "./AdminNav";
 import { ForumModeration } from "./ForumModeration";
 import { OverviewSection } from "./OverviewSection";
@@ -177,7 +179,7 @@ export function AdminRoute() {
               path="contas"
               element={
                 <RequireSection id="accounts" roles={allowed}>
-                  <Placeholder title="Contas" />
+                  <AccountsSection session={session} />
                 </RequireSection>
               }
             />
@@ -185,7 +187,7 @@ export function AdminRoute() {
               path="contas/:id"
               element={
                 <RequireSection id="accounts" roles={allowed}>
-                  <Placeholder title="Conta" />
+                  <AccountDetail session={session} roles={allowed} />
                 </RequireSection>
               }
             />
