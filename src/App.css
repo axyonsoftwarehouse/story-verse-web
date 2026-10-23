@@ -3525,6 +3525,13 @@
   display: none;
 }
 
+.nav-admin {
+  flex-shrink: 0;
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 /* A aba Comunidade aumentou o topo: encurta os rotulos antes de apertar os outros botoes. */
 @media (max-width: 1000px) {
   .home-nav-actions .status,

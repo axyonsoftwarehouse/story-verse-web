@@ -46,6 +46,7 @@ import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers"
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
+import { isStaff } from "./features/admin/adminSections";
 import { BookStatusControl } from "./features/library/BookStatusControl";
 import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
@@ -3963,6 +3964,7 @@ function ProfilePage({
   setPrefs,
   lastBook,
   isAvailable,
+  isStaff,
   canModerate,
   onOpenShop,
   onOpenShelf,
@@ -3980,6 +3982,7 @@ function ProfilePage({
   lastBook?: LastBook;
   /** Livro ainda existe para esta conta (ver `bookAvailable`). */
   isAvailable: (book: Ebook) => boolean;
+  isStaff?: boolean;
   canModerate?: boolean;
   onOpenShop: () => void;
   /** Abre "Minha estante"; ausente quando a conta não tem a estante. */
@@ -4598,20 +4601,35 @@ function ProfilePage({
         </div>
       </section>
 
-      {canModerate ? (
+      {isStaff ? (
         <section className="shelf">
           <div className="shelf-head">
             <h2>Admin</h2>
           </div>
-          <div className="profile-card profile-admin">
+          <Link
+            className="profile-card profile-admin"
+            to="/admin"
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
             <div>
-              <strong>Moderação do acervo</strong>
-              <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
+              <strong>Painel administrativo</strong>
+              <span>Visão geral, contas, moderação e auditoria.</span>
             </div>
-            <Link className="btn btn-primary" to="/admin/moderacao/acervo">
-              Abrir moderação
+            <span className="btn btn-primary">Abrir painel</span>
+          </Link>
+          {canModerate ? (
+            <Link
+              className="profile-card profile-admin"
+              to="/admin/moderacao/acervo"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div>
+                <strong>Moderação do acervo</strong>
+                <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
+              </div>
+              <span className="btn">Abrir moderação</span>
             </Link>
-          </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -5724,6 +5742,7 @@ export function App() {
   const canModerate = (capabilities?.roles ?? []).some(
     (role) => role === "superadmin" || role === "moderator",
   );
+  const staffOn = isStaff(capabilities?.roles ?? []);
   // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
   useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
@@ -7365,6 +7384,7 @@ export function App() {
     if (profileOpen && authSession) {
       return (
         <ProfilePage
+          isStaff={staffOn}
           canModerate={canModerate}
           onOpenShop={() => setShopOpen(true)}
           onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
@@ -7463,6 +7483,11 @@ export function App() {
               <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
                 <span className="nav-community-long">Comunidade</span>
                 <span className="nav-community-short">Fórum</span>
+              </Link>
+            ) : null}
+            {staffOn ? (
+              <Link className="btn nav-admin" to="/admin" aria-label="Abrir painel administrativo">
+                Admin
               </Link>
             ) : null}
             {canRead ? (
