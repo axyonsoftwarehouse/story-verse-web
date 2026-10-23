@@ -182,7 +182,6 @@ import {
   syncEngagementState,
 } from "./lib/reminders";
 import { installPlatform, storeLinks, useAppInstall, useUpdateReady, type InstallPlatform } from "./lib/pwa";
-import { fetchReaderCounts, readersLabel } from "./lib/readers";
 import { renderRecapCard, renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
   listVoices,
@@ -772,12 +771,6 @@ const Icon = {
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <circle cx="11" cy="11" r="7" />
       <path d="M20 20l-3.5-3.5" />
-    </svg>
-  ),
-  users: (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="9" cy="8" r="3.5" />
-      <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.2a6.5 6.5 0 0 1 3 5.8" />
     </svg>
   ),
   lock: (
@@ -3956,7 +3949,6 @@ function FeaturedRow({
   subtitle,
   books,
   progressById,
-  readerCounts,
   onOpen,
 }: {
   id?: string;
@@ -3964,7 +3956,6 @@ function FeaturedRow({
   subtitle: string;
   books: Ebook[];
   progressById: Map<number, ReadingProgress>;
-  readerCounts: Record<string, number>;
   onOpen: (b: Ebook) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -4014,7 +4005,6 @@ function FeaturedRow({
               ) : null}
               <strong>{b.title}</strong>
               <span className="row-card-author">{b.author}</span>
-              <ReaderCount count={readerCounts[b.id]} />
               {b.characters?.length ? (
                 <span className="row-card-cast">
                   <span className="avatar-stack">
@@ -4114,8 +4104,7 @@ function PrivacyCenter() {
             <span className="profile-account-label">Leitura</span>
             <p>
               Progresso, livros terminados, marcações e minutos lidos ficam na sua conta para você continuar em
-              qualquer aparelho e manter a sequência. O contador de leitores dos livros usa só o total, sem
-              dizer quem leu.
+              qualquer aparelho e manter a sequência.
             </p>
           </div>
         </div>
@@ -4127,18 +4116,6 @@ function PrivacyCenter() {
         </div>
       </div>
     </section>
-  );
-}
-
-/** Quantas pessoas já leram ou estão lendo o livro (só aparece quando o servidor informa). */
-function ReaderCount({ count }: { count?: number }) {
-  if (!count) return null;
-  const label = readersLabel(count);
-  return (
-    <span className="reader-count" aria-label={label} title={label}>
-      {Icon.users}
-      {label}
-    </span>
   );
 }
 
@@ -4155,7 +4132,7 @@ function ProfileShelf({
   subtitle?: string;
   eyebrow?: string;
   className?: string;
-  items: { book: Ebook; sub: string; pct?: number; badge?: string; readers?: number }[];
+  items: { book: Ebook; sub: string; pct?: number; badge?: string }[];
   empty?: string;
   onOpen: (book: Ebook) => void;
 }) {
@@ -4173,7 +4150,7 @@ function ProfileShelf({
         <p className="profile-empty">{empty}</p>
       ) : (
         <div className="result-grid">
-          {shown.map(({ book, sub, pct, badge, readers }) => (
+          {shown.map(({ book, sub, pct, badge }) => (
             <button key={book.id} type="button" className="result" onClick={() => onOpen(book)}>
               {badge ? <span className="new-badge">{badge}</span> : null}
               <BookCover book={book} />
@@ -4184,7 +4161,6 @@ function ProfileShelf({
               ) : null}
               <strong>{book.title}</strong>
               <span>{sub}</span>
-              <ReaderCount count={readers} />
             </button>
           ))}
         </div>
@@ -6416,21 +6392,6 @@ export function App() {
       alive = false;
     };
   }, [book, authUserId, communityTick]);
-  /** Leitores por livro (id → total) para os cards; vazio sem conta ou sem a função no servidor. */
-  const [readerCounts, setReaderCounts] = useState<Record<string, number>>({});
-  useEffect(() => {
-    const session = authSessionRef.current;
-    if (!session || book) return;
-    let alive = true;
-    void fetchReaderCounts(session, [...communityBooks.filter(isNewCommunityBook), ...featuredBooks])
-      .then((counts) => {
-        if (alive) setReaderCounts(counts);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [book, authUserId, communityBooks]);
   /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
   const [localIds, setLocalIds] = useState<Set<number> | null>(null);
   useEffect(() => {
@@ -7959,9 +7920,7 @@ export function App() {
             title="Novidades"
             subtitle="Livros que entraram no acervo da comunidade nesta semana."
             onOpen={startBook}
-            items={communityBooks
-              .filter(isNewCommunityBook)
-              .map((b) => ({ book: b, sub: b.author, badge: newBookLabel(b), readers: readerCounts[b.id] }))}
+            items={communityBooks.filter(isNewCommunityBook).map((b) => ({ book: b, sub: b.author, badge: newBookLabel(b) }))}
           />
         ) : null}
 
@@ -7977,7 +7936,6 @@ export function App() {
                 subtitle={shelf.subtitle}
                 books={books}
                 progressById={progressById}
-                readerCounts={readerCounts}
                 onOpen={startBook}
               />
             );

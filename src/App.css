@@ -5575,27 +5575,6 @@
   font-weight: 600;
 }
 
-/* Leitores do livro, logo abaixo do autor. ".result > span" também se aplica: o seletor repete
-   a classe para ganhar dele e manter ícone e número na mesma linha. */
-.reader-count,
-.result > .reader-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  max-width: 100%;
-  margin-top: 0.1rem;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.reader-count svg {
-  flex: none;
-  color: var(--accent-2);
-}
-
 .row-card-cast .avatar-sm {
   width: 22px;
   height: 22px;
