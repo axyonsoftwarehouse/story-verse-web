@@ -1,7 +1,8 @@
 name: Deploy QA (VPS)
 
 # Ambiente de QA: https://qa.storyverse.2.29.42.104.sslip.io (API: api.qa…). Dados de teste.
-# Publica em push no branch `qa` ou à mão, escolhendo o branch/commit:
+# Push no branch `develop` (integração/próxima release) publica sozinho. Para testar uma branch
+# antes do merge, escolha o ref à mão:
 #   gh workflow run deploy-qa.yml -f ref=feat/minha-branch
 # Manual: docs/QA.md.
 #
@@ -15,7 +16,7 @@ on:
         required: true
         default: main
   push:
-    branches: [qa]
+    branches: [develop]
 
 permissions:
   contents: read
