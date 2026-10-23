@@ -3,6 +3,9 @@
 .rating-stars {
   position: relative;
   display: inline-block;
+  /* Dentro de um grid (painel do livro) não estica: a área de clique tem de ser a das estrelas. */
+  justify-self: start;
+  width: max-content;
 }
 
 .rating-track {
