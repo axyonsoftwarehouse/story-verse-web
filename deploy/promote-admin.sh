@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Promove uma conta existente e com e-mail confirmado a administrador do acervo.
+# Promove uma conta existente e com e-mail confirmado a superadmin.
 # Uso: bash promote-admin.sh <uuid-da-conta>
 # Rode na VPS, dentro de /home/deploy/storyverse (ou ajuste o cd abaixo).
 #
@@ -35,26 +35,13 @@ if [ "$confirmed" != "1" ]; then
 fi
 
 psql_db -v uid="$user_id" <<'SQL'
-insert into public.admins (user_id)
-select id from auth.users where id = :'uid'::uuid and email_confirmed_at is not null
-on conflict do nothing;
-SQL
-
-# A V6 introduziu papeis. Mantem compatibilidade com bancos ainda sem a migration.
-if psql_db -tAc "select to_regclass('public.user_roles')" | grep -q user_roles; then
-  psql_db -v uid="$user_id" <<'SQL'
+begin;
 insert into public.user_roles (user_id, role)
 select id, 'superadmin' from auth.users where id = :'uid'::uuid and email_confirmed_at is not null
 on conflict do nothing;
-SQL
-fi
-
-# Auditoria quando a V6 já foi aplicada; actor_id fica nulo porque a promoção é operacional.
-if psql_db -tAc "select to_regclass('public.admin_audit_log')" | grep -q admin_audit_log; then
-  psql_db -v uid="$user_id" <<'SQL'
 insert into public.admin_audit_log (actor_id, action, target_type, target_id, metadata)
 values (null, 'admin.promote', 'user', :'uid', jsonb_build_object('via', 'promote-admin.sh'));
+commit;
 SQL
-fi
 
 echo "Conta $user_id promovida a superadmin."
