@@ -132,3 +132,129 @@
 .shelf-remove {
   color: var(--muted);
 }
+
+.shelf-page {
+  display: grid;
+  gap: 1.25rem;
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 1rem 16px 3rem;
+}
+
+.shelf-page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.shelf-page-head h1 {
+  margin: 0.15rem 0 0;
+}
+
+.shelf-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.9rem;
+}
+
+.shelf-filters label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.shelf-filters select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-deep);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.shelf-empty {
+  color: var(--muted);
+}
+
+.shelf-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shelf-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.shelf-card-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 0.8rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shelf-card-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
+
+.shelf-cover {
+  flex: none;
+  width: 48px;
+  height: 72px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.shelf-cover-blank {
+  display: grid;
+  place-items: center;
+  background: var(--surface-deep);
+  color: var(--accent);
+  font-size: 1.4rem;
+}
+
+.shelf-card-text {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.shelf-card-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shelf-card-text > span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.shelf-status {
+  color: var(--accent) !important;
+}
+
+.shelf-missing {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
