@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { DNF_REASONS, type DnfReason } from "../../lib/library";
 import { abandonBook } from "../../lib/libraryStore";
 import "./library.css";
@@ -24,7 +25,8 @@ export function AbandonBookDialog({ bookKey, onClose }: { bookKey: string; onClo
     onClose();
   }
 
-  return (
+  // No body: dentro da barra do leitor (backdrop-filter) o position:fixed ficaria preso a ela.
+  return createPortal(
     <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="auth-card shelf-dialog" role="dialog" aria-modal="true" aria-labelledby="abandon-title">
         <h2 id="abandon-title">Abandonar este livro?</h2>
@@ -51,6 +53,7 @@ export function AbandonBookDialog({ bookKey, onClose }: { bookKey: string; onClo
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

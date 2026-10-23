@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Ebook } from "../../data/types";
 import { bookKeyOf } from "../../lib/library";
 import { addToShelf, removeFromShelf, setDates, setRating, setReview, setStatus } from "../../lib/libraryStore";
@@ -35,7 +36,8 @@ export function BookStatusControl({ book, onClose }: { book: Ebook; onClose: () 
     setDates(key, startedOn || null, finishedOn || null);
   }
 
-  return (
+  // No body: dentro da barra do leitor (backdrop-filter) o position:fixed ficaria preso a ela.
+  return createPortal(
     <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="auth-card shelf-dialog" role="dialog" aria-modal="true" aria-labelledby="shelf-book-title">
         <header className="shelf-dialog-head">
@@ -131,6 +133,7 @@ export function BookStatusControl({ book, onClose }: { book: Ebook; onClose: () 
         )}
         {abandoning && key ? <AbandonBookDialog bookKey={key} onClose={() => setAbandoning(false)} /> : null}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

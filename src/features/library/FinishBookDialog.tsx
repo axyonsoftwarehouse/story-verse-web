@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Ebook } from "../../data/types";
 import { bookKeyOf } from "../../lib/library";
 import { markFinishPrompted, setRating, setReview } from "../../lib/libraryStore";
@@ -33,7 +34,8 @@ export function FinishBookDialog({ book, onClose }: { book: Ebook; onClose: () =
     onClose();
   }
 
-  return (
+  // No body: dentro da barra do leitor (backdrop-filter) o position:fixed ficaria preso a ela.
+  return createPortal(
     <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="auth-card shelf-dialog" role="dialog" aria-modal="true" aria-labelledby="finish-title">
         <span className="eyebrow">{book.title}</span>
@@ -62,6 +64,7 @@ export function FinishBookDialog({ book, onClose }: { book: Ebook; onClose: () =
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

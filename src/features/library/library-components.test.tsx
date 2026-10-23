@@ -99,4 +99,22 @@ describe("componentes da estante", () => {
     render(<BookStatusControl book={dom} onClose={() => {}} />);
     expect(screen.getByRole("slider", { name: "Sem nota" })).toBeInTheDocument();
   });
+
+  it("diálogos saem da barra do leitor e vão direto para o body", () => {
+    // A barra do leitor usa backdrop-filter: um position:fixed dentro dela fica preso aos 60px dela.
+    recordOpened(dom);
+    const { container } = render(
+      <header className="reader-bar">
+        <BookStatusControl book={dom} onClose={() => {}} />
+        <FinishBookDialog book={dom} onClose={() => {}} />
+        <AbandonBookDialog bookKey="gb:55752" onClose={() => {}} />
+      </header>,
+    );
+    const dialogs = screen.getAllByRole("dialog");
+    expect(dialogs).toHaveLength(3);
+    for (const dialog of dialogs) {
+      expect(container.contains(dialog)).toBe(false);
+      expect(dialog.closest(".about-backdrop")?.parentElement).toBe(document.body);
+    }
+  });
 });
