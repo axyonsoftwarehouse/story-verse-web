@@ -1,17 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import "../../App.css";
 import { apiRequest } from "../../lib/backend";
 import { useStoredSession } from "../auth/useStoredSession";
+import { AdminNav } from "./AdminNav";
 import { ForumModeration } from "./ForumModeration";
+import { OverviewSection } from "./OverviewSection";
+import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
+import "./admin.css";
 
 const ADMIN_ROLES = ["superadmin", "moderator", "support"];
-
-const ROLE_LABEL: Record<string, string> = {
-  superadmin: "Superadmin",
-  moderator: "Moderador",
-  support: "Suporte",
-};
 
 function Page({ children }: { children: ReactNode }) {
   return (
@@ -23,6 +21,50 @@ function Page({ children }: { children: ReactNode }) {
       </nav>
       {children}
     </div>
+  );
+}
+
+function NoPermission() {
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h1>Sem permissão</h1>
+      </div>
+      <div className="profile-card">
+        <div>
+          <strong>Sem permissão</strong>
+          <span>Esta conta não tem acesso a esta seção.</span>
+        </div>
+        <Link className="btn" to="/">
+          Voltar para a home
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function RequireSection({
+  id,
+  roles,
+  children,
+}: {
+  id: AdminSectionId;
+  roles: string[];
+  children: ReactNode;
+}) {
+  const allowed = visibleSections(roles).some((section) => section.id === id);
+  if (!allowed) return <NoPermission />;
+  return <>{children}</>;
+}
+
+function Placeholder({ title }: { title: string }) {
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h1>{title}</h1>
+      </div>
+      <p className="muted">Em construção nesta fase.</p>
+    </section>
   );
 }
 
@@ -94,7 +136,6 @@ export function AdminRoute() {
   }
 
   const allowed = roles.filter((role) => ADMIN_ROLES.includes(role));
-  const canModerate = allowed.includes("superadmin") || allowed.includes("moderator");
   if (allowed.length === 0) {
     return (
       <Page>
@@ -116,35 +157,74 @@ export function AdminRoute() {
     );
   }
 
+  const canModerateForum = canModerate(allowed);
+
   return (
     <Page>
-      <section className="shelf">
-        <div className="shelf-head">
-          <h1>Dashboard admin</h1>
+      <div className="admin-shell">
+        <AdminNav roles={allowed} />
+        <div className="admin-content">
+          <Routes>
+            <Route
+              index
+              element={
+                <RequireSection id="overview" roles={allowed}>
+                  <OverviewSection session={session} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="contas"
+              element={
+                <RequireSection id="accounts" roles={allowed}>
+                  <Placeholder title="Contas" />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="contas/:id"
+              element={
+                <RequireSection id="accounts" roles={allowed}>
+                  <Placeholder title="Conta" />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="features"
+              element={
+                <RequireSection id="features" roles={allowed}>
+                  <Placeholder title="Features" />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="moderacao/acervo"
+              element={
+                <RequireSection id="submissions" roles={allowed}>
+                  <Placeholder title="Acervo" />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="moderacao/forum"
+              element={
+                <RequireSection id="forum" roles={allowed}>
+                  <ForumModeration session={session} canModerate={canModerateForum} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="auditoria"
+              element={
+                <RequireSection id="audit" roles={allowed}>
+                  <Placeholder title="Auditoria" />
+                </RequireSection>
+              }
+            />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Routes>
         </div>
-        <div className="profile-card profile-admin">
-          <div>
-            <strong>Estrutura pronta</strong>
-            <span>
-              Papéis: {allowed.map((role) => ROLE_LABEL[role] ?? role).join(", ")}
-            </span>
-          </div>
-        </div>
-      </section>
-      <ForumModeration session={session} canModerate={canModerate} />
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Próximos módulos</h2>
-        </div>
-        <div className="dash-tiles">
-          {["Visão geral", "Usuários", "Moderação", "Auditoria"].map((title) => (
-            <article className="dash-card" key={title}>
-              <strong>{title}</strong>
-              <span>Em construção na fase 1.</span>
-            </article>
-          ))}
-        </div>
-      </section>
+      </div>
     </Page>
   );
 }

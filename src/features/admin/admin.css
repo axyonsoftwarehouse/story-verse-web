@@ -1,0 +1,85 @@
+.admin-shell {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.admin-nav {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.55);
+  position: sticky;
+  top: 1rem;
+}
+
+.admin-nav a {
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.admin-nav a:hover {
+  color: var(--text);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.admin-nav a[aria-current="page"] {
+  color: var(--on-accent);
+  background: linear-gradient(145deg, var(--accent), var(--accent-deep));
+}
+
+.admin-content {
+  min-width: 0;
+}
+
+.admin-overview {
+  margin: 0;
+}
+
+.admin-overview .dash-tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dash-card.is-alert {
+  border-color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .admin-overview .dash-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-shell {
+    display: block;
+  }
+
+  .admin-nav {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    position: static;
+    margin-bottom: 1rem;
+    padding: 0.4rem;
+    scrollbar-width: thin;
+  }
+
+  .admin-nav a {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-overview .dash-tiles {
+    grid-template-columns: 1fr;
+  }
+}
