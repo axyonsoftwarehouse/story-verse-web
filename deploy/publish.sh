@@ -8,6 +8,9 @@ BASE="${STORYVERSE_WEB_DIR:-/home/deploy/storyverse/web}"
 IN="${STORYVERSE_INCOMING:-/home/deploy/storyverse/_incoming}"
 URL="${STORYVERSE_URL:-https://storyverse.2.29.42.104.sslip.io}"
 
+# Sem versão nova não se mexe em nada: a atual continua no ar.
+[ -d "$IN" ] || { echo "FALHOU: $IN não existe; nada foi alterado."; exit 1; }
+
 # 1. guarda a versão atual (rollback) e promove a nova
 mkdir -p "$BASE"
 rm -rf "$BASE/previous"

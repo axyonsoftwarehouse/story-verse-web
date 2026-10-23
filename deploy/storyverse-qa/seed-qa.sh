@@ -12,7 +12,7 @@ qa_guard
 API_URL="${QA_API_URL:-https://api.qa.storyverse.2.29.42.104.sslip.io}"
 [ -n "${QA_TEST_PASSWORD:-}" ] || qa_die "defina QA_TEST_PASSWORD no .env"
 
-existing=$(qa_compose exec -T db psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+existing=$(qa_compose exec -T qa-db psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "select email from auth.users where email like 'qa-%@example.com'")
 
 # Só cadastra quem falta: a API limita cadastros por IP (5 por hora), e o seed roda de novo a cada reset.
@@ -35,7 +35,7 @@ signup qa-leitor@example.com "Leitor de QA"
 signup qa-sem-estante@example.com "Leitor sem estante"
 signup qa-admin@example.com "Admin de QA"
 
-qa_compose exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+qa_compose exec -T qa-db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
 insert into public.feature_access (user_id, feature, enabled)
 select id, 'library', true from auth.users where email = 'qa-leitor@example.com'
 on conflict (user_id, feature) do update set enabled = true, updated_at = now();

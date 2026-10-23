@@ -5,7 +5,8 @@
 name: storyverse-qa
 
 services:
-  db:
+  # Nomes únicos: db/api já existem como apelidos na rede storyverse_default (produção).
+  qa-db:
     image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     mem_limit: 256m
@@ -29,7 +30,7 @@ services:
     networks:
       - qa-private
 
-  api:
+  qa-api:
     image: ${API_IMAGE:?defina uma imagem por commit ou digest}
     container_name: storyverse-qa-api-1
     restart: unless-stopped
@@ -37,14 +38,15 @@ services:
     cpus: 0.5
     environment:
       PORT: 8080
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://qa-db:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: storyverse_api
       SPRING_DATASOURCE_PASSWORD: ${API_DB_PASSWORD}
-      SPRING_FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_FLYWAY_URL: jdbc:postgresql://qa-db:5432/${POSTGRES_DB}
       SPRING_FLYWAY_USER: ${POSTGRES_USER}
       SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
-      # Migração de um branch testado e descartado não impede a API de subir (reset: reset-qa.sh).
-      SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS: "*:missing"
+      # Migração de branch descartado (missing) ou de branch mais novo (future) não impede a API de subir.
+      # Mesma versão com conteúdo diferente (checksum) ainda exige o reset-qa.sh.
+      SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS: "*:missing,*:future"
       APP_CORS_ALLOWED_ORIGINS: https://qa.storyverse.2.29.42.104.sslip.io
       APP_PUBLIC_URL: https://qa.storyverse.2.29.42.104.sslip.io
       APP_PUBLIC_API_URL: https://api.qa.storyverse.2.29.42.104.sslip.io
@@ -69,7 +71,7 @@ services:
       # Pasta do uid do app (10001). Volume novo: docker run --rm -v storyverse-qa_media:/m alpine chown -R 10001:10001 /m
       - media:/data/media
     depends_on:
-      db:
+      qa-db:
         condition: service_healthy
     networks:
       - qa-private

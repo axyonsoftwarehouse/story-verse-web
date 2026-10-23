@@ -42,7 +42,9 @@ mexer nos dois.
 ## Banco do QA
 
 - Migrações rodam como na produção. Uma migração de um branch testado e depois descartado não
-  impede a API de subir (`SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS=*:missing`), mas o banco fica com ela.
+  impede a API de subir (`SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS=*:missing,*:future`), mas o banco
+  fica com ela. Se dois branches usarem o mesmo número de migração com conteúdo diferente, a API não
+  sobe (checksum diferente): aí é preciso o reset.
 - Para voltar ao zero (apaga banco e arquivos do QA e recria as contas):
 
 ```bash

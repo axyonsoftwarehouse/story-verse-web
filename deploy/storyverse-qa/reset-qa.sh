@@ -9,10 +9,10 @@ qa_guard
 API_URL="${QA_API_URL:-https://api.qa.storyverse.2.29.42.104.sslip.io}"
 
 qa_compose down -v
-qa_compose up -d db
+qa_compose up -d qa-db
 # Volume de arquivos novo: pertence ao uid do app (10001).
 docker run --rm -v storyverse-qa_media:/m alpine chown -R 10001:10001 /m
-qa_compose up -d api
+qa_compose up -d qa-api
 
 echo "Esperando a API de QA..."
 tries="${QA_WAIT_TRIES:-40}"

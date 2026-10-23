@@ -30,4 +30,12 @@ if STORYVERSE_WEB_DIR="$T/web/qa" STORYVERSE_INCOMING="$T/_incoming-qa2" STORYVE
 fi
 [ -f "$T/web/qa/current/qa-new.txt" ] || fail "não voltou a versão anterior"
 [ -f "$T/web/current/prod.txt" ] || fail "a produção foi tocada no rollback"
+
+# Sem a pasta de entrada (ex.: publish.sh antigo ou rsync que não chegou), nada pode ser mexido.
+if STORYVERSE_WEB_DIR="$T/web" STORYVERSE_INCOMING="$T/nao-existe" STORYVERSE_URL="http://127.0.0.1:$PORT" \
+  bash "$here/publish.sh" >/dev/null 2>&1; then
+  fail "publicar sem a pasta de entrada deveria falhar"
+fi
+[ -f "$T/web/current/prod.txt" ] || fail "a versão atual saiu do ar sem haver versão nova"
+[ ! -e "$T/web/previous" ] || fail "a versão atual foi movida sem haver versão nova"
 echo "OK"
