@@ -1,0 +1,89 @@
+# Ambiente de QA do Storyverse: API e Postgres separados da produção, na mesma VPS.
+# Rodar sempre com o projeto storyverse-qa, de /home/deploy/storyverse-qa:
+#   docker compose --project-name storyverse-qa up -d
+# Manual: docs/QA.md.
+name: storyverse-qa
+
+services:
+  # Nomes únicos: db/api já existem como apelidos na rede storyverse_default (produção).
+  qa-db:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB (storyverse_qa) no .env}
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      # Usada só pelo initdb para criar o papel da API com senha.
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?defina API_DB_PASSWORD no .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Mesmo esquema inicial da produção (na VPS, /home/deploy/storyverse/schema.sql).
+      - ${QA_SCHEMA_FILE:-../storyverse/schema.sql}:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./initdb/00-runtime-role.sh:/docker-entrypoint-initdb.d/00-runtime-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - qa-private
+
+  qa-api:
+    image: ${API_IMAGE:?defina uma imagem por commit ou digest}
+    container_name: storyverse-qa-api-1
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://qa-db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: storyverse_api
+      SPRING_DATASOURCE_PASSWORD: ${API_DB_PASSWORD}
+      SPRING_FLYWAY_URL: jdbc:postgresql://qa-db:5432/${POSTGRES_DB}
+      SPRING_FLYWAY_USER: ${POSTGRES_USER}
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      # Migração de branch descartado (missing) ou de branch mais novo (future) não impede a API de subir.
+      # Mesma versão com conteúdo diferente (checksum) ainda exige o reset-qa.sh.
+      SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS: "*:missing,*:future"
+      APP_CORS_ALLOWED_ORIGINS: https://qa.storyverse.2.29.42.104.sslip.io
+      APP_PUBLIC_URL: https://qa.storyverse.2.29.42.104.sslip.io
+      APP_PUBLIC_API_URL: https://api.qa.storyverse.2.29.42.104.sslip.io
+      APP_COMMUNITY_COVER_HOSTS: covers.openlibrary.org,openlibrary.org,www.openlibrary.org,archive.org,www.archive.org
+      # QA não manda e-mail: contas de teste entram direto, sem confirmação.
+      APP_AUTH_REQUIRE_EMAIL_CONFIRMATION: "false"
+      APP_AUTH_REFRESH_COOKIE_SECURE: "true"
+      APP_AUTH_REFRESH_COOKIE_SAME_SITE: Lax
+      APP_RATE_LIMIT_PERSISTENT: "true"
+      DB_POOL_SIZE: 8
+      SMTP_HOST: ""
+      STORAGE_DIR: /data/media
+      # Sem chaves de IA: o chat roda em modo demonstração e não gasta créditos.
+      GROQ_API_KEY: ""
+      GEMINI_API_KEY: ""
+      OPENROUTER_API_KEY: ""
+      AI_DAILY_MESSAGE_LIMIT: 20
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: qa
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+    volumes:
+      # Pasta do uid do app (10001). Volume novo: docker run --rm -v storyverse-qa_media:/m alpine chown -R 10001:10001 /m
+      - media:/data/media
+    depends_on:
+      qa-db:
+        condition: service_healthy
+    networks:
+      - qa-private
+      # Rede que o Caddy de borda já alcança (sem recriar o Caddy).
+      - edge
+
+networks:
+  qa-private: {}
+  edge:
+    external: true
+    name: storyverse_default
+
+volumes:
+  db_data: {}
+  media: {}
