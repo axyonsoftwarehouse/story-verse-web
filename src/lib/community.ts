@@ -458,9 +458,6 @@ export async function syncSubmissionCovers(session: SupabaseSession, localBooks:
 export async function deleteSubmission(session: SupabaseSession, s: Submission): Promise<void> {
   if (apiEnabled) {
     await apiRequest(`/api/v1/community/submissions/${s.id}`, { method: "DELETE", accessToken: session.access_token });
-    await dropObject(session, BUCKET, s.text_path);
-    const cover = uploadedCoverPath(s.cover_url);
-    if (cover) await dropObject(session, "profile-media", cover);
     approvedCache = null;
     return;
   }
@@ -484,34 +481,6 @@ export async function fetchCommunityText(session: SupabaseSession | null, path: 
   }
   const res = await sb(`/storage/v1/object/authenticated/${BUCKET}/${encodePath(path)}`, { session });
   return res.text();
-}
-
-/** Pergunta ao banco (função is_admin); qualquer erro conta como "não é admin". */
-export async function checkIsAdmin(session: SupabaseSession): Promise<boolean> {
-  if (apiEnabled) {
-    try {
-      return (
-        (await apiRequest<boolean>("/api/v1/rpc/is_admin", {
-          method: "POST",
-          accessToken: session.access_token,
-          body: {},
-        })) === true
-      );
-    } catch {
-      return false;
-    }
-  }
-  try {
-    const res = await sb("/rest/v1/rpc/is_admin", {
-      method: "POST",
-      session,
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
-    return (await res.json()) === true;
-  } catch {
-    return false;
-  }
 }
 
 /** Dias que um livro aprovado fica em "Novidades". */

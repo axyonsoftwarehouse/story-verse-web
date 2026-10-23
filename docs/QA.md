@@ -27,9 +27,25 @@ Erros do site e da API vão para os projetos Sentry `storyverse-web-qa` e `story
 | `qa-leitor@example.com` | leitor com a estante (feature `library`) |
 | `qa-sem-estante@example.com` | leitor sem a estante (tudo dela escondido) |
 | `qa-admin@example.com` | superadmin |
+| `qa-moderador@example.com` | moderador: acervo e fórum |
+| `qa-suporte@example.com` | suporte: contas e fórum só leitura |
 
 Senha: `QA_TEST_PASSWORD` no `.env` de QA da VPS (`/home/deploy/storyverse-qa/.env`). `example.com`
 é reservado: nenhum e-mail real recebe nada. Para criar mais contas, use o cadastro do próprio site.
+Se as contas de papel ainda não existirem, rode `bash seed-qa.sh` de novo.
+
+## Roteiro do painel admin
+
+Entre em `/admin` com cada conta e confira a tabela da spec:
+
+| Conta | Seções visíveis | Ação permitida | URL proibida |
+|---|---|---|---|
+| `qa-leitor` | nenhuma (mostra "Sem permissão") | — | `/admin` |
+| `qa-suporte` | Visão geral, Contas, Fórum (sem botões de ação) | buscar uma conta e encerrar sessões | `/admin/features`, `/admin/moderacao/acervo`, `/admin/auditoria` |
+| `qa-moderador` | Visão geral, Acervo, Fórum (com ações) | aprovar/recusar um envio e resolver uma denúncia | `/admin/contas`, `/admin/features`, `/admin/auditoria` |
+| `qa-admin` | todas | conceder/remover `moderator`/`support`, ligar/desligar features, ver auditoria | dar/remover `superadmin` (não existe no painel) |
+
+A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
 
 ## Fluxo de branches
 
