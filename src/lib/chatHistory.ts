@@ -62,6 +62,42 @@ export function forgetChat(bookId: string, owner: string | null = currentDataOwn
   }
 }
 
+/** Livros com conversa guardada (o índice que `saveChat` mantém). */
+function chatIndex(owner: string | null): string[] {
+  try {
+    const index = JSON.parse(storageForOwner(owner).getItem(INDEX_KEY) ?? "[]") as unknown;
+    return Array.isArray(index) ? index.filter((b): b is string => typeof b === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Quantas conversas e mensagens suas estão guardadas (Central de Privacidade). */
+export function storedChatSummary(owner: string | null = currentDataOwner()): { books: number; messages: number } {
+  let books = 0;
+  let messages = 0;
+  for (const bookId of chatIndex(owner)) {
+    const saved = loadChat(bookId, owner);
+    if (!saved) continue;
+    books += 1;
+    for (const msgs of Object.values(saved.threads)) messages += msgs.filter((m) => m.role === "user").length;
+  }
+  return { books, messages };
+}
+
+/**
+ * Apaga todas as conversas com os personagens. Com conta, a próxima sincronização apaga também
+ * da nuvem e dos outros aparelhos (o que sumiu aqui some lá).
+ */
+export function forgetAllChats(owner: string | null = currentDataOwner()) {
+  for (const bookId of chatIndex(owner)) forgetChat(bookId, owner);
+  try {
+    storageForOwner(owner).removeItem(INDEX_KEY);
+  } catch {
+    // Nada a limpar.
+  }
+}
+
 /** Quantas mensagens você mandou para cada personagem, em todos os livros (para o perfil). */
 export type CharacterTalk = { bookId: string; characterId: string; sent: number; lastAt: number };
 

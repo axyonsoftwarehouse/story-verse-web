@@ -18,7 +18,15 @@ import {
 } from "./lib/ai";
 import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
-import { characterTalks, forgetChat, loadChat, saveChat, type ChatMsg } from "./lib/chatHistory";
+import {
+  characterTalks,
+  forgetAllChats,
+  forgetChat,
+  loadChat,
+  saveChat,
+  storedChatSummary,
+  type ChatMsg,
+} from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { deleteAccount, exportAccount, exportAccountFiles } from "./lib/account";
 import { quoteOfTheDay } from "./data/dailyQuotes";
@@ -783,6 +791,12 @@ const Icon = {
       <path d="M20 20l-3.5-3.5" />
     </svg>
   ),
+  lock: (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  ),
   moon: (
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
@@ -936,6 +950,17 @@ function Explore({
             aria-label="Buscar livros"
           />
         </label>
+        <PrivacyNote
+          details={
+            <>
+              O Storyverse não guarda o que você busca nem mostra para ninguém. O termo vai, por conexão
+              criptografada (HTTPS), só até os catálogos de livros para trazer os resultados. Veja tudo em
+              Perfil › Ajustes › Privacidade.
+            </>
+          }
+        >
+          Suas buscas são privadas e não ficam salvas.
+        </PrivacyNote>
         <div className="filter-pills" role="group" aria-label="Idioma do texto">
           {LANGUAGE_FILTERS.map((f) => (
             <button
@@ -4030,7 +4055,6 @@ function FeaturedRow({
   );
 }
 
-/** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
 /** Card do perfil que leva à "Minha estante", com os totais. */
 function ShelfSummary({ onOpen }: { onOpen: () => void }) {
   const entries = shelfEntries();
@@ -4051,6 +4075,102 @@ function ShelfSummary({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+/**
+ * Aviso curto de privacidade nas telas de conversa e busca: o que acontece com o que a pessoa
+ * digita, com o detalhe a um toque. A lista completa fica na Central de Privacidade (Ajustes).
+ */
+function PrivacyNote({ children, details }: { children: React.ReactNode; details: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="privacy-note">
+      <p>
+        {Icon.lock}
+        <span>
+          {children}{" "}
+          <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            {open ? "Fechar" : "Saiba mais"}
+          </button>
+        </span>
+      </p>
+      {open ? <p className="privacy-note-more">{details}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Central de Privacidade (Ajustes): o que fica guardado sobre o leitor, para quê, e a limpeza
+ * do histórico de conversas a qualquer momento. Buscas não são guardadas.
+ */
+function PrivacyCenter() {
+  const [chats, setChats] = useState(() => storedChatSummary());
+  const [cleared, setCleared] = useState(false);
+  const clearChats = () => {
+    if (!window.confirm("Apagar todas as suas conversas com os personagens, em todos os aparelhos da conta? Não dá para desfazer.")) {
+      return;
+    }
+    forgetAllChats();
+    setChats(storedChatSummary());
+    setCleared(true);
+  };
+  return (
+    <section className="shelf" id="privacidade">
+      <div className="shelf-head">
+        <h2>Privacidade</h2>
+        <p>O que fica guardado sobre você, para quê, e como apagar. Ninguém da comunidade vê nada disso.</p>
+      </div>
+      <div className="profile-card profile-account privacy-center">
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Conversas com os personagens</span>
+            <p>
+              Guardadas no seu aparelho e na sua conta para continuar de onde parou. Cada mensagem vai
+              criptografada até a IA só para o personagem responder.
+            </p>
+            <strong>
+              {chats.books === 0
+                ? "Nenhuma conversa guardada."
+                : `${chats.books} ${chats.books === 1 ? "conversa" : "conversas"} · ${chats.messages} ${chats.messages === 1 ? "mensagem sua" : "mensagens suas"}`}
+            </strong>
+          </div>
+          <button type="button" className="btn" onClick={clearChats} disabled={chats.books === 0}>
+            Apagar histórico
+          </button>
+        </div>
+        {cleared ? (
+          <p className="privacy-center-done" role="status">
+            Histórico de conversas apagado. Os outros aparelhos da conta apagam na próxima sincronização.
+          </p>
+        ) : null}
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Buscas</span>
+            <p>
+              Não ficam salvas. A busca no acervo vai só até os catálogos de livros para trazer resultados;
+              a busca dentro de um livro roda no seu aparelho.
+            </p>
+          </div>
+        </div>
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Leitura</span>
+            <p>
+              Progresso, livros terminados, marcações e minutos lidos ficam na sua conta para você continuar em
+              qualquer aparelho e manter a sequência.
+            </p>
+          </div>
+        </div>
+        <div className="profile-account-row">
+          <div>
+            <span className="profile-account-label">Tudo de uma vez</span>
+            <p>Para apagar a conta e todos os dados dela, use Excluir conta, logo abaixo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
 function ProfileShelf({
   title,
   subtitle,
@@ -4697,7 +4817,7 @@ function ProfilePage({
           {Icon.settings}
         </span>
         <h1>Ajustes</h1>
-        <p>Cor do app, leitura, conta e sessão.</p>
+        <p>Cor do app, leitura, privacidade, conta e sessão.</p>
       </header>
 
       <section className="shelf">
@@ -4778,6 +4898,8 @@ function ProfilePage({
           </div>
         </section>
       ) : null}
+
+      <PrivacyCenter />
 
       <section className="shelf">
         <div className="shelf-head">
@@ -8701,7 +8823,12 @@ export function App() {
                 />
               </label>
               {deferredTerm.trim().length < 2 ? (
-                <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
+                <>
+                  <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
+                  <PrivacyNote details="O livro já está aberto aqui, então a busca roda no seu aparelho: o que você digita não vai para a internet nem fica salvo.">
+                    Busca privada: acontece só neste aparelho.
+                  </PrivacyNote>
+                </>
               ) : searchResults.hits.length === 0 ? (
                 <p className="import-note">Nada encontrado para “{deferredTerm.trim()}”.</p>
               ) : (
@@ -8858,6 +8985,18 @@ export function App() {
               ))}
             </div>
           ) : null}
+
+          <PrivacyNote
+            details={
+              <>
+                Ninguém da comunidade vê suas conversas. Cada mensagem vai por conexão criptografada (HTTPS) até a
+                IA que dá voz ao personagem, só para ele responder, e o histórico fica no seu aparelho e na sua conta, para continuar de
+                onde parou. Você pode apagar tudo em Perfil › Ajustes › Privacidade.
+              </>
+            }
+          >
+            Conversa privada: só você vê.
+          </PrivacyNote>
 
           <div ref={chatBodyRef} className="chat-body">
             {messages.map((m) =>

@@ -44,6 +44,9 @@ jobs:
           # A VPS usa a API própria; nunca apontar uma publicação para loopback.
           VITE_API_URL: https://api.storyverse.2.29.42.104.sslip.io
           VITE_LOGIN_REQUIRED: ${{ secrets.VITE_LOGIN_REQUIRED }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: production
+          VITE_SENTRY_RELEASE: ${{ github.sha }}
         run: npm run build
 
       - name: Configurar chave SSH
