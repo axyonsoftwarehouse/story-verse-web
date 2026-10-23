@@ -66,3 +66,59 @@ storyverse.2.29.42.104.sslip.io {
         file_server
     }
 }
+
+# ── Storyverse QA — API (dados de teste; ver docs/QA.md) ───────────
+api.qa.storyverse.2.29.42.104.sslip.io {
+    encode zstd gzip
+    request_body {
+        max_size 51MB
+    }
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer
+        Strict-Transport-Security "max-age=31536000"
+        X-Robots-Tag "noindex, nofollow"
+    }
+    reverse_proxy storyverse-qa-api-1:8080
+}
+
+# ── Storyverse QA — site ────────────────────────────────────────────
+qa.storyverse.2.29.42.104.sslip.io {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000"
+        X-Robots-Tag "noindex, nofollow"
+        Cross-Origin-Opener-Policy "same-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://va.vercel-scripts.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data:; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; connect-src 'self' https://api.qa.storyverse.2.29.42.104.sslip.io https://huggingface.co https://*.huggingface.co https://*.hf.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://translate.googleapis.com https://api.mymemory.translated.net https://openlibrary.org https://*.openlibrary.org https://gutenberg.org https://*.gutenberg.org https://aleph.pglaf.org https://image.pollinations.ai https://*.wikipedia.org https://*.wikimedia.org https://*.wiktionary.org https://va.vercel-scripts.com https://vitals.vercel-insights.com; manifest-src 'self'; upgrade-insecure-requests"
+    }
+
+    # proxies públicos que hoje o Vercel faz (mesmos destinos do vercel.json/vite.config.ts)
+    handle /gutenberg-search* {
+        rewrite * /ebooks/search.opds/
+        reverse_proxy https://www.gutenberg.org
+    }
+    handle_path /gutenberg/* {
+        reverse_proxy https://www.gutenberg.org
+    }
+    handle_path /gutenberg-mirror/* {
+        reverse_proxy https://aleph.pglaf.org
+    }
+    handle_path /openlibrary/* {
+        reverse_proxy https://openlibrary.org
+    }
+    handle_path /ol-covers/* {
+        reverse_proxy https://covers.openlibrary.org
+    }
+
+    # site (arquivos estáticos) com fallback das telas internas (SPA)
+    handle {
+        root * /srv/storyverse/qa/current
+        try_files {path} /index.html
+        file_server
+    }
+}

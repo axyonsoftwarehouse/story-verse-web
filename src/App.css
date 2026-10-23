@@ -10199,3 +10199,17 @@ button.ranking-diamonds {
   color: var(--muted);
   font-size: 0.8rem;
 }
+
+/* Faixa do ambiente de QA (só no build com VITE_APP_ENV=qa). Fica no rodapé para não cobrir a barra do leitor. */
+.qa-banner {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 50;
+  padding: 0.3rem 16px calc(0.3rem + env(safe-area-inset-bottom));
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}

@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY?: string;
   /** Opcional. Base da API própria (Marco 2). Definida, ela passa a servir o login/cadastro/sessão. */
   readonly VITE_API_URL?: string;
+  /** Opcional. "qa" no build do ambiente de QA: mostra a faixa "Ambiente de QA". */
+  readonly VITE_APP_ENV?: string;
   /** Opcional. "false" deixa ler e conversar sem conta (a conta vira opcional). */
   readonly VITE_LOGIN_REQUIRED?: string;
   /** Opcional. DSN do projeto Storyverse Web no Sentry; sem ele o SDK não envia eventos. */
