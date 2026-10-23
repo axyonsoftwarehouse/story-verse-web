@@ -153,6 +153,34 @@
   padding-bottom: 0;
 }
 
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.admin-filters label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 130px;
+}
+
+.admin-audit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.admin-audit-meta {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
 .submission-preview {
   width: min(760px, 94vw);
   max-height: 88vh;

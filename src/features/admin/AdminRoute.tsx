@@ -6,6 +6,7 @@ import { useStoredSession } from "../auth/useStoredSession";
 import { AccountDetail } from "./AccountDetail";
 import { AccountsSection } from "./AccountsSection";
 import { AdminNav } from "./AdminNav";
+import { AuditSection } from "./AuditSection";
 import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
 import { OverviewSection } from "./OverviewSection";
@@ -59,17 +60,6 @@ function RequireSection({
   const allowed = visibleSections(roles).some((section) => section.id === id);
   if (!allowed) return <NoPermission />;
   return <>{children}</>;
-}
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <section className="shelf">
-      <div className="shelf-head">
-        <h1>{title}</h1>
-      </div>
-      <p className="muted">Em construção nesta fase.</p>
-    </section>
-  );
 }
 
 export function AdminRoute() {
@@ -221,7 +211,7 @@ export function AdminRoute() {
               path="auditoria"
               element={
                 <RequireSection id="audit" roles={allowed}>
-                  <Placeholder title="Auditoria" />
+                  <AuditSection session={session} />
                 </RequireSection>
               }
             />
