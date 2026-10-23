@@ -1,0 +1,48 @@
+export type AdminSectionId =
+  | "overview"
+  | "accounts"
+  | "features"
+  | "submissions"
+  | "forum"
+  | "audit";
+
+export type AdminSection = {
+  id: AdminSectionId;
+  path: string;
+  label: string;
+};
+
+const SECTIONS: AdminSection[] = [
+  { id: "overview", path: "/admin", label: "Visão geral" },
+  { id: "accounts", path: "/admin/contas", label: "Contas" },
+  { id: "features", path: "/admin/features", label: "Features" },
+  { id: "submissions", path: "/admin/moderacao/acervo", label: "Acervo" },
+  { id: "forum", path: "/admin/moderacao/forum", label: "Fórum" },
+  { id: "audit", path: "/admin/auditoria", label: "Auditoria" },
+];
+
+export function isStaff(roles: string[]): boolean {
+  return roles.some((role) => role === "superadmin" || role === "moderator" || role === "support");
+}
+
+export function isSuperadmin(roles: string[]): boolean {
+  return roles.includes("superadmin");
+}
+
+export function canSeeAccounts(roles: string[]): boolean {
+  return roles.includes("superadmin") || roles.includes("support");
+}
+
+export function canModerate(roles: string[]): boolean {
+  return roles.includes("superadmin") || roles.includes("moderator");
+}
+
+export function visibleSections(roles: string[]): AdminSection[] {
+  if (!isStaff(roles)) return [];
+  return SECTIONS.filter((section) => {
+    if (section.id === "accounts") return canSeeAccounts(roles);
+    if (section.id === "features" || section.id === "audit") return isSuperadmin(roles);
+    if (section.id === "submissions") return canModerate(roles);
+    return true;
+  });
+}
