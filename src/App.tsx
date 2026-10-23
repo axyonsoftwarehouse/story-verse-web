@@ -37,6 +37,14 @@ import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
+import { useAccountFeatures } from "./features/auth/useAccountFeatures";
+import { BookStatusControl } from "./features/library/BookStatusControl";
+import { FinishBookDialog } from "./features/library/FinishBookDialog";
+import { LibraryPage } from "./features/library/LibraryPage";
+import { hasFeature } from "./lib/accountFeatures";
+import { bookKeyOf } from "./lib/library";
+import { recordFinished, recordOpened, recordProgress, shelfEntries, shouldPromptFinish, type LocalShelfEntry } from "./lib/libraryStore";
+import { connectShelf } from "./lib/libraryWiring";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
 import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
@@ -3999,6 +4007,26 @@ function FeaturedRow({
 }
 
 /** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
+/** Card do perfil que leva à "Minha estante", com os totais. */
+function ShelfSummary({ onOpen }: { onOpen: () => void }) {
+  const entries = shelfEntries();
+  const finished = entries.filter((e) => e.status === "finished").length;
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h2>Minha estante</h2>
+        <p>
+          {entries.length === 1 ? "1 livro" : `${entries.length} livros`} ·{" "}
+          {finished === 1 ? "1 terminado" : `${finished} terminados`}
+        </p>
+      </div>
+      <button type="button" className="btn" onClick={onOpen}>
+        Abrir minha estante
+      </button>
+    </section>
+  );
+}
+
 function ProfileShelf({
   title,
   subtitle,
@@ -4076,6 +4104,7 @@ function ProfilePage({
   isAdmin,
   onOpenModeration,
   onOpenShop,
+  onOpenShelf,
 }: {
   session: SupabaseSession;
   onSessionChange: (session: SupabaseSession) => void;
@@ -4093,6 +4122,8 @@ function ProfilePage({
   isAdmin?: boolean;
   onOpenModeration?: () => void;
   onOpenShop: () => void;
+  /** Abre "Minha estante"; ausente quando a conta não tem a estante. */
+  onOpenShelf?: () => void;
 }) {
   const user = session.user;
   const [diamonds, setDiamonds] = useState<number | null>(null);
@@ -4529,6 +4560,8 @@ function ProfilePage({
             ))}
         </ol>
       </section>
+
+      {onOpenShelf ? <ShelfSummary onOpen={onOpenShelf} /> : null}
 
       <ProfileShelf
         title="Lendo agora"
@@ -5821,6 +5854,13 @@ export function App() {
   const [moderationOpen, setModerationOpen] = useState(false);
   const [rankingOpen, setRankingOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  /** Estante (biblioteca pessoal): só para contas com a feature `library`. */
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [shelfPanelOpen, setShelfPanelOpen] = useState(false);
+  const [finishPrompt, setFinishPrompt] = useState<Ebook | null>(null);
+  const { capabilities } = useAccountFeatures(authSession);
+  const shelfOn = hasFeature(capabilities, "library");
+  useEffect(() => connectShelf(authSession, shelfOn), [authSession, shelfOn]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
   const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
   const [freezeBusy, setFreezeBusy] = useState(false);
@@ -6272,13 +6312,18 @@ export function App() {
   }, [book, authUserId, communityTick]);
   /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
   const [localIds, setLocalIds] = useState<Set<number> | null>(null);
+  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
   useEffect(() => {
     // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
     if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
     if (book) return;
     let alive = true;
     void listLocalBooks()
-      .then((list) => alive && setLocalIds(new Set(list.map((b) => b.gutenbergId))))
+      .then((list) => {
+        if (!alive) return;
+        setLocalIds(new Set(list.map((b) => b.gutenbergId)));
+        setLocalBookList(list);
+      })
       .catch(() => alive && setLocalIds(new Set()));
     return () => {
       alive = false;
@@ -6288,6 +6333,47 @@ export function App() {
     (b: Ebook) => bookAvailable(b, { localIds, communityIds }),
     [localIds, communityIds],
   );
+  /** Estante: o livro da entrada ainda abre aqui? (mesma regra de bookAvailable, pela chave) */
+  const shelfAvailable = useCallback(
+    (bookKey: string) => {
+      if (bookKey.startsWith("local:")) return localIds?.has(Number(bookKey.slice(6))) ?? false;
+      if (bookKey.startsWith("cm:")) return communityIds?.has(`cm-${bookKey.slice(3)}`) ?? true;
+      return true;
+    },
+    [localIds, communityIds],
+  );
+  /** Estante: o Ebook completo da entrada (os conhecidos aqui ou um do Gutenberg montado da entrada). */
+  const shelfBookFor = useCallback(
+    (entry: LocalShelfEntry): Ebook => {
+      const known = [
+        ...localBookList,
+        ...communityBooks,
+        ...recentProgress().map((p) => p.book),
+        ...finishedBooks().map((f) => f.book),
+      ].find((b) => bookKeyOf(b) === entry.bookKey);
+      if (known) return known;
+      const id = entry.bookKey.slice(entry.bookKey.indexOf(":") + 1);
+      return {
+        id: entry.bookKey.replace(":", "-"),
+        gutenbergId: Number(id) || 0,
+        title: entry.title,
+        author: entry.author ?? "",
+        genre: entry.genre ?? undefined,
+        coverUrl: entry.coverUrl ?? undefined,
+        textLanguage: entry.language ?? "pt",
+        source: entry.source,
+      };
+    },
+    [localBookList, communityBooks],
+  );
+  /** Fecha a comemoração; se foi um livro terminado, abre a nota/resenha (uma vez por livro). */
+  const closeCelebration = useCallback(() => {
+    const finished = celebration?.book;
+    setCelebration(null);
+    if (!shelfOn || !finished) return;
+    const key = bookKeyOf(finished);
+    if (key && shouldPromptFinish(key)) setFinishPrompt(finished);
+  }, [celebration, shelfOn]);
   /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
   useEffect(() => {
     const session = authSessionRef.current;
@@ -6474,6 +6560,7 @@ export function App() {
       setAuthModal("login");
       return;
     }
+    recordOpened(b);
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
@@ -6720,20 +6807,21 @@ export function App() {
     // Abrir e fechar um livro sem ler nada não o coloca em “Continue lendo”.
     if (chapterIndex === 0 && scrollRatio < 0.02 && !loadProgress(book.gutenbergId)) return;
     const owner = currentDataOwner();
-    const t = setTimeout(
-      () =>
-        saveProgress(
-          {
-            book,
-            chapterIndex,
-            chapterLabel: currentChapter.label,
-            chapterCount: chapters.length,
-            scrollRatio,
-          },
-          owner,
-        ),
-      300,
-    );
+    const t = setTimeout(() => {
+      saveProgress(
+        {
+          book,
+          chapterIndex,
+          chapterLabel: currentChapter.label,
+          chapterCount: chapters.length,
+          scrollRatio,
+        },
+        owner,
+      );
+      if (owner === currentDataOwner()) {
+        recordProgress(book, ((chapterIndex + scrollRatio) / Math.max(1, chapters.length)) * 100, currentChapter.label);
+      }
+    }, 300);
     return () => clearTimeout(t);
   }, [book, loadState, chapterIndex, currentChapter, chapters.length, scrollRatio]);
 
@@ -6749,6 +6837,7 @@ export function App() {
     finishedChaptersRef.current.add(key);
     if (chapterIndex >= chapters.length - 1) {
       markBookFinished(book);
+      recordFinished(book);
       setCelebration({
         emoji: "🏆",
         title: `Você terminou “${book.title}”!`,
@@ -7350,6 +7439,7 @@ export function App() {
   useBackClose(profileOpen, () => setProfileOpen(false));
   useBackClose(moderationOpen, () => setModerationOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
+  useBackClose(libraryOpen, () => setLibraryOpen(false));
   useBackClose(shopOpen, () => setShopOpen(false));
   useBackClose(spinOpen, () => setSpinOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
@@ -7418,6 +7508,20 @@ export function App() {
         />
       );
     }
+    if (libraryOpen && authSession && shelfOn) {
+      return (
+        <LibraryPage
+          onClose={() => setLibraryOpen(false)}
+          onOpenBook={(b) => {
+            setLibraryOpen(false);
+            setProfileOpen(false);
+            startBook(b);
+          }}
+          available={shelfAvailable}
+          bookFor={shelfBookFor}
+        />
+      );
+    }
     if (rankingOpen && authSession) {
       return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
     }
@@ -7427,6 +7531,7 @@ export function App() {
           isAdmin={isAdmin}
           onOpenModeration={() => setModerationOpen(true)}
           onOpenShop={() => setShopOpen(true)}
+          onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
           session={authSession}
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
@@ -7908,7 +8013,8 @@ export function App() {
           </>
         ) : null}
 
-        {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {celebration ? <CelebrationOverlay celebration={celebration} onClose={closeCelebration} /> : null}
+        {finishPrompt ? <FinishBookDialog book={finishPrompt} onClose={() => setFinishPrompt(null)} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {bookmarkDrop ? (
@@ -8054,6 +8160,18 @@ export function App() {
           >
             {Icon.search}
           </button>
+          {shelfOn ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setShelfPanelOpen(true)}
+              aria-label="Na estante"
+              title="Na estante: status, nota e resenha"
+            >
+              {Icon.book}
+            </button>
+          ) : null}
+          {shelfOn && shelfPanelOpen ? <BookStatusControl book={book} onClose={() => setShelfPanelOpen(false)} /> : null}
           <button
             type="button"
             className="icon-btn marks-btn"
@@ -8635,7 +8753,8 @@ export function App() {
           </div>
         ) : null}
 
-        {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {celebration ? <CelebrationOverlay celebration={celebration} onClose={closeCelebration} /> : null}
+        {finishPrompt ? <FinishBookDialog book={finishPrompt} onClose={() => setFinishPrompt(null)} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {updateBanner}
