@@ -115,6 +115,10 @@ export function patchShelfEntry(session: SupabaseSession, bookKey: string, body:
   return write(session, "PATCH", bookKey, body);
 }
 
+export function fetchShelfEntry(session: SupabaseSession, bookKey: string): Promise<ShelfEntry> {
+  return apiRequest<ShelfEntry>(entryPath(bookKey), { accessToken: session.access_token });
+}
+
 export async function deleteShelfEntry(session: SupabaseSession, bookKey: string): Promise<void> {
   await apiRequest(entryPath(bookKey), { method: "DELETE", accessToken: session.access_token });
 }

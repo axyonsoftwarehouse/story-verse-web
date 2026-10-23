@@ -9,10 +9,11 @@ const session = {
 };
 const dom = { id: "gb-55752", gutenbergId: 55752, title: "Dom Casmurro", author: "Machado de Assis", textLanguage: "pt" } as Ebook;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
   vi.stubEnv("VITE_API_URL", "https://api.example.test");
   localStorage.clear();
+  await (await import("./dataOwner")).activateDataOwner("user-1");
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -44,6 +45,19 @@ describe("ligar a estante", () => {
     const stop = connectShelf(session, true);
     expect(shelfEntry("gb:55752")?.status).toBe("finished");
     await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    stop();
+  });
+
+  it("não liga enquanto a conta ativa no aparelho não é a da sessão", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    await (await import("./dataOwner")).activateDataOwner("conta-anterior");
+    const { connectShelf } = await import("./libraryWiring");
+    const { recordOpened, shelfEntries } = await import("./libraryStore");
+    const stop = connectShelf(session, true);
+    recordOpened(dom);
+    expect(shelfEntries()).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
     stop();
   });
 

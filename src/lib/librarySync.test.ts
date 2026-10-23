@@ -39,7 +39,7 @@ const serverEntry = (fields: Partial<ShelfEntry>): ShelfEntry => ({ ...empty, ..
 type Call = { method: string; path: string; query: URLSearchParams; body: Record<string, unknown> | null };
 
 /** API falsa com as regras da real: base divergente → 409 com `current`; DELETE lógico; updatedSince. */
-function fakeApi(initial: Record<string, ShelfEntry> = {}) {
+function fakeApi(initial: Record<string, ShelfEntry> = {}, reject?: { method: string; status: number; error: string }) {
   const db = new Map(Object.entries(initial));
   const calls: Call[] = [];
   let clock = 0;
@@ -55,6 +55,10 @@ function fakeApi(initial: Record<string, ShelfEntry> = {}) {
       calls.push({ method, path: u.pathname, query: u.searchParams, body });
       const key = decodeURIComponent(u.pathname.split("/").pop() ?? "");
       const current = db.get(key);
+      if (reject && reject.method === method) return json(reject.status, { error: reject.error });
+      if (method === "GET" && u.pathname !== "/api/v1/me/library") {
+        return current && !current.deletedAt ? json(200, current) : json(404, { error: "Livro fora da estante." });
+      }
       if (method === "GET") {
         const since = u.searchParams.get("updatedSince");
         const { serverTime } = await import("./libraryMerge");
@@ -99,10 +103,12 @@ afterEach(() => {
 });
 
 async function load() {
+  const owner = await import("./dataOwner");
+  await owner.activateDataOwner("user-1");
   const store = await import("./libraryStore");
   const sync = await import("./librarySync");
   store.setShelfEnabled(true);
-  return { ...store, ...sync };
+  return { ...store, ...sync, activateDataOwner: owner.activateDataOwner };
 }
 
 describe("sincronização da estante", () => {
@@ -175,6 +181,41 @@ describe("sincronização da estante", () => {
     expect(await s.syncShelf(session)).toBe(true);
     expect(s.shelfEntry("gb:55752")).toBeNull();
     expect(s.shelfEntry("gb:1")).toMatchObject({ local: false });
+  });
+
+  it("não sincroniza se a conta ativa no aparelho não é a da sessão", async () => {
+    const s = await load();
+    s.recordOpened(dom);
+    await s.activateDataOwner("outra-conta");
+    const api = fakeApi();
+    expect(await s.syncShelf(session)).toBe(false);
+    expect(api.calls).toEqual([]);
+  });
+
+  it("PATCH recusado volta a entrada ao que o servidor tem", async () => {
+    fakeApi({ "gb:55752": serverEntry({}) }, { method: "PATCH", status: 422, error: "Data no futuro." });
+    const s = await load();
+    s.applyServerEntry(serverEntry({}), "user-1", null);
+    s.setDates("gb:55752", "2099-01-01", null);
+    expect(await s.syncShelf(session)).toBe(true);
+    expect(s.shelfEntry("gb:55752")).toMatchObject({ startedOn: null, pending: {}, local: false, version: 1 });
+  });
+
+  it("PUT recusado não finge que a entrada existe no servidor", async () => {
+    fakeApi({}, { method: "PUT", status: 422, error: "Estante cheia." });
+    const s = await load();
+    s.recordOpened(dom);
+    expect(await s.syncShelf(session)).toBe(true);
+    expect(s.shelfEntry("gb:55752")).toBeNull();
+  });
+
+  it("403 (estante retirada da conta) para a rodada e guarda as pendências", async () => {
+    const api = fakeApi({}, { method: "PUT", status: 403, error: "Recurso indisponível para esta conta." });
+    const s = await load();
+    s.recordOpened(dom);
+    expect(await s.syncShelf(session)).toBe(false);
+    expect(s.shelfEntry("gb:55752")).toMatchObject({ local: true, status: "reading" });
+    expect(api.calls.filter((c) => c.method === "GET")).toEqual([]);
   });
 
   it("marco do sync tem sobreposição de 5 s", async () => {

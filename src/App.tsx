@@ -51,9 +51,9 @@ import {
   shelfEnabled,
   shelfEntries,
   shelfEntry,
-  shouldPromptFinish,
   type LocalShelfEntry,
 } from "./lib/libraryStore";
+import { useFinishPrompt } from "./features/library/useFinishPrompt";
 import { connectShelf } from "./lib/libraryWiring";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
@@ -5882,10 +5882,10 @@ export function App() {
   /** Estante (biblioteca pessoal): só para contas com a feature `library`. */
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [shelfPanelOpen, setShelfPanelOpen] = useState(false);
-  const [finishPrompt, setFinishPrompt] = useState<Ebook | null>(null);
   const { capabilities } = useAccountFeatures(authSession);
   const shelfOn = hasFeature(capabilities, "library");
-  useEffect(() => connectShelf(authSession, shelfOn), [authSession, shelfOn]);
+  // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
+  useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
   const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
   const [freezeBusy, setFreezeBusy] = useState(false);
@@ -6391,14 +6391,9 @@ export function App() {
     },
     [localBookList, communityBooks],
   );
-  /** Fecha a comemoração; se foi um livro terminado, abre a nota/resenha (uma vez por livro). */
-  const closeCelebration = useCallback(() => {
-    const finished = celebration?.book;
-    setCelebration(null);
-    if (!shelfOn || !finished) return;
-    const key = bookKeyOf(finished);
-    if (key && shouldPromptFinish(key)) setFinishPrompt(finished);
-  }, [celebration, shelfOn]);
+  /** Nota/resenha do livro terminado: abre quando a comemoração some (toque ou timer). */
+  const finishPrompt = useFinishPrompt(celebration !== null);
+  const queueFinishPrompt = finishPrompt.queue;
   /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
   useEffect(() => {
     const session = authSessionRef.current;
@@ -6863,6 +6858,7 @@ export function App() {
     if (chapterIndex >= chapters.length - 1) {
       markBookFinished(book);
       recordFinished(book);
+      if (shelfEnabled()) queueFinishPrompt(book);
       setCelebration({
         emoji: "🏆",
         title: `Você terminou “${book.title}”!`,
@@ -6873,7 +6869,7 @@ export function App() {
       setChapterDone({ key, label: currentChapter.label, done: chapterIndex + 1, total: chapters.length });
       haptic(20);
     }
-  }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length]);
+  }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length, queueFinishPrompt]);
 
   const displayedStory = currentChapter?.body ?? "";
 
@@ -8039,8 +8035,8 @@ export function App() {
           </>
         ) : null}
 
-        {celebration ? <CelebrationOverlay celebration={celebration} onClose={closeCelebration} /> : null}
-        {finishPrompt ? <FinishBookDialog book={finishPrompt} onClose={() => setFinishPrompt(null)} /> : null}
+        {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {finishPrompt.open ? <FinishBookDialog book={finishPrompt.open} onClose={finishPrompt.close} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {bookmarkDrop ? (
@@ -8779,8 +8775,8 @@ export function App() {
           </div>
         ) : null}
 
-        {celebration ? <CelebrationOverlay celebration={celebration} onClose={closeCelebration} /> : null}
-        {finishPrompt ? <FinishBookDialog book={finishPrompt} onClose={() => setFinishPrompt(null)} /> : null}
+        {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {finishPrompt.open ? <FinishBookDialog book={finishPrompt.open} onClose={finishPrompt.close} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {updateBanner}

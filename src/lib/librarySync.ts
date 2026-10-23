@@ -3,6 +3,7 @@ import { ApiHttpError, AuthNetworkError } from "./backend";
 import { currentDataOwner, storageForOwner } from "./dataOwner";
 import {
   deleteShelfEntry,
+  fetchShelfEntry,
   fetchShelfPage,
   patchShelfEntry,
   putShelfEntry,
@@ -87,6 +88,8 @@ function writeMark(owner: string | null, mark: string) {
 /** Faz uma rodada completa. `false` se a rede/serviço falhou (as pendências continuam). */
 export async function syncShelf(session: SupabaseSession): Promise<boolean> {
   const owner = currentDataOwner();
+  // Troca de conta em andamento: os dados locais ainda são de outra conta. Não mistura.
+  if (owner !== session.user.id) return false;
   try {
     for (const entry of takeShelfPending(owner)) await push(session, owner, entry);
     await pull(session, owner);
@@ -117,12 +120,23 @@ async function push(session: SupabaseSession, owner: string | null, entry: Local
       forgetShelfEntry(entry.bookKey, owner);
       return;
     }
-    if (error instanceof ApiHttpError) {
-      // Regra de negócio recusada (ex.: 422): reenviar não adianta. Larga a pendência.
+    if (error instanceof ApiHttpError && error.status !== 403) {
+      // Recusado (ex.: 422): reenviar não adianta. A entrada volta ao que o servidor tem; se nunca
+      // existiu lá, sai daqui também.
       captureError("shelf-sync-rejected", error, { status: error.status });
-      storeMergedEntry(owner, entry, {}, null);
+      if (entry.local) {
+        forgetShelfEntry(entry.bookKey, owner);
+        return;
+      }
+      const server = await fetchShelfEntry(session, entry.bookKey).catch((e: unknown) => {
+        if (e instanceof ApiHttpError && e.status === 404) return null;
+        throw e;
+      });
+      if (server) storeMergedEntry(owner, server, {}, null);
+      else forgetShelfEntry(entry.bookKey, owner);
       return;
     }
+    // 403 (estante retirada) e falhas de rede: para a rodada e guarda tudo para depois.
     throw error;
   }
 }
