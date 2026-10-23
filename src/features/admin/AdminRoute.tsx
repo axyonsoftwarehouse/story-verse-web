@@ -6,8 +6,10 @@ import { useStoredSession } from "../auth/useStoredSession";
 import { AccountDetail } from "./AccountDetail";
 import { AccountsSection } from "./AccountsSection";
 import { AdminNav } from "./AdminNav";
+import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
 import { OverviewSection } from "./OverviewSection";
+import { SubmissionsModeration } from "./SubmissionsModeration";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
 import "./admin.css";
 
@@ -195,7 +197,7 @@ export function AdminRoute() {
               path="features"
               element={
                 <RequireSection id="features" roles={allowed}>
-                  <Placeholder title="Features" />
+                  <FeaturesSection session={session} />
                 </RequireSection>
               }
             />
@@ -203,7 +205,7 @@ export function AdminRoute() {
               path="moderacao/acervo"
               element={
                 <RequireSection id="submissions" roles={allowed}>
-                  <Placeholder title="Acervo" />
+                  <SubmissionsModeration session={session} />
                 </RequireSection>
               }
             />

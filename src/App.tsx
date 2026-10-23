@@ -42,7 +42,7 @@ import {
 import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
-import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
+import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers";
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
@@ -70,7 +70,6 @@ import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
-  checkIsAdmin,
   deleteSubmission,
   fetchCommunityText,
   isNewCommunityBook,
@@ -78,11 +77,7 @@ import {
   matchesCommunitySearch,
   newBookLabel,
   normalizeText,
-  reviewSubmission,
-  changeSubmissionCover,
-  rightsLabel,
   RIGHTS_OPTIONS,
-  submissionToEbook,
   submitBook,
   syncSubmissionCovers,
   type Rights,
@@ -2413,13 +2408,6 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Tamanho aproximado em páginas (≈1.800 caracteres por página impressa). */
-function pagesOf(chars: number | null): string {
-  if (!chars) return "";
-  const n = Math.max(1, Math.round(chars / 1800));
-  return `~${n} ${n === 1 ? "página" : "páginas"}`;
-}
-
 const STATUS_LABELS: Record<Submission["status"], string> = {
   pending: "Em análise",
   approved: "Publicado",
@@ -2470,42 +2458,6 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
         ))}
       </ul>
     </section>
-  );
-}
-
-/** Ano a partir do qual a obra quase certamente ainda tem direitos autorais (autor vivo ou morto há < 70 anos). */
-const LIKELY_PROTECTED_AFTER = 1955;
-
-/** Alerta da moderação: obra publicada recentemente (pela Open Library) provavelmente é protegida. */
-function RightsAlert({ title, author, onProtected }: { title: string; author?: string | null; onProtected?: (flag: boolean) => void }) {
-  const [info, setInfo] = useState<PublicationInfo | null | undefined>(undefined);
-  useEffect(() => {
-    let alive = true;
-    void lookupPublication(title, author ?? "").then((r) => {
-      if (!alive) return;
-      setInfo(r);
-      onProtected?.(Boolean(r && r.year > LIKELY_PROTECTED_AFTER));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [title, author]);
-  if (info === undefined) return <p className="rights-alert is-checking">Conferindo a obra na Open Library…</p>;
-  if (!info) return <p className="rights-alert is-unknown">Não encontramos esta obra na Open Library. Confira os direitos antes de aprovar.</p>;
-  const by = info.authors.slice(0, 2).join(", ");
-  if (info.year > LIKELY_PROTECTED_AFTER) {
-    return (
-      <p className="rights-alert is-danger" role="alert">
-        ⚠️ <strong>Possível obra protegida:</strong> “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}. Obras
-        recentes quase sempre têm direitos autorais — só aprove com autorização do autor ou da editora.
-      </p>
-    );
-  }
-  return (
-    <p className="rights-alert is-ok">
-      “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}: pode ser domínio público (confira a data de
-      morte do autor: mais de 70 anos).
-    </p>
   );
 }
 
@@ -3478,240 +3430,6 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-/** Moderação (só admin): aprovar ou recusar envios e tirar livros do acervo. */
-function ModerationPage({
-  session,
-  onClose,
-  onRead,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onRead: (book: Ebook) => void;
-}) {
-  const [tab, setTab] = useState<"pending" | "approved">("pending");
-  const [pending, setPending] = useState<Submission[] | null>(null);
-  const [approved, setApproved] = useState<Submission[] | null>(null);
-  const [error, setError] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [rejecting, setRejecting] = useState<{ id: string; note: string } | null>(null);
-  const [coverBusyId, setCoverBusyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-    Promise.all([listSubmissions(session, "pending"), listSubmissions(session, "approved")])
-      .then(([p, a]) => {
-        setPending(p);
-        setApproved(a);
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar os envios."));
-  }, [session]);
-
-  /** Envios que a Open Library indica como obra recente (provavelmente protegida). */
-  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
-  /** Autorização confirmada pelo admin para aprovar mesmo assim. */
-  const [authorized, setAuthorized] = useState<Record<string, boolean>>({});
-
-  async function approve(s: Submission) {
-    if (flagged[s.id] && !authorized[s.id]) {
-      return setError("Obra provavelmente protegida: confirme que tem autorização do autor ou da editora antes de aprovar.");
-    }
-    setBusyId(s.id);
-    setError("");
-    try {
-      // Capa encontrada agora fica gravada no livro (não precisa buscar ao mostrar).
-      const cover = s.cover_url ?? (await findOpenLibraryCover(s.title, s.author ?? "", s.language).catch(() => undefined));
-      const updated = await reviewSubmission(session, s.id, "approved", undefined, cover ?? null);
-      setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
-      setApproved((list) => [updated, ...(list ?? [])]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível aprovar.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function reject(s: Submission, note: string) {
-    if (!note.trim()) return setError("Escreva o motivo da recusa: quem enviou vai ver.");
-    setBusyId(s.id);
-    setError("");
-    try {
-      await reviewSubmission(session, s.id, "rejected", note);
-      setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
-      setRejecting(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível recusar.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  /** Troca a capa por uma imagem do aparelho (mesmo recorte 400×600 da importação). */
-  async function changeCover(s: Submission, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setCoverBusyId(s.id);
-    setError("");
-    try {
-      const updated = await changeSubmissionCover(session, s, await prepareImage(file, "book"));
-      const swap = (list: Submission[] | null) => list?.map((x) => (x.id === s.id ? updated : x)) ?? null;
-      setPending(swap);
-      setApproved(swap);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível trocar a capa.");
-    } finally {
-      setCoverBusyId(null);
-    }
-  }
-
-  async function remove(s: Submission) {
-    if (!window.confirm(`Tirar “${s.title}” do acervo? O arquivo também será apagado.`)) return;
-    setBusyId(s.id);
-    setError("");
-    try {
-      await deleteSubmission(session, s);
-      setApproved((list) => list?.filter((x) => x.id !== s.id) ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível remover.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  const list = tab === "pending" ? pending : approved;
-  return (
-    <div className="home profile moderation">
-      <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
-          {Icon.back} Voltar
-        </button>
-      </nav>
-      <header className="moderation-head">
-        <span className="eyebrow">Admin</span>
-        <h1>Moderação do acervo</h1>
-        <p>
-          Aprove só o que pode ser distribuído: domínio público, obra do próprio autor ou licença livre. Na dúvida,
-          recuse.
-        </p>
-      </header>
-
-      <div className="segmented moderation-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === "pending"} className={tab === "pending" ? "is-on" : ""} onClick={() => setTab("pending")}>
-          Em análise{pending ? ` (${pending.length})` : ""}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "approved"} className={tab === "approved" ? "is-on" : ""} onClick={() => setTab("approved")}>
-          Publicados{approved ? ` (${approved.length})` : ""}
-        </button>
-      </div>
-
-      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
-
-      {list === null && !error ? (
-        <div className="page-status">
-          <span className="spinner" aria-hidden="true" />
-          Carregando envios…
-        </div>
-      ) : list && list.length === 0 ? (
-        <p className="profile-empty moderation-empty">
-          {tab === "pending" ? "Nenhum envio esperando análise. 🎉" : "Nenhum livro publicado ainda."}
-        </p>
-      ) : (
-        <ul className="submission-list">
-          {list?.map((s) => (
-            <li key={s.id} className="profile-card moderation-item">
-              <div className="moderation-body">
-                <div className="moderation-cover">
-                  <BookCover book={submissionToEbook(s)} />
-                  <label className={`btn moderation-cover-btn ${coverBusyId === s.id ? "is-disabled" : ""}`}>
-                    {Icon.camera}
-                    {coverBusyId === s.id ? "Enviando…" : "Trocar capa"}
-                    <input type="file" accept="image/*" onChange={(e) => void changeCover(s, e)} disabled={coverBusyId === s.id} />
-                  </label>
-                </div>
-                <div className="submission-main">
-                  <strong>{s.title}</strong>
-                  <span>
-                    {s.author || "Autor não informado"} · {s.language === "en" ? "Inglês" : "Português"}
-                    {s.char_count ? ` · ${pagesOf(s.char_count)}` : ""}
-                  </span>
-                  <span>
-                    Enviado por {s.submitter_name || "leitor"} em {formatDate(s.created_at)}
-                    {s.reviewed_at && tab === "approved" ? ` · publicado em ${formatDate(s.reviewed_at)}` : ""}
-                  </span>
-                  <p className="moderation-rights">
-                    <strong>{rightsLabel(s.rights)}</strong>
-                    {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
-                  </p>
-                  <RightsAlert title={s.title} author={s.author} onProtected={(flag) => setFlagged((m) => ({ ...m, [s.id]: flag }))} />
-                  {tab === "pending" && flagged[s.id] ? (
-                    <label className="rights-confirm">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(authorized[s.id])}
-                        onChange={(e) => setAuthorized((m) => ({ ...m, [s.id]: e.target.checked }))}
-                      />
-                      <span>
-                        Tenho autorização por escrito do autor ou da editora para distribuir esta obra no Storyverse.
-                      </span>
-                    </label>
-                  ) : null}
-                  {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
-                </div>
-              </div>
-
-              {rejecting?.id === s.id ? (
-                <div className="moderation-reject">
-                  <textarea
-                    value={rejecting.note}
-                    onChange={(e) => setRejecting({ id: s.id, note: e.target.value })}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Motivo (quem enviou vai ver). Ex.: obra ainda tem direitos autorais."
-                    autoFocus
-                  />
-                  <div className="moderation-actions">
-                    <button type="button" className="btn" onClick={() => setRejecting(null)} disabled={busyId === s.id}>
-                      Cancelar
-                    </button>
-                    <button type="button" className="btn profile-logout" onClick={() => void reject(s, rejecting.note)} disabled={busyId === s.id}>
-                      {busyId === s.id ? "Recusando…" : "Recusar envio"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="moderation-actions">
-                  <button type="button" className="btn" onClick={() => onRead(submissionToEbook(s))}>
-                    {Icon.book} Ler
-                  </button>
-                  {tab === "pending" ? (
-                    <>
-                      <button type="button" className="btn profile-logout" onClick={() => setRejecting({ id: s.id, note: "" })} disabled={busyId === s.id}>
-                        Recusar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => void approve(s)}
-                        disabled={busyId === s.id || (flagged[s.id] && !authorized[s.id])}
-                        title={flagged[s.id] && !authorized[s.id] ? "Confirme a autorização para aprovar" : undefined}
-                      >
-                        {busyId === s.id ? "Aprovando…" : "Aprovar"}
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" className="btn profile-logout" onClick={() => void remove(s)} disabled={busyId === s.id}>
-                      {busyId === s.id ? "Removendo…" : "Tirar do acervo"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 /**
  * Enquanto `open`, o botão voltar do celular fecha esta tela/janela (chama `close`) em vez de
@@ -4245,8 +3963,7 @@ function ProfilePage({
   setPrefs,
   lastBook,
   isAvailable,
-  isAdmin,
-  onOpenModeration,
+  canModerate,
   onOpenShop,
   onOpenShelf,
 }: {
@@ -4263,8 +3980,7 @@ function ProfilePage({
   lastBook?: LastBook;
   /** Livro ainda existe para esta conta (ver `bookAvailable`). */
   isAvailable: (book: Ebook) => boolean;
-  isAdmin?: boolean;
-  onOpenModeration?: () => void;
+  canModerate?: boolean;
   onOpenShop: () => void;
   /** Abre "Minha estante"; ausente quando a conta não tem a estante. */
   onOpenShelf?: () => void;
@@ -4882,7 +4598,7 @@ function ProfilePage({
         </div>
       </section>
 
-      {isAdmin ? (
+      {canModerate ? (
         <section className="shelf">
           <div className="shelf-head">
             <h2>Admin</h2>
@@ -4892,9 +4608,9 @@ function ProfilePage({
               <strong>Moderação do acervo</strong>
               <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
             </div>
-            <button type="button" className="btn btn-primary" onClick={onOpenModeration}>
+            <Link className="btn btn-primary" to="/admin/moderacao/acervo">
               Abrir moderação
-            </button>
+            </Link>
           </div>
         </section>
       ) : null}
@@ -5998,7 +5714,6 @@ export function App() {
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [moderationOpen, setModerationOpen] = useState(false);
   const [rankingOpen, setRankingOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   /** Estante (biblioteca pessoal): só para contas com a feature `library`. */
@@ -6006,6 +5721,9 @@ export function App() {
   const [shelfPanelOpen, setShelfPanelOpen] = useState(false);
   const { capabilities } = useAccountFeatures(authSession);
   const shelfOn = hasFeature(capabilities, "library");
+  const canModerate = (capabilities?.roles ?? []).some(
+    (role) => role === "superadmin" || role === "moderator",
+  );
   // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
   useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
@@ -6013,7 +5731,6 @@ export function App() {
   const [freezeBusy, setFreezeBusy] = useState(false);
   /** Roleta diária aberta (sozinha na primeira visita do dia, se ainda não girou). */
   const [spinOpen, setSpinOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
   /** Aberto pelo perfil numa marcação: o livro abre direto nesse trecho. */
@@ -6122,16 +5839,6 @@ export function App() {
   }, []);
 
   const authUserId = authSession?.user.id;
-  useEffect(() => {
-    if (!authSession) return setIsAdmin(false);
-    let alive = true;
-    void checkIsAdmin(authSession).then((ok) => alive && setIsAdmin(ok));
-    return () => {
-      alive = false;
-    };
-    // Só quando troca de usuário (não a cada renovação do token).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUserId]);
 
   /**
    * Cada conta com os próprios dados de leitura neste aparelho: ao trocar de conta (ou sair), troca
@@ -6255,7 +5962,6 @@ export function App() {
       setAuthSession(null);
       setAuthActionLoading(false);
       setProfileOpen(false);
-      setModerationOpen(false);
     }
   }
 
@@ -7581,7 +7287,6 @@ export function App() {
   // Botão voltar do celular: fecha o que estiver aberto por cima, na ordem em que foi aberto.
   useBackClose(Boolean(book), leaveBook);
   useBackClose(profileOpen, () => setProfileOpen(false));
-  useBackClose(moderationOpen, () => setModerationOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
   useBackClose(libraryOpen, () => setLibraryOpen(false));
   useBackClose(shopOpen, () => setShopOpen(false));
@@ -7628,18 +7333,6 @@ export function App() {
       const who = talkBook && (top.characterId === "narrador" ? narratorCharacter(talkBook.title) : knownCast(talkBook)?.find((c) => c.id === top.characterId));
       return who && talkBook ? { name: who.name, book: talkBook.title } : undefined;
     })();
-    if (moderationOpen && authSession && isAdmin) {
-      return (
-        <ModerationPage
-          session={authSession}
-          onClose={() => {
-            setModerationOpen(false);
-            setCommunityTick((n) => n + 1);
-          }}
-          onRead={startBook}
-        />
-      );
-    }
     if (shopOpen && authSession) {
       return (
         <DiamondShopPage
@@ -7672,8 +7365,7 @@ export function App() {
     if (profileOpen && authSession) {
       return (
         <ProfilePage
-          isAdmin={isAdmin}
-          onOpenModeration={() => setModerationOpen(true)}
+          canModerate={canModerate}
           onOpenShop={() => setShopOpen(true)}
           onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
           session={authSession}
