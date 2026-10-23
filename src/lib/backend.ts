@@ -23,6 +23,21 @@ export class AuthNetworkError extends Error {
  */
 export class AuthSessionError extends Error {}
 
+/**
+ * Resposta 4xx da API (fora 401/429). Continua sendo um `Error` com a mensagem do servidor; quem
+ * precisa do corpo (ex.: o 409 da estante traz a entrada atual) lê `status` e `body`.
+ */
+export class ApiHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | undefined,
+    readonly body: Record<string, unknown>,
+  ) {
+    super(message);
+  }
+}
+
 type ApiInit = { method?: string; body?: unknown; accessToken?: string; keepalive?: boolean; timeoutMs?: number };
 
 /** Chamada JSON à API própria. `path` começa em "/api/v1/". */
@@ -75,7 +90,7 @@ export async function apiRequest<T>(path: string, init: ApiInit = {}): Promise<T
     throw new AuthSessionError(serverMessage || "Sessão expirada. Entre novamente.");
   }
   if (!response.ok) {
-    throw new Error(serverMessage || "Falha na requisição.");
+    throw new ApiHttpError(serverMessage || "Falha na requisição.", response.status, payload.code, payload);
   }
   return payload as T;
 }
