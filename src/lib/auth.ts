@@ -31,6 +31,12 @@ export type SupabaseUser = {
   user_metadata?: Record<string, unknown>;
 };
 
+export type SanctionNotice = {
+  kind: string;
+  reason: string | null;
+  expiresAt: string | null;
+};
+
 export type SupabaseSession = {
   access_token: string;
   /** Vazio na API própria: o refresh token fica em cookie HttpOnly, fora do JavaScript. */
@@ -39,6 +45,7 @@ export type SupabaseSession = {
   user: SupabaseUser;
   /** Sessão restaurada do marcador local sem rede; não serve para chamadas autenticadas. */
   offline?: boolean;
+  warning?: SanctionNotice;
 };
 
 type AuthResponse = {
@@ -102,7 +109,7 @@ type ApiUser = {
   /** Compatibilidade com a versão anterior da API. */
   name?: string | null;
 };
-type ApiAuthResponse = { accessToken: string; expiresIn?: number; user: ApiUser };
+type ApiAuthResponse = { accessToken: string; expiresIn?: number; user: ApiUser; activeWarning?: SanctionNotice | null };
 type ApiSignupPending = { message?: string };
 
 function apiToUser(user: ApiUser): SupabaseUser {
@@ -126,6 +133,7 @@ function apiToSession(payload: ApiAuthResponse): SupabaseSession {
     expires_at:
       Math.floor(Date.now() / 1000) + (payload.expiresIn && payload.expiresIn > 0 ? payload.expiresIn : 3600),
     user: apiToUser(payload.user),
+    warning: payload.activeWarning ?? undefined,
   };
 }
 

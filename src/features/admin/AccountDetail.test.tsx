@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseSession } from "../../lib/auth";
 import type { AdminUserDetail } from "../../lib/adminUsers";
 import { getCatalog } from "../../lib/adminFeatures";
 import { getUser, revokeSessions, setRole } from "../../lib/adminUsers";
+import { applySanction, revokeSanction, type AdminSanction } from "../../lib/adminSanctions";
 import { AccountDetail } from "./AccountDetail";
 
 vi.mock("../../lib/adminUsers", () => ({
@@ -12,6 +13,11 @@ vi.mock("../../lib/adminUsers", () => ({
   revokeSessions: vi.fn(),
   setRole: vi.fn(),
   searchUsers: vi.fn(),
+}));
+
+vi.mock("../../lib/adminSanctions", () => ({
+  applySanction: vi.fn(),
+  revokeSanction: vi.fn(),
 }));
 
 vi.mock("../../lib/adminFeatures", () => ({
@@ -33,6 +39,23 @@ const detail: AdminUserDetail = {
   features: [],
   activeSessions: 2,
   recentAudit: null,
+  sanctions: [],
+};
+
+const sanction: AdminSanction = {
+  id: "s1",
+  userId: "u1",
+  userName: "Leitora",
+  emailMasked: "le***@example.com",
+  kind: "warning",
+  reason: "Leia as regras.",
+  expiresAt: null,
+  createdBy: "admin-1",
+  createdByName: "Admin",
+  createdAt: "2026-01-02T00:00:00Z",
+  revokedBy: null,
+  revokedByName: null,
+  revokedAt: null,
 };
 
 function renderDetail(roles: string[]) {
@@ -78,6 +101,42 @@ describe("AccountDetail", () => {
     expect(revokeSessions).toHaveBeenCalledTimes(1);
   });
 
+  it("mostra sanções e revoga como superadmin", async () => {
+    vi.mocked(getUser).mockResolvedValue({ ...detail, roles: [], sanctions: [sanction] });
+    vi.mocked(revokeSanction).mockResolvedValue({ ...sanction, revokedAt: "2026-01-03T00:00:00Z" });
+    renderDetail(["superadmin"]);
+    expect(await screen.findByText("Leia as regras.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Revogar" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Revogar" }));
+    await waitFor(() => expect(revokeSanction).toHaveBeenCalledWith(session, "s1"));
+  });
+
+  it("aplica sanção pelo diálogo", async () => {
+    vi.mocked(getUser).mockResolvedValue({ ...detail, roles: [], sanctions: [] });
+    vi.mocked(applySanction).mockResolvedValue(sanction);
+    renderDetail(["superadmin"]);
+    fireEvent.click(await screen.findByRole("button", { name: "Aplicar sanção" }));
+    const dialog = await screen.findByRole("dialog", { name: /Aplicar sanção a Leitora/ });
+    fireEvent.change(within(dialog).getByLabelText(/Motivo/), { target: { value: "Leia as regras." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Aplicar sanção" }));
+    await waitFor(() =>
+      expect(applySanction).toHaveBeenCalledWith(
+        session,
+        "u1",
+        expect.objectContaining({ kind: "warning", reason: "Leia as regras." }),
+      ),
+    );
+  });
+
+  it("support não aplica nem revoga sanção", async () => {
+    vi.mocked(getUser).mockResolvedValue({ ...detail, roles: [], sanctions: [sanction] });
+    renderDetail(["support"]);
+    expect(await screen.findByText("Leia as regras.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aplicar sanção" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revogar" })).toBeNull();
+  });
+
   it("não mostra controles de papel nem de feature para support", async () => {
     renderDetail(["support"]);
     expect(await screen.findByRole("heading", { name: "Leitora" })).toBeInTheDocument();
@@ -94,6 +153,7 @@ describe("AccountDetail", () => {
     vi.mocked(getUser).mockResolvedValue({
       ...detail,
       recentAudit: [{ action: "feature.set", actorName: "Admin", createdAt: "2026-01-01T00:00:00Z" }],
+      sanctions: [],
     });
     renderDetail(["superadmin"]);
     expect(await screen.findByText("Últimas ações")).toBeInTheDocument();

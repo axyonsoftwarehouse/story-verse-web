@@ -4,15 +4,17 @@ import { canModerate, isSuperadmin, visibleSections } from "./adminSections";
 describe("seções do admin", () => {
   it("mostra só o que o papel pode ver, na ordem do painel", () => {
     expect(visibleSections([]).map((s) => s.id)).toEqual([]);
-    expect(visibleSections(["support"]).map((s) => s.id)).toEqual(["overview", "accounts", "forum"]);
+    expect(visibleSections(["support"]).map((s) => s.id)).toEqual(["overview", "accounts", "sanctions", "forum"]);
     expect(visibleSections(["moderator"]).map((s) => s.id)).toEqual([
       "overview",
+      "sanctions",
       "catalog",
       "forum",
     ]);
     expect(visibleSections(["superadmin"]).map((s) => s.id)).toEqual([
       "overview",
       "accounts",
+      "sanctions",
       "features",
       "catalog",
       "forum",
@@ -22,6 +24,7 @@ describe("seções do admin", () => {
     expect(visibleSections(["support", "moderator"]).map((s) => s.id)).toEqual([
       "overview",
       "accounts",
+      "sanctions",
       "catalog",
       "forum",
     ]);

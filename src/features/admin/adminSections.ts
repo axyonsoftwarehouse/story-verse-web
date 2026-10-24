@@ -1,6 +1,7 @@
 export type AdminSectionId =
   | "overview"
   | "accounts"
+  | "sanctions"
   | "features"
   | "catalog"
   | "forum"
@@ -16,6 +17,7 @@ export type AdminSection = {
 const SECTIONS: AdminSection[] = [
   { id: "overview", path: "/admin", label: "Visão geral" },
   { id: "accounts", path: "/admin/contas", label: "Contas" },
+  { id: "sanctions", path: "/admin/sancoes", label: "Sanções" },
   { id: "features", path: "/admin/features", label: "Features" },
   { id: "catalog", path: "/admin/acervo", label: "Acervo" },
   { id: "forum", path: "/admin/moderacao/forum", label: "Fórum" },

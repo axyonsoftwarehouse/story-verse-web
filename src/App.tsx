@@ -3,6 +3,8 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
+import { ApiHttpError } from "./lib/backend";
+import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
@@ -5263,7 +5265,11 @@ function AuthModal({
         onAuthenticated(await signInWithPassword(normalizedEmail, password));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível concluir a autenticação.");
+      if (err instanceof ApiHttpError && err.code === "ACCOUNT_SANCTIONED") {
+        setError(sanctionMessage(err.body));
+      } else {
+        setError(err instanceof Error ? err.message : "Não foi possível concluir a autenticação.");
+      }
     } finally {
       setLoading(false);
     }
@@ -5781,6 +5787,7 @@ export function App() {
   useEffect(() => () => releaseSplash(), []);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<{ text: string; ok?: boolean } | null>(null);
+  const [sanctionNotice, setSanctionNotice] = useState<string | null>(null);
   const authUser: SupabaseUser | null = authSession?.user ?? null;
   const [readyOwner, setReadyOwner] = useState<string | null>(null);
   const [ownerError, setOwnerError] = useState<string | null>(null);
@@ -6044,6 +6051,7 @@ export function App() {
     if (!authSession || authActionLoading) return;
     setAuthActionLoading(true);
     setAuthNotice(null);
+    setSanctionNotice(null);
     try {
       // Antes de sair, guarda na nuvem o que ainda não foi enviado.
       await syncNow(authSession).catch(() => {});
@@ -7576,6 +7584,7 @@ export function App() {
             onAuthenticated={(session) => {
               setAuthSession(session);
               setAuthNotice(null);
+              setSanctionNotice(session.warning ? warningMessage(session.warning.reason) : null);
               setAuthModal(null);
             }}
           />
@@ -7677,6 +7686,15 @@ export function App() {
           <p className={`auth-global-notice ${authNotice.ok ? "is-ok" : ""}`} role={authNotice.ok ? "status" : "alert"}>
             {authNotice.text}
           </p>
+        ) : null}
+
+        {sanctionNotice ? (
+          <div className="auth-global-notice auth-sanction-notice" role="status">
+            <span>{sanctionNotice}</span>
+            <button type="button" className="btn" onClick={() => setSanctionNotice(null)}>
+              Fechar
+            </button>
+          </div>
         ) : null}
 
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}

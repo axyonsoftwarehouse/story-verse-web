@@ -1,3 +1,4 @@
+import type { AdminSanction } from "./adminSanctions";
 import type { SupabaseSession } from "./auth";
 import { apiRequest } from "./backend";
 
@@ -35,6 +36,7 @@ export type AdminUserDetail = {
   features: string[];
   activeSessions: number;
   recentAudit: Record<string, unknown>[] | null;
+  sanctions: AdminSanction[];
 };
 
 export type AdminRole = "moderator" | "support";
