@@ -132,6 +132,13 @@ fluxo, aba duplicada, texto enorme, arquivo errado, rede lenta/offline).
 | AD-10 | Catálogo: livro repetido avisa e só cria com "Criar mesmo assim" | qa-moderador | P1 |
 | AD-11 | Coleções: criar, editar, adicionar livros e ver a coleção na biblioteca | qa-moderador | P1 |
 | AD-12 | Importação: prévia de um ZIP+CSV, execução, relatório e CSV de erros | qa-moderador | P1 |
+| AD2-01 | Contas recentes, busca por parte do e-mail, filtros e paginação | qa-admin, qa-suporte | P0 |
+| AD2-02 | Sanções: aviso, suspensão, revogação, bloqueio de login e banner | qa-admin + contas de teste | P0 |
+| AD2-03 | Página de sanções e matriz de permissões | staff | P1 |
+| AD2-04 | Métricas do produto (superadmin) | qa-admin | P1 |
+| AD2-05 | Exportação CSV da auditoria respeitando filtros | qa-admin | P1 |
+
+O roteiro detalhado de AD2-01 a AD2-14 fica em [`QA.md`](QA.md#rodada-da-fase-2-do-admin-ad2).
 | B-01 | `/biblioteca` abre anônima, com destaques/novidades e sem erro de console | anônimo | P0 |
 | B-02 | Busca e filtros (gênero, idioma, destaque) da biblioteca | anônimo | P1 |
 | B-03 | Ficha do livro mostra capa, resumo e direitos | anônimo | P0 |
@@ -200,6 +207,7 @@ Uma rodada é **aprovada** quando:
 - [ ] Assinatura: BILL-01, BILL-02, BILL-03 e BILL-06 aprovados
 - [ ] Nenhum defeito **Crítico** nem **Alto** aberto
 - [ ] Matriz de papéis do admin sem falha de permissão
+- [ ] Fase 2 do admin (AD2-01 a AD2-14 do `QA.md`) aprovada
 - [ ] Zero erro de console nas telas testadas (ou todos explicados/aceitos)
 - [ ] Nenhuma requisição 5xx inesperada no período
 

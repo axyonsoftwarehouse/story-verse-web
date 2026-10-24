@@ -56,4 +56,6 @@
 ## Próximos cenários a acrescentar
 
 - **AD-11** coleções e **AD-12** importação em lote (Acervo).
+- **AD2-01 a AD2-14** Fase 2 do admin (contas, sanções, métricas e CSV), roteiro em
+  [`QA.md`](../QA.md#rodada-da-fase-2-do-admin-ad2).
 - **BILL-01 a BILL-06** assinatura/Stripe (dependem das chaves de teste no QA).

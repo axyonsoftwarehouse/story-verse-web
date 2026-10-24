@@ -47,15 +47,45 @@ Entre em `/admin` com cada conta e confira a tabela da spec:
 | Conta | Seções visíveis | Ação permitida | URL proibida |
 |---|---|---|---|
 | `qa-leitor` | nenhuma (mostra "Sem permissão") | — | `/admin` |
-| `qa-suporte` | Visão geral, Contas, Sanções, Fórum (sem botões de ação) | buscar uma conta, encerrar sessões e ver sanções | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/financeiro`, `/admin/auditoria` |
-| `qa-moderador` | Visão geral, Sanções, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios, resolver uma denúncia e ver sanções | `/admin/contas`, `/admin/features`, `/admin/financeiro`, `/admin/auditoria` |
-| `qa-admin` | todas (inclui Sanções e Financeiro) | conceder/remover `moderator`/`support`, ligar/desligar features, aplicar/revogar sanções, ver auditoria e financeiro | dar/remover `superadmin` (não existe no painel) |
+| `qa-suporte` | Visão geral, Contas, Sanções, Fórum (sem botões de ação) | buscar uma conta, encerrar sessões e ver sanções | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/financeiro`, `/admin/auditoria`, `/admin/metricas` |
+| `qa-moderador` | Visão geral, Sanções, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios, resolver uma denúncia e ver sanções | `/admin/contas`, `/admin/features`, `/admin/financeiro`, `/admin/auditoria`, `/admin/metricas` |
+| `qa-admin` | todas (inclui Sanções, Métricas e Financeiro) | conceder/remover `moderator`/`support`, ligar/desligar features, aplicar/revogar sanções, ver auditoria, métricas e financeiro | dar/remover `superadmin` (não existe no painel) |
+
+**Métricas** (`/admin/metricas`) são somente leitura e só do `superadmin`. **Sanções** são visíveis
+para todo o staff, mas só o `superadmin` aplica/revoga.
 
 A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
 
 O Acervo tem quatro abas: **Catálogo** (`/admin/acervo`), **Envios** (`/admin/acervo/envios`),
 **Coleções** (`/admin/acervo/colecoes`) e **Importações** (`/admin/acervo/importacoes`). O
 endereço antigo `/admin/moderacao/acervo` redireciona para a aba Envios.
+
+## Rodada da Fase 2 do admin (AD2)
+
+Pré-requisitos: `seed-qa.sh` rodado (contas e `qa-suspenso` com suspensão ativa). Use
+`qa-runs/AAAA-MM-DD-admin-fase-2/evidencias/` para prints, CSV baixado e console.
+
+| ID | Cenário | Conta | Esperado |
+|---|---|---|---|
+| AD2-01 | Contas recentes | `qa-admin`, `qa-suporte` | Bloco com 20 contas, e-mail mascarado, papéis, criação e último login; sem e-mail completo |
+| AD2-02 | Busca e filtros de contas | `qa-admin` | `qa-leitor` sem domínio acha a conta; UUID acha; papel Suporte e feature Estante filtram; “Limpar” volta às recentes |
+| AD2-03 | Paginação de contas | `qa-admin` | Com mais de 20 contas, “Carregar mais” append sem duplicar. Com as 6 do seed o botão não aparece; validar o cursor via API com `limit=1` |
+| AD2-04 | Detalhe da conta | `qa-admin`, `qa-suporte` | Papéis, features, sessões, sanções e (só admin) últimas ações; contas consultadas ficam na auditoria |
+| AD2-05 | Permissão de contas | `qa-moderador`, `qa-suporte` | Moderador recebe “Sem permissão”; suporte vê a lista e o detalhe |
+| AD2-06 | Aviso (`warning`) | `qa-admin` + `qa-sem-estante` | Admin aplica aviso; usuário entra e vê o banner; admin revoga; próximo login sem banner; `sanction.create`/`sanction.revoke` na auditoria |
+| AD2-07 | Suspensão e revogação | `qa-admin` + `qa-suspenso` | Login bloqueado com motivo/prazo; revogar libera o login na hora; reaplicar volta a bloquear. Terminar com `qa-suspenso` suspenso |
+| AD2-08 | Página de sanções | `qa-admin`, `qa-suporte`, `qa-moderador` | Filtros ativa/revogada/todas, tipo e busca; staff vê a lista; só admin vê “Revogar” |
+| AD2-09 | Sanção em si/staff | `qa-admin` | Detalhe da própria conta e de conta com papel de staff não mostra “Aplicar sanção”; API devolve 403 se forçada |
+| AD2-10 | Métricas | `qa-admin` | 7/30/90 dias, cards de contas/leitura/features, retenção D1/D7/D30, série dia/semana; sem PII |
+| AD2-11 | Métricas — permissão | `qa-suporte`, `qa-moderador` | “Sem permissão” em `/admin/metricas` e item ausente no menu |
+| AD2-12 | Exportar auditoria | `qa-admin` | CSV do período/filtros baixa com BOM, `;` e cabeçalho `id;createdAt;actor;action;targetType;targetId;metadata`; abre no Excel; `audit.export` aparece na lista |
+| AD2-13 | Limites do CSV | `qa-admin` | Sem período o botão fica desabilitado; período > 31 dias devolve erro claro |
+| AD2-14 | Matriz de papéis | todas | URLs proibidas da tabela acima mostram “Sem permissão” sem tela branca; itens do menu respeitam o papel |
+
+**Cuidados:** os testes de AD2-06/07 mudam sanções de verdade. No fim, revogue o aviso de
+`qa-sem-estante` e mantenha `qa-suspenso` com suspensão ativa (rode `seed-qa.sh` de novo se precisar).
+Para AD2-03, se quiser ver o botão no navegador, crie contas extras no QA (SQL copiando o hash do
+`qa-leitor`) e remova depois; não use o cadastro do site por causa do limite de 5/hora por IP.
 
 ## Biblioteca pública
 
