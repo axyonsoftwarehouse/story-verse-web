@@ -41,11 +41,14 @@ Entre em `/admin` com cada conta e confira a tabela da spec:
 | Conta | Seções visíveis | Ação permitida | URL proibida |
 |---|---|---|---|
 | `qa-leitor` | nenhuma (mostra "Sem permissão") | — | `/admin` |
-| `qa-suporte` | Visão geral, Contas, Fórum (sem botões de ação) | buscar uma conta e encerrar sessões | `/admin/features`, `/admin/moderacao/acervo`, `/admin/auditoria` |
-| `qa-moderador` | Visão geral, Acervo, Fórum (com ações) | aprovar/recusar um envio e resolver uma denúncia | `/admin/contas`, `/admin/features`, `/admin/auditoria` |
+| `qa-suporte` | Visão geral, Contas, Fórum (sem botões de ação) | buscar uma conta e encerrar sessões | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/auditoria` |
+| `qa-moderador` | Visão geral, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios e resolver uma denúncia | `/admin/contas`, `/admin/features`, `/admin/auditoria` |
 | `qa-admin` | todas | conceder/remover `moderator`/`support`, ligar/desligar features, ver auditoria | dar/remover `superadmin` (não existe no painel) |
 
 A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
+
+O Acervo tem duas abas: **Catálogo** (`/admin/acervo`) e **Envios** (`/admin/acervo/envios`). O
+endereço antigo `/admin/moderacao/acervo` redireciona para a aba Envios.
 
 ## Fluxo de branches
 
