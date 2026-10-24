@@ -64,7 +64,7 @@ Regras de dados:
 ### Nível 0 — antes de abrir o navegador (2 min)
 
 ```bash
-npm run lint && npm run test && npm run build     # 42 arquivos de teste
+npm run lint && npm run test && npm run build     # 48 arquivos de teste
 curl -s https://api.qa.storyverse.2.29.42.104.sslip.io/api/v1/health   # {"status":"ok"}
 ```
 
