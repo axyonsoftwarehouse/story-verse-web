@@ -10,6 +10,8 @@ import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { QaBanner } from "./components/QaBanner";
 import { OfflineNotice } from "./components/OfflineNotice";
 import { AdminRoute } from "./features/admin/AdminRoute";
+import { SubscribePage } from "./features/billing/SubscribePage";
+import { SubscriptionPage } from "./features/billing/SubscriptionPage";
 import { PublicBookPage } from "./features/catalog/PublicBookPage";
 import { PublicLibraryPage } from "./features/catalog/PublicLibraryPage";
 import { ForumHome } from "./features/forum/ForumHome";
@@ -47,6 +49,8 @@ createRoot(document.getElementById("root")!).render(
             element={FORUM_VISIBLE ? <TopicPage /> : <Navigate to="/" replace />}
           />
           <Route path="/admin/*" element={<AdminRoute />} />
+          <Route path="/assinar" element={<SubscribePage />} />
+          <Route path="/conta/assinatura" element={<SubscriptionPage />} />
           <Route path="/biblioteca" element={<PublicLibraryPage />} />
           <Route path="/biblioteca/:bookKey" element={<PublicBookPage />} />
           <Route path="*" element={<App />} />
