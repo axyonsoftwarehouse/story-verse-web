@@ -50,6 +50,13 @@ A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis 
 O Acervo tem duas abas: **Catálogo** (`/admin/acervo`) e **Envios** (`/admin/acervo/envios`). O
 endereço antigo `/admin/moderacao/acervo` redireciona para a aba Envios.
 
+## Biblioteca pública
+
+`/biblioteca` mostra o catálogo curado para qualquer pessoa: busca, filtros, destaques e novidades.
+A ficha do livro (`/biblioteca/cat:<uuid>`) é aberta; **ler e conversar exigem conta**. Livros do
+catálogo entram na estante como `cat:<uuid>` e o leitor os carrega por
+`GET /api/v1/catalog/books/{bookKey}/text`.
+
 ## Fluxo de branches
 
 - `main` = produção. Só recebe release do `develop`, pelo workflow `deploy-storyverse.yml`.
