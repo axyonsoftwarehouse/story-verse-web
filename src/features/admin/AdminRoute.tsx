@@ -8,6 +8,7 @@ import { AccountsSection } from "./AccountsSection";
 import { AdminAcervo } from "./AdminAcervo";
 import { AdminNav } from "./AdminNav";
 import { AuditSection } from "./AuditSection";
+import { BillingSection } from "./BillingSection";
 import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
@@ -242,6 +243,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="forum" roles={allowed}>
                   <ForumModeration session={session} canModerate={canModerateForum} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="financeiro"
+              element={
+                <RequireSection id="billing" roles={allowed}>
+                  <BillingSection session={session} />
                 </RequireSection>
               }
             />
