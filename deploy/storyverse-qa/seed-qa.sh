@@ -63,4 +63,25 @@ insert into public.user_roles (user_id, role)
 select id, 'support' from auth.users where email = 'qa-suporte@example.com'
 on conflict do nothing;
 SQL
+# A conta suspensa usa o mesmo hash do qa-leitor (evita o limite de cadastros por IP) e ganha uma
+# suspens?o ativa. O seed ? idempotente: n?o recria a conta nem duplica a san??o.
+qa_compose exec -T qa-db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+insert into auth.users (email, encrypted_password, raw_user_meta_data, email_confirmed_at)
+select 'qa-suspenso@example.com', u.encrypted_password, '{"name":"Leitor suspenso"}'::jsonb, now()
+  from auth.users u
+ where u.email = 'qa-leitor@example.com'
+   and not exists (select 1 from auth.users where email = 'qa-suspenso@example.com');
+
+insert into public.user_sanctions (user_id, kind, reason, expires_at, created_by)
+select u.id, 'suspension', 'Conta de teste do QA', now() + interval '30 days', a.id
+  from auth.users u
+  left join auth.users a on a.email = 'qa-admin@example.com'
+ where u.email = 'qa-suspenso@example.com'
+   and not exists (
+     select 1 from public.user_sanctions s
+      where s.user_id = u.id and s.kind in ('suspension', 'ban')
+        and s.revoked_at is null and (s.expires_at is null or s.expires_at > now())
+   );
+SQL
+
 echo "Contas de teste prontas (senha: QA_TEST_PASSWORD no .env)."

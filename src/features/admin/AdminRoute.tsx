@@ -13,6 +13,7 @@ import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
 import { OverviewSection } from "./OverviewSection";
+import { SanctionsSection } from "./SanctionsSection";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
 import "./admin.css";
 
@@ -182,6 +183,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="accounts" roles={allowed}>
                   <AccountDetail session={session} roles={allowed} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="sancoes"
+              element={
+                <RequireSection id="sanctions" roles={allowed}>
+                  <SanctionsSection session={session} roles={allowed} />
                 </RequireSection>
               }
             />

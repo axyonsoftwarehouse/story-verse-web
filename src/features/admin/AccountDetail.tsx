@@ -10,7 +10,15 @@ import {
   type AdminUserDetail,
 } from "../../lib/adminUsers";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { applySanction, revokeSanction, type AdminSanction, type SanctionKind } from "../../lib/adminSanctions";
 import { isSuperadmin } from "./adminSections";
+import { SanctionDialog } from "./SanctionDialog";
+
+const SANCTION_LABEL: Record<SanctionKind, string> = {
+  warning: "Aviso",
+  suspension: "Suspens?o",
+  ban: "Banimento",
+};
 
 const ROLE_LABEL: Record<string, string> = {
   superadmin: "Superadmin",
@@ -47,6 +55,7 @@ export function AccountDetail({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const { confirm, dialog } = useConfirm();
+  const [sanctionOpen, setSanctionOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +89,9 @@ export function AccountDetail({
   }, [session, id, superadmin]);
 
   const own = detail !== null && detail.id === session.user.id;
+  const sanctionList = detail?.sanctions ?? [];
+  const staffTarget = detail?.roles.some((role) => ["superadmin", "moderator", "support"].includes(role)) ?? false;
+  const canApplySanction = superadmin && !own && !staffTarget;
 
   async function toggleRole(role: AdminRole, on: boolean) {
     if (!detail || busy) return;
@@ -153,6 +165,35 @@ export function AccountDetail({
       setError(message(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function apply(input: { kind: SanctionKind; reason: string; expiresAt: string | null }) {
+    if (!detail) return;
+    const created = await applySanction(session, detail.id, input);
+    setDetail({ ...detail, sanctions: [created, ...(detail.sanctions ?? [])] });
+    setSanctionOpen(false);
+    setNotice("Sanção aplicada.");
+  }
+
+  async function revokeSanctionRow(sanction: AdminSanction) {
+    if (!detail) return;
+    const ok = await confirm({
+      title: "Revogar sanção?",
+      message: `${SANCTION_LABEL[sanction.kind]} de ${detail.name}: ${sanction.reason ?? "sem motivo registrado"}.`,
+      confirmLabel: "Revogar",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const updated = await revokeSanction(session, sanction.id);
+      setDetail({
+        ...detail,
+        sanctions: (detail.sanctions ?? []).map((item) => (item.id === updated.id ? updated : item)),
+      });
+      setNotice("Sanção revogada.");
+    } catch (err) {
+      setError(message(err));
     }
   }
 
@@ -268,6 +309,53 @@ export function AccountDetail({
         </div>
       ) : null}
 
+      <section className="shelf">
+        <div className="shelf-head">
+          <div>
+            <h2>Sanções</h2>
+            <p className="muted">Avisos, suspensões e banimentos desta conta.</p>
+          </div>
+          {canApplySanction ? (
+            <button type="button" className="btn btn-primary" onClick={() => setSanctionOpen(true)}>
+              Aplicar sanção
+            </button>
+          ) : null}
+        </div>
+
+        {sanctionList.length === 0 ? (
+          <p className="profile-empty">Nenhuma sanção registrada.</p>
+        ) : (
+          <ul className="admin-sanction-list">
+            {sanctionList.map((sanction) => (
+              <li key={sanction.id} className="admin-sanction-row">
+                <span>
+                  <span className={`status-chip ${sanction.kind === "warning" ? "" : "is-rejected"}`}>
+                    {SANCTION_LABEL[sanction.kind]}
+                  </span>
+                  <strong>{sanction.reason || "Sem motivo registrado."}</strong>
+                  <span className="muted">
+                    Aplicada em {when(sanction.createdAt)}
+                    {sanction.createdByName ? ` por ${sanction.createdByName}` : ""}
+                  </span>
+                  {sanction.expiresAt ? <span className="muted">Até {when(sanction.expiresAt)}</span> : null}
+                  {sanction.revokedAt ? (
+                    <span className="muted">
+                      Revogada em {when(sanction.revokedAt)}
+                      {sanction.revokedByName ? ` por ${sanction.revokedByName}` : ""}
+                    </span>
+                  ) : null}
+                </span>
+                {superadmin && !sanction.revokedAt ? (
+                  <button type="button" className="btn" onClick={() => void revokeSanctionRow(sanction)}>
+                    Revogar
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {superadmin && !own ? (
         <div className="profile-card">
           <div className="shelf-head">
@@ -348,6 +436,9 @@ export function AccountDetail({
             </ul>
           )}
         </div>
+      ) : null}
+      {sanctionOpen && detail ? (
+        <SanctionDialog userName={detail.name} onClose={() => setSanctionOpen(false)} onApply={apply} />
       ) : null}
       {dialog}
     </section>

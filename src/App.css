@@ -2261,6 +2261,14 @@
   color: var(--accent-2);
 }
 
+.auth-sanction-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .auth-card {
   position: relative;
   width: min(100%, 420px);

@@ -33,10 +33,12 @@ Erros do site e da API vão para os projetos Sentry `storyverse-web-qa` e `story
 | `qa-admin@example.com` | superadmin |
 | `qa-moderador@example.com` | moderador: acervo e fórum |
 | `qa-suporte@example.com` | suporte: contas e fórum só leitura |
+| `qa-suspenso@example.com` | suspensa por 30 dias: login bloqueado (recriada pelo `reset-qa.sh`) |
 
 Senha: `QA_TEST_PASSWORD` no `.env` de QA da VPS (`/home/deploy/storyverse-qa/.env`). `example.com`
 é reservado: nenhum e-mail real recebe nada. Para criar mais contas, use o cadastro do próprio site.
-Se as contas de papel ainda não existirem, rode `bash seed-qa.sh` de novo.
+Se as contas de papel ainda não existirem, rode `bash seed-qa.sh` de novo. `qa-suspenso` já nasce
+com uma suspensão ativa: use a senha normal e confira a mensagem de bloqueio com motivo e prazo.
 
 ## Roteiro do painel admin
 
@@ -45,9 +47,9 @@ Entre em `/admin` com cada conta e confira a tabela da spec:
 | Conta | Seções visíveis | Ação permitida | URL proibida |
 |---|---|---|---|
 | `qa-leitor` | nenhuma (mostra "Sem permissão") | — | `/admin` |
-| `qa-suporte` | Visão geral, Contas, Fórum (sem botões de ação) | buscar uma conta e encerrar sessões | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/financeiro`, `/admin/auditoria` |
-| `qa-moderador` | Visão geral, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios e resolver uma denúncia | `/admin/contas`, `/admin/features`, `/admin/financeiro`, `/admin/auditoria` |
-| `qa-admin` | todas (inclui Financeiro) | conceder/remover `moderator`/`support`, ligar/desligar features, ver auditoria e financeiro | dar/remover `superadmin` (não existe no painel) |
+| `qa-suporte` | Visão geral, Contas, Sanções, Fórum (sem botões de ação) | buscar uma conta, encerrar sessões e ver sanções | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/financeiro`, `/admin/auditoria` |
+| `qa-moderador` | Visão geral, Sanções, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios, resolver uma denúncia e ver sanções | `/admin/contas`, `/admin/features`, `/admin/financeiro`, `/admin/auditoria` |
+| `qa-admin` | todas (inclui Sanções e Financeiro) | conceder/remover `moderator`/`support`, ligar/desligar features, aplicar/revogar sanções, ver auditoria e financeiro | dar/remover `superadmin` (não existe no painel) |
 
 A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
 
