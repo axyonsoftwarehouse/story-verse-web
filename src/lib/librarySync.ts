@@ -16,6 +16,7 @@ import {
   applyServerEntry,
   forgetShelfEntry,
   rawShelfEntry,
+  SHELF_CHANGED_EVENT,
   storeMergedEntry,
   takeShelfPending,
   type LocalShelfEntry,
@@ -192,6 +193,8 @@ function receive(owner: string | null, item: ShelfEntry) {
     if (!pending || (local.pendingAt ?? 0) <= serverTime(item.deletedAt)) forgetShelfEntry(item.bookKey, owner);
     return;
   }
+  // Remoção feita aqui ainda não subiu: a versão do servidor não pode "ressuscitar" a entrada.
+  if (local?.pendingDelete) return;
   if (local && !pending && local.version >= item.version) return; // Já visto (sobreposição do marco).
   if (local && pending && !local.pendingDelete) {
     const merged = mergeShelfEntry(local, item);
@@ -207,10 +210,19 @@ function receive(owner: string | null, item: ShelfEntry) {
  */
 export function startShelfSync(session: SupabaseSession): () => void {
   let running: Promise<boolean> | null = null;
+  /** Mudança feita durante uma rodada: roda de novo ao terminar, sem perder o que chegou. */
+  let pending = false;
   const run = () => {
-    if (running) return;
+    if (running) {
+      pending = true;
+      return;
+    }
     running = syncShelf(session).finally(() => {
       running = null;
+      if (pending) {
+        pending = false;
+        run();
+      }
     });
   };
   run();
@@ -218,9 +230,12 @@ export function startShelfSync(session: SupabaseSession): () => void {
   const onVisibility = () => document.visibilityState === "visible" && run();
   document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener("online", run);
+  // Remover/adicionar na estante precisa subir na hora; senão a ficha pública fica contraditória.
+  window.addEventListener(SHELF_CHANGED_EVENT, run);
   return () => {
     window.clearInterval(timer);
     document.removeEventListener("visibilitychange", onVisibility);
     window.removeEventListener("online", run);
+    window.removeEventListener(SHELF_CHANGED_EVENT, run);
   };
 }

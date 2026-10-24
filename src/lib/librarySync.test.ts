@@ -172,6 +172,22 @@ describe("sincronização da estante", () => {
     expect(s.shelfEntry("gb:55752")).toBeNull();
   });
 
+  it("remoção dispara o sync na hora, sem esperar o intervalo", async () => {
+    const api = fakeApi({ "gb:55752": serverEntry({}) });
+    const s = await load();
+    s.applyServerEntry(serverEntry({}), null, null);
+    const stop = s.startShelfSync(session);
+    try {
+      await vi.waitFor(() => expect(api.calls.some((c) => c.method === "GET")).toBe(true));
+      api.calls.length = 0;
+      s.removeFromShelf("gb:55752");
+      await vi.waitFor(() => expect(api.calls.some((c) => c.method === "DELETE")).toBe(true));
+      expect(s.shelfEntry("gb:55752")).toBeNull();
+    } finally {
+      stop();
+    }
+  });
+
   it("PATCH em entrada que o servidor não tem esquece a entrada e não trava o sync", async () => {
     fakeApi({});
     const s = await load();
