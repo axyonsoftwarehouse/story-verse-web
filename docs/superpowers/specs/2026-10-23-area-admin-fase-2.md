@@ -176,14 +176,14 @@ O detalhe da conta mostra o status da assinatura e o painel ganha `/admin/financ
 
 ## 10. Banco e migração
 
-Migração `V17__admin_phase2.sql`:
+Migração `V18__admin_phase2.sql`:
 
 - índices para a lista: `auth.users (created_at desc, id)`, `auth.users (last_sign_in_at)`;
 - índice para sanções ativas: `user_sanctions (user_id, created_at desc) where revoked_at is null` (se ainda não existir um adequado);
 - índice para filtros de feature: `feature_access (feature, enabled)`;
 - view `admin_account_list` (security invoker) juntando conta, papéis agregados e status de assinatura, sem expor e-mail completo;
 - nenhuma tabela nova para sanções (a V6 já tem `user_sanctions`).
-- A migração de assinatura fica na spec própria (V18).
+- A migração de assinatura fica na spec própria (V19).
 
 ## 11. Web: rotas e navegação
 

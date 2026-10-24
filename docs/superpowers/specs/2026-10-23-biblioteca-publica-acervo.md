@@ -41,9 +41,10 @@ Para uma biblioteca pública com muitos livros, isso não basta:
 - `source text not null` — `admin`, `community`, `import`.
 - `submission_id uuid unique references book_submissions(id) on delete set null` — origem quando veio da comunidade.
 - `title text not null`, `author text`, `genre text`, `language text not null default 'pt'`
-- `series text`, `series_index numeric`, `description text`
+- `series text`, `series_index numeric`, `description text` — resumo curto; `page_count integer`
 - `rights text not null` (`public_domain`, `own_work`, `free_license`), `rights_note text`
 - `storage_bucket text not null default 'catalog-books'`, `text_path text not null`, `char_count integer`
+- `original_path text`, `original_content_type text` — arquivo original (EPUB/PDF/TXT) para reextração/auditoria
 - `checksum text` — SHA-256 do texto normalizado, para duplicados.
 - `cover_url text`
 - `status text not null default 'draft'` (`draft`, `published`, `hidden`, `archived`)
@@ -86,8 +87,8 @@ Rota `/admin/acervo` com abas:
 - Busca por título/autor/bookKey e filtros por status, gênero, idioma, origem, destaque e coleção.
 - Ações em massa: publicar, ocultar, destacar, adicionar a coleção, arquivar.
 - **Adicionar livro** (assistente):
-  1. arquivo (TXT/MD nesta fase);
-  2. metadados (título, autor, gênero, idioma, série, descrição);
+  1. arquivo (TXT, MD, EPUB ou PDF; o servidor extrai o texto);
+  2. metadados (título, autor, gênero, idioma, série/volume, resumo, número de páginas);
   3. direitos (`public_domain`, `own_work`, `free_license`) + justificativa;
   4. capa (upload ou buscar na Open Library);
   5. coleções/destaque/ordem;
@@ -123,7 +124,8 @@ Rota `/admin/acervo` com abas:
 | Ver o acervo e a prévia | ✓ | ✓ |
 | Adicionar/editar/publicar/ocultar livro | ✓ | ✓ |
 | Importar em lote | ✓ | ✓ |
-| Arquivar/apagar livro | ✓ | — |
+| Arquivar (tirar do público) | ✓ | ✓ |
+| Apagar definitivamente | ✓ | — |
 | Gerenciar coleções/destaques | ✓ | ✓ |
 | Moderar envios | ✓ | ✓ |
 
@@ -142,7 +144,8 @@ Toda ação grava auditoria: `catalog.create`, `catalog.update`, `catalog.publis
   - ações: Ler, Conversar, Adicionar à estante;
   - se o livro veio de envio, crédito discreto à comunidade (sem expor e-mail).
 - A home usa o catálogo para “Novidades”, “Destaques” e “Da comunidade” (com origem/filtro).
-- O leitor recebe o texto por um endpoint do catálogo com sessão e assinatura (ver 8.3), não por um caminho de storage aberto.
+- Metadados, capa e busca são públicos para descoberta/SEO. Abrir/ler, conversar e colocar na estante exige sessão; com o billing ativo, exige assinatura (paywall total). Até o billing entrar, basta sessão.
+- O leitor recebe o texto por um endpoint do catálogo (ver 8.3), não por um caminho de storage aberto.
 - O acervo pessoal do usuário continua em “Meus livros”/importados, separado do catálogo.
 
 ## 7. Fluxo do usuário
@@ -181,12 +184,12 @@ Toda ação grava auditoria: `catalog.create`, `catalog.update`, `catalog.publis
 
 - Buckets: `community-books` (envios e aprovados da comunidade) e `catalog-books` (admin/importação).
 - O catálogo guarda `storage_bucket` + `text_path`; só o backend lê. O leitor usa `GET /catalog/books/{bookKey}/text`.
-- O endpoint exige sessão e assinatura ativa (paywall total); devolve `text/plain` com limite de tamanho e cache curto.
+- O endpoint exige sessão; com o billing ativo, exige assinatura ativa (paywall total). Até o billing entrar, basta sessão. Devolve `text/plain` com limite de tamanho e cache curto.
 - Covers em `profile-media`/urls existentes; upload de capa do catálogo passa pelo mesmo `uploadBookCover`/API.
 
 ## 9. Migração e compatibilidade
 
-- Migração própria (proposta `V17__catalog.sql` se o catálogo entrar antes da Fase 2 do admin; nesse caso as migrações do admin/finance passam para V18/V19).
+- Migração `V17__catalog.sql`. A Fase 2 do admin passa a ser V18 e o financeiro V19.
 - Cria tabelas, índices e RLS.
 - Copia `book_submissions` com `status='approved'` para `catalog_books`:
   - `book_key = 'cm:' || submission.id`, `source='community'`, `submission_id=...`, `storage_bucket='community-books'`, `status='published'`, `published_at=reviewed_at`;
@@ -198,8 +201,8 @@ Toda ação grava auditoria: `catalog.create`, `catalog.update`, `catalog.publis
 
 ## 10. Formatos, direitos e qualidade
 
-- **Formatos do MVP:** texto UTF-8 (`txt`, `md`); o leitor atual renderiza texto. EPUB/PDF entram depois com extração de texto no servidor; não prometer fidelidade de layout.
-- **Tamanho:** mesmo limite do bucket (10 MB por arquivo no envio; lote com limite próprio).
+- **Formatos do MVP:** TXT, MD, EPUB e PDF. O servidor extrai o texto (PDFBox para PDF; EPUB como ZIP/XHTML) e guarda o original no bucket para reextração. O leitor renderiza o texto extraído; não há fidelidade de layout.
+- **Tamanho:** `community-books` mantém 10 MB; `catalog-books` aceita até 50 MB por original; o lote tem limite próprio.
 - **Direitos:** obrigatórios; apenas domínio público, obra própria ou licença livre. A importação em lote exige a coluna de direitos; sem ela, item vai para erro.
 - **Proveniência:** `source`, `created_by`, `submission_id`, `rights_note`; auditoria em toda mudança.
 - **Takedown:** arquivar/ocultar imediatamente; manter o texto para auditoria? Não expor; registrar motivo e responsável.
@@ -209,7 +212,7 @@ Toda ação grava auditoria: `catalog.create`, `catalog.update`, `catalog.publis
 ## 11. Busca e organização
 
 - Filtros públicos: gênero, idioma, coleção, autor, disponibilidade e ordenação (novos, título, autor, mais lidos).
-- Busca inicial com `ILIKE`/trigram; se crescer, `tsvector`/índice GIN. Não bloquear o MVP por busca avançada.
+- Decidido: busca inicial com `ILIKE`/trigram (case-insensitive); full-text (`tsvector`/GIN) só se o catálogo crescer. A UI não muda; muda qualidade/ranking.
 - Coleções com ordem; destaques com ordem própria.
 - “Mais lidos/terminados” sai da estante/leitura; não de contadores falsos.
 
@@ -237,7 +240,7 @@ Web:
 - admin: lista, adicionar/editar/publicar/ocultar, capa, coleções, importação (dry-run e execução);
 - biblioteca pública: busca/filtros, destaque, página do livro, ler/conversar/estante;
 - home usa catálogo; `cm:` antigo continua abrindo; `cat:` novo abre e sincroniza na estante;
-- permissões: moderator vê acervo, não arquiva; support não vê.
+- permissões: moderator pode criar/editar/publicar/ocultar/arquivar/importar; apagar definitivamente só superadmin; support não vê.
 - QA: seed com 3–5 livros de domínio público, um lote ZIP+CSV e um duplicado; nada de obra protegida.
 
 ## 14. Ordem de entrega
@@ -250,15 +253,21 @@ Web:
 
 Cada etapa é um PR (API e web) e passa pelo QA antes do `develop` → `main`.
 
-## 15. Decisões abertas
+## 15. Decisões
 
-- Bucket novo `catalog-books` ou reutilizar `community-books` com prefixo `catalog/`.
-- Moderator pode arquivar/apagar ou só publicar/ocultar? A proposta é só superadmin arquiva.
-- Formatos iniciais: só TXT/MD ou já extrair EPUB/PDF.
-- Campos de metadados além dos listados (ISBN, editora, ano, tags).
+Fechadas em 23/10/2026:
+
+- Bucket novo `catalog-books`.
+- Formatos: TXT, MD, EPUB e PDF, com extração de texto no servidor.
+- Moderador pode criar/editar/publicar/ocultar/arquivar/importar/gerir coleções; apagar definitivamente só superadmin.
+- Campos: os existentes + resumo (`description`), número de páginas (`page_count`), série e volume (`series`/`series_index`).
+- Metadados/busca públicos; leitura exige sessão (e assinatura quando o billing existir).
+- Busca inicial com `ILIKE`/trigram; full-text depois se crescer.
+- Migração V17; Fase 2 do admin V18; financeiro V19.
+
+Abertas:
+
+- Metadados extras (ISBN, editora, ano, tags).
 - Coleções versus tags; “Destaques” como coleção ou flag.
-- Leitura pública anônima x sessão+assinatura (a spec de assinatura assume paywall total).
-- Política de duplicados (bloquear ou avisar) e takedown.
-- Busca: `ILIKE` no MVP x full-text.
+- Política de duplicados (bloquear/avisar) e takedown.
 - Origem dos lotes iniciais (Gutenberg/Open Library) e verificação de direitos.
-- Numeração da migração (V17 se o catálogo vier antes do admin/finance).
