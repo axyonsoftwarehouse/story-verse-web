@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
-import { listAudit, type AuditEntry, type AuditFilters } from "../../lib/adminAudit";
+import { exportAudit, listAudit, type AuditEntry, type AuditFilters } from "../../lib/adminAudit";
 import { actionLabel, actorLabel, metadataLines } from "./auditFormat";
 
 const ACTIONS = [
@@ -33,6 +33,7 @@ export function AuditSection({ session }: { session: SupabaseSession }) {
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -93,6 +94,25 @@ export function AuditSection({ session }: { session: SupabaseSession }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  async function download() {
+    if (!filters.from || !filters.to || exporting) return;
+    setExporting(true);
+    setError("");
+    try {
+      const blob = await exportAudit(session, filters);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <section className="shelf">
       <div className="shelf-head">
@@ -131,6 +151,15 @@ export function AuditSection({ session }: { session: SupabaseSession }) {
         </button>
         <button className="btn" type="button" onClick={clear} disabled={loading}>
           Limpar
+        </button>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => void download()}
+          disabled={loading || exporting || !filters.from || !filters.to}
+          title="Respeita os filtros aplicados; m?ximo de 31 dias e 50.000 linhas"
+        >
+          {exporting ? "Exportando?" : "Exportar CSV"}
         </button>
       </form>
 
