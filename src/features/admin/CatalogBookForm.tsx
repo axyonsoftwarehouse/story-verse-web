@@ -163,7 +163,7 @@ export function CatalogBookForm({
   }
 
   async function save(forceDuplicate: boolean) {
-    if (!file) return;
+    if (busy || !file) return;
     setBusy(true);
     setError("");
     setDuplicate("");
