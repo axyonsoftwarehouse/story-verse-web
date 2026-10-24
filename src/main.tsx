@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { Analytics } from "@vercel/analytics/react";
 import "./index.css";
 import "./App.css";
 import { App } from "./App";
@@ -57,8 +56,6 @@ createRoot(document.getElementById("root")!).render(
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>
-    {/* Visitantes e páginas vistas no painel do Vercel (aba Analytics). */}
-    <Analytics />
     <DiagnosticsPanel />
   </StrictMode>,
 );

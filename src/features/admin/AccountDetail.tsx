@@ -9,6 +9,7 @@ import {
   type AdminRole,
   type AdminUserDetail,
 } from "../../lib/adminUsers";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { isSuperadmin } from "./adminSections";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -45,6 +46,7 @@ export function AccountDetail({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     let alive = true;
@@ -81,7 +83,12 @@ export function AccountDetail({
 
   async function toggleRole(role: AdminRole, on: boolean) {
     if (!detail || busy) return;
-    if (!on && !window.confirm(`Tirar o papel ${ROLE_LABEL[role]} de ${detail.name}?`)) return;
+    if (!on && !(await confirm({
+      title: `Tirar o papel ${ROLE_LABEL[role]}?`,
+      message: `${detail.name} perde o papel ${ROLE_LABEL[role]} imediatamente.`,
+      confirmLabel: "Tirar papel",
+      danger: true,
+    }))) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -98,7 +105,12 @@ export function AccountDetail({
 
   async function toggleFeature(feature: string, on: boolean) {
     if (!detail || busy) return;
-    if (!on && !window.confirm(`Desligar ${feature} para ${detail.name}?`)) return;
+    if (!on && !(await confirm({
+      title: `Desligar ${feature}?`,
+      message: `${detail.name} deixa de usar esta feature imediatamente.`,
+      confirmLabel: "Desligar",
+      danger: true,
+    }))) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -121,9 +133,12 @@ export function AccountDetail({
   async function revoke() {
     if (!detail || busy) return;
     if (
-      !window.confirm(
-        `Encerrar todas as sessões de ${detail.name}? A pessoa precisará entrar de novo em todos os aparelhos.`,
-      )
+      !(await confirm({
+        title: "Encerrar todas as sessões?",
+        message: `${detail.name} precisará entrar de novo em todos os aparelhos.`,
+        confirmLabel: "Encerrar",
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -334,6 +349,7 @@ export function AccountDetail({
           )}
         </div>
       ) : null}
+      {dialog}
     </section>
   );
 }

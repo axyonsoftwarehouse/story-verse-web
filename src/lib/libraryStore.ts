@@ -132,13 +132,18 @@ function change(store: Store, key: string, fields: ShelfPending, auto: boolean):
   };
 }
 
+/** Avisa o sync que a estante mudou (ex.: para mandar a remoção na hora, sem esperar 30 s). */
+export const SHELF_CHANGED_EVENT = "storyverse:shelf-changed";
+
 /** Executa uma ação sobre a estante da conta ativa (no-op com a estante desligada). */
-function mutate(fn: (store: Store) => void): void {
+function mutate(fn: (store: Store) => void, notify = true): void {
   if (!enabled) return;
   const owner = currentDataOwner();
   const store = read(owner);
   fn(store);
   write(owner, store);
+  // Progresso de leitura não avisa: acontece a cada rolagem e o sync periódico já o pega.
+  if (notify && typeof window !== "undefined") window.dispatchEvent(new Event(SHELF_CHANGED_EVENT));
 }
 
 function ensure(store: Store, book: Ebook, status: ShelfStatus): string | null {
@@ -178,7 +183,7 @@ export function recordProgress(book: Ebook, percent: number, label: string): voi
     }
     const progressPercent = Math.max(0, Math.min(100, Math.round(percent)));
     change(store, key, { progressPercent, progressLabel: label.slice(0, 200) }, true);
-  });
+  }, false);
 }
 
 /** Chegou ao fim do livro (ou marcou como terminado). Não muda nada se já estava terminado. */

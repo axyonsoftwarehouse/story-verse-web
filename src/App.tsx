@@ -2,6 +2,7 @@ import { userStorage } from "./lib/dataOwner";
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useConfirm } from "./components/ConfirmDialog";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
@@ -4029,6 +4030,20 @@ function ProfilePage({
   }, [session]);
   const name = displayNameOf(user);
   const since = memberSince(user.created_at);
+  const { confirm, dialog } = useConfirm();
+
+  async function askLogout() {
+    if (
+      await confirm({
+        title: "Sair da conta?",
+        message: "Você precisará entrar de novo para continuar lendo neste aparelho.",
+        confirmLabel: "Sair",
+        danger: true,
+      })
+    ) {
+      onLogout();
+    }
+  }
 
   const [summary, setSummary] = useState(readingSummary);
   const totals = useMemo(readingTotals, []);
@@ -4694,7 +4709,7 @@ function ProfilePage({
               <span className="profile-account-label">Sessão</span>
               <strong>Conectado neste aparelho</strong>
             </div>
-            <button type="button" className="btn profile-logout" onClick={onLogout} disabled={loggingOut}>
+            <button type="button" className="btn profile-logout" onClick={() => void askLogout()} disabled={loggingOut}>
               {loggingOut ? "Saindo…" : "Sair da conta"}
             </button>
           </div>
@@ -4771,6 +4786,7 @@ function ProfilePage({
           <span>✓ Alterações salvas</span>
         </div>
       ) : null}
+      {dialog}
     </div>
   );
 }

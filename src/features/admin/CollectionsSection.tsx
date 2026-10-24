@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { SupabaseSession } from "../../lib/auth";
+import { useConfirm } from "../../components/ConfirmDialog";
 import {
   catalogStatusLabel,
   collectionStatusLabel,
@@ -456,6 +457,7 @@ function CollectionBooks({
 export function CollectionsSection({ session }: { session: SupabaseSession }) {
   const [collections, setCollections] = useState<AdminCatalogCollection[] | null>(null);
   const [error, setError] = useState("");
+  const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState<AdminCatalogCollection | "new" | null>(null);
   const [managing, setManaging] = useState<AdminCatalogCollection | null>(null);
   const [version, setVersion] = useState(0);
@@ -488,7 +490,14 @@ export function CollectionsSection({ session }: { session: SupabaseSession }) {
   }
 
   async function remove(collection: AdminCatalogCollection) {
-    if (!window.confirm(`Apagar a coleção “${collection.title}”? Os livros continuam no catálogo.`)) {
+    if (
+      !(await confirm({
+        title: "Apagar a coleção?",
+        message: `“${collection.title}” some, mas os livros continuam no catálogo.`,
+        confirmLabel: "Apagar coleção",
+        danger: true,
+      }))
+    ) {
       return;
     }
     setError("");
@@ -584,6 +593,7 @@ export function CollectionsSection({ session }: { session: SupabaseSession }) {
           onSaved={changed}
         />
       ) : null}
+      {dialog}
     </section>
   );
 }

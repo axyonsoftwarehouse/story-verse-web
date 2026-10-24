@@ -43,4 +43,13 @@ describe("Minha estante", () => {
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "finished" } });
     expect(screen.getByText("Nenhum livro com esses filtros.")).toBeInTheDocument();
   });
+
+  it("o contador segue o filtro, não o total da estante", () => {
+    applyServerEntry(e({ bookKey: "gb:55752", title: "Dom Casmurro", status: "reading" }), null, null);
+    applyServerEntry(e({ bookKey: "gb:55753", title: "Memórias Póstumas", status: "finished" }), null, null);
+    render(<LibraryPage onClose={() => {}} onOpenBook={() => {}} available={() => true} bookFor={toEbook} />);
+    expect(screen.getByText("2 livros")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "finished" } });
+    expect(screen.getByText("1 livro de 2")).toBeInTheDocument();
+  });
 });

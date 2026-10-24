@@ -97,9 +97,10 @@ describe("CatalogBookPage", () => {
   });
 
   it("mostra apagar para o superadmin e apaga depois da confirmação", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage(["superadmin"]);
     fireEvent.click(await screen.findByRole("button", { name: "Apagar" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apagar livro" }));
     await waitFor(() => expect(deleteCatalogBook).toHaveBeenCalledWith(session, "b1"));
     expect(await screen.findByText("Lista do acervo")).toBeInTheDocument();
   });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { SupabaseSession } from "../../lib/auth";
+import { useConfirm } from "../../components/ConfirmDialog";
 import {
   findOpenLibraryCover,
   lookupPublication,
@@ -99,6 +100,7 @@ export function SubmissionsModeration({
   const [approved, setApproved] = useState<Submission[] | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirm();
   const [rejecting, setRejecting] = useState<{ id: string; note: string } | null>(null);
   const [coverBusyId, setCoverBusyId] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Record<string, boolean>>({});
@@ -174,7 +176,15 @@ export function SubmissionsModeration({
   }
 
   async function remove(s: Submission) {
-    if (!window.confirm(`Tirar “${s.title}” do acervo? O arquivo também será apagado.`)) return;
+    if (
+      !(await confirm({
+        title: "Tirar do acervo?",
+        message: `“${s.title}” e o arquivo serão apagados.`,
+        confirmLabel: "Confirmar remoção",
+        danger: true,
+      }))
+    )
+      return;
     setBusyId(s.id);
     setError("");
     try {
@@ -390,6 +400,7 @@ export function SubmissionsModeration({
       {preview ? (
         <SubmissionPreview session={session} submission={preview} onClose={() => setPreview(null)} />
       ) : null}
+      {dialog}
     </div>
   );
 }
