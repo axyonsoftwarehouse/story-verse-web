@@ -34,6 +34,18 @@ export type CatalogBook = {
   published_at: string | null;
   rights?: CatalogRights;
   rights_note?: string | null;
+  /** Coleções publicadas em que o livro aparece (vem no detalhe). */
+  collections?: { id: string; slug: string; title: string }[];
+};
+
+export type CatalogCollection = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  sort_order: number;
+  book_count: number;
+  books: CatalogBook[];
 };
 
 export type CatalogPage = {
@@ -49,6 +61,7 @@ export type CatalogQuery = {
   genre?: string;
   language?: "pt" | "en" | "";
   author?: string;
+  collection?: string;
   featured?: boolean;
   sort?: CatalogSort;
   page?: number;
@@ -89,6 +102,7 @@ export function searchCatalog(query: CatalogQuery = {}): Promise<CatalogPage> {
   if (query.genre?.trim()) params.set("genre", query.genre.trim());
   if (query.language) params.set("language", query.language);
   if (query.author?.trim()) params.set("author", query.author.trim());
+  if (query.collection?.trim()) params.set("collection", query.collection.trim());
   if (query.featured !== undefined) params.set("featured", String(query.featured));
   if (query.sort && query.sort !== "new") params.set("sort", query.sort);
   params.set("page", String(Math.max(0, query.page ?? 0)));
@@ -98,6 +112,14 @@ export function searchCatalog(query: CatalogQuery = {}): Promise<CatalogPage> {
 
 export function getCatalogBook(bookKey: string): Promise<CatalogBook> {
   return apiRequest<CatalogBook>(`/api/v1/catalog/books/${encodeURIComponent(bookKey)}`);
+}
+
+export function listCatalogCollections(): Promise<CatalogCollection[]> {
+  return apiRequest<CatalogCollection[]>("/api/v1/catalog/collections");
+}
+
+export function getCatalogCollection(slug: string): Promise<CatalogCollection> {
+  return apiRequest<CatalogCollection>(`/api/v1/catalog/collections/${encodeURIComponent(slug)}`);
 }
 
 /** Texto do livro para o leitor; exige sessão (o servidor recusa anônimo com 401). */

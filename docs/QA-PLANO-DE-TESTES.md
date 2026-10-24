@@ -29,7 +29,7 @@ defeitos listados**.
 | 5 | Gamificação | sequência (streak), meta diária, escudos, rodada de diamantes, ranking semanal, frase do dia |
 | 6 | Importação | EPUB, PDF, TXT, arquivo inválido, arquivo grande, livro importado aparecendo na estante |
 | 7 | Comunidade / fórum | `/comunidade`, `/comunidade/t/:id`, denúncia, envio para o acervo |
-| 8 | Admin | 6 seções × 4 papéis (matriz do `QA.md`), catálogo (criar/publicar/ocultar), ações destrutivas com confirmação, URL proibida |
+| 8 | Admin | 6 seções × 4 papéis (matriz do `QA.md`), catálogo (criar/publicar/ocultar), coleções e importação em lote, ações destrutivas com confirmação, URL proibida |
 | 9 | Plataforma | PWA instalável, recarregar offline, viewport de celular, teclado/foco |
 | 10 | Biblioteca pública | `/biblioteca`, busca/filtros, destaques/novidades, ficha do livro, ler/conversar/estante (`cat:`) |
 
@@ -65,7 +65,7 @@ Regras de dados:
 ### Nível 0 — antes de abrir o navegador (2 min)
 
 ```bash
-npm run lint && npm run test && npm run build     # 51 arquivos de teste
+npm run lint && npm run test && npm run build     # 53 arquivos de teste
 curl -s https://api.qa.storyverse.2.29.42.104.sslip.io/api/v1/health   # {"status":"ok"}
 ```
 
@@ -127,6 +127,8 @@ fluxo, aba duplicada, texto enorme, arquivo errado, rede lenta/offline).
 | AD-08 | Catálogo: ocultar/arquivar livro e conferir que ele sai da biblioteca | qa-moderador | P1 |
 | AD-09 | Catálogo: só `qa-admin` vê "Apagar"; apagar remove o livro e o arquivo | qa-admin | P1 |
 | AD-10 | Catálogo: livro repetido avisa e só cria com "Criar mesmo assim" | qa-moderador | P1 |
+| AD-11 | Coleções: criar, editar, adicionar livros e ver a coleção na biblioteca | qa-moderador | P1 |
+| AD-12 | Importação: prévia de um ZIP+CSV, execução, relatório e CSV de erros | qa-moderador | P1 |
 | B-01 | `/biblioteca` abre anônima, com destaques/novidades e sem erro de console | anônimo | P0 |
 | B-02 | Busca e filtros (gênero, idioma, destaque) da biblioteca | anônimo | P1 |
 | B-03 | Ficha do livro mostra capa, resumo e direitos | anônimo | P0 |

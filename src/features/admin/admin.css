@@ -883,3 +883,167 @@
     align-items: flex-start;
   }
 }
+
+/* Coleções */
+
+.collection-books-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+}
+
+.collection-books-grid h3 {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-read);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.collection-selected {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.collection-book-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.collection-book-row > span:first-child {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.collection-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.35);
+  cursor: pointer;
+}
+
+.collection-result > span {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.collection-result input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+}
+
+/* Importação em lote */
+
+.import-step,
+.import-report,
+.import-history {
+  margin-top: 1rem;
+}
+
+.import-step {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.import-report h3,
+.import-history h3 {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.import-summary {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.35);
+}
+
+.import-summary li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.import-summary span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.import-summary strong {
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.import-table-wrap {
+  overflow-x: auto;
+}
+
+.import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.import-table th,
+.import-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-table th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.import-table td:last-child {
+  overflow-wrap: anywhere;
+}
+
+.import-status.is-imported,
+.import-status.is-ok {
+  border-color: var(--accent-2-dim);
+  color: var(--accent-2);
+}
+
+.import-status.is-skipped {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.import-status.is-error {
+  border-color: rgba(232, 168, 168, 0.35);
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .collection-books-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

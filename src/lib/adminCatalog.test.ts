@@ -6,10 +6,16 @@ import {
   catalogStatusTone,
   catalogUploadKind,
   checkCatalogFile,
+  collectionStatusLabel,
   createCatalogBook,
+  createCatalogCollection,
+  fetchCatalogImportErrors,
   fetchCatalogText,
   listCatalogBooks,
+  listCatalogCollections,
+  runCatalogImport,
   updateCatalogBook,
+  uploadCatalogImportArchive,
   uploadCatalogOriginal,
 } from "./adminCatalog";
 
@@ -157,5 +163,66 @@ describe("adminCatalog", () => {
     expect(catalogStatusLabel("draft")).toBe("Rascunho");
     expect(catalogStatusTone("published")).toBe("is-approved");
     expect(catalogStatusTone("archived")).toBe("is-archived");
+    expect(collectionStatusLabel("published")).toBe("Publicada");
+  });
+
+  it("lista e cria coleções", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ id: "c1" });
+    await listCatalogCollections(session);
+    expect(vi.mocked(apiRequest).mock.calls[0][0]).toBe("/api/v1/admin/catalog/collections");
+
+    await createCatalogCollection(session, {
+      slug: "Classicos",
+      title: "Clássicos",
+      description: "Para começar",
+      status: "published",
+      sortOrder: 2,
+    });
+    const [, init] = vi.mocked(apiRequest).mock.calls[1];
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toMatchObject({
+      slug: "classicos",
+      title: "Clássicos",
+      description: "Para começar",
+      status: "published",
+      sortOrder: 2,
+    });
+  });
+
+  it("sobe o ZIP da importação no bucket próprio", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: true } as Response);
+    const zip = new File(["PK"], "lote.zip", { type: "application/zip" });
+    const uploaded = await uploadCatalogImportArchive(session, zip);
+    expect(uploaded.fileName).toBe("lote.zip");
+    expect(uploaded.path).toMatch(/^admin-1\/imports\/[0-9a-f-]+\.zip$/);
+    const [url, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(url).toContain("/api/v1/storage/catalog-imports/object?path=");
+    expect(init?.headers).toEqual({ "Content-Type": "application/zip" });
+  });
+
+  it("pede a prévia e a execução da importação", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ total: 2, items: [] });
+    await runCatalogImport(session, {
+      archivePath: "admin-1/imports/a.zip",
+      fileName: "a.zip",
+      dryRun: true,
+    });
+    expect(vi.mocked(apiRequest).mock.calls[0][0]).toBe("/api/v1/admin/catalog/imports");
+    expect(vi.mocked(apiRequest).mock.calls[0][1]?.body).toMatchObject({
+      archivePath: "admin-1/imports/a.zip",
+      dryRun: true,
+    });
+  });
+
+  it("baixa o CSV de erros como texto", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      ok: true,
+      text: async () => "linha,arquivo\n2,a.txt",
+    } as Response);
+    const csv = await fetchCatalogImportErrors(session, "imp-1");
+    expect(csv).toContain("linha,arquivo");
+    expect(vi.mocked(apiFetch).mock.calls[0][0]).toContain(
+      "/api/v1/admin/catalog/imports/imp-1/errors.csv",
+    );
   });
 });

@@ -1,18 +1,19 @@
 import { NavLink } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
 import { CatalogSection } from "./CatalogSection";
+import { CollectionsSection } from "./CollectionsSection";
+import { ImportsSection } from "./ImportsSection";
 import { SubmissionsModeration } from "./SubmissionsModeration";
 
 /**
- * Área "Acervo" do painel: o catálogo curado (novo) e os envios da comunidade (a moderação que
- * já existia). Importação em lote e coleções entram quando a API tiver esses endpoints.
+ * Área "Acervo" do painel: catálogo curado, envios da comunidade, coleções e importação em lote.
  */
 export function AdminAcervo({
   session,
   tab,
 }: {
   session: SupabaseSession;
-  tab: "catalog" | "envios";
+  tab: "catalog" | "envios" | "colecoes" | "importacoes";
 }) {
   return (
     <div className="moderation admin-acervo">
@@ -35,12 +36,28 @@ export function AdminAcervo({
         >
           Envios
         </NavLink>
+        <NavLink
+          to="/admin/acervo/colecoes"
+          className={({ isActive }) => (isActive ? "is-on" : "")}
+        >
+          Coleções
+        </NavLink>
+        <NavLink
+          to="/admin/acervo/importacoes"
+          className={({ isActive }) => (isActive ? "is-on" : "")}
+        >
+          Importações
+        </NavLink>
       </nav>
 
       {tab === "catalog" ? (
         <CatalogSection session={session} />
-      ) : (
+      ) : tab === "envios" ? (
         <SubmissionsModeration session={session} embedded />
+      ) : tab === "colecoes" ? (
+        <CollectionsSection session={session} />
+      ) : (
+        <ImportsSection session={session} />
       )}
     </div>
   );

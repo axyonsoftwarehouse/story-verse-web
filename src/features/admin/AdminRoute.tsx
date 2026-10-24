@@ -209,6 +209,22 @@ export function AdminRoute() {
               }
             />
             <Route
+              path="acervo/colecoes"
+              element={
+                <RequireSection id="catalog" roles={allowed}>
+                  <AdminAcervo session={session} tab="colecoes" />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="acervo/importacoes"
+              element={
+                <RequireSection id="catalog" roles={allowed}>
+                  <AdminAcervo session={session} tab="importacoes" />
+                </RequireSection>
+              }
+            />
+            <Route
               path="acervo/:id"
               element={
                 <RequireSection id="catalog" roles={allowed}>

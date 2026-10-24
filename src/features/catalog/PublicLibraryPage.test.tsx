@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  listCatalogCollections,
   searchCatalog,
   type CatalogBook,
   type CatalogPage,
@@ -10,7 +11,7 @@ import { PublicLibraryPage } from "./PublicLibraryPage";
 
 vi.mock("../../lib/catalog", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/catalog")>();
-  return { ...actual, searchCatalog: vi.fn() };
+  return { ...actual, searchCatalog: vi.fn(), listCatalogCollections: vi.fn() };
 });
 
 const featured: CatalogBook = {
@@ -54,6 +55,7 @@ function renderPage() {
 
 describe("PublicLibraryPage", () => {
   beforeEach(() => {
+    vi.mocked(listCatalogCollections).mockResolvedValue([]);
     vi.mocked(searchCatalog).mockImplementation(async (query = {}) => {
       if (query.featured) return page([featured]);
       if (!query.q && (!query.sort || query.sort === "new")) return page([latest]);
