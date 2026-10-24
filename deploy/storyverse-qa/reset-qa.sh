@@ -10,7 +10,9 @@ API_URL="${QA_API_URL:-https://api.qa.storyverse.2.29.42.104.sslip.io}"
 
 qa_compose down -v
 qa_compose up -d qa-db
+# Cria o volume de arquivos pelo Compose (com os rótulos do projeto) antes de enchê-lo.
 # Volume de arquivos novo: pertence ao uid do app (10001).
+qa_compose up --no-start qa-api
 docker run --rm -v storyverse-qa_media:/m alpine chown -R 10001:10001 /m
 qa_compose up -d qa-api
 

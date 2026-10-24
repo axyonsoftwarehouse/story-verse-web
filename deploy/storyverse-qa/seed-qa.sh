@@ -18,13 +18,21 @@ existing=$(qa_compose exec -T qa-db psql -At -U "$POSTGRES_USER" -d "$POSTGRES_D
   -c "select email from auth.users where email like 'qa-%@example.com'")
 
 # Só cadastra quem falta: a API limita cadastros por IP (5 por hora), e o seed roda de novo a cada reset.
+json_str() {
+  local s="$1"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  printf '%s' "$s"
+}
+
 signup() {
   local email="$1" name="$2" body code
   if grep -qx "$email" <<<"$existing"; then
     echo "conta: $email (já existia)"
     return
   fi
-  body=$(printf '{"email":"%s","password":"%s","name":"%s"}' "$email" "$QA_TEST_PASSWORD" "$name")
+  body=$(printf '{"email":"%s","password":"%s","name":"%s"}' \
+    "$(json_str "$email")" "$(json_str "$QA_TEST_PASSWORD")" "$(json_str "$name")")
   code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$API_URL/api/v1/auth/signup" \
     -H 'Content-Type: application/json' --data-binary @- <<<"$body")
   case "$code" in
