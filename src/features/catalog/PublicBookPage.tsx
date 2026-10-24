@@ -136,7 +136,9 @@ export function PublicBookPage() {
   const meta = [
     book.genre,
     book.language === "en" ? "Inglês" : "Português",
-    book.page_count ? `${book.page_count} páginas` : null,
+    book.page_count
+      ? `${book.page_count} ${book.page_count === 1 ? "página" : "páginas"}`
+      : null,
     book.series
       ? `${book.series}${book.series_index != null ? ` #${book.series_index}` : ""}`
       : null,
