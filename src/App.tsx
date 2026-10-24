@@ -6230,7 +6230,11 @@ export function App() {
     let alive = true;
     void searchCatalog({ sort: "new", limit: 6 })
       .then((page) => {
-        if (alive) setCatalogNew(page.items.map(catalogBookToEbook));
+        if (!alive) return;
+        // Os envios da comunidade já têm a estante "Novidades" deles; aqui ficam os curados.
+        setCatalogNew(
+          page.items.filter((item) => item.book_key.startsWith("cat:")).map(catalogBookToEbook),
+        );
       })
       .catch(() => {
         if (alive) setCatalogNew([]);
@@ -6240,7 +6244,8 @@ export function App() {
     };
   }, [book, homeTick]);
   /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
-  const [localIds, setLocalIds] = useState<Set<number> | null>(null);  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
+  const [localIds, setLocalIds] = useState<Set<number> | null>(null);
+  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
   useEffect(() => {
     // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
     if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
