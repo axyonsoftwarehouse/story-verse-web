@@ -8,6 +8,7 @@ import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { QaBanner } from "./components/QaBanner";
+import { OfflineNotice } from "./components/OfflineNotice";
 import { AdminRoute } from "./features/admin/AdminRoute";
 import { ForumHome } from "./features/forum/ForumHome";
 import { TopicPage } from "./features/forum/TopicPage";
@@ -28,6 +29,7 @@ registerServiceWorker();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QaBanner env={import.meta.env.VITE_APP_ENV} />
+    <OfflineNotice />
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>

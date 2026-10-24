@@ -5649,6 +5649,36 @@
   box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.7);
 }
 
+/* Miniatura: a capa desenhada precisa caber em 62 px; a tipografia da capa grande estourava o quadro. */
+.welcome-call-book .cover-frame {
+  inset: 5px 4px 5px 9px;
+  gap: 0.15rem;
+  padding: 0.3rem 0.2rem;
+}
+
+.welcome-call-book .cover-genre,
+.welcome-call-book .cover-ornament {
+  display: none;
+}
+
+.welcome-call-book .cover-title {
+  max-width: 100%;
+  font-size: 0.55rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.welcome-call-book .cover-author {
+  right: 0.2rem;
+  bottom: 0.3rem;
+  left: 0.2rem;
+  overflow: hidden;
+  font-size: 0.34rem;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .welcome-call-talk {
   display: flex;
   flex-direction: column;
@@ -10287,6 +10317,25 @@ button.ranking-diamonds {
   padding: 0.3rem 16px calc(0.3rem + env(safe-area-inset-bottom));
   background: var(--accent);
   color: var(--on-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Sem conexão: o app instalado abre do cache, então avisa em vez de parecer que travou. */
+.offline-notice {
+  position: fixed;
+  inset: max(0.6rem, env(safe-area-inset-top)) 0 auto;
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  margin-inline: auto;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-read);
   font-size: 0.8rem;
   font-weight: 600;
   text-align: center;

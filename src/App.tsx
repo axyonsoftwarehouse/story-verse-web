@@ -226,6 +226,7 @@ import {
   resendSignupCode,
   requestPasswordReset,
   resetPasswordWithToken,
+  validateResetToken,
   updateProfileData,
   updatePassword,
   restoreAuthSession,
@@ -5384,15 +5385,30 @@ function NewPasswordModal({
   session,
   token,
   onDone,
+  onCancel,
 }: {
   session?: SupabaseSession;
   token?: string;
   onDone: (message: string) => void;
+  onCancel?: () => void;
 }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  /** O link do e-mail é conferido antes de pedir a senha: não adianta digitar se ele já venceu. */
+  const [link, setLink] = useState<"checking" | "valid" | "expired">(token ? "checking" : "valid");
+
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    void validateResetToken(token).then((valid) => {
+      if (alive) setLink(valid ? "valid" : "expired");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -5414,6 +5430,28 @@ function NewPasswordModal({
     } finally {
       setLoading(false);
     }
+  }
+
+  if (link !== "valid") {
+    const expired = link === "expired";
+    return (
+      <div className="auth-backdrop" role="presentation">
+        <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
+          <span className="eyebrow">Storyverse</span>
+          <h2 id="new-password-title">{expired ? "Link inválido ou expirado" : "Conferindo o link…"}</h2>
+          <p className="auth-subtitle">
+            {expired
+              ? "Este link de recuperação já foi usado ou passou do prazo. Peça um novo em “Esqueci minha senha”."
+              : "Só um instante enquanto confirmamos o seu link."}
+          </p>
+          {expired && onCancel ? (
+            <button type="button" className="btn btn-primary btn-lg" onClick={onCancel}>
+              Voltar para o login
+            </button>
+          ) : null}
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -7433,6 +7471,11 @@ export function App() {
               setAuthNotice({ text: message, ok: true });
               if (!authSession) setAuthModal("login");
             }}
+            onCancel={() => {
+              setResetToken(null);
+              setAuthNotice(null);
+              setAuthModal("login");
+            }}
           />
         ) : passwordReset && authSession ? (
           <NewPasswordModal
@@ -7441,6 +7484,7 @@ export function App() {
               setPasswordReset(false);
               setAuthNotice({ text: message, ok: true });
             }}
+            onCancel={() => setPasswordReset(false)}
           />
         ) : null}
         <nav className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""}`}>

@@ -160,4 +160,33 @@ describe("API account flows", () => {
     const body = JSON.parse(String(fetch.mock.calls[0][1]?.body));
     expect(body).toEqual({ token: "reset-token", password: "new-secret" });
   });
+
+  it("checks a valid reset link without spending it", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+    const { validateResetToken } = await import("./auth");
+    await expect(validateResetToken("reset-token")).resolves.toBe(true);
+    expect(String(fetch.mock.calls[0][0])).toContain("/api/v1/auth/reset-password/validate");
+    expect(fetch.mock.calls[0][1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({ token: "reset-token" });
+  });
+
+  it("reports an expired or already used reset link", async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Link inválido ou expirado." }), { status: 400 }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { validateResetToken } = await import("./auth");
+    await expect(validateResetToken("reset-token")).resolves.toBe(false);
+  });
+
+  it("does not block the form when the API cannot check the link", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    const { validateResetToken } = await import("./auth");
+    await expect(validateResetToken("reset-token")).resolves.toBe(true);
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    await expect(validateResetToken("reset-token")).resolves.toBe(true);
+  });
 });
