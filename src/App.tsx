@@ -4606,29 +4606,21 @@ function ProfilePage({
           <div className="shelf-head">
             <h2>Admin</h2>
           </div>
-          <Link
-            className="profile-card profile-admin"
-            to="/admin"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
+          <a className="profile-card profile-admin admin-entry" href="/admin">
             <div>
               <strong>Painel administrativo</strong>
               <span>Visão geral, contas, moderação e auditoria.</span>
             </div>
             <span className="btn btn-primary">Abrir painel</span>
-          </Link>
+          </a>
           {canModerate ? (
-            <Link
-              className="profile-card profile-admin"
-              to="/admin/moderacao/acervo"
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
+            <a className="profile-card profile-admin admin-entry" href="/admin/moderacao/acervo">
               <div>
                 <strong>Moderação do acervo</strong>
                 <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
               </div>
               <span className="btn">Abrir moderação</span>
-            </Link>
+            </a>
           ) : null}
         </section>
       ) : null}

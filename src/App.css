@@ -5209,9 +5209,18 @@
   gap: 0.2rem;
 }
 
-.profile-admin span {
+.profile-admin div span {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.admin-entry {
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-entry:hover {
+  border-color: var(--accent-dim);
 }
 
 .moderation-head {
