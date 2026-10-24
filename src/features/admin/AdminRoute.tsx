@@ -12,6 +12,7 @@ import { BillingSection } from "./BillingSection";
 import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
+import { MetricsSection } from "./MetricsSection";
 import { OverviewSection } from "./OverviewSection";
 import { SanctionsSection } from "./SanctionsSection";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
@@ -252,6 +253,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="forum" roles={allowed}>
                   <ForumModeration session={session} canModerate={canModerateForum} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="metricas"
+              element={
+                <RequireSection id="metrics" roles={allowed}>
+                  <MetricsSection session={session} />
                 </RequireSection>
               }
             />
