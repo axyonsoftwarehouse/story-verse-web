@@ -37,7 +37,7 @@ function NoPermission() {
       <div className="shelf-head">
         <h1>Sem permissão</h1>
       </div>
-      <div className="profile-card">
+      <div className="profile-card admin-message-card">
         <div>
           <strong>Sem permissão</strong>
           <span>Esta conta não tem acesso a esta seção.</span>
@@ -106,7 +106,7 @@ export function AdminRoute() {
           <div className="shelf-head">
             <h1>Admin</h1>
           </div>
-          <div className="profile-card">
+          <div className="profile-card admin-message-card">
             <div>
               <strong>Entre na sua conta</strong>
               <span>O painel administrativo usa a mesma conta do site.</span>
@@ -139,7 +139,7 @@ export function AdminRoute() {
           <div className="shelf-head">
             <h1>Admin</h1>
           </div>
-          <div className="profile-card">
+          <div className="profile-card admin-message-card">
             <div>
               <strong>Sem permissão</strong>
               <span>Esta conta não tem acesso ao painel administrativo.</span>

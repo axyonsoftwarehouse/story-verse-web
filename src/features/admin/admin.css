@@ -130,6 +130,20 @@
   box-shadow: 0 0 0 1px var(--accent-dim);
 }
 
+/* Cartões de aviso do admin ("Sem permissão", "Entre na sua conta"): título e texto separados. */
+.admin-message-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-message-card > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
 .admin-feature-panel {
   margin-top: 1.2rem;
 }

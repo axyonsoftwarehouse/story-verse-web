@@ -44,7 +44,7 @@ export function AccountsSection({ session }: { session: SupabaseSession }) {
           <input
             value={q}
             onChange={(event) => setQ(event.target.value)}
-            placeholder="UUID, e-mail completo ou parte do nome"
+            placeholder="UUID, e-mail ou parte do nome"
             autoComplete="off"
           />
         </label>
