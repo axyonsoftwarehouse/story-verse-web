@@ -1,0 +1,30 @@
+.confirm-dialog {
+  width: min(430px, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.9rem;
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.confirm-dialog p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.confirm-dialog-actions .btn.is-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}

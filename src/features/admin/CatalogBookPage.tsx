@@ -28,6 +28,7 @@ import {
   type CatalogMetadataValue,
   type CatalogRightsValue,
 } from "./catalogFormValues";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { CatalogPreview } from "./CatalogPreview";
 import { isSuperadmin } from "./adminSections";
 
@@ -99,6 +100,7 @@ export function CatalogBookPage({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     if (!id) {
@@ -156,10 +158,26 @@ export function CatalogBookPage({
 
   async function changeStatus(action: "publish" | "hide" | "archive") {
     if (!book) return;
-    if (action === "hide" && !window.confirm(`Ocultar “${book.title}” da biblioteca? Quem já colocou na estante continua lendo.`)) {
+    if (
+      action === "hide" &&
+      !(await confirm({
+        title: "Ocultar da biblioteca?",
+        message: `“${book.title}” sai da biblioteca. Quem já colocou na estante continua lendo.`,
+        confirmLabel: "Ocultar livro",
+        danger: true,
+      }))
+    ) {
       return;
     }
-    if (action === "archive" && !window.confirm(`Arquivar “${book.title}”? Ele sai da biblioteca, mas o arquivo e a estante de quem leu continuam guardados.`)) {
+    if (
+      action === "archive" &&
+      !(await confirm({
+        title: "Arquivar o livro?",
+        message: `“${book.title}” sai da biblioteca, mas o arquivo e a estante de quem leu continuam guardados.`,
+        confirmLabel: "Arquivar livro",
+        danger: true,
+      }))
+    ) {
       return;
     }
     setBusy(action);
@@ -185,9 +203,12 @@ export function CatalogBookPage({
   async function remove() {
     if (!book) return;
     if (
-      !window.confirm(
-        `Apagar definitivamente “${book.title}”? O arquivo também será apagado; a estante de quem leu perde o livro.`,
-      )
+      !(await confirm({
+        title: "Apagar definitivamente?",
+        message: `“${book.title}” e o arquivo serão apagados; a estante de quem leu perde o livro.`,
+        confirmLabel: "Apagar livro",
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -227,7 +248,16 @@ export function CatalogBookPage({
   }
 
   async function removeCover() {
-    if (!book || !window.confirm("Remover a capa deste livro?")) return;
+    if (
+      !book ||
+      !(await confirm({
+        title: "Remover a capa?",
+        message: "O livro fica sem capa até você enviar outra.",
+        confirmLabel: "Remover capa",
+        danger: true,
+      }))
+    )
+      return;
     setBusy("cover");
     setError("");
     setMessage("");
@@ -247,7 +277,14 @@ export function CatalogBookPage({
     const picked = event.target.files?.[0];
     event.target.value = "";
     if (!picked || !book) return;
-    if (!window.confirm("Substituir o texto deste livro? A versão anterior deixa de ser usada.")) {
+    if (
+      !(await confirm({
+        title: "Substituir o texto?",
+        message: "A versão anterior deixa de ser usada.",
+        confirmLabel: "Substituir texto",
+        danger: true,
+      }))
+    ) {
       return;
     }
     setBusy("text");
@@ -473,6 +510,7 @@ export function CatalogBookPage({
       {preview ? (
         <CatalogPreview session={session} book={book} onClose={() => setPreview(false)} />
       ) : null}
+      {dialog}
     </section>
   );
 }

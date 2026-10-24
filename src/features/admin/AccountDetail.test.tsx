@@ -62,16 +62,18 @@ describe("AccountDetail", () => {
   });
 
   it("não encerra as sessões se a confirmação for cancelada", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     renderDetail(["superadmin"]);
     fireEvent.click(await screen.findByRole("button", { name: "Encerrar sessões" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(revokeSessions).not.toHaveBeenCalled();
   });
 
   it("encerra as sessões confirmadas e mostra o total", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     renderDetail(["superadmin"]);
     fireEvent.click(await screen.findByRole("button", { name: "Encerrar sessões" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Encerrar" }));
     expect(await screen.findByText("2 sessões encerradas.")).toBeInTheDocument();
     expect(revokeSessions).toHaveBeenCalledTimes(1);
   });

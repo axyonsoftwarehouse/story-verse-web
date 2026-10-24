@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
+import { useConfirm } from "../../components/ConfirmDialog";
 import {
   getCatalog,
   listFeatureUsers,
@@ -31,6 +32,7 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     let alive = true;
@@ -85,7 +87,15 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
 
   async function disable(user: FeatureUser) {
     if (!selected || busyId) return;
-    if (!window.confirm(`Desligar ${selected} para ${user.name}?`)) return;
+    if (
+      !(await confirm({
+        title: `Desligar ${selected}?`,
+        message: `${user.name} deixa de usar esta feature imediatamente.`,
+        confirmLabel: "Desligar feature",
+        danger: true,
+      }))
+    )
+      return;
     setBusyId(user.userId);
     setError("");
     setNotice("");
@@ -207,6 +217,7 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
           ) : null}
         </div>
       ) : null}
+      {dialog}
     </section>
   );
 }
