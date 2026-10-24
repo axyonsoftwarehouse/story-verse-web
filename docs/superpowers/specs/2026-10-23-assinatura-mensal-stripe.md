@@ -4,17 +4,19 @@ Data: 23/10/2026. Repositórios: `story-magic` (web) e `story-verse-api` (API).
 
 ## 1. Contexto e decisão de produto
 
-O produto passa a ter **assinatura mensal**: a mensalidade é a chave de acesso. A cobrança será pelo **Stripe**, com cartão e, se a conta/país permitir recorrência, Pix. A landing, o login, a criação de conta, as telas de assinatura, o suporte e o cancelamento continuam acessíveis sem assinatura; o restante do app autenticado exige uma assinatura ativa.
+O produto passa a ter **assinatura mensal**: a mensalidade é a chave de acesso. A cobrança será pelo **Stripe**, no cartão. A landing, o login, a criação de conta, as telas de assinatura, o suporte e o cancelamento continuam acessíveis sem assinatura; o restante do app autenticado exige uma assinatura ativa.
 
-Premissas desta spec (a confirmar antes de codar):
+Decisões fechadas em 23/10/2026:
 
-- **Plano único** “Storyverse” mensal em BRL; anual pode vir depois.
-- **Teste grátis** de 7 dias, com cartão no checkout (reduz abuso). Sem cartão é uma alternativa de growth, mas aumenta fraude.
-- **Contas existentes** no lançamento ganham uma janela de transição (proposta: 30 dias) ou um preço de fundador; ninguém é bloqueado no mesmo dia.
+- **Plano único** “Storyverse” mensal em BRL; anual pode vir depois. O valor do preço ainda será definido no Stripe.
+- **Teste grátis de 7 dias, sem cartão no início.** No fim do trial, a pessoa precisa cadastrar um cartão para continuar; sem cartão, o acesso termina.
+- **Paywall total:** tudo depois do login exige assinatura, exceto conta, assinatura, suporte, logout e telas públicas.
+- **Contas existentes:** 30 dias de transição a partir do lançamento, sem bloqueio imediato; um preço de fundador pode ser avaliado depois.
+- **Cartão apenas no MVP.** Pix recorrente (Pix Automático) fica fora desta fase; Mercado Pago só se virar requisito.
 - **Equipe** (`superadmin`, `moderator`, `support`) tem acesso liberado para testar e atender.
 - O bloqueio é sempre validado no servidor; a UI só esconde/encaminha.
 
-Decisão de produto ainda aberta: **paywall total** (tudo depois do login exige assinatura, exceto conta/assinatura/suporte) ou **freemium** (leitura gratuita; assinatura libera IA, estante, importação etc.). Esta spec assume o **paywall total** por causa da frase “o acesso será feito através de mensalidade”; se a decisão for freemium, o modelo de dados e os webhooks continuam iguais e muda apenas a lista de rotas liberadas.
+A única decisão de produto pendente é o **valor mensal** (e, se desejado, um preço anual futuro).
 
 ## 2. Objetivos
 
@@ -40,13 +42,13 @@ Decisão de produto ainda aberta: **paywall total** (tudo depois do login exige 
 - Um produto “Storyverse” com um preço mensal recorrente em BRL (`price_id` no Stripe).
 - O valor não fica no código; a API lê o `price_id` da configuração e mostra o preço vindo do Stripe (ou de um cache de configuração).
 - O checkout usa `client_reference_id`/metadata com o `user_id`; o webhook liga o cliente Stripe à conta.
-- Trial de 7 dias (proposta) e cupons/promo codes do Stripe, se habilitados.
+- Trial de 7 dias sem cartão; cupons/promo codes do Stripe, se habilitados.
 
 ### 4.2 Estados e acesso
 
 | Status | Acesso | Observação |
 |---|---|---|
-| `trialing` | sim | até `trial_end` |
+| `trialing` | sim | até `trial_end`; sem cartão, o acesso termina no `trial_end` |
 | `active` | sim | até `current_period_end` |
 | `past_due` | sim com carência | até `current_period_end + 3 dias`; depois bloqueia |
 | `canceled` | até `current_period_end` | cancelamento agendado; no fim, bloqueia |
@@ -56,9 +58,11 @@ Decisão de produto ainda aberta: **paywall total** (tudo depois do login exige 
 | sem assinatura | não | exceto staff e grants |
 | `grant` (comp) | sim | até `expires_at` ou indefinido |
 
-- A carência de `past_due` (3 dias) é uma decisão; o Stripe Smart Retries continua tentando. Se o pagamento entrar, volta a `active`.
+- A carência de `past_due` (3 dias) vale para cobranças que falharam com cartão; o Stripe Smart Retries continua tentando. Se o pagamento entrar, volta a `active`.
+- No trial sem cartão, o acesso termina em `trial_end`; a carência de 3 dias **não** se aplica a quem nunca cadastrou cartão.
 - `canceled` com `cancel_at_period_end=true` continua `active` no Stripe até o fim; o status `canceled` só vem depois do fim.
 - Staff tem acesso sem cobrança. Contas de teste/comp recebem `billing_grants` (motivo, validade, autor).
+- Contas existentes no lançamento recebem `billing_grants` com `reason='transition'` e `expires_at = lançamento + 30 dias`.
 - Expirar/revogar grant ou sanção reavalia o acesso na próxima requisição.
 
 ## 5. Modelo de dados (migração V18)
@@ -126,7 +130,8 @@ Usado para staff, fundadores, suporte e testes; nunca é uma cobrança.
 
 - Conta Stripe do produto, modo test no QA e live na produção; chaves separadas.
 - Produto/preço criados no Stripe; `STRIPE_PRICE_ID`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_PUBLIC_URL` no `.env` da API (nunca no frontend).
-- Checkout hospedado (Stripe Checkout), `mode=subscription`, `locale=pt-BR`, `success_url=/conta/assinatura?ok=1`, `cancel_url=/assinar?cancelado=1`, `allow_promotion_codes` conforme decisão.
+- Checkout hospedado (Stripe Checkout), `mode=subscription`, `locale=pt-BR`, `payment_method_collection=if_required`, `subscription_data.trial_period_days=7`, `success_url=/conta/assinatura?ok=1`, `cancel_url=/assinar?cancelado=1`, `allow_promotion_codes` conforme decisão.
+- Trial sem cartão: o Checkout não pede cartão no início. No fim do trial, o app leva para `/conta/assinatura`/Portal para cadastrar o cartão; sem cartão, o acesso termina no `trial_end`.
 - Portal do cliente (Customer Portal) para cartão, faturas e cancelamento; `return_url=/conta/assinatura`.
 
 ### 6.2 Webhooks
@@ -148,8 +153,8 @@ Eventos mínimos:
 
 ### 6.3 Pagamentos
 
-- **Cartão** é o método do MVP de assinatura.
-- **Pix:** o Stripe oferece Pix no Brasil, mas a recorrência precisa ser confirmada (Pix Automático) para a conta/país. Se não houver recorrência Pix no Stripe, o MVP fica no cartão; Pix avulso/invoice ou Mercado Pago viram decisão separada. Não prometer Pix recorrente sem validar.
+- **Cartão apenas** no MVP de assinatura.
+- **Pix recorrente (Pix Automático) fica fora desta fase.** Pix avulso/Mercado Pago só entram se virarem requisito depois; não prometer Pix recorrente sem uma decisão e validação próprias.
 - **Boleto** não é adequado para mensalidade; fora do MVP.
 - **Impostos:** avaliar Stripe Tax; se não, documentar que o preço é o final.
 - **Faturas/recibos:** pelo Stripe/Customer Portal.
@@ -188,7 +193,8 @@ Só superadmin (papel `finance` no futuro):
 
 ### 8.1 Antes de assinar
 
-- `/assinar` (pública; se não houver sessão, pede login/cadastro e volta): cartão do plano, preço, trial, o que está incluído, política de cancelamento; botão “Assinar” chama `/billing/checkout`.
+- `/assinar` (pública; se não houver sessão, pede login/cadastro e volta): cartão do plano, preço, **7 dias grátis sem cartão**, o que está incluído, política de cancelamento; botão “Começar teste” chama `/billing/checkout`.
+- No fim do trial sem cartão, `/conta/assinatura` mostra “Adicione um cartão para continuar” e leva ao Portal/checkout.
 - `?cancelado=1` mostra “Você pode assinar quando quiser”.
 - O cadastro/login continua funcionando; depois de autenticar, o gate decide.
 
@@ -202,6 +208,7 @@ Só superadmin (papel `finance` no futuro):
 ### 8.3 Conta
 
 - `/conta/assinatura`: status, plano, próxima cobrança, trial, cancelamento agendado, botão “Gerenciar assinatura” (Portal) e “Assinar” se não houver.
+- Durante o trial sem cartão, mostra “7 dias grátis; adicione um cartão antes do fim para continuar” e um botão para cadastrar.
 - `?ok=1` mostra confirmação e atualiza o status; o webhook pode levar alguns segundos, então a tela faz polling curto (ex.: 3 tentativas).
 - Suporte: link para contato e para o histórico de cobranças no Portal.
 
@@ -227,8 +234,8 @@ Só superadmin (papel `finance` no futuro):
 - **Stripe test mode** no QA, com produto/preço/chaves separados; nunca cobrar de verdade.
 - **Test clock** para simular trial, renovação, falha, retry, cancelamento e fim do período.
 - **Webhook forwarding** local/QA; testar assinatura inválida, evento repetido, evento fora de ordem e falha de processamento.
-- Cartões de teste (sucesso, recusa, 3DS) e, se disponível, Pix de teste.
-- Cenários de acesso: trial ativo, ativo, past_due dentro/fora da carência, canceled no fim, unpaid, grant, staff, sem assinatura.
+- Cartões de teste (sucesso, recusa, 3DS); sem Pix nesta fase.
+- Cenários de acesso: trial sem cartão ativo, trial expirado sem cartão, trial com cartão, ativo, past_due dentro/fora da carência, canceled no fim, unpaid, grant, staff, sem assinatura.
 - Checkout: sucesso, cancelamento, retorno, sessão repetida, usuário já assinante.
 - Portal: cartão, fatura, cancelamento.
 - Admin financeiro: permissões, e-mail mascarado, números coerentes, links e estados vazios.
@@ -241,7 +248,7 @@ Só superadmin (papel `finance` no futuro):
 3. Web `/assinar`, `/conta/assinatura` e paywall; gate desligado por flag no início.
 4. Admin financeiro somente leitura.
 5. Beta interno com contas de teste; depois um grupo pequeno; monitorar conversão, falhas de webhook e erros.
-6. Lançamento: ativar o gate, comunicar a janela de transição das contas existentes.
+6. Lançamento: ativar o gate e conceder 30 dias de transição (`billing_grants`) às contas existentes, com comunicação.
 7. Kill switch: desligar checkout/novas assinaturas sem derrubar quem já tem acesso; grants manuais para suporte.
 
 Feature flag sugerida: `BILLING_ENABLED` (build/env no web) + `billing` no banco/capabilities; o gate só entra quando a flag estiver ligada.
@@ -255,13 +262,18 @@ Feature flag sugerida: `BILLING_ENABLED` (build/env no web) + `billing` no banco
 5. **QA/beta:** test clock, cenários de acesso, runbook de suporte.
 6. **Lançamento:** transição de contas existentes e comunicação.
 
-## 13. Decisões abertas
+## 13. Decisões
 
-- Preço mensal, moeda (BRL) e trial (7 dias? cartão obrigatório?).
-- Paywall total vs freemium (o que exatamente a mensalidade libera).
-- Janela de transição/fundador para contas existentes.
-- Plano anual, cupons e preço promocional.
-- Pix recorrente no Stripe (Pix Automático) ou cartão no MVP; Mercado Pago só se Pix recorrente for requisito.
+Fechadas em 23/10/2026:
+
+- **Trial de 7 dias sem cartão.**
+- **Paywall total**, com isenções de conta/assinatura/suporte/logout e telas públicas.
+- **Contas existentes:** 30 dias de transição, sem bloqueio imediato.
+- **Cartão apenas** no MVP; Pix recorrente/Mercado Pago fora desta fase.
+
+Abertas:
+
+- **Valor mensal** (e eventual preço anual).
 - Impostos (Stripe Tax) e se o preço é com imposto incluso.
 - Política de reembolso e cancelamento; quem aprova.
 - Carência de `past_due` (3 dias) e comunicação.

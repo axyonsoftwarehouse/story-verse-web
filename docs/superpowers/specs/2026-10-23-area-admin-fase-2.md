@@ -228,10 +228,15 @@ QA:
 
 Cada etapa é um PR (API e web) e passa pelo QA antes do `develop` → `main`.
 
-## 14. Decisões abertas
+## 14. Decisões
 
-- Suporte pode aplicar `warning` (sem bloqueio) ou só superadmin? A proposta é só superadmin.
-- Podemos suspender um superadmin? A proposta é não; só script.
+Fechadas em 23/10/2026:
+
+- **Sanções:** só superadmin aplica/revoga; suporte e moderador apenas visualizam.
+- **Superadmin não é alvo de sanção** pelo painel; a remoção do papel continua por script.
+
+Abertas:
+
 - Quais métricas entram no primeiro corte e qual a fonte de “minutos lidos”.
 - Retenção de auditoria (12 meses) e de métricas agregadas.
 - Criar papel `finance` ou manter só superadmin no financeiro.
