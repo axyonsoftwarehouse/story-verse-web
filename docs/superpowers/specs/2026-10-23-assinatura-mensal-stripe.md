@@ -65,9 +65,10 @@ O preço provisório é **R$ 9,90/mês**; o valor final ainda será confirmado. 
 - Contas existentes no lançamento recebem `billing_grants` com `reason='transition'` e `expires_at = lançamento + 30 dias`.
 - Expirar/revogar grant ou sanção reavalia o acesso na próxima requisição.
 
-## 5. Modelo de dados (migração V19)
+## 5. Modelo de dados (migração V17_2 + V17_3)
 
-Tabelas novas em `public` (a V17 é a do catálogo e a V18 é a da Fase 2 do admin):
+Tabelas novas em `public` (a V17 é a do catálogo e a V18 fica reservada para a Fase 2 do admin;
+por isso o billing usa V17_2 e o valor da assinatura V17_3, sem buraco na ordem):
 
 ### 5.1 `billing_customers`
 
@@ -243,7 +244,7 @@ Só superadmin (papel `finance` no futuro):
 
 ## 11. Rollout
 
-1. Criar produto/preço no Stripe test; configurar QA; migração V19; webhook.
+1. Criar produto/preço no Stripe test; configurar QA; migração V17_2/V17_3; webhook.
 2. Implementar API de status/checkout/portal/webhook e o gate no servidor.
 3. Web `/assinar`, `/conta/assinatura` e paywall; gate desligado por flag no início.
 4. Admin financeiro somente leitura.
@@ -256,7 +257,7 @@ Feature flag sugerida: `BILLING_ENABLED` (build/env no web) + `billing` no banco
 ## 12. Ordem de entrega
 
 1. **Stripe test:** produto, preço, trial, portal, webhook secret.
-2. **Banco (V19) + API:** customers, subscriptions, events, grants, status, webhook, gate.
+2. **Banco (V17_2/V17_3) + API:** customers, subscriptions, events, grants, status, webhook, gate.
 3. **Web:** `/assinar`, `/conta/assinatura`, gate e avisos.
 4. **Admin:** financeiro somente leitura e chip na conta.
 5. **QA/beta:** test clock, cenários de acesso, runbook de suporte.

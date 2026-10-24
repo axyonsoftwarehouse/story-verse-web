@@ -48,4 +48,4 @@
 
 - **AD-11** coleções e **AD-12** importação em lote (Acervo).
 - **B-01 a B-06** biblioteca pública.
-- **BILL-01+** assinatura/Stripe, quando a fase de billing entrar no QA.
+- **BILL-01 a BILL-06** assinatura/Stripe (dependem das chaves de teste no QA).

@@ -31,9 +31,10 @@ defeitos listados**.
 | 5 | Gamificação | sequência (streak), meta diária, escudos, rodada de diamantes, ranking semanal, frase do dia |
 | 6 | Importação | EPUB, PDF, TXT, arquivo inválido, arquivo grande, livro importado aparecendo na estante |
 | 7 | Comunidade / fórum | `/comunidade`, `/comunidade/t/:id`, denúncia, envio para o acervo |
-| 8 | Admin | 6 seções × 4 papéis (matriz do `QA.md`), catálogo (criar/publicar/ocultar), coleções e importação em lote, ações destrutivas com confirmação, URL proibida |
+| 8 | Admin | 7 seções × 4 papéis (matriz do `QA.md`), catálogo (criar/publicar/ocultar), coleções e importação em lote, financeiro somente leitura, ações destrutivas com confirmação, URL proibida |
 | 9 | Plataforma | PWA instalável, recarregar offline, viewport de celular, teclado/foco |
 | 10 | Biblioteca pública | `/biblioteca`, busca/filtros, destaques/novidades, ficha do livro, ler/conversar/estante (`cat:`) |
+| 11 | Assinatura (Stripe) | `/assinar`, trial, checkout, `/conta/assinatura`, portal, paywall, webhook e financeiro |
 
 ## 3. Fora de escopo (e por quê)
 
@@ -67,7 +68,7 @@ Regras de dados:
 ### Nível 0 — antes de abrir o navegador (2 min)
 
 ```bash
-npm run lint && npm run test && npm run build     # 53 arquivos de teste
+npm run lint && npm run test && npm run build     # 58 arquivos de teste
 curl -s https://api.qa.storyverse.2.29.42.104.sslip.io/api/v1/health   # {"status":"ok"}
 ```
 
@@ -137,6 +138,12 @@ fluxo, aba duplicada, texto enorme, arquivo errado, rede lenta/offline).
 | B-04 | Anônimo clica "Ler agora" e cai no login; depois de entrar o livro abre | anônimo | P0 |
 | B-05 | Logado lê, conversa e adiciona à estante; o livro aparece em "Minha estante" | qa-leitor | P0 |
 | B-06 | Home mostra "Novidades da biblioteca" e o link "Ver a biblioteca" | qa-leitor | P1 |
+| BILL-01 | `/assinar` anônima mostra plano, R$ 9,90/mês e trial de 7 dias | anônimo | P0 |
+| BILL-02 | Login e retorno para `/assinar`; CTA de checkout abre o Stripe (modo teste) | qa-leitor | P0 |
+| BILL-03 | Trial ativo libera o app; conta sem assinatura recebe o paywall e 402 na API | qa-leitor | P0 |
+| BILL-04 | `/conta/assinatura` mostra status, trial/fim e abre o Portal do Stripe | qa-leitor | P1 |
+| BILL-05 | Webhook repetido não duplica evento; invoice paga mantém acesso | API (Stripe CLI) | P1 |
+| BILL-06 | `qa-admin` vê `/admin/financeiro`; suporte e moderador não; e-mail mascarado | qa-admin | P1 |
 | P-01 | Instalar como app (PWA) e abrir instalado | qa-leitor | P2 |
 | P-02 | Recarregar offline mostra aviso, não tela branca | qa-leitor | P1 |
 | P-03 | Viewport de celular (390×844) sem rolagem horizontal em home, leitor e admin | qa-leitor | P1 |
@@ -190,6 +197,7 @@ Uma rodada é **aprovada** quando:
 - [ ] Todos os P0 executados e passando
 - [ ] Cadastro de livro no admin de ponta a ponta (AD-07) aprovado
 - [ ] Biblioteca pública: B-01, B-03, B-04 e B-05 aprovados
+- [ ] Assinatura: BILL-01, BILL-02, BILL-03 e BILL-06 aprovados
 - [ ] Nenhum defeito **Crítico** nem **Alto** aberto
 - [ ] Matriz de papéis do admin sem falha de permissão
 - [ ] Zero erro de console nas telas testadas (ou todos explicados/aceitos)
