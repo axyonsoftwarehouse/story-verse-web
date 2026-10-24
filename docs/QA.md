@@ -2,6 +2,10 @@
 
 Cópia do Storyverse para testar antes de chegar aos usuários. **Dados de teste, nada aqui é real.**
 
+**Resultados e defeitos:** o painel único fica em [`docs/qa/RESULTADOS.md`](qa/RESULTADOS.md).
+Cada rodada tem um relatório em `docs/qa/AAAA-MM-DD-<bloco>.md` e cada defeito ganha um `BUG-###`
+no painel, com status e link do PR da correção.
+
 | | Endereço |
 |---|---|
 | Site | https://qa.storyverse.2.29.42.104.sslip.io |

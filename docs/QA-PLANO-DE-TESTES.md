@@ -3,6 +3,8 @@
 Como o Storyverse é testado no ambiente de QA antes de chegar na `main`. Complementa
 [`QA.md`](QA.md) (como o ambiente funciona) e o fluxo `develop → QA → main`.
 
+- **Painel de resultados:** [`qa/RESULTADOS.md`](qa/RESULTADOS.md) — rodadas, defeitos abertos e
+  corrigidos, com o `BUG-###` de cada um.
 - **Alvo:** https://qa.storyverse.2.29.42.104.sslip.io (API: `api.qa…`)
 - **Quem executa:** Hermes (navegador automatizado) + você nas decisões de aceite
 - **O que publicado é testado:** o que estiver no QA na hora — normalmente a `develop`
