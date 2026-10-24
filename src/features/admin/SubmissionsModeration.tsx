@@ -86,7 +86,14 @@ function RightsAlert({
   );
 }
 
-export function SubmissionsModeration({ session }: { session: SupabaseSession }) {
+export function SubmissionsModeration({
+  session,
+  embedded = false,
+}: {
+  session: SupabaseSession;
+  /** Dentro da área "Acervo", o cabeçalho e as abas são da página que envolve. */
+  embedded?: boolean;
+}) {
   const [tab, setTab] = useState<"pending" | "approved">("pending");
   const [pending, setPending] = useState<Submission[] | null>(null);
   const [approved, setApproved] = useState<Submission[] | null>(null);
@@ -184,14 +191,16 @@ export function SubmissionsModeration({ session }: { session: SupabaseSession })
 
   return (
     <div className="moderation">
-      <header className="moderation-head">
-        <span className="eyebrow">Admin</span>
-        <h1>Moderação do acervo</h1>
-        <p>
-          Aprove só o que pode ser distribuído: domínio público, obra do próprio autor ou licença
-          livre. Na dúvida, recuse.
-        </p>
-      </header>
+      {!embedded ? (
+        <header className="moderation-head">
+          <span className="eyebrow">Admin</span>
+          <h1>Moderação do acervo</h1>
+          <p>
+            Aprove só o que pode ser distribuído: domínio público, obra do próprio autor ou licença
+            livre. Na dúvida, recuse.
+          </p>
+        </header>
+      ) : null}
 
       <div className="segmented moderation-tabs" role="tablist">
         <button

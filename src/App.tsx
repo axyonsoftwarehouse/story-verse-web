@@ -4615,12 +4615,12 @@ function ProfilePage({
             <span className="btn btn-primary">Abrir painel</span>
           </a>
           {canModerate ? (
-            <a className="profile-card profile-admin admin-entry" href="/admin/moderacao/acervo">
+            <a className="profile-card profile-admin admin-entry" href="/admin/acervo">
               <div>
-                <strong>Moderação do acervo</strong>
-                <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
+                <strong>Acervo</strong>
+                <span>Cadastre, publique e modere os livros do catálogo.</span>
               </div>
-              <span className="btn">Abrir moderação</span>
+              <span className="btn">Abrir acervo</span>
             </a>
           ) : null}
         </section>

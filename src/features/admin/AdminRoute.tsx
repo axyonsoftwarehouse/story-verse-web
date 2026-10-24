@@ -5,12 +5,13 @@ import { apiRequest } from "../../lib/backend";
 import { useStoredSession } from "../auth/useStoredSession";
 import { AccountDetail } from "./AccountDetail";
 import { AccountsSection } from "./AccountsSection";
+import { AdminAcervo } from "./AdminAcervo";
 import { AdminNav } from "./AdminNav";
 import { AuditSection } from "./AuditSection";
+import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
 import { OverviewSection } from "./OverviewSection";
-import { SubmissionsModeration } from "./SubmissionsModeration";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
 import "./admin.css";
 
@@ -192,12 +193,33 @@ export function AdminRoute() {
               }
             />
             <Route
-              path="moderacao/acervo"
+              path="acervo"
               element={
-                <RequireSection id="submissions" roles={allowed}>
-                  <SubmissionsModeration session={session} />
+                <RequireSection id="catalog" roles={allowed}>
+                  <AdminAcervo session={session} tab="catalog" />
                 </RequireSection>
               }
+            />
+            <Route
+              path="acervo/envios"
+              element={
+                <RequireSection id="catalog" roles={allowed}>
+                  <AdminAcervo session={session} tab="envios" />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="acervo/:id"
+              element={
+                <RequireSection id="catalog" roles={allowed}>
+                  <CatalogBookPage session={session} roles={allowed} />
+                </RequireSection>
+              }
+            />
+            {/* Endereço antigo da moderação: mantém links salvos e o fluxo do QA funcionando. */}
+            <Route
+              path="moderacao/acervo"
+              element={<Navigate to="/admin/acervo/envios" replace />}
             />
             <Route
               path="moderacao/forum"

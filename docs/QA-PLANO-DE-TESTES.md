@@ -29,7 +29,7 @@ defeitos listados**.
 | 5 | Gamificação | sequência (streak), meta diária, escudos, rodada de diamantes, ranking semanal, frase do dia |
 | 6 | Importação | EPUB, PDF, TXT, arquivo inválido, arquivo grande, livro importado aparecendo na estante |
 | 7 | Comunidade / fórum | `/comunidade`, `/comunidade/t/:id`, denúncia, envio para o acervo |
-| 8 | Admin | 6 seções × 4 papéis (matriz do `QA.md`), ações destrutivas com confirmação, URL proibida |
+| 8 | Admin | 6 seções × 4 papéis (matriz do `QA.md`), catálogo (criar/publicar/ocultar), ações destrutivas com confirmação, URL proibida |
 | 9 | Plataforma | PWA instalável, recarregar offline, viewport de celular, teclado/foco |
 
 ## 3. Fora de escopo (e por quê)
@@ -64,7 +64,7 @@ Regras de dados:
 ### Nível 0 — antes de abrir o navegador (2 min)
 
 ```bash
-npm run lint && npm run test && npm run build     # 42 arquivos de teste
+npm run lint && npm run test && npm run build     # 48 arquivos de teste
 curl -s https://api.qa.storyverse.2.29.42.104.sslip.io/api/v1/health   # {"status":"ok"}
 ```
 
@@ -122,6 +122,10 @@ fluxo, aba duplicada, texto enorme, arquivo errado, rede lenta/offline).
 | AD-04 | `qa-admin`: todas as seções; conceder e remover `support` de uma conta volta ao estado | qa-admin | P0 |
 | AD-05 | Ação sensível pede confirmação e registra em Auditoria | qa-admin | P1 |
 | AD-06 | Encerrar sessões de uma conta derruba o login dela de fato | qa-admin | P1 |
+| AD-07 | Catálogo: criar livro (TXT/EPUB), salvar rascunho, abrir a prévia e publicar | qa-moderador | P0 |
+| AD-08 | Catálogo: ocultar/arquivar livro e conferir que ele sai da biblioteca | qa-moderador | P1 |
+| AD-09 | Catálogo: só `qa-admin` vê "Apagar"; apagar remove o livro e o arquivo | qa-admin | P1 |
+| AD-10 | Catálogo: livro repetido avisa e só cria com "Criar mesmo assim" | qa-moderador | P1 |
 | P-01 | Instalar como app (PWA) e abrir instalado | qa-leitor | P2 |
 | P-02 | Recarregar offline mostra aviso, não tela branca | qa-leitor | P1 |
 | P-03 | Viewport de celular (390×844) sem rolagem horizontal em home, leitor e admin | qa-leitor | P1 |
@@ -132,8 +136,11 @@ Executada a cada mudança em `/admin/*`. Para cada papel: **ver** as seções da
 [`QA.md`](QA.md), **agir** onde é permitido, e **receber "Sem permissão"** (sem tela branca nem erro
 no console) nas URLs proibidas:
 
-`/admin` · `/admin/contas` · `/admin/contas/:id` · `/admin/features` · `/admin/moderacao/acervo` ·
-`/admin/moderacao/forum` · `/admin/auditoria`
+`/admin` · `/admin/contas` · `/admin/contas/:id` · `/admin/features` · `/admin/acervo` ·
+`/admin/acervo/envios` · `/admin/moderacao/forum` · `/admin/auditoria`
+
+O endereço antigo `/admin/moderacao/acervo` redireciona para `/admin/acervo/envios`; ele também
+precisa bloquear quem não pode ver o acervo.
 
 Também: a URL proibida **não pode** vazar dado pela API — conferir que a chamada por trás dela
 responde 403/401, não 200 com conteúdo.
@@ -170,6 +177,7 @@ Uma rodada é **aprovada** quando:
 
 - [ ] Nível 0 verde (lint, testes, build, health da API)
 - [ ] Todos os P0 executados e passando
+- [ ] Cadastro de livro no admin de ponta a ponta (AD-07) aprovado
 - [ ] Nenhum defeito **Crítico** nem **Alto** aberto
 - [ ] Matriz de papéis do admin sem falha de permissão
 - [ ] Zero erro de console nas telas testadas (ou todos explicados/aceitos)
