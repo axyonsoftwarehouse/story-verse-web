@@ -7,7 +7,21 @@ export type AdminUserSummary = {
   emailMasked: string;
   emailConfirmed: boolean;
   createdAt: string;
+  lastSignInAt: string | null;
   roles: string[];
+};
+
+export type AdminUserPage = {
+  items: AdminUserSummary[];
+  nextCursor: string | null;
+};
+
+export type AdminUserFilters = {
+  q?: string;
+  role?: string;
+  feature?: string;
+  cursor?: string;
+  limit?: number;
 };
 
 export type AdminUserDetail = {
@@ -27,6 +41,24 @@ export type AdminRole = "moderator" | "support";
 
 export function searchUsers(session: SupabaseSession, q: string): Promise<AdminUserSummary[]> {
   return apiRequest<AdminUserSummary[]>(`/api/v1/admin/users?q=${encodeURIComponent(q)}`, {
+    accessToken: session.access_token,
+  });
+}
+
+export function recentUsers(session: SupabaseSession, limit = 20): Promise<AdminUserSummary[]> {
+  return apiRequest<AdminUserSummary[]>(`/api/v1/admin/users/recent?limit=${limit}`, {
+    accessToken: session.access_token,
+  });
+}
+
+export function listUsers(session: SupabaseSession, filters: AdminUserFilters = {}): Promise<AdminUserPage> {
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) params.set("q", filters.q.trim());
+  if (filters.role) params.set("role", filters.role);
+  if (filters.feature) params.set("feature", filters.feature);
+  if (filters.cursor) params.set("cursor", filters.cursor);
+  params.set("limit", String(filters.limit ?? 20));
+  return apiRequest<AdminUserPage>(`/api/v1/admin/users/list?${params.toString()}`, {
     accessToken: session.access_token,
   });
 }
