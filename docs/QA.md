@@ -45,9 +45,9 @@ Entre em `/admin` com cada conta e confira a tabela da spec:
 | Conta | Seções visíveis | Ação permitida | URL proibida |
 |---|---|---|---|
 | `qa-leitor` | nenhuma (mostra "Sem permissão") | — | `/admin` |
-| `qa-suporte` | Visão geral, Contas, Fórum (sem botões de ação) | buscar uma conta e encerrar sessões | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/auditoria` |
-| `qa-moderador` | Visão geral, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios e resolver uma denúncia | `/admin/contas`, `/admin/features`, `/admin/auditoria` |
-| `qa-admin` | todas | conceder/remover `moderator`/`support`, ligar/desligar features, ver auditoria | dar/remover `superadmin` (não existe no painel) |
+| `qa-suporte` | Visão geral, Contas, Fórum (sem botões de ação) | buscar uma conta e encerrar sessões | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/financeiro`, `/admin/auditoria` |
+| `qa-moderador` | Visão geral, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios e resolver uma denúncia | `/admin/contas`, `/admin/features`, `/admin/financeiro`, `/admin/auditoria` |
+| `qa-admin` | todas (inclui Financeiro) | conceder/remover `moderator`/`support`, ligar/desligar features, ver auditoria e financeiro | dar/remover `superadmin` (não existe no painel) |
 
 A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
 
@@ -61,6 +61,15 @@ endereço antigo `/admin/moderacao/acervo` redireciona para a aba Envios.
 A ficha do livro (`/biblioteca/cat:<uuid>`) é aberta; **ler e conversar exigem conta**. Livros do
 catálogo entram na estante como `cat:<uuid>` e o leitor os carrega por
 `GET /api/v1/catalog/books/{bookKey}/text`.
+
+## Assinatura (Stripe)
+
+`/assinar` e `/conta/assinatura` são públicas (a segunda pede login para mostrar os dados). O
+paywall só liga com **`BILLING_ENABLED=true` na API e `VITE_BILLING_ENABLED=true` no build do web**;
+sem as duas, ninguém é bloqueado. O QA precisa das chaves de **teste** do Stripe
+(`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`) e do webhook configurado para
+`https://api.qa…/api/v1/billing/webhook`. Sem chaves, `/assinar` mostra o plano, mas o checkout
+responde 503.
 
 ## Fluxo de branches
 
