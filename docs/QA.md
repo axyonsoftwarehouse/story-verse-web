@@ -47,7 +47,8 @@ Entre em `/admin` com cada conta e confira a tabela da spec:
 
 A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
 
-O Acervo tem duas abas: **Catálogo** (`/admin/acervo`) e **Envios** (`/admin/acervo/envios`). O
+O Acervo tem quatro abas: **Catálogo** (`/admin/acervo`), **Envios** (`/admin/acervo/envios`),
+**Coleções** (`/admin/acervo/colecoes`) e **Importações** (`/admin/acervo/importacoes`). O
 endereço antigo `/admin/moderacao/acervo` redireciona para a aba Envios.
 
 ## Biblioteca pública

@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { CATALOG_GENRES } from "../../lib/adminCatalog";
 import {
   catalogBookToEbook,
+  listCatalogCollections,
   searchCatalog,
   type CatalogBook,
+  type CatalogCollection,
   type CatalogSort,
 } from "../../lib/catalog";
 import { CatalogCover } from "./CatalogCover";
@@ -39,6 +41,7 @@ export function PublicLibraryPage() {
   const [applied, setApplied] = useState("");
   const [genre, setGenre] = useState("");
   const [language, setLanguage] = useState<"pt" | "en" | "">("");
+  const [collection, setCollection] = useState("");
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [sort, setSort] = useState<CatalogSort>("new");
 
@@ -50,19 +53,23 @@ export function PublicLibraryPage() {
 
   const [featured, setFeatured] = useState<CatalogBook[]>([]);
   const [latest, setLatest] = useState<CatalogBook[]>([]);
+  const [collections, setCollections] = useState<CatalogCollection[]>([]);
 
-  const homeMode = !applied && !genre && !language && !featuredOnly && sort === "new";
+  const homeMode =
+    !applied && !genre && !language && !collection && !featuredOnly && sort === "new";
 
   useEffect(() => {
     let alive = true;
     Promise.all([
       searchCatalog({ featured: true, sort: "featured", limit: 6 }),
       searchCatalog({ sort: "new", limit: 8 }),
+      listCatalogCollections().catch(() => [] as CatalogCollection[]),
     ])
-      .then(([highlighted, newest]) => {
+      .then(([highlighted, newest, groups]) => {
         if (!alive) return;
         setFeatured(highlighted.items);
         setLatest(newest.items);
+        setCollections(groups);
       })
       .catch(() => {
         // Sem destaque/novidades a busca e o catálogo continuam funcionando.
@@ -82,7 +89,15 @@ export function PublicLibraryPage() {
     let alive = true;
     setLoading(true);
     setError("");
-    searchCatalog({ q: applied, genre, language, featured: featuredOnly || undefined, sort, limit: 12 })
+    searchCatalog({
+      q: applied,
+      genre,
+      language,
+      collection,
+      featured: featuredOnly || undefined,
+      sort,
+      limit: 12,
+    })
       .then((result) => {
         if (!alive) return;
         setItems(result.items);
@@ -100,7 +115,7 @@ export function PublicLibraryPage() {
     return () => {
       alive = false;
     };
-  }, [applied, genre, language, featuredOnly, sort, homeMode]);
+  }, [applied, genre, language, collection, featuredOnly, sort, homeMode]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,6 +127,7 @@ export function PublicLibraryPage() {
     setApplied("");
     setGenre("");
     setLanguage("");
+    setCollection("");
     setFeaturedOnly(false);
     setSort("new");
   }
@@ -124,6 +140,7 @@ export function PublicLibraryPage() {
       q: applied,
       genre,
       language,
+      collection,
       featured: featuredOnly || undefined,
       sort,
       page: page + 1,
@@ -139,6 +156,8 @@ export function PublicLibraryPage() {
       )
       .finally(() => setLoading(false));
   }
+
+  const activeCollection = collections.find((item) => item.slug === collection);
 
   return (
     <div className="home">
@@ -197,6 +216,19 @@ export function PublicLibraryPage() {
               <option value="en">Inglês</option>
             </select>
           </label>
+          {collections.length > 0 ? (
+            <label>
+              Coleção
+              <select value={collection} onChange={(event) => setCollection(event.target.value)}>
+                <option value="">Todas</option>
+                {collections.map((item) => (
+                  <option key={item.slug} value={item.slug}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             Ordenar
             <select value={sort} onChange={(event) => setSort(event.target.value as CatalogSort)}>
@@ -230,6 +262,31 @@ export function PublicLibraryPage() {
 
       {homeMode ? (
         <>
+          {collections.length > 0 ? (
+            <section className="shelf">
+              <div className="shelf-head">
+                <h2>Coleções</h2>
+                <p>Trilhas montadas pela curadoria para começar por um tema.</p>
+              </div>
+              <div className="collection-cards">
+                {collections.map((item) => (
+                  <button
+                    key={item.slug}
+                    type="button"
+                    className="profile-card collection-card"
+                    onClick={() => setCollection(item.slug)}
+                  >
+                    <strong>{item.title}</strong>
+                    <span className="muted">
+                      {item.book_count} {item.book_count === 1 ? "livro" : "livros"}
+                    </span>
+                    {item.description ? <span>{item.description}</span> : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {featured.length > 0 ? (
             <section className="shelf">
               <div className="shelf-head">
@@ -259,7 +316,13 @@ export function PublicLibraryPage() {
       ) : (
         <section className="shelf">
           <div className="shelf-head">
-            <h2>{applied ? `Resultados para “${applied}”` : "Catálogo"}</h2>
+            <h2>
+              {applied
+                ? `Resultados para “${applied}”`
+                : activeCollection
+                  ? activeCollection.title
+                  : "Catálogo"}
+            </h2>
             <p>
               {items === null
                 ? "Buscando…"

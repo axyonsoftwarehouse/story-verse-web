@@ -396,3 +396,244 @@ export async function fetchCatalogText(
   }
   return res.text();
 }
+
+// ---- Coleções -----------------------------------------------------------------------------
+
+export type CatalogCollectionStatus = "draft" | "published" | "hidden";
+
+export type CatalogCollectionBook = {
+  id: string;
+  book_key: string;
+  title: string;
+  author: string | null;
+  status: CatalogStatus;
+  source: CatalogSource;
+};
+
+export type AdminCatalogCollection = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: CatalogCollectionStatus;
+  sort_order: number;
+  book_count?: number;
+  created_at: string;
+  updated_at: string;
+  books?: CatalogCollectionBook[];
+};
+
+export type CatalogCollectionInput = {
+  slug: string;
+  title: string;
+  description?: string;
+  status: CatalogCollectionStatus;
+  sortOrder?: number;
+};
+
+const COLLECTION_STATUSES: Record<CatalogCollectionStatus, string> = {
+  draft: "Rascunho",
+  published: "Publicada",
+  hidden: "Oculta",
+};
+
+export function collectionStatusLabel(status: CatalogCollectionStatus): string {
+  return COLLECTION_STATUSES[status] ?? status;
+}
+
+export function collectionStatusTone(status: CatalogCollectionStatus): string {
+  if (status === "published") return "is-approved";
+  if (status === "draft") return "is-pending";
+  return "is-hidden";
+}
+
+export function listCatalogCollections(
+  session: SupabaseSession,
+): Promise<AdminCatalogCollection[]> {
+  return apiRequest<AdminCatalogCollection[]>(
+    "/api/v1/admin/catalog/collections",
+    { accessToken: session.access_token },
+  );
+}
+
+export function getCatalogCollection(
+  session: SupabaseSession,
+  id: string,
+): Promise<AdminCatalogCollection> {
+  return apiRequest<AdminCatalogCollection>(
+    `/api/v1/admin/catalog/collections/${encodeURIComponent(id)}`,
+    { accessToken: session.access_token },
+  );
+}
+
+export function createCatalogCollection(
+  session: SupabaseSession,
+  input: CatalogCollectionInput,
+): Promise<AdminCatalogCollection> {
+  return apiRequest<AdminCatalogCollection>(
+    "/api/v1/admin/catalog/collections",
+    { method: "POST", accessToken: session.access_token, body: collectionBody(input) },
+  );
+}
+
+export function updateCatalogCollection(
+  session: SupabaseSession,
+  id: string,
+  input: CatalogCollectionInput,
+): Promise<AdminCatalogCollection> {
+  return apiRequest<AdminCatalogCollection>(
+    `/api/v1/admin/catalog/collections/${encodeURIComponent(id)}`,
+    { method: "PATCH", accessToken: session.access_token, body: collectionBody(input) },
+  );
+}
+
+export function deleteCatalogCollection(session: SupabaseSession, id: string): Promise<void> {
+  return apiRequest<void>(
+    `/api/v1/admin/catalog/collections/${encodeURIComponent(id)}`,
+    { method: "DELETE", accessToken: session.access_token },
+  );
+}
+
+export function setCatalogCollectionBooks(
+  session: SupabaseSession,
+  id: string,
+  bookIds: string[],
+): Promise<AdminCatalogCollection> {
+  return apiRequest<AdminCatalogCollection>(
+    `/api/v1/admin/catalog/collections/${encodeURIComponent(id)}/books`,
+    { method: "PUT", accessToken: session.access_token, body: { bookIds } },
+  );
+}
+
+function collectionBody(input: CatalogCollectionInput): Record<string, unknown> {
+  return {
+    slug: input.slug.trim().toLowerCase(),
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    status: input.status,
+    sortOrder: input.sortOrder ?? 0,
+  };
+}
+
+// ---- Importação em lote -------------------------------------------------------------------
+
+export const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
+
+export const CATALOG_IMPORT_ACCEPT = ".zip,application/zip,application/x-zip-compressed";
+
+export type CatalogImportItemStatus = "ok" | "imported" | "skipped" | "error";
+
+export type CatalogImportItem = {
+  line: number | null;
+  /** Prévia e detalhe usam `fileName`; as linhas cruas do banco usam `file_name`. */
+  fileName?: string;
+  file_name?: string;
+  status: CatalogImportItemStatus;
+  message: string | null;
+  bookKey?: string | null;
+  catalog_book_id?: string | null;
+};
+
+export type CatalogImportPreview = {
+  dryRun: true;
+  total: number;
+  items: CatalogImportItem[];
+};
+
+export type CatalogImportRecord = {
+  id: string;
+  status: "queued" | "running" | "done" | "failed";
+  file_name: string;
+  total: number;
+  imported: number;
+  skipped: number;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+  items?: CatalogImportItem[];
+};
+
+export type CatalogImportResult = CatalogImportPreview | CatalogImportRecord;
+
+export function catalogImportFileName(item: CatalogImportItem): string {
+  return item.fileName ?? item.file_name ?? "—";
+}
+
+export function catalogImportStatusLabel(status: CatalogImportItemStatus | string): string {
+  if (status === "ok") return "Pronto";
+  if (status === "imported") return "Importado";
+  if (status === "skipped") return "Pulado";
+  if (status === "error") return "Erro";
+  return status;
+}
+
+export async function uploadCatalogImportArchive(
+  session: SupabaseSession,
+  file: File,
+): Promise<{ path: string; fileName: string }> {
+  const name = file.name.toLowerCase();
+  if (!name.endsWith(".zip")) throw new Error("Escolha um arquivo .zip.");
+  if (file.size === 0) throw new Error("O arquivo ZIP está vazio.");
+  if (file.size > MAX_IMPORT_BYTES) throw new Error("Pacote grande demais (máximo de 200 MB).");
+  const path = `${session.user.id}/imports/${crypto.randomUUID()}.zip`;
+  const res = await apiFetch(
+    `/api/v1/storage/catalog-imports/object?path=${encodeURIComponent(path)}`,
+    {
+      method: "POST",
+      accessToken: session.access_token,
+      body: file,
+      headers: { "Content-Type": "application/zip" },
+    },
+  );
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+    throw new Error(
+      res.status === 413
+        ? "Pacote grande demais (máximo de 200 MB)."
+        : payload.error ?? payload.message ?? "Não foi possível enviar o pacote.",
+    );
+  }
+  return { path, fileName: file.name };
+}
+
+export function runCatalogImport(
+  session: SupabaseSession,
+  input: { archivePath: string; fileName: string; dryRun: boolean },
+): Promise<CatalogImportResult> {
+  return apiRequest<CatalogImportResult>("/api/v1/admin/catalog/imports", {
+    method: "POST",
+    accessToken: session.access_token,
+    body: input,
+    timeoutMs: 120_000,
+  });
+}
+
+export function listCatalogImports(session: SupabaseSession): Promise<CatalogImportRecord[]> {
+  return apiRequest<CatalogImportRecord[]>("/api/v1/admin/catalog/imports", {
+    accessToken: session.access_token,
+  });
+}
+
+export function getCatalogImport(
+  session: SupabaseSession,
+  id: string,
+): Promise<CatalogImportRecord> {
+  return apiRequest<CatalogImportRecord>(
+    `/api/v1/admin/catalog/imports/${encodeURIComponent(id)}`,
+    { accessToken: session.access_token },
+  );
+}
+
+/** CSV de erros/pulados: o conteúdo é pequeno, então vem como texto para baixar. */
+export async function fetchCatalogImportErrors(
+  session: SupabaseSession,
+  id: string,
+): Promise<string> {
+  const res = await apiFetch(
+    `/api/v1/admin/catalog/imports/${encodeURIComponent(id)}/errors.csv`,
+    { accessToken: session.access_token },
+  );
+  if (!res.ok) throw new Error("Não foi possível baixar o relatório.");
+  return res.text();
+}
+

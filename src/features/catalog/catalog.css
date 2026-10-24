@@ -123,6 +123,36 @@
   margin-top: 1.2rem;
 }
 
+.collection-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 0.8rem;
+}
+
+.collection-card {
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.collection-card:hover {
+  border-color: var(--accent-dim);
+}
+
+.collection-card strong {
+  font-family: var(--font-read);
+  font-size: 1.1rem;
+}
+
+.collection-card > span:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .catalog-book-layout {
   display: grid;
   grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);

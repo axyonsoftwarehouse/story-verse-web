@@ -173,6 +173,12 @@ export function PublicBookPage() {
 
             {book.description ? <p className="catalog-book-description">{book.description}</p> : null}
 
+            {book.collections?.length ? (
+              <p className="catalog-book-rights">
+                Coleções: {book.collections.map((item) => item.title).join(", ")}.
+              </p>
+            ) : null}
+
             {rights ? <p className="catalog-book-rights">Direitos: {rights}.</p> : null}
 
             <div className="catalog-book-actions">
