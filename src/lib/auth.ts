@@ -1,6 +1,6 @@
 import { userStorage } from "./dataOwner";
 import { captureError, captureEvent } from "./telemetry";
-import { apiEnabled, apiRequest, AuthNetworkError, AuthSessionError } from "./backend";
+import { apiEnabled, apiRequest, ApiHttpError, AuthNetworkError, AuthSessionError } from "./backend";
 
 export { AuthNetworkError, AuthSessionError };
 
@@ -543,6 +543,21 @@ export async function requestPasswordReset(email: string): Promise<void> {
   }
   const redirect = encodeURIComponent(window.location.origin);
   await authRequest(`recover?redirect_to=${redirect}`, { email });
+}
+
+/**
+ * Confere o link de recuperação antes de pedir a senha nova. `false`: o token expirou ou já foi
+ * usado. Falha de rede e API antiga sem o endpoint não bloqueiam (o envio ainda confere).
+ */
+export async function validateResetToken(token: string): Promise<boolean> {
+  if (!apiEnabled) return false;
+  try {
+    await apiRequest("/api/v1/auth/reset-password/validate", { method: "POST", body: { token } });
+    return true;
+  } catch (error) {
+    if (error instanceof ApiHttpError && error.status === 400) return false;
+    return true;
+  }
 }
 
 /** Define a senha nova pelo link de recuperação (só a API própria usa token no endereço). */
