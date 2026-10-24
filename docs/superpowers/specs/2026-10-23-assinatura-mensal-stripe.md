@@ -8,7 +8,7 @@ O produto passa a ter **assinatura mensal**: a mensalidade é a chave de acesso.
 
 Decisões fechadas em 23/10/2026:
 
-- **Plano único** “Storyverse” mensal em BRL; anual pode vir depois. O valor do preço ainda será definido no Stripe.
+- **Plano único** “Storyverse” mensal em BRL; anual pode vir depois. O valor **provisório** é **R$ 9,90/mês** (a confirmar com o professor); o valor final será definido no Stripe.
 - **Teste grátis de 7 dias, sem cartão no início.** No fim do trial, a pessoa precisa cadastrar um cartão para continuar; sem cartão, o acesso termina.
 - **Paywall total:** tudo depois do login exige assinatura, exceto conta, assinatura, suporte, logout e telas públicas.
 - **Contas existentes:** 30 dias de transição a partir do lançamento, sem bloqueio imediato; um preço de fundador pode ser avaliado depois.
@@ -16,7 +16,7 @@ Decisões fechadas em 23/10/2026:
 - **Equipe** (`superadmin`, `moderator`, `support`) tem acesso liberado para testar e atender.
 - O bloqueio é sempre validado no servidor; a UI só esconde/encaminha.
 
-A única decisão de produto pendente é o **valor mensal** (e, se desejado, um preço anual futuro).
+O preço provisório é **R$ 9,90/mês**; o valor final ainda será confirmado. O código usa o `price_id` do Stripe, então a troca de preço não exige deploy.
 
 ## 2. Objetivos
 
@@ -39,7 +39,7 @@ A única decisão de produto pendente é o **valor mensal** (e, se desejado, um 
 
 ### 4.1 Plano
 
-- Um produto “Storyverse” com um preço mensal recorrente em BRL (`price_id` no Stripe).
+- Um produto “Storyverse” com um preço mensal recorrente em BRL (`price_id` no Stripe); preço provisório de **R$ 9,90/mês**, a confirmar.
 - O valor não fica no código; a API lê o `price_id` da configuração e mostra o preço vindo do Stripe (ou de um cache de configuração).
 - O checkout usa `client_reference_id`/metadata com o `user_id`; o webhook liga o cliente Stripe à conta.
 - Trial de 7 dias sem cartão; cupons/promo codes do Stripe, se habilitados.
@@ -273,7 +273,7 @@ Fechadas em 23/10/2026:
 
 Abertas:
 
-- **Valor mensal** (e eventual preço anual).
+- **Valor final** (provisório R$ 9,90/mês) e eventual preço anual.
 - Impostos (Stripe Tax) e se o preço é com imposto incluso.
 - Política de reembolso e cancelamento; quem aprova.
 - Carência de `past_due` (3 dias) e comunicação.
