@@ -1,0 +1,148 @@
+.billing-hero h1 {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.billing-hero .shelf-head {
+  max-width: 64ch;
+}
+
+.billing-plan,
+.billing-card {
+  display: grid;
+  gap: 1rem;
+  max-width: 640px;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(var(--glow-a-rgb), 0.12), transparent 70%),
+    rgba(var(--card-top-rgb), 0.55);
+}
+
+.billing-plan-head {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.billing-plan-head strong {
+  font-family: var(--font-read);
+  font-size: 2rem;
+  font-weight: 500;
+}
+
+.billing-features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.billing-features li {
+  position: relative;
+  padding-left: 1.4rem;
+  line-height: 1.45;
+}
+
+.billing-features li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.billing-notice {
+  max-width: 640px;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.4);
+  font-size: 0.9rem;
+}
+
+.billing-notice.is-ok {
+  border-color: var(--accent-2-dim);
+  color: var(--accent-2);
+}
+
+.billing-fineprint {
+  max-width: 64ch;
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.billing-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.billing-card-head h2 {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-read);
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.billing-facts {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.billing-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.billing-facts dt {
+  color: var(--muted);
+}
+
+.billing-facts dd {
+  margin: 0;
+  text-align: right;
+}
+
+.billing-hint {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.billing-hint.is-warning {
+  color: var(--danger);
+}
+
+.billing-blocked-card {
+  display: grid;
+  gap: 1rem;
+  max-width: 640px;
+}
+
+.billing-blocked-card p {
+  margin: 0;
+  line-height: 1.6;
+}

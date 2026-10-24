@@ -71,6 +71,8 @@ import {
 } from "./lib/libraryStore";
 import { useFinishPrompt } from "./features/library/useFinishPrompt";
 import { connectShelf } from "./lib/libraryWiring";
+import { BILLING_UI_ENABLED } from "./lib/billing";
+import { BillingBlocked } from "./features/billing/BillingBlocked";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
 import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
@@ -5778,6 +5780,19 @@ export function App() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [shelfPanelOpen, setShelfPanelOpen] = useState(false);
   const { capabilities } = useAccountFeatures(authSession);
+  const subscription = capabilities?.subscription;
+  const authScreen =
+    window.location.pathname === "/confirmar-email" || window.location.pathname === "/redefinir-senha";
+  const billingBlocked =
+    BILLING_UI_ENABLED && !authScreen && Boolean(authUser) && subscription !== undefined && !subscription.active;
+  /** Voltou do login pedindo /assinar ou /conta/assinatura: continua de onde parou. */
+  useEffect(() => {
+    if (!authUser) return;
+    const retorno = new URLSearchParams(window.location.search).get("retorno");
+    if (retorno === "/assinar" || retorno === "/conta/assinatura") {
+      window.location.assign(retorno);
+    }
+  }, [authUser]);
   const shelfOn = hasFeature(capabilities, "library");
   const canModerate = (capabilities?.roles ?? []).some(
     (role) => role === "superadmin" || role === "moderator",
@@ -7440,6 +7455,10 @@ export function App() {
     );
   }
 
+  if (billingBlocked && subscription) {
+    return <BillingBlocked status={subscription} onLogout={() => void logout()} />;
+  }
+
   if (!book) {
     // Cópia do livro guardada no progresso pode estar velha (sem a capa achada depois): usa a
     // versão atual quando o livro é do acervo fixo ou da comunidade.
@@ -8040,6 +8059,9 @@ export function App() {
           </button>
           <Link className="footer-about-link" to="/biblioteca">
             Biblioteca pública
+          </Link>
+          <Link className="footer-about-link" to="/conta/assinatura">
+            Minha assinatura
           </Link>
         </footer>
       </div>
