@@ -54,6 +54,7 @@ describe("ImportsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Conferir prévia" }));
 
     expect(await screen.findByText("Prévia da importação")).toBeInTheDocument();
+    expect(screen.getByText("Prontos")).toBeInTheDocument();
     expect(screen.getByText("a.txt")).toBeInTheDocument();
     expect(screen.getByText("Pronto")).toBeInTheDocument();
     await waitFor(() =>

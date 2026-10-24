@@ -289,6 +289,7 @@ function CollectionBooks({
   }
 
   async function save() {
+    if (!loaded) return;
     setBusy(true);
     setError("");
     try {
@@ -347,7 +348,12 @@ function CollectionBooks({
           <div className="collection-books-grid">
             <div>
               <h3>Livros da coleção ({selected.length})</h3>
-              {selected.length === 0 ? (
+              {!loaded ? (
+                <div className="page-status">
+                  <span className="spinner" aria-hidden="true" />
+                  Carregando…
+                </div>
+              ) : selected.length === 0 ? (
                 <p className="muted">Nenhum livro ainda. Busque ao lado e marque.</p>
               ) : (
                 <ol className="collection-selected">
@@ -431,7 +437,12 @@ function CollectionBooks({
             <button type="button" className="btn" onClick={onClose} disabled={busy}>
               Cancelar
             </button>
-            <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void save()}
+              disabled={busy || !loaded}
+            >
               {busy ? "Salvando…" : "Salvar livros"}
             </button>
           </div>

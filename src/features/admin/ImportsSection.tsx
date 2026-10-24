@@ -73,6 +73,7 @@ function Summary({
   preview: CatalogImportPreview | null;
 }) {
   const items = result?.items ?? preview?.items ?? [];
+  const ready = items.filter((item) => item.status === "ok").length;
   const imported = items.filter((item) => item.status === "imported").length;
   const skipped = items.filter((item) => item.status === "skipped").length;
   const errors = items.filter((item) => item.status === "error").length;
@@ -84,8 +85,8 @@ function Summary({
         <strong>{total}</strong>
       </li>
       <li>
-        <span>Importados</span>
-        <strong>{result ? result.imported : imported}</strong>
+        <span>{preview ? "Prontos" : "Importados"}</span>
+        <strong>{result ? result.imported : preview ? ready : imported}</strong>
       </li>
       <li>
         <span>Pulados</span>
