@@ -46,7 +46,10 @@ export function LibraryPage({
         <div>
           <span className="eyebrow">Sua biblioteca</span>
           <h1>Minha estante</h1>
-          <p className="muted">{entries.length === 1 ? "1 livro" : `${entries.length} livros`}</p>
+          <p className="muted">
+            {shown.length === 1 ? "1 livro" : `${shown.length} livros`}
+            {shown.length !== entries.length ? ` de ${entries.length}` : ""}
+          </p>
         </div>
       </header>
 
