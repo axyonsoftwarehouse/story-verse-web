@@ -9,7 +9,7 @@ import { ApiHttpError, apiRequest } from "./backend";
 
 export type ShelfStatus = "want_to_read" | "reading" | "finished" | "abandoned";
 export type DnfReason = "slow" | "not_for_me" | "difficult" | "other";
-export type ShelfSource = "gutenberg" | "community" | "local";
+export type ShelfSource = "gutenberg" | "community" | "catalog" | "local";
 
 /** Uma entrada como a API devolve. Datas em `yyyy-MM-dd`; `updatedAt` é o texto do servidor. */
 export type ShelfEntry = {
@@ -62,15 +62,18 @@ export const DNF_REASONS: { id: DnfReason; label: string }[] = [
 
 export function shelfSourceOf(book: Ebook): ShelfSource {
   if (book.source === "local") return "local";
+  if (book.source === "catalog" || book.id.startsWith("cat-")) return "catalog";
   if (book.source === "community" || book.id.startsWith("cm-")) return "community";
   return "gutenberg";
 }
 
-/** `gb-1342` → `gb:1342`; `cm-<uuid>` → `cm:<uuid>`; importado → `local:<id>`. */
+/** `gb-1342` → `gb:1342`; `cm-<uuid>` → `cm:<uuid>`; `cat-<uuid>` → `cat:<uuid>`; importado → `local:<id>`. */
 export function bookKeyOf(book: Ebook): string | null {
+  if (book.catalogKey) return book.catalogKey;
   if (book.source === "local") return Number.isInteger(book.gutenbergId) ? `local:${book.gutenbergId}` : null;
   if (/^gb-\d+$/.test(book.id)) return `gb:${book.id.slice(3)}`;
   if (/^cm-[0-9a-fA-F-]{36}$/.test(book.id)) return `cm:${book.id.slice(3)}`;
+  if (/^cat-[0-9a-fA-F-]{36}$/.test(book.id)) return `cat:${book.id.slice(4)}`;
   return null;
 }
 

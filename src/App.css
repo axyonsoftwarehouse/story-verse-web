@@ -3525,6 +3525,17 @@
   display: none;
 }
 
+.nav-library {
+  flex-shrink: 0;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.nav-library-short {
+  display: none;
+}
+
 .nav-admin {
   flex-shrink: 0;
   border-color: var(--accent-dim);
@@ -3543,12 +3554,14 @@
 @media (max-width: 820px) {
   .nav-community-long,
   .nav-import-long,
-  .nav-install-label {
+  .nav-install-label,
+  .nav-library-long {
     display: none;
   }
 
   .nav-community-short,
-  .nav-import-short {
+  .nav-import-short,
+  .nav-library-short {
     display: inline;
   }
 
@@ -3570,6 +3583,11 @@
 @media (max-width: 560px) {
   /* No celular o convite é o banner; fechado ele, fica só o ícone no topo. */
   .nav-install.has-banner {
+    display: none;
+  }
+
+  /* O topo já tem comunidade, importar e conta; a biblioteca fica na estante da home. */
+  .nav-library {
     display: none;
   }
 

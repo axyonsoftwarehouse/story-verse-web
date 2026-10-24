@@ -18,13 +18,24 @@ afterEach(() => {
 });
 
 describe("estante: chave e datas", () => {
-  it("chave do livro para as três origens", async () => {
-    const { bookKeyOf } = await import("./library");
+  it("chave do livro para as quatro origens", async () => {
+    const { bookKeyOf, shelfSourceOf } = await import("./library");
     expect(bookKeyOf({ id: "gb-1342", gutenbergId: 1342, source: "gutenberg" } as Ebook)).toBe("gb:1342");
     expect(bookKeyOf({ id: "gb-55752", gutenbergId: 55752 } as Ebook)).toBe("gb:55752");
     expect(bookKeyOf({ id: "cm-0f8fad5b-d9cb-469f-a165-70867728950e", source: "community" } as Ebook)).toBe(
       "cm:0f8fad5b-d9cb-469f-a165-70867728950e",
     );
+    const catalog = {
+      id: "cat-0f8fad5b-d9cb-469f-a165-70867728950e",
+      gutenbergId: 1,
+      source: "catalog",
+      catalogKey: "cat:0f8fad5b-d9cb-469f-a165-70867728950e",
+    } as Ebook;
+    expect(bookKeyOf(catalog)).toBe("cat:0f8fad5b-d9cb-469f-a165-70867728950e");
+    expect(bookKeyOf({ id: catalog.id, gutenbergId: 1 } as Ebook)).toBe(
+      "cat:0f8fad5b-d9cb-469f-a165-70867728950e",
+    );
+    expect(shelfSourceOf(catalog)).toBe("catalog");
     expect(bookKeyOf({ id: "x", gutenbergId: -1729630000000123, source: "local" } as Ebook)).toBe("local:-1729630000000123");
     expect(bookKeyOf({ id: "estranho", gutenbergId: 0 } as Ebook)).toBeNull();
   });

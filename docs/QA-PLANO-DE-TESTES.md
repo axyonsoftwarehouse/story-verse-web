@@ -31,6 +31,7 @@ defeitos listados**.
 | 7 | Comunidade / fórum | `/comunidade`, `/comunidade/t/:id`, denúncia, envio para o acervo |
 | 8 | Admin | 6 seções × 4 papéis (matriz do `QA.md`), catálogo (criar/publicar/ocultar), ações destrutivas com confirmação, URL proibida |
 | 9 | Plataforma | PWA instalável, recarregar offline, viewport de celular, teclado/foco |
+| 10 | Biblioteca pública | `/biblioteca`, busca/filtros, destaques/novidades, ficha do livro, ler/conversar/estante (`cat:`) |
 
 ## 3. Fora de escopo (e por quê)
 
@@ -64,7 +65,7 @@ Regras de dados:
 ### Nível 0 — antes de abrir o navegador (2 min)
 
 ```bash
-npm run lint && npm run test && npm run build     # 48 arquivos de teste
+npm run lint && npm run test && npm run build     # 51 arquivos de teste
 curl -s https://api.qa.storyverse.2.29.42.104.sslip.io/api/v1/health   # {"status":"ok"}
 ```
 
@@ -126,6 +127,12 @@ fluxo, aba duplicada, texto enorme, arquivo errado, rede lenta/offline).
 | AD-08 | Catálogo: ocultar/arquivar livro e conferir que ele sai da biblioteca | qa-moderador | P1 |
 | AD-09 | Catálogo: só `qa-admin` vê "Apagar"; apagar remove o livro e o arquivo | qa-admin | P1 |
 | AD-10 | Catálogo: livro repetido avisa e só cria com "Criar mesmo assim" | qa-moderador | P1 |
+| B-01 | `/biblioteca` abre anônima, com destaques/novidades e sem erro de console | anônimo | P0 |
+| B-02 | Busca e filtros (gênero, idioma, destaque) da biblioteca | anônimo | P1 |
+| B-03 | Ficha do livro mostra capa, resumo e direitos | anônimo | P0 |
+| B-04 | Anônimo clica "Ler agora" e cai no login; depois de entrar o livro abre | anônimo | P0 |
+| B-05 | Logado lê, conversa e adiciona à estante; o livro aparece em "Minha estante" | qa-leitor | P0 |
+| B-06 | Home mostra "Novidades da biblioteca" e o link "Ver a biblioteca" | qa-leitor | P1 |
 | P-01 | Instalar como app (PWA) e abrir instalado | qa-leitor | P2 |
 | P-02 | Recarregar offline mostra aviso, não tela branca | qa-leitor | P1 |
 | P-03 | Viewport de celular (390×844) sem rolagem horizontal em home, leitor e admin | qa-leitor | P1 |
@@ -178,6 +185,7 @@ Uma rodada é **aprovada** quando:
 - [ ] Nível 0 verde (lint, testes, build, health da API)
 - [ ] Todos os P0 executados e passando
 - [ ] Cadastro de livro no admin de ponta a ponta (AD-07) aprovado
+- [ ] Biblioteca pública: B-01, B-03, B-04 e B-05 aprovados
 - [ ] Nenhum defeito **Crítico** nem **Alto** aberto
 - [ ] Matriz de papéis do admin sem falha de permissão
 - [ ] Zero erro de console nas telas testadas (ou todos explicados/aceitos)

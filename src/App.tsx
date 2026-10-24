@@ -43,6 +43,13 @@ import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerRead
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
 import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers";
+import {
+  catalogBookToEbook,
+  catalogNumericId,
+  fetchCatalogBookText,
+  getCatalogBook,
+  searchCatalog,
+} from "./lib/catalog";
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
@@ -3898,6 +3905,7 @@ function ProfileShelf({
   className,
   items,
   empty,
+  action,
   onOpen,
 }: {
   title: string;
@@ -3906,6 +3914,8 @@ function ProfileShelf({
   className?: string;
   items: { book: Ebook; sub: string; pct?: number; badge?: string }[];
   empty?: string;
+  /** Link/ação extra no rodapé da estante (ex.: "Ver a biblioteca"). */
+  action?: React.ReactNode;
   onOpen: (book: Ebook) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
@@ -3944,6 +3954,7 @@ function ProfileShelf({
           </button>
         </div>
       ) : null}
+      {action ? <div className="shelf-more">{action}</div> : null}
     </section>
   );
 }
@@ -5010,7 +5021,6 @@ function bookAvailable(b: Ebook, known: { localIds: Set<number> | null; communit
   if (b.source === "community") return known.communityIds?.has(b.id) ?? true;
   return true;
 }
-
 /** Livros começados, para retomar do ponto onde o leitor parou: os 4 mais recentes e "Ver todos". */
 function ContinueReading({
   items,
@@ -5782,6 +5792,8 @@ export function App() {
   const [spinOpen, setSpinOpen] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
+  /** Novidades do catálogo público (a biblioteca completa fica em /biblioteca). */
+  const [catalogNew, setCatalogNew] = useState<Ebook[]>([]);
   /** Aberto pelo perfil numa marcação: o livro abre direto nesse trecho. */
   const openAtRef = useRef<{ bookId: string; chapterIndex: number; chapterLabel: string; paragraph: number } | null>(null);
 
@@ -6182,7 +6194,7 @@ export function App() {
   /** Página inicial: estantes entram ao aparecer na tela; a barra do topo encolhe ao rolar. */
   const homeRef = useRef<HTMLDivElement>(null);
   useEffect(() => installCoverTilt(), []);
-  useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length]);
+  useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length, catalogNew.length]);
   const [navScrolled, setNavScrolled] = useState(false);
   useEffect(() => {
     if (book) return;
@@ -6212,9 +6224,23 @@ export function App() {
       alive = false;
     };
   }, [book, authUserId, communityTick]);
+  /** Novidades da biblioteca pública: metadados abertos, sem sessão. */
+  useEffect(() => {
+    if (book) return;
+    let alive = true;
+    void searchCatalog({ sort: "new", limit: 6 })
+      .then((page) => {
+        if (alive) setCatalogNew(page.items.map(catalogBookToEbook));
+      })
+      .catch(() => {
+        if (alive) setCatalogNew([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [book, homeTick]);
   /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
-  const [localIds, setLocalIds] = useState<Set<number> | null>(null);
-  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
+  const [localIds, setLocalIds] = useState<Set<number> | null>(null);  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
   useEffect(() => {
     // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
     if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
@@ -6254,6 +6280,20 @@ export function App() {
         ...finishedBooks().map((f) => f.book),
       ].find((b) => bookKeyOf(b) === entry.bookKey);
       if (known) return known;
+      if (entry.bookKey.startsWith("cat:")) {
+        const uuid = entry.bookKey.slice(4);
+        return {
+          id: `cat-${uuid}`,
+          gutenbergId: catalogNumericId(entry.bookKey),
+          title: entry.title,
+          author: entry.author ?? "",
+          genre: entry.genre ?? undefined,
+          coverUrl: entry.coverUrl ?? undefined,
+          textLanguage: entry.language ?? "pt",
+          source: "catalog",
+          catalogKey: entry.bookKey,
+        };
+      }
       const id = entry.bookKey.slice(entry.bookKey.indexOf(":") + 1);
       return {
         id: entry.bookKey.replace(":", "-"),
@@ -6358,7 +6398,9 @@ export function App() {
       ? loadLocalBookText(book.gutenbergId)
       : book.source === "community" && book.communityPath
         ? fetchCommunityText(authSessionRef.current, book.communityPath)
-        : fetchBookText(book.gutenbergId))
+        : book.source === "catalog" && book.catalogKey
+          ? fetchCatalogBookText(authSessionRef.current, book.catalogKey)
+          : fetchBookText(book.gutenbergId))
       .then((text) => {
         if (cancelled) return;
         const saved = loadProgress(book.gutenbergId);
@@ -6457,6 +6499,11 @@ export function App() {
       setAuthModal("login");
       return;
     }
+    // O texto do catálogo exige sessão mesmo quando o login é opcional para o resto do app.
+    if (b.source === "catalog" && !authUser) {
+      setAuthModal("login");
+      return;
+    }
     recordOpened(b);
     readerGeneration.current++;
     openBookWithTransition(() => {
@@ -6470,7 +6517,37 @@ export function App() {
       setChatOpen(false);
       window.scrollTo({ top: 0 });
     });
-  }, [authLoading, canRead]);
+  }, [authLoading, authUser, canRead]);
+
+  /**
+   * Link direto para um livro da biblioteca (`/?abrir=cat:<uuid>`). Se a pessoa ainda não entrou,
+   * abre o login e tenta de novo quando a sessão chegar; o parâmetro fica na URL até abrir.
+   */
+  const openedFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (openedFromUrlRef.current || authLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("abrir");
+    if (!key || !/^cat:[0-9a-fA-F-]{36}$/.test(key)) return;
+    if (!canRead || !authUser) {
+      setAuthModal("login");
+      return;
+    }
+    openedFromUrlRef.current = true;
+    const chat = params.get("chat") === "1";
+    getCatalogBook(key)
+      .then((loaded) => {
+        window.history.replaceState({}, "", window.location.pathname);
+        startBook(catalogBookToEbook(loaded));
+        if (chat) setChatOpen(true);
+      })
+      .catch((err: unknown) => {
+        openedFromUrlRef.current = false;
+        setAuthNotice({
+          text: err instanceof Error ? err.message : "Não foi possível abrir o livro.",
+        });
+      });
+  }, [authLoading, authUser, canRead, startBook]);
 
   const requestImport = useCallback(
     (hint: BookHint | Record<string, never> = {}) => {
@@ -7515,6 +7592,10 @@ export function App() {
                 <span className="nav-install-label">Baixar app</span>
               </button>
             ) : null}
+            <Link className="btn nav-library" to="/biblioteca" aria-label="Abrir a biblioteca pública">
+              <span className="nav-library-long">Biblioteca</span>
+              <span className="nav-library-short">Livros</span>
+            </Link>
             {FORUM_VISIBLE ? (
               <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
                 <span className="nav-community-long">Comunidade</span>
@@ -7793,6 +7874,21 @@ export function App() {
 
         {canRead ? <DailyQuote books={featuredBooks} /> : null}
 
+        {catalogNew.length > 0 ? (
+          <ProfileShelf
+            eyebrow="📚 Biblioteca pública"
+            title="Novidades da biblioteca"
+            subtitle="Livros que acabaram de entrar no catálogo curado."
+            items={catalogNew.map((b) => ({ book: b, sub: b.author }))}
+            onOpen={startBook}
+            action={
+              <Link className="btn" to="/biblioteca">
+                Ver a biblioteca
+              </Link>
+            }
+          />
+        ) : null}
+
         {communityBooks.some(isNewCommunityBook) ? (
           <ProfileShelf
             className="novidades"
@@ -7937,6 +8033,9 @@ export function App() {
           <button type="button" className="footer-about-link" onClick={() => setAboutOpen(true)}>
             Sobre nós
           </button>
+          <Link className="footer-about-link" to="/biblioteca">
+            Biblioteca pública
+          </Link>
         </footer>
       </div>
     );
@@ -8371,6 +8470,10 @@ export function App() {
                   <span className="source-link">Livro importado · {authSession ? "guardado na sua conta" : "guardado só neste aparelho"}</span>
                 ) : book.source === "community" ? (
                   <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
+                ) : book.source === "catalog" && book.catalogKey ? (
+                  <Link className="source-link" to={`/biblioteca/${encodeURIComponent(book.catalogKey)}`}>
+                    Livro da biblioteca pública · ver a ficha do livro
+                  </Link>
                 ) : (
                   <a
                     className="source-link"
