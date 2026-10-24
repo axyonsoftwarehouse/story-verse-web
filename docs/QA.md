@@ -94,6 +94,16 @@ gh workflow run deploy-api-qa.yml -R axyonsoftwarehouse/story-verse-api -f ref=f
 Sem `-f ref`, publica a `develop`. Na API, o push no `develop` também publica no QA pelo
 `deploy-api-qa.yml`. Site e API são independentes: publique os dois quando a mudança mexer nos dois.
 
+## Chave de deploy do QA
+
+Os workflows de QA usam secrets próprios no environment `qa` (`QA_SSH_KEY`, `QA_KNOWN_HOSTS`,
+`QA_USER`, `QA_HOST`), nunca a chave compartilhada da produção. Na VPS a chave é restrita por
+`command="/home/deploy/qa-deploy/gate.sh"`: só aceita `rsync` para `_incoming-qa` (via `rrsync`) e
+`deploy-web.sh` / `deploy-api.sh <imagem> <sha>`. Os scripts ficam em `/home/deploy/qa-deploy/`
+(fonte em `deploy/storyverse-qa/vps/`). O environment `qa` não tem regra de branch, de propósito: é
+ele que permite publicar uma branch antes do merge. Para trocar a chave, gere outra, acrescente a
+linha em `~/.ssh/authorized_keys` e atualize `QA_SSH_KEY`/`QA_KNOWN_HOSTS` nos dois repositórios.
+
 ## Banco do QA
 
 - Migrações rodam como na produção. Uma migração de um branch testado e depois descartado não
