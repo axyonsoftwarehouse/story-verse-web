@@ -20,7 +20,6 @@
 | ID | Sev. | Prio. | Área | Defeito | Origem | Status | Correção | Cartão |
 |---|---|---|---|---|---|---|---|---|
 | **BUG-001** | Baixo | P2 | Estante | Contador “N livros” ignora o filtro aplicado; mostra o total enquanto a lista mostra o filtrado. | QA-02 (nivel1) | aberto | — | — |
-| **BUG-002** | Baixo | P2 | Leitura | Percentual da estante/home pode estar um capítulo atrasado em relação ao leitor; confirmar a regra antes de tratar como defeito. | QA-03 (nivel1) | aberto (a confirmar) | — | — |
 | **BUG-003** | Baixo | P2 | Conta | “Sair da conta” desloga sem confirmação, diferente das ações destrutivas do painel. | QA-04 (nivel1) | aberto | — | — |
 | **BUG-004** | Baixo | P2 | Admin | Nos cartões “Sem permissão”, título e explicação saem colados (`strong` + `span` inline). | NB-01 (nivel2-admin) | aberto | — | — |
 | **BUG-005** | Baixo | P2 | Admin | Busca de contas só acha por e-mail completo ou parte do nome; `qa-leitor` sem domínio parece “conta inexistente”. | NB-02 (nivel2-admin) | aberto | — | — |
@@ -39,6 +38,12 @@
 | **BUG-011** | Médio | Importação | Título de capítulo EPUB perdia a primeira letra (`Coelho` → `oelho`). | PR [#63](https://github.com/axyonsoftwarehouse/story-verse-web/pull/63) (`ccf6952`) | Re-testado em 24/10/2026 ([biblioteca](2026-10-24-biblioteca.md)) |
 | **BUG-012** | Baixo | Plataforma | Sem indicador de modo offline. | PR [#63](https://github.com/axyonsoftwarehouse/story-verse-web/pull/63) (`ccf6952`) | Re-testado em 24/10/2026 ([biblioteca](2026-10-24-biblioteca.md)) |
 | **BUG-013** | Baixo | Conta | Link de recuperação pedia a senha nova sem conferir o token. | PR [#63](https://github.com/axyonsoftwarehouse/story-verse-web/pull/63) (`ccf6952`) | Re-testado em 24/10/2026 ([biblioteca](2026-10-24-biblioteca.md)) |
+
+## Fechados sem correção
+
+- **BUG-002** — percentual "um capítulo atrasado": regra confirmada em 24/10/2026. Home, estante e leitor usam
+  `(chapterIndex + scrollRatio) / chapterCount`; no fim de um capítulo o percentual já coincide com o início do
+  próximo, então não há atraso. Coberto por `src/lib/progress.test.ts`.
 
 ## Como um defeito sai daqui
 
