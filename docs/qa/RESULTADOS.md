@@ -20,6 +20,7 @@
 | 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
 | 2026-10-25 | Catálogo do Acervo (AD-07 a AD-10) | [`catalogo`](2026-10-25-catalogo.md) | Aprovado | 4/4 cenários; sem defeitos; 3 observações |
 | 2026-10-25 | Fórum (F-01/F-02) e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 8 cenários; 1 baixo corrigido no dia |
+| 2026-10-25 | Assinatura (BILL) e PWA | [`billing`](2026-10-25-billing.md) | Parcial: 01/04/06 e P-01 ok; 02/03/05 bloqueados | 1 alto corrigido (financeiro 500) |
 
 ## Defeitos abertos
 
@@ -47,6 +48,7 @@
 | **BUG-017** | Médio | Acervo | Ordem definida na coleção não aparecia na biblioteca. | API PR [#51](https://github.com/axyonsoftwarehouse/story-verse-api/pull/51) | Re-testado em 25/10/2026 ([acervo](2026-10-25-acervo.md)) |
 | **BUG-009** | Obs. | Fórum | Fórum desligado no build de QA; fila de moderação sempre vazia. | PR [#90](https://github.com/axyonsoftwarehouse/story-verse-web/pull/90) (build de QA com `VITE_FORUM_ENABLED=true`) | Verificado em 25/10/2026 ([forum-e-resto](2026-10-25-forum-e-resto.md)) |
 | **BUG-018** | Baixo | Fórum | Resposta em moderação anunciava "Resposta publicada." e o tópico seguia com 0 respostas. | PR [#91](https://github.com/axyonsoftwarehouse/story-verse-web/pull/91) | Re-testado em 25/10/2026 ([forum-e-resto](2026-10-25-forum-e-resto.md)) |
+| **BUG-019** | **Alto** | Financeiro | `/admin/financeiro` respondia 500 ("Erro interno.") — auditoria em transação `readOnly`. | API PR [#52](https://github.com/axyonsoftwarehouse/story-verse-api/pull/52) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 
 ## Fechados sem correção
 
@@ -63,7 +65,6 @@
 
 ## Próximos cenários a executar
 
-- **BILL-01 a BILL-06** assinatura/Stripe — **bloqueado**: dependem das chaves de teste do Stripe no QA.
-- **A-05 (excluir conta)** — precisa de conta descartável; a criação exige senha digitada pelo dono.
-- **P-01** instalar como app — o navegador automatizado não conclui a instalação do PWA.
+- **BILL-02/03/05** — checkout, trial/paywall e webhook do Stripe: **bloqueado** até o QA receber `BILLING_ENABLED=true`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` (API) e `VITE_BILLING_ENABLED=true` (build). Detalhes em [`billing`](2026-10-25-billing.md).
+- **A-05 (excluir conta)** — o painel pede a senha atual; precisa de conta descartável e da senha digitada pelo dono.
 - **Spoiler marcado / aceitar resposta** no fórum (aparecem na tela, não foram exercitados).
