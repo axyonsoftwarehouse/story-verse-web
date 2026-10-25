@@ -142,10 +142,15 @@ export function TopicPage() {
     setBusy(true);
     setError("");
     try {
-      await createReply(current, id, { body: replyBody, parentId: parent?.id ?? null });
+      const created = await createReply(current, id, {
+        body: replyBody,
+        parentId: parent?.id ?? null,
+      });
       setReplyBody("");
       setParent(null);
-      setNotice("Resposta publicada.");
+      // A resposta pode entrar em moderação: dizer "publicada" nesse caso some com o texto
+      // da tela (a fila do tópico só mostra publicadas) e parece que a resposta se perdeu.
+      setNotice(created.status === "pending" ? "Resposta enviada para análise." : "Resposta publicada.");
       await reload();
     } catch (err: unknown) {
       setError(message(err));
