@@ -105,13 +105,24 @@ describe("CatalogBookPage", () => {
     expect(await screen.findByText("Lista do acervo")).toBeInTheDocument();
   });
 
-  it("publica o livro e atualiza a situação", async () => {
+  it("publica o livro depois da confirmação", async () => {
     renderPage(["moderator"]);
     fireEvent.click(await screen.findByRole("button", { name: "Publicar" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Publicar livro" }));
     await waitFor(() =>
       expect(setCatalogBookStatus).toHaveBeenCalledWith(session, "b1", "publish"),
     );
     expect(await screen.findByText("Publicado", { selector: ".status-chip" })).toBeInTheDocument();
+  });
+
+  it("não publica quando a confirmação é cancelada", async () => {
+    renderPage(["moderator"]);
+    fireEvent.click(await screen.findByRole("button", { name: "Publicar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(setCatalogBookStatus).not.toHaveBeenCalled();
+    expect(screen.getByText("Rascunho")).toBeInTheDocument();
   });
 
   it("não salva metadados sem título", async () => {
