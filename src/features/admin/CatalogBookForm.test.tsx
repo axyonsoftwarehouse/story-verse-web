@@ -6,7 +6,12 @@ import {
   uploadCatalogOriginal,
   type AdminCatalogBook,
 } from "../../lib/adminCatalog";
+import { importBookFile } from "../../lib/importBook";
 import { CatalogBookForm } from "./CatalogBookForm";
+
+vi.mock("../../lib/importBook", () => ({
+  importBookFile: vi.fn(),
+}));
 
 vi.mock("../../lib/adminCatalog", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/adminCatalog")>();
@@ -48,6 +53,12 @@ describe("CatalogBookForm", () => {
       contentType: "text/plain",
     });
     vi.mocked(createCatalogBook).mockResolvedValue(created);
+    vi.mocked(importBookFile).mockResolvedValue({
+      text: "x".repeat(600),
+      title: "Dom Casmurro",
+      author: "Machado de Assis",
+      language: "pt",
+    });
   });
 
   afterEach(() => {
@@ -58,6 +69,14 @@ describe("CatalogBookForm", () => {
     renderForm();
     pick(file("livro.docx"));
     expect(screen.getByRole("alert")).toHaveTextContent(/Formato de arquivo não aceito/);
+  });
+
+  it("preenche t?tulo, autor e idioma lendo o arquivo", async () => {
+    renderForm();
+    pick(file("livro.epub"));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(screen.getByLabelText(/T?tulo/)).toHaveValue("Dom Casmurro"));
+    expect(screen.getByLabelText(/Autor/)).toHaveValue("Machado de Assis");
   });
 
   it("percorre as etapas e cria como rascunho", async () => {

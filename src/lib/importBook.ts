@@ -94,7 +94,7 @@ export async function importBookFile(file: File): Promise<ImportedBook> {
   const buf = new Uint8Array(await file.arrayBuffer());
 
   let result: Parsed;
-  if (ext === "txt") result = { text: parseTxt(buf) };
+  if (ext === "txt" || ext === "md" || ext === "markdown") result = { text: parseTxt(buf) };
   else if (ext === "epub") result = await parseEpub(buf);
   else if (ext === "pdf") result = await parsePdf(buf);
   else throw new Error("Formato não suportado. Use um arquivo .txt, .epub ou .pdf.");
