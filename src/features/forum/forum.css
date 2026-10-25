@@ -206,6 +206,12 @@
   font-size: 0.85rem;
 }
 
+.forum-error-block {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
 .forum-topic-detail h1 {
   margin: 0.35rem 0 0.75rem;
   font-family: var(--font-read);
