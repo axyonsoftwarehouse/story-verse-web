@@ -19,7 +19,7 @@
 | 2026-10-25 | Fase 2 do admin (2A–2D) | [`admin-fase-2`](2026-10-25-admin-fase-2.md) | Aprovado | 14/14 cenários; sem defeitos |
 | 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
 | 2026-10-25 | Catálogo do Acervo (AD-07 a AD-10) | [`catalogo`](2026-10-25-catalogo.md) | Aprovado | 4/4 cenários; sem defeitos; 3 observações |
-| 2026-10-25 | Fórum (F-01/F-02) e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 8 cenários; 1 baixo corrigido no dia |
+| 2026-10-25 | Fórum (F-01/F-02), spoiler e aceitar resposta, e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 10 cenários; 1 baixo corrigido no dia |
 | 2026-10-25 | Assinatura (BILL) e PWA | [`billing`](2026-10-25-billing.md) | Parcial: 01/04/06 e P-01 ok; 02/03/05 bloqueados | 1 alto corrigido (financeiro 500) |
 
 ## Defeitos abertos
@@ -67,4 +67,4 @@
 
 - **BILL-02/03/05** — checkout, trial/paywall e webhook do Stripe: **bloqueado** até o QA receber `BILLING_ENABLED=true`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` (API) e `VITE_BILLING_ENABLED=true` (build). Detalhes em [`billing`](2026-10-25-billing.md).
 - **A-05 (excluir conta)** — o painel pede a senha atual; precisa de conta descartável e da senha digitada pelo dono.
-- **Spoiler marcado / aceitar resposta** no fórum (aparecem na tela, não foram exercitados).
+

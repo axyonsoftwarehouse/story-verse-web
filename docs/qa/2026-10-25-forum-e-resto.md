@@ -87,15 +87,36 @@ Abrir uma segunda aba no mesmo contexto: a nova já entra logada (sem botão Log
 
 **"Excluir conta" não foi executado**: apagaria a conta `qa-leitor`, que a matriz de QA usa em várias rodadas. Fica registrado como pendência de execução com conta descartável.
 
+## Detalhes do fórum — spoiler marcado e aceitar resposta (complemento, 17h10)
+
+Executados depois da rodada principal, com o tópico **"Spoiler do final (QA)"** (espaço Clube de leitura, spoiler **do livro**).
+
+| Verificação | Resultado |
+|---|---|
+| Criar tópico com spoiler | Seletor **Sem spoiler / Spoiler do capítulo / Spoiler do livro**; tópico enviado para análise |
+| Lista do fórum | Em vez do trecho, aparece **"O texto pode conter spoiler."** e o selo **Spoiler** |
+| Dentro do tópico | **"Este tópico contém spoiler. O texto pode revelar partes da história."** + botão **Mostrar mesmo assim**; o texto fica escondido até o clique |
+| Depois de revelar | Texto aparece, selo **Spoiler do livro** no cabeçalho |
+| Moderação | A fila mostra o selo **Spoiler** e o texto completo (moderador precisa ver para julgar) |
+| **Aceitar resposta** (autor do tópico) | Botão aparece na resposta publicada; ao clicar, a resposta ganha **"Resposta aceita"**, classe `is-accepted`, e o botão desaparece |
+| Persistência | Depois de recarregar, o selo **Resposta aceita** continua; banco: `accepted_reply_id = 843c0ed0…`, `spoiler_level = book`, `reply_count = 1` |
+| Quem **não** é autor | `qa-moderador` não vê **Aceitar resposta** nem **Remover tópico**, mas vê o selo **Resposta aceita** |
+
+Observações de comportamento (não são defeitos):
+
+- **Resposta da equipe não passa pela fila**: a resposta do `qa-moderador` foi publicada na hora ("Resposta publicada.", contagem foi para "1 resposta").
+- **Spoiler vale só para o tópico**: o formulário de resposta não tem seletor de spoiler; quem responde usa o aviso no texto.
+- A auditoria registra `forum.topic.moderate` na publicação do tópico; **aceitar resposta é ação do autor, não entra na auditoria**.
+
 ## O que não foi executado
 
 - **P-01** (instalar como PWA): o navegador automatizado não conclui o fluxo de instalação do sistema.
 - **A-05, parte de excluir conta**: precisa de conta descartável (a criação exige senha digitada pelo dono).
-- Respostas com **spoiler marcado** e **aceitar resposta** aparecem na tela, mas não foram exercitadas.
+- ~~Respostas com **spoiler marcado** e **aceitar resposta**~~ — executados no complemento acima.
 
 ## Estado final do QA
 
 - Fórum **ligado** no build de QA (flag `VITE_FORUM_ENABLED=true`); produção segue desligada.
-- Ficaram no ar, como conteúdo de teste, o tópico **"Como vocês marcam spoiler? (QA)"** com 1 resposta publicada e **1 resposta pendente** na fila de moderação.
+- Ficaram no ar, como conteúdo de teste, o tópico **"Como vocês marcam spoiler? (QA)"** com 1 resposta publicada e 1 pendente, e o tópico **"Spoiler do final (QA)"** (spoiler do livro, 1 resposta aceita).
 - Conta `qa-leitor` tem o livro local **"gato de teste"** (PDF do I-02) na estante — é só local, no IndexedDB do navegador de teste.
 - Livro de catálogo criado para o re-teste do "Publicar" foi **apagado**; nenhuma coleção, importação ou sanção pendente.
