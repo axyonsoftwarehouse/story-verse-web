@@ -22,6 +22,7 @@
 | 2026-10-25 | Fórum (F-01/F-02), spoiler e aceitar resposta, e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 10 cenários; 1 baixo corrigido no dia |
 | 2026-10-25 | Assinatura (BILL) e PWA | [`billing`](2026-10-25-billing.md) | Aprovado: 01/02/03/04/05/06 e P-01, com **cobrança real** de R$ 9,90 | 5 corrigidos (financeiro 500, CORS do paywall, 3 no webhook/RLS) |
 | 2026-10-25 | Fórum: spoiler na resposta e aceite da equipe | [`forum-spoiler`](2026-10-25-forum-spoiler.md) | Aprovado | 2 melhorias entregues + 1 aviso na tela |
+| 2026-10-25 | Onboarding (e-mail), backup/restore, portal, carga e a11y | [`onboarding-e-operacao`](2026-10-25-onboarding-e-operacao.md) | Aprovado no que foi possível; Stripe exige aprovação humana para recusa/reembolso/cancelamento | Mailpit no QA + 1 correção de `.env` |
 
 ## Defeitos abertos
 
@@ -72,5 +73,7 @@
 
 ## Próximos cenários a executar
 
-- **Assinatura**: 01–06 aprovados, incluindo cobrança real de R$ 9,90. Falta exercitar cartão recusado/3DS, reembolso e disputa (`charge.refunded`/`charge.dispute.created`) e o **cancelamento pelo portal**. Detalhes em [`billing`](2026-10-25-billing.md).
+- **Assinatura (falhas)**: cartão recusado/3DS, retentativa, reembolso e disputa estão **bloqueados por aprovação humana no Stripe** — precisam de um clique no dashboard (ver [`onboarding-e-operacao`](2026-10-25-onboarding-e-operacao.md)).
+- **E-mail**: caminho provado (SMTP → Mailpit → token válido). Concluir troca de senha e confirmação de cadastro exige digitar senha (dono).
+- **A-05 exclusão de conta**: exige a senha atual e conta descartável.
 - **A-05 (excluir conta)** — o painel pede a senha atual; precisa de conta descartável e da senha digitada pelo dono.
