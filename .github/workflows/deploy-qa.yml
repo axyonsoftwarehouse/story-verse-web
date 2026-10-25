@@ -54,6 +54,9 @@ jobs:
         env:
           VITE_API_URL: https://api.qa.storyverse.2.29.42.104.sslip.io
           VITE_APP_ENV: qa
+          # O fórum fica no build do QA para os cenários F-01/F-02 (tópico, resposta e
+          # denúncia na moderação). Em produção continua desligado.
+          VITE_FORUM_ENABLED: "true"
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN_QA }}
           VITE_SENTRY_ENVIRONMENT: qa
           VITE_SENTRY_RELEASE: ${{ steps.release.outputs.sha }}
