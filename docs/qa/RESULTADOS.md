@@ -73,7 +73,8 @@
 
 ## Próximos cenários a executar
 
-- **Assinatura (falhas)**: cartão recusado/3DS, retentativa, reembolso e disputa estão **bloqueados por aprovação humana no Stripe** — precisam de um clique no dashboard (ver [`onboarding-e-operacao`](2026-10-25-onboarding-e-operacao.md)).
+- **Assinatura (falhas)**: **recusa na renovação está coberta** (cartão `4000 0000 0000 0341` → `past_due`, `invoice.payment_failed`, carência e recuperação — ver [`billing`](2026-10-25-billing.md)).
+- **Ainda bloqueado por aprovação humana no Stripe**: reembolso, disputa e cancelamento pela API.
 - **E-mail**: caminho provado (SMTP → Mailpit → token válido). Concluir troca de senha e confirmação de cadastro exige digitar senha (dono).
 - **A-05 exclusão de conta**: exige a senha atual e conta descartável.
 - **A-05 (excluir conta)** — o painel pede a senha atual; precisa de conta descartável e da senha digitada pelo dono.
