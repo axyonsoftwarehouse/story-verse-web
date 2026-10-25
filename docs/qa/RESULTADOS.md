@@ -20,7 +20,7 @@
 | 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
 | 2026-10-25 | Catálogo do Acervo (AD-07 a AD-10) | [`catalogo`](2026-10-25-catalogo.md) | Aprovado | 4/4 cenários; sem defeitos; 3 observações |
 | 2026-10-25 | Fórum (F-01/F-02), spoiler e aceitar resposta, e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 10 cenários; 1 baixo corrigido no dia |
-| 2026-10-25 | Assinatura (BILL) e PWA | [`billing`](2026-10-25-billing.md) | Aprovado: 01/02/03/04/05/06 e P-01 (pós-trial em 01/11) | 5 corrigidos (financeiro 500, CORS do paywall, 3 no webhook/RLS) |
+| 2026-10-25 | Assinatura (BILL) e PWA | [`billing`](2026-10-25-billing.md) | Aprovado: 01/02/03/04/05/06 e P-01, com **cobrança real** de R$ 9,90 | 5 corrigidos (financeiro 500, CORS do paywall, 3 no webhook/RLS) |
 | 2026-10-25 | Fórum: spoiler na resposta e aceite da equipe | [`forum-spoiler`](2026-10-25-forum-spoiler.md) | Aprovado | 2 melhorias entregues + 1 aviso na tela |
 
 ## Defeitos abertos
