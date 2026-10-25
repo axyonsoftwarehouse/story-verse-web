@@ -89,3 +89,30 @@ Checagem pela árvore de acessibilidade do navegador (nome acessível dos contro
 
 - **Cadastro novo passa a exigir confirmação por e-mail.** O e-mail não sai para a internet: abre em `http://127.0.0.1:8025` na VPS (Mailpit), acessível por túnel SSH. Se preferir o QA sem confirmação, basta voltar a flag para `false`.
 - As contas da matriz (`qa-leitor`, `qa-moderador`, `qa-admin`, `qa-sem-estante`) já existiam e continuam entrando normalmente.
+
+## 8. 3DS: o fluxo **não pede** autenticação (teste de 26/10)
+
+Teste pedido depois da rodada, para saber como o app se comporta numa renovação que exigiria autenticação:
+
+| Passo | Resultado |
+|---|---|
+| Anexar `pm_card_threeDSecure2Required` ao cliente | **ok** (visa ••••3220) — anexa sem erro |
+| Anexar `pm_card_chargeDeclined` | **falha no próprio anexo**: `card_declined` / `generic_decline` |
+| Pôr o cartão de 3DS como forma de pagamento da assinatura | ok |
+| Criar fatura e pagar | **paid** — passou **sem desafio de 3DS** |
+
+**Por que não pediu:** o gateway não configura `payment_method_options`/`request_three_d_secure` (conferido no
+`StripeGateway`: só `mode=subscription`, `payment_method_collection=if_required` e locale). Sem pedido explícito e
+sem exigência de SCA para cartão brasileiro, a Stripe não abre o desafio — inclusive com cartão de teste que
+“exige” 3DS.
+
+**Consequência prática:** não existe comportamento de 3DS para testar no nosso app. Quando um emissor exigir, quem
+mostra o desafio é a **página hospedada do Stripe**; o app só vê o desfecho (`checkout.session.completed`,
+`invoice.paid` ou `invoice.payment_failed`) — caminhos que já estão provados.
+
+**Limite que continua:** simular **renovação recusada** pela API está bloqueado — o cartão que recusa não pode nem ser
+anexado e `pm_card_insufficientFunds` não existe como alias. Esse cenário precisa de cartão digitado no navegador
+(dono) ou de aprovação no dashboard.
+
+**Limpeza:** o cartão real voltou a ser o padrão da assinatura (`pm_1UUYnn6…`), nenhuma fatura ficou aberta e o banco
+segue `active` / `latest_invoice_status = paid`.
