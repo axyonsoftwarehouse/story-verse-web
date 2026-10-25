@@ -108,7 +108,10 @@ describe("PublicBookPage", () => {
         }),
       ),
     );
-    expect(await screen.findByRole("button", { name: "Na sua estante" })).toBeDisabled();
+    // O rótulo muda depois que o PUT da estante responde; 1s (padrão do findBy*) estourava no CI.
+    expect(
+      await screen.findByRole("button", { name: "Na sua estante" }, { timeout: 4000 }),
+    ).toBeDisabled();
   });
 
   it("mostra o livro como já estando na estante", async () => {
