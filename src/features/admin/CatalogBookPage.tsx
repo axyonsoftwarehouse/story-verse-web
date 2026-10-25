@@ -159,6 +159,16 @@ export function CatalogBookPage({
   async function changeStatus(action: "publish" | "hide" | "archive") {
     if (!book) return;
     if (
+      action === "publish" &&
+      !(await confirm({
+        title: "Publicar o livro?",
+        message: `“${book.title}” passa a aparecer na biblioteca pública, para qualquer visitante.`,
+        confirmLabel: "Publicar livro",
+      }))
+    ) {
+      return;
+    }
+    if (
       action === "hide" &&
       !(await confirm({
         title: "Ocultar da biblioteca?",
