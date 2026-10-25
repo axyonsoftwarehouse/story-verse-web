@@ -18,6 +18,7 @@
 
 | 2026-10-25 | Fase 2 do admin (2A–2D) | [`admin-fase-2`](2026-10-25-admin-fase-2.md) | Aprovado | 14/14 cenários; sem defeitos |
 | 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
+| 2026-10-25 | Catálogo do Acervo (AD-07 a AD-10) | [`catalogo`](2026-10-25-catalogo.md) | Aprovado | 4/4 cenários; sem defeitos; 3 observações |
 
 ## Defeitos abertos
 
@@ -58,7 +59,11 @@
    (ou remove de **Abertos**, mantendo o histórico no relatório).
 3. Se o cartão do Trello existir, ele só vai para DONE com print do re-teste + link do PR.
 
-## Próximos cenários a acrescentar
+## Próximos cenários a executar
 
-- **AD-11** coleções e **AD-12** importação em lote (Acervo).
-- **BILL-01 a BILL-06** assinatura/Stripe (dependem das chaves de teste no QA).
+- **BILL-01 a BILL-06** assinatura/Stripe — **bloqueado**: dependem das chaves de teste do Stripe no QA.
+- **F-01/F-02** fórum e denúncia na moderação — **bloqueado**: fórum desligado no QA (BUG-009).
+- **I-02/I-03** importar PDF/TXT e arquivo corrompido no app do leitor.
+- **A-03/A-05** segunda aba não derruba a sessão; exportar dados e excluir conta (exige conta nova, com senha digitada pelo dono).
+- **E-03** gate da feature `library` com `qa-sem-estante`.
+- **P-01/P-03** instalar como app; 390 px sem rolagem horizontal (home, leitor, admin).
