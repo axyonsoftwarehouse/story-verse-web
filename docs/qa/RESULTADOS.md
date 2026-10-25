@@ -17,6 +17,7 @@
 | 2026-10-24 | Re-teste do lote de correções | [`lote-correcoes`](2026-10-24-lote-correcoes.md) | Aprovado | 7 corrigidos; BUG-002 fechado sem correção |
 
 | 2026-10-25 | Fase 2 do admin (2A–2D) | [`admin-fase-2`](2026-10-25-admin-fase-2.md) | Aprovado | 14/14 cenários; sem defeitos |
+| 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
 
 ## Defeitos abertos
 
@@ -41,6 +42,8 @@
 | **BUG-006** | Baixo | Admin | Confirmações usavam `window.confirm` nativo. | PR [#77](https://github.com/axyonsoftwarehouse/story-verse-web/pull/77) | Re-testado em 24/10/2026 ([lote](2026-10-24-lote-correcoes.md)) |
 | **BUG-014** | Baixo | Plataforma | Analytics da Vercel gerava erro de console no VPS. | PR [#77](https://github.com/axyonsoftwarehouse/story-verse-web/pull/77) | Re-testado em 24/10/2026 ([lote](2026-10-24-lote-correcoes.md)) |
 | **BUG-015** | Baixo | Estante | Remoção da estante não refletia na ficha pública até o sync periódico. | PR [#77](https://github.com/axyonsoftwarehouse/story-verse-web/pull/77) | Re-testado em 24/10/2026 ([lote](2026-10-24-lote-correcoes.md)) |
+| **BUG-016** | **Alto** | Acervo | "Importar agora" respondia 500 (RLS em `catalog_imports`) e nada era importado; histórico sempre vazio. | API PR [#50](https://github.com/axyonsoftwarehouse/story-verse-api/pull/50) + `V20__catalog_imports_select.sql` | Re-testado em 25/10/2026 ([acervo](2026-10-25-acervo.md)) |
+| **BUG-017** | Médio | Acervo | Ordem definida na coleção não aparecia na biblioteca. | API PR [#51](https://github.com/axyonsoftwarehouse/story-verse-api/pull/51) | Re-testado em 25/10/2026 ([acervo](2026-10-25-acervo.md)) |
 
 ## Fechados sem correção
 
