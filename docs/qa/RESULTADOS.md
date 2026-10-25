@@ -55,6 +55,7 @@
 | **BUG-022** | **Alto** | Assinatura | **Toda** entrega de webhook dava 500: `:error` nulo sem tipo no Postgres. | API PR [#55](https://github.com/axyonsoftwarehouse/story-verse-api/pull/55) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 | **BUG-023** | Médio | Assinatura | Evento de webhook gravado mas nunca marcado como processado (transações separadas). | API PR [#56](https://github.com/axyonsoftwarehouse/story-verse-api/pull/56) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 | **BUG-024** | **Alto** | Assinatura | Quem tinha plano levava 402: `requireAccess` sem transação → RLS não enxergava a assinatura. | API PR [#57](https://github.com/axyonsoftwarehouse/story-verse-api/pull/57) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
+| **BUG-025** | **Alto** | Assinatura | Paywall liberava acesso quando faltava data na assinatura (fail-open); data ilegível virava `null` e também liberava. | API PR [#59](https://github.com/axyonsoftwarehouse/story-verse-api/pull/59) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 
 ## Fechados sem correção
 
@@ -71,6 +72,5 @@
 
 ## Próximos cenários a executar
 
-- **BILL-02/03/05** — checkout, trial/paywall e webhook do Stripe: **bloqueado** até o QA receber `BILLING_ENABLED=true`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` (API) e `VITE_BILLING_ENABLED=true` (build). Detalhes em [`billing`](2026-10-25-billing.md).
+- **Assinatura**: 01–06 aprovados, incluindo cobrança real de R$ 9,90. Falta exercitar cartão recusado/3DS, reembolso e disputa (`charge.refunded`/`charge.dispute.created`) e o **cancelamento pelo portal**. Detalhes em [`billing`](2026-10-25-billing.md).
 - **A-05 (excluir conta)** — o painel pede a senha atual; precisa de conta descartável e da senha digitada pelo dono.
-
