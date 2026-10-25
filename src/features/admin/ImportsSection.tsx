@@ -250,7 +250,8 @@ export function ImportsSection({ session }: { session: SupabaseSession }) {
           <span>Pacote da importação</span>
           <input type="file" accept={CATALOG_IMPORT_ACCEPT} onChange={pick} disabled={working} />
           <small className="muted">
-            ZIP até 200 MB, no máximo 100 livros. O CSV precisa das colunas file, title e rights.
+            ZIP até 200 MB, no máximo 100 livros. O CSV precisa das colunas file e rights; título,
+            autor e idioma são lidos do EPUB/PDF quando a coluna fica vazia.
           </small>
         </label>
         {file ? (

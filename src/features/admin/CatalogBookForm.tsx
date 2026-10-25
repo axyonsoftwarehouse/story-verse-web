@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { SupabaseSession } from "../../lib/auth";
 import {
@@ -15,7 +15,8 @@ import {
   type CatalogBookInput,
   type CatalogUpload,
 } from "../../lib/adminCatalog";
-import { MAX_INPUT_BYTES, prepareImage, uploadBookCover } from "../../lib/profileMedia";
+import { MAX_INPUT_BYTES, dataUrlToBlob, prepareImage, uploadBookCover } from "../../lib/profileMedia";
+import { importBookFile } from "../../lib/importBook";
 import { CatalogMetadataFields, CatalogRightsFields } from "./CatalogFields";
 import {
   EMPTY_METADATA,
@@ -84,6 +85,9 @@ export function CatalogBookForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [duplicate, setDuplicate] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const parseToken = useRef(0);
+  const coverTouched = useRef(false);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -112,6 +116,35 @@ export function CatalogBookForm({
     setFile(picked);
     setUploaded(null);
     setError("");
+    setDuplicate("");
+    // Reaproveita o leitor do app: lê título, autor, idioma e capa do arquivo.
+    const token = ++parseToken.current;
+    const ext = picked.name.toLowerCase().split(".").pop();
+    if (!["txt", "md", "markdown", "epub", "pdf"].includes(ext ?? "")) return;
+    setParsing(true);
+    void importBookFile(picked)
+      .then(async (parsed) => {
+        if (token !== parseToken.current) return;
+        setDraft((current) => ({
+          ...current,
+          title: current.title.trim() ? current.title : parsed.title,
+          author: current.author.trim() ? current.author : parsed.author,
+          language:
+            current.language === EMPTY_METADATA.language ? parsed.language : current.language,
+        }));
+        if (parsed.cover && !coverTouched.current) {
+          const blob = await dataUrlToBlob(parsed.cover);
+          if (token !== parseToken.current) return;
+          setCoverFile(new File([blob], "capa.jpg", { type: blob.type || "image/jpeg" }));
+          setCoverPreview(parsed.cover);
+        }
+      })
+      .catch(() => {
+        // Arquivo sem metadados/texto suficiente: os campos continuam para preencher à mão.
+      })
+      .finally(() => {
+        if (token === parseToken.current) setParsing(false);
+      });
   }
 
   function pickCover(event: ChangeEvent<HTMLInputElement>) {
@@ -126,6 +159,7 @@ export function CatalogBookForm({
       setError("Imagem grande demais (máximo de 25 MB).");
       return;
     }
+    coverTouched.current = true;
     setCoverFile(picked);
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     setCoverPreview(URL.createObjectURL(picked));
@@ -133,6 +167,7 @@ export function CatalogBookForm({
   }
 
   function removeCover() {
+    coverTouched.current = false;
     setCoverFile(null);
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     setCoverPreview("");
@@ -258,8 +293,9 @@ export function CatalogBookForm({
                 <input type="file" accept={CATALOG_ACCEPT} onChange={pickFile} disabled={busy} />
               </label>
               <p className="muted">
-                TXT, MD, EPUB ou PDF, até 50 MB. O servidor extrai o texto e guarda o original
-                para reextração. O layout do PDF/EPUB não é preservado.
+                TXT, MD, EPUB ou PDF, até 50 MB. O app lê título, autor, idioma e capa do arquivo
+                quando existirem; o servidor extrai o texto e guarda o original. O layout do
+                PDF/EPUB não é preservado.
               </p>
               {file ? (
                 <p className="catalog-file-summary">
@@ -267,6 +303,7 @@ export function CatalogBookForm({
                   <span className="muted">{megabytes(file.size)}</span>
                 </p>
               ) : null}
+              {parsing ? <p className="muted">Lendo metadados do arquivo…</p> : null}
             </div>
           ) : null}
 
