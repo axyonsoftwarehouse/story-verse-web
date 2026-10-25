@@ -19,6 +19,7 @@
 | 2026-10-25 | Fase 2 do admin (2A–2D) | [`admin-fase-2`](2026-10-25-admin-fase-2.md) | Aprovado | 14/14 cenários; sem defeitos |
 | 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
 | 2026-10-25 | Catálogo do Acervo (AD-07 a AD-10) | [`catalogo`](2026-10-25-catalogo.md) | Aprovado | 4/4 cenários; sem defeitos; 3 observações |
+| 2026-10-25 | Fórum (F-01/F-02) e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 8 cenários; 1 baixo corrigido no dia |
 
 ## Defeitos abertos
 
@@ -26,7 +27,6 @@
 |---|---|---|---|---|---|---|---|---|
 | **BUG-007** | Obs. | P2 | Admin | Visão geral leva ~5–9 s para sair de “Carregando…” no QA (container 0,5 CPU). | NB-04 (nivel2-admin) | aberto (monitorar) | — | — |
 | **BUG-008** | Obs. | P2 | Admin | Cartão de backup mostra “Backup atrasado” com “—” quando não há backup configurado no QA. | NB-05 (nivel2-admin) | aberto (observar) | — | — |
-| **BUG-009** | Obs. | P2 | Fórum | Fórum desligado neste build; fila de moderação sempre vazia. | NB-06 (nivel2-admin) | aberto (depende da feature) | — | — |
 
 ## Defeitos corrigidos
 
@@ -45,6 +45,8 @@
 | **BUG-015** | Baixo | Estante | Remoção da estante não refletia na ficha pública até o sync periódico. | PR [#77](https://github.com/axyonsoftwarehouse/story-verse-web/pull/77) | Re-testado em 24/10/2026 ([lote](2026-10-24-lote-correcoes.md)) |
 | **BUG-016** | **Alto** | Acervo | "Importar agora" respondia 500 (RLS em `catalog_imports`) e nada era importado; histórico sempre vazio. | API PR [#50](https://github.com/axyonsoftwarehouse/story-verse-api/pull/50) + `V20__catalog_imports_select.sql` | Re-testado em 25/10/2026 ([acervo](2026-10-25-acervo.md)) |
 | **BUG-017** | Médio | Acervo | Ordem definida na coleção não aparecia na biblioteca. | API PR [#51](https://github.com/axyonsoftwarehouse/story-verse-api/pull/51) | Re-testado em 25/10/2026 ([acervo](2026-10-25-acervo.md)) |
+| **BUG-009** | Obs. | Fórum | Fórum desligado no build de QA; fila de moderação sempre vazia. | PR [#90](https://github.com/axyonsoftwarehouse/story-verse-web/pull/90) (build de QA com `VITE_FORUM_ENABLED=true`) | Verificado em 25/10/2026 ([forum-e-resto](2026-10-25-forum-e-resto.md)) |
+| **BUG-018** | Baixo | Fórum | Resposta em moderação anunciava "Resposta publicada." e o tópico seguia com 0 respostas. | PR [#91](https://github.com/axyonsoftwarehouse/story-verse-web/pull/91) | Re-testado em 25/10/2026 ([forum-e-resto](2026-10-25-forum-e-resto.md)) |
 
 ## Fechados sem correção
 
@@ -62,8 +64,6 @@
 ## Próximos cenários a executar
 
 - **BILL-01 a BILL-06** assinatura/Stripe — **bloqueado**: dependem das chaves de teste do Stripe no QA.
-- **F-01/F-02** fórum e denúncia na moderação — **bloqueado**: fórum desligado no QA (BUG-009).
-- **I-02/I-03** importar PDF/TXT e arquivo corrompido no app do leitor.
-- **A-03/A-05** segunda aba não derruba a sessão; exportar dados e excluir conta (exige conta nova, com senha digitada pelo dono).
-- **E-03** gate da feature `library` com `qa-sem-estante`.
-- **P-01/P-03** instalar como app; 390 px sem rolagem horizontal (home, leitor, admin).
+- **A-05 (excluir conta)** — precisa de conta descartável; a criação exige senha digitada pelo dono.
+- **P-01** instalar como app — o navegador automatizado não conclui a instalação do PWA.
+- **Spoiler marcado / aceitar resposta** no fórum (aparecem na tela, não foram exercitados).
