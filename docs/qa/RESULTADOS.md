@@ -1,6 +1,6 @@
 # QA — painel de resultados
 
-Última atualização: 2026-10-24.
+Última atualização: 2026-10-25.
 
 > **Como usar:** o Hermes acrescenta uma linha em **Rodadas** e uma linha por defeito novo em
 > **Defeitos abertos**. Nós mudamos o status para `em correção`/`corrigido` e preenchemos `Correção`.
@@ -15,6 +15,8 @@
 | 2026-10-23 | Importação, conta e PWA | [`importacao-pwa`](2026-10-23-importacao-pwa.md) | Aprovado com ressalvas | 1 médio, 2 baixos |
 | 2026-10-24 | Biblioteca pública | [`biblioteca`](2026-10-24-biblioteca.md) | Aprovado com ressalvas | 6/6 cenários; 2 baixos; 4 re-testes ok |
 | 2026-10-24 | Re-teste do lote de correções | [`lote-correcoes`](2026-10-24-lote-correcoes.md) | Aprovado | 7 corrigidos; BUG-002 fechado sem correção |
+
+| 2026-10-25 | Fase 2 do admin (2A–2D) | [`admin-fase-2`](2026-10-25-admin-fase-2.md) | Aprovado | 14/14 cenários; sem defeitos |
 
 ## Defeitos abertos
 
@@ -56,6 +58,4 @@
 ## Próximos cenários a acrescentar
 
 - **AD-11** coleções e **AD-12** importação em lote (Acervo).
-- **AD2-01 a AD2-14** Fase 2 do admin (contas, sanções, métricas e CSV), roteiro em
-  [`QA.md`](../QA.md#rodada-da-fase-2-do-admin-ad2).
 - **BILL-01 a BILL-06** assinatura/Stripe (dependem das chaves de teste no QA).
