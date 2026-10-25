@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import "../../App.css";
 import "./forum.css";
 import { useStoredSession } from "../auth/useStoredSession";
+import { apiRequest } from "../../lib/backend";
 import {
   acceptReply,
   createReply,
@@ -18,7 +19,11 @@ import {
   toggleReaction,
   type ForumReply,
   type ForumTopic,
+  type SpoilerLevel,
 } from "../../lib/forum";
+
+/** Papéis que a API trata como equipe: podem aceitar resposta e publicam sem fila. */
+const STAFF_ROLES = ["moderator", "support", "superadmin"];
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível carregar o tópico.";
@@ -36,7 +41,10 @@ export function TopicPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [revealedReplies, setRevealedReplies] = useState<Record<string, boolean>>({});
+  const [staff, setStaff] = useState(false);
   const [replyBody, setReplyBody] = useState("");
+  const [replySpoiler, setReplySpoiler] = useState<SpoilerLevel>("none");
   const [parent, setParent] = useState<ForumReply | null>(null);
   const [busy, setBusy] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -66,6 +74,28 @@ export function TopicPage() {
     };
   }, [id, session]);
 
+  // A API deixa a equipe aceitar resposta e publicar sem fila; a tela precisa saber disso
+  // para oferecer o botão (antes só o autor via "Aceitar resposta").
+  useEffect(() => {
+    if (!session) {
+      setStaff(false);
+      return;
+    }
+    let alive = true;
+    apiRequest<{ roles: string[] }>("/api/v1/auth/capabilities", {
+      accessToken: session.access_token,
+    })
+      .then((result) => {
+        if (alive) setStaff((result.roles ?? []).some((role) => STAFF_ROLES.includes(role)));
+      })
+      .catch(() => {
+        if (alive) setStaff(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session]);
+
   function requireSession() {
     if (!session) {
       setNotice("Entre na sua conta para participar da comunidade.");
@@ -76,7 +106,10 @@ export function TopicPage() {
 
   async function reload() {
     if (!id) return;
-    const [loadedTopic, page] = await Promise.all([getTopic(session, id), listReplies(session, id)]);
+    const [loadedTopic, page] = await Promise.all([
+      getTopic(session, id),
+      listReplies(session, id),
+    ]);
     setTopic(loadedTopic);
     setReplies(page.items);
     setNextCursor(page.nextCursor);
@@ -145,12 +178,16 @@ export function TopicPage() {
       const created = await createReply(current, id, {
         body: replyBody,
         parentId: parent?.id ?? null,
+        spoilerLevel: replySpoiler,
       });
       setReplyBody("");
+      setReplySpoiler("none");
       setParent(null);
       // A resposta pode entrar em moderação: dizer "publicada" nesse caso some com o texto
       // da tela (a fila do tópico só mostra publicadas) e parece que a resposta se perdeu.
-      setNotice(created.status === "pending" ? "Resposta enviada para análise." : "Resposta publicada.");
+      setNotice(
+        created.status === "pending" ? "Resposta enviada para análise." : "Resposta publicada.",
+      );
       await reload();
     } catch (err: unknown) {
       setError(message(err));
@@ -283,7 +320,9 @@ export function TopicPage() {
 
       <article className="shelf forum-topic-detail">
         <div className="forum-meta">
-          <Link to={`/comunidade?space=${encodeURIComponent(topic.space_slug)}`}>{topic.space_name}</Link>
+          <Link to={`/comunidade?space=${encodeURIComponent(topic.space_slug)}`}>
+            {topic.space_name}
+          </Link>
           <span>·</span>
           <span>{topic.author_name}</span>
           <span>·</span>
@@ -340,7 +379,10 @@ export function TopicPage() {
           <form className="profile-card forum-report" onSubmit={submitReport}>
             <label>
               Motivo
-              <select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>
+              <select
+                value={reportReason}
+                onChange={(event) => setReportReason(event.target.value)}
+              >
                 {REPORT_REASONS.map((reason) => (
                   <option key={reason.value} value={reason.value}>
                     {reason.label}
@@ -371,7 +413,9 @@ export function TopicPage() {
 
       <section className="shelf">
         <div className="shelf-head">
-          <h2>{replies.length} {replies.length === 1 ? "resposta" : "respostas"}</h2>
+          <h2>
+            {replies.length} {replies.length === 1 ? "resposta" : "respostas"}
+          </h2>
         </div>
         {replies.length === 0 ? (
           <p className="profile-empty">Nenhuma resposta ainda. Comece a conversa.</p>
@@ -380,16 +424,46 @@ export function TopicPage() {
             {replies.map((reply) => {
               const parentName = parentLabel(reply);
               const accepted = topic.accepted_reply_id === reply.id;
+              // Uma API anterior a V21 não manda spoiler_level: sem o campo, a resposta
+              // aparece normal (não pode virar bloqueio para todo mundo).
+              const spoiler =
+                reply.spoiler_level && reply.spoiler_level !== "none" ? reply.spoiler_level : null;
               return (
-                <article className={`profile-card forum-reply ${accepted ? "is-accepted" : ""}`} key={reply.id}>
+                <article
+                  className={`profile-card forum-reply ${accepted ? "is-accepted" : ""}`}
+                  key={reply.id}
+                >
                   <div className="forum-meta">
                     <strong>{reply.author_name}</strong>
                     <span>·</span>
                     <time dateTime={reply.created_at}>{forumDate(reply.created_at)}</time>
-                    {accepted ? <span className="status-chip is-approved">Resposta aceita</span> : null}
+                    {accepted ? (
+                      <span className="status-chip is-approved">Resposta aceita</span>
+                    ) : null}
+                    {spoiler ? (
+                      <span className="status-chip is-pending">{SPOILER_LABELS[spoiler]}</span>
+                    ) : null}
                   </div>
-                  {parentName ? <p className="forum-reply-parent">Em resposta a {parentName}</p> : null}
-                  <p className="forum-body">{reply.body}</p>
+                  {parentName ? (
+                    <p className="forum-reply-parent">Em resposta a {parentName}</p>
+                  ) : null}
+                  {spoiler && !revealedReplies[reply.id] ? (
+                    <div className="forum-spoiler-gate">
+                      <strong>Esta resposta contém spoiler.</strong>
+                      <p>O texto pode revelar partes da história.</p>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          setRevealedReplies((atual) => ({ ...atual, [reply.id]: true }))
+                        }
+                      >
+                        Mostrar mesmo assim
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="forum-body">{reply.body}</p>
+                  )}
                   <div className="forum-actions">
                     <button
                       type="button"
@@ -404,7 +478,7 @@ export function TopicPage() {
                         Responder
                       </button>
                     ) : null}
-                    {mine && !accepted && reply.status === "published" ? (
+                    {(mine || staff) && !accepted && reply.status === "published" ? (
                       <button
                         type="button"
                         className="btn"
@@ -471,8 +545,30 @@ export function TopicPage() {
                 required
               />
             </label>
+            <label>
+              Spoiler
+              <select
+                value={replySpoiler}
+                onChange={(event) => setReplySpoiler(event.target.value as SpoilerLevel)}
+              >
+                {(Object.keys(SPOILER_LABELS) as SpoilerLevel[]).map((level) => (
+                  <option key={level} value={level}>
+                    {SPOILER_LABELS[level]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {staff ? (
+              <p className="forum-hint">
+                Sua resposta é publicada na hora: a equipe não passa pela fila de moderação.
+              </p>
+            ) : null}
             <div className="forum-form-actions">
-              <button type="submit" className="btn btn-primary" disabled={busy || !replyBody.trim()}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={busy || !replyBody.trim()}
+              >
                 {busy ? "Publicando…" : "Publicar resposta"}
               </button>
             </div>

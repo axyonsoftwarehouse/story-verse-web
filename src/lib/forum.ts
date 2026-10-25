@@ -49,6 +49,7 @@ export type ForumReply = {
   parent_id: string | null;
   body: string;
   status: string;
+  spoiler_level: SpoilerLevel;
   reaction_count: number;
   liked: boolean;
   created_at: string;
@@ -95,7 +96,14 @@ export function listSpaces(): Promise<ForumSpace[]> {
 
 export function listTopics(
   session: SupabaseSession | null,
-  options: { space?: string; book?: string; filter?: TopicFilter; q?: string; cursor?: string | null; limit?: number },
+  options: {
+    space?: string;
+    book?: string;
+    filter?: TopicFilter;
+    q?: string;
+    cursor?: string | null;
+    limit?: number;
+  },
 ): Promise<ForumPage<ForumTopic>> {
   const path = `/api/v1/forum/topics${query({
     space: options.space,
@@ -145,7 +153,7 @@ export function createTopic(
 export function createReply(
   session: SupabaseSession,
   topicId: string,
-  input: { body: string; parentId?: string | null },
+  input: { body: string; parentId?: string | null; spoilerLevel?: SpoilerLevel },
 ): Promise<ForumReply> {
   return apiRequest<ForumReply>(`/api/v1/forum/topics/${encodeURIComponent(topicId)}/replies`, {
     method: "POST",
@@ -183,10 +191,13 @@ export function toggleBookmark(
   session: SupabaseSession,
   topicId: string,
 ): Promise<{ saved: boolean }> {
-  return apiRequest<{ saved: boolean }>(`/api/v1/forum/topics/${encodeURIComponent(topicId)}/bookmark`, {
-    method: "POST",
-    accessToken: session.access_token,
-  });
+  return apiRequest<{ saved: boolean }>(
+    `/api/v1/forum/topics/${encodeURIComponent(topicId)}/bookmark`,
+    {
+      method: "POST",
+      accessToken: session.access_token,
+    },
+  );
 }
 
 export function acceptReply(
@@ -194,11 +205,14 @@ export function acceptReply(
   topicId: string,
   replyId: string,
 ): Promise<ForumTopic> {
-  return apiRequest<ForumTopic>(`/api/v1/forum/topics/${encodeURIComponent(topicId)}/accept-reply`, {
-    method: "POST",
-    accessToken: session.access_token,
-    body: { replyId },
-  });
+  return apiRequest<ForumTopic>(
+    `/api/v1/forum/topics/${encodeURIComponent(topicId)}/accept-reply`,
+    {
+      method: "POST",
+      accessToken: session.access_token,
+      body: { replyId },
+    },
+  );
 }
 
 export function reportContent(
