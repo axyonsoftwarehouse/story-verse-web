@@ -2628,7 +2628,7 @@ function DailySpinModal({
   }
 
   return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
+    <div className="about-backdrop spin-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
       <section className="spin-dialog" role="dialog" aria-modal="true" aria-labelledby="spin-title">
         <button type="button" className="auth-close spin-close" onClick={onClose} disabled={phase === "spinning"} aria-label="Fechar roleta">
           {Icon.close}
@@ -4015,7 +4015,7 @@ function ProfilePage({
     fetchWallet(session)
       .then((w) => alive && setDiamonds(w.balance))
       .catch(() => {
-        // Sem a loja no Supabase ou sem internet: o botão mostra só "Loja".
+        // Sem a loja no Supabase ou sem internet: o botão mostra "–" no lugar do saldo.
       });
     Promise.all([fetchGiftSummary(session), fetchReceivedGifts(session, 6)])
       .then(([summary, gifts]) => {
@@ -4306,7 +4306,7 @@ function ProfilePage({
         <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
           <span aria-hidden="true">💎</span>{" "}
           <strong className={`count-up ${shownDiamonds !== null && shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
-          <span className="sr-only"> diamantes</span> · Loja
+          <span className="sr-only"> diamantes. Abrir a loja</span>
         </button>
         </span>
       </nav>
@@ -5069,9 +5069,10 @@ function ContinueReading({
       {undo ? (
         <div className="continue-undo" role="status">
           <span>
-            “{undo.book.title}” saiu de Continue lendo.
+            <strong>{undo.book.title}</strong> saiu da lista
           </span>
-          <button type="button" className="inline-link" onClick={onUndo}>
+          <button type="button" className="btn continue-undo-btn" onClick={onUndo}>
+            {Icon.refresh}
             Desfazer
           </button>
         </div>
@@ -8309,7 +8310,7 @@ export function App() {
                 onClick={() => setReaderSettingsOpen(false)}
                 aria-label="Fechar ajustes"
               >
-                ×
+                {Icon.close}
               </button>
             </div>
             <div className="reader-settings-row">

@@ -1304,6 +1304,11 @@
   font-size: 1rem;
 }
 
+.reader-settings-head .icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .reader-settings-row > span {
   color: var(--r-muted);
   font-size: 0.82rem;
@@ -2519,6 +2524,48 @@
   display: flex;
   justify-content: center;
   margin-top: 1.4rem;
+}
+
+/* Aviso de "saiu da lista" com o Desfazer à direita, no lugar do texto solto. */
+.continue-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
+  padding: 0.55rem 0.55rem 0.55rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(165deg, rgba(var(--card-top-rgb), 0.85), rgba(var(--card-bottom-rgb), 0.9));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  animation: rise 0.3s var(--ease-out) both;
+}
+
+.continue-undo > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continue-undo strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.continue-undo-btn {
+  flex: none;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .continue-undo {
+    animation: none;
+  }
 }
 
 @media (max-width: 560px) {
@@ -9388,6 +9435,25 @@ button.ranking-diamonds {
   }
   to {
     transform: none;
+  }
+}
+
+/* A roleta é um momento de destaque: fica no meio da tela também no celular, não como gaveta. */
+@media (max-width: 640px) {
+  .about-backdrop.spin-backdrop {
+    place-items: center;
+    padding: 1rem;
+  }
+
+  .about-backdrop.spin-backdrop > section {
+    border-radius: 24px;
+    animation: rise 0.35s var(--ease-out) both;
+  }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .about-backdrop.spin-backdrop > section {
+    animation: none;
   }
 }
 
