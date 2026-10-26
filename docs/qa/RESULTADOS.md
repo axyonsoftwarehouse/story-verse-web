@@ -20,7 +20,7 @@
 | 2026-10-25 | Acervo: coleções (AD-11) e importação em lote (AD-12) | [`acervo`](2026-10-25-acervo.md) | Aprovado no re-teste | 1 alto e 1 médio, corrigidos e re-testados |
 | 2026-10-25 | Catálogo do Acervo (AD-07 a AD-10) | [`catalogo`](2026-10-25-catalogo.md) | Aprovado | 4/4 cenários; sem defeitos; 3 observações |
 | 2026-10-25 | Fórum (F-01/F-02), spoiler e aceitar resposta, e sobras do plano | [`forum-e-resto`](2026-10-25-forum-e-resto.md) | Aprovado | 10 cenários; 1 baixo corrigido no dia |
-| 2026-10-25 | Assinatura (BILL) e PWA | [`billing`](2026-10-25-billing.md) | Aprovado: 01/02/03/04/05/06 e P-01, com **cobrança real** de R$ 9,90 | 5 corrigidos (financeiro 500, CORS do paywall, 3 no webhook/RLS) |
+| 2026-10-25 | Assinatura (BILL) e PWA, recusa, reembolso, disputa e cancelamento | [`billing`](2026-10-25-billing.md) | Aprovado: 01–06, P-01, **cobrança real** de R$ 9,90, dunning completo e os três caminhos que exigem aprovação humana | 6 corrigidos (financeiro 500, CORS, 3 no webhook/RLS, cancelamento imediato) |
 | 2026-10-25 | Fórum: spoiler na resposta e aceite da equipe | [`forum-spoiler`](2026-10-25-forum-spoiler.md) | Aprovado | 2 melhorias entregues + 1 aviso na tela |
 | 2026-10-25 | Onboarding (e-mail), backup/restore, portal, carga e a11y | [`onboarding-e-operacao`](2026-10-25-onboarding-e-operacao.md) | Aprovado no que foi possível; Stripe exige aprovação humana para recusa/reembolso/cancelamento | Mailpit no QA + 1 correção de `.env` |
 
@@ -57,6 +57,7 @@
 | **BUG-023** | Médio | Assinatura | Evento de webhook gravado mas nunca marcado como processado (transações separadas). | API PR [#56](https://github.com/axyonsoftwarehouse/story-verse-api/pull/56) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 | **BUG-024** | **Alto** | Assinatura | Quem tinha plano levava 402: `requireAccess` sem transação → RLS não enxergava a assinatura. | API PR [#57](https://github.com/axyonsoftwarehouse/story-verse-api/pull/57) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 | **BUG-025** | **Alto** | Assinatura | Paywall liberava acesso quando faltava data na assinatura (fail-open); data ilegível virava `null` e também liberava. | API PR [#59](https://github.com/axyonsoftwarehouse/story-verse-api/pull/59) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
+| **BUG-026** | **Alto** | Assinatura | Cancelamento **imediato** continuava liberando acesso até o fim do período pago (um mês de graça, com o pagamento já reembolsado): `evaluate` olhava só `current_period_end`. | API PR [#60](https://github.com/axyonsoftwarehouse/story-verse-api/pull/60) (V22 `ended_at`) | Re-testado em 25/10/2026 ([billing](2026-10-25-billing.md)) |
 
 ## Fechados sem correção
 
