@@ -42,14 +42,23 @@ describe("installAnalytics", () => {
 });
 
 describe("umamiBeforeSend", () => {
+  const QA = "https://qa.storyverse.2.29.42.104.sslip.io";
+
   it("descarta as telas da equipe", () => {
     expect(umamiBeforeSend("event", { url: "/admin" })).toBe(false);
     expect(umamiBeforeSend("event", { url: "/admin/metricas?x=1" })).toBe(false);
+  });
+
+  it("descarta as telas da equipe com a URL completa, que é o que o Umami 3 manda", () => {
+    expect(umamiBeforeSend("event", { url: `${QA}/admin` })).toBe(false);
+    expect(umamiBeforeSend("performance", { url: `${QA}/admin/financeiro` })).toBe(false);
   });
 
   it("deixa passar o resto do site", () => {
     const payload = { url: "/biblioteca", website: "site-qa" };
     expect(umamiBeforeSend("event", payload)).toBe(payload);
     expect(umamiBeforeSend("event", { url: "/administracao" })).not.toBe(false);
+    expect(umamiBeforeSend("event", { url: `${QA}/biblioteca` })).not.toBe(false);
+    expect(umamiBeforeSend("event", {})).not.toBe(false);
   });
 });
