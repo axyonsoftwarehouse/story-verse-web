@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
 import { useConfirm } from "../../components/ConfirmDialog";
 import {
+  FEATURE_DESCRIPTIONS,
+  featureName,
   getCatalog,
   listFeatureUsers,
   setFeature,
@@ -120,10 +122,11 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
   return (
     <section className="shelf">
       <div className="shelf-head">
-        <h1>Features</h1>
+        <h1>Recursos em teste</h1>
       </div>
       <p className="muted">
-        Para ligar uma feature para alguém, abra o detalhe da conta em{" "}
+        Recursos novos que ainda não estão abertos para todo mundo. Para ligar um recurso para
+        alguém, abra o detalhe da conta em{" "}
         <Link className="link-btn" to="/admin/contas">
           Contas
         </Link>
@@ -147,21 +150,37 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
           Carregando features…
         </div>
       ) : catalog && catalog.length === 0 ? (
-        <p className="profile-empty">Nenhuma feature conhecida.</p>
+        <p className="profile-empty">Nenhum recurso em teste.</p>
       ) : (
         <div className="dash-tiles">
-          {(catalog ?? []).map((entry) => (
-            <button
-              type="button"
-              key={entry.feature}
-              className={`dash-card admin-feature-card${selected === entry.feature ? " is-on" : ""}`}
-              onClick={() => void open(entry.feature)}
-            >
-              <span className="dash-label">{entry.feature}</span>
-              <strong>{entry.enabledCount}</strong>
-              <span className="dash-sub">contas com a feature</span>
-            </button>
-          ))}
+          {(catalog ?? []).map((entry) =>
+            entry.everyone ? (
+              <div key={entry.feature} className="dash-card admin-feature-card">
+                <span className="dash-label">{featureName(entry.feature)}</span>
+                <strong>Todas as contas</strong>
+                <span className="dash-sub">
+                  {FEATURE_DESCRIPTIONS[entry.feature]?.description ?? entry.feature} Ligado para
+                  todo mundo pela configuração da API.
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                key={entry.feature}
+                className={`dash-card admin-feature-card${selected === entry.feature ? " is-on" : ""}`}
+                onClick={() => void open(entry.feature)}
+              >
+                <span className="dash-label">{featureName(entry.feature)}</span>
+                <strong>{entry.enabledCount}</strong>
+                <span className="dash-sub">
+                  {FEATURE_DESCRIPTIONS[entry.feature]?.description
+                    ? `${FEATURE_DESCRIPTIONS[entry.feature].description} `
+                    : ""}
+                  Contas com o recurso ligado.
+                </span>
+              </button>
+            ),
+          )}
         </div>
       )}
 

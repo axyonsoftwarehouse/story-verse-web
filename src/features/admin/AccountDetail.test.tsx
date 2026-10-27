@@ -20,7 +20,8 @@ vi.mock("../../lib/adminSanctions", () => ({
   revokeSanction: vi.fn(),
 }));
 
-vi.mock("../../lib/adminFeatures", () => ({
+vi.mock("../../lib/adminFeatures", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/adminFeatures")>()),
   getCatalog: vi.fn(),
   setFeature: vi.fn(),
   listFeatureUsers: vi.fn(),

@@ -249,10 +249,12 @@ describe("OverviewSection", () => {
     expect(await screen.findByText("↑ 200%")).toBeInTheDocument();
     expect(await screen.findByText("25%")).toBeInTheDocument(); // 1 convertido ÷ 4 encerrados
     expect(screen.getByText(/barras tracejadas são estimadas/)).toBeInTheDocument();
-    expect(await screen.findByText(/99,3% das sessões sem crash/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "TypeError: x is undefined" })).toHaveAttribute(
+    // O detalhe do Sentry foi para a aba Site; aqui fica o total e o atalho.
+    expect(await screen.findByText(/erros no Sentry · 7 dias/)).toBeInTheDocument();
+    expect(screen.queryByText(/99,3% das sessões sem crash/)).toBeNull();
+    expect(screen.getByRole("link", { name: "erros, desempenho e tráfego" })).toHaveAttribute(
       "href",
-      "https://sentry.io/issues/1/",
+      "/admin/site",
     );
     // O que a API já entrega sai da lista de lacunas.
     expect(screen.queryByText("Erros e sessões (Sentry)")).toBeNull();
