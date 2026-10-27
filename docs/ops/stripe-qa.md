@@ -87,12 +87,34 @@ Para conferir sem esperar um pagamento: abra o endpoint no dashboard → **Send 
 
 Validade: qualquer data futura. CVC: qualquer 3 dígitos. Nome: qualquer.
 
-## 7. Ativar o modo real (depois do aceite do professor)
+## 7. Modo real (produção)
 
-1. Complete os dados da empresa (o Stripe Brasil pede CNPJ e dados bancários para repassar o dinheiro).
-2. Recrie o produto/preço em modo real e troque `STRIPE_PRICE_ID`.
-3. Troque as chaves `sk_test_`/`whsec_` pelas de produção **em outro `.env`** (produção, não QA).
-4. Cadastre o webhook de produção apontando para o domínio público da API.
+A conta de produção é uma conta **Storyverse** separada dentro do mesmo login do Stripe, com o titular
+pessoa física (CPF) compartilhado com o outro negócio. Site, descrição no extrato e chaves são só dela.
+
+1. Produto e preço em modo real: copiados da área de testes (R$ 9,90/mês, sem trial no Stripe). O
+   `price_…` de produção é diferente do de teste.
+2. Chave: **Criar chave secreta → Criar a própria integração → Acesso total (exceto operações
+   sensíveis)**. O Stripe gera `rk_live_…` (chave restrita), e isso é esperado: ela bloqueia repasses,
+   transferências, Issuing e Connect, que o Storyverse não usa.
+3. Webhook de produção: mesmos eventos do passo 5, com a URL
+   `https://api.storyverse.2.29.42.104.sslip.io/api/v1/billing/webhook`.
+4. `/home/deploy/storyverse/.env` (produção, não QA): `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
+   `STRIPE_WEBHOOK_SECRET` e `BILLING_ENABLED=false`. O `deploy/storyverse/docker-compose.yml` repassa
+   as quatro para o serviço `api`; o compose da VPS é uma cópia manual e precisa das mesmas linhas.
+
+**Ligar a cobrança** (quando quiser abrir a assinatura):
+
+1. No `.env` de produção, `BILLING_ENABLED=true`, e depois `docker compose up -d api` em
+   `/home/deploy/storyverse`.
+2. No GitHub, **Settings → Secrets and variables → Actions → Variables**, crie
+   `VITE_BILLING_ENABLED` = `true` e rode o workflow **Deploy Storyverse (VPS)** para o site mostrar o
+   botão de assinar.
+3. Faça uma assinatura real com o seu cartão e confira no dashboard que o webhook respondeu **200**.
+   Cancele e reembolse depois.
+
+Para desligar, faça o caminho inverso: apague a variável (ou ponha `false`), rode o deploy e volte
+`BILLING_ENABLED=false`.
 
 ## O que NÃO fazer
 

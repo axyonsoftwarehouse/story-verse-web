@@ -21,7 +21,9 @@ import {
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
 import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
 import { FORUM_VISIBLE } from "../../lib/features";
+import { getTopBooks, type AdminTopBook } from "../../lib/adminTopBooks";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
+import { ActiveUsersCard } from "./ActiveUsersCard";
 import { TrendBars } from "./TrendBars";
 import { isSuperadmin } from "./adminSections";
 import {
@@ -65,11 +67,12 @@ const PERIODS: {
   },
 ];
 
-type TrendMetric = "activeReaders" | "minutes" | "booksFinished" | "signups";
+type TrendMetric = "activeReaders" | "minutes" | "pages" | "booksFinished" | "signups";
 
 const TRENDS: { key: TrendMetric; label: string; unit: string }[] = [
   { key: "activeReaders", label: "Leitores", unit: "leitores" },
   { key: "minutes", label: "Minutos", unit: "minutos" },
+  { key: "pages", label: "Páginas", unit: "páginas" },
   { key: "booksFinished", label: "Terminados", unit: "livros" },
   { key: "signups", label: "Cadastros", unit: "contas" },
 ];
@@ -79,13 +82,6 @@ type BillingMetric = "mrrCents" | "revenueCents";
 const BILLING_TRENDS: { key: BillingMetric; label: string; summary: "last" | "total" }[] = [
   { key: "mrrCents", label: "MRR", summary: "last" },
   { key: "revenueCents", label: "Receita", summary: "total" },
-];
-
-/** O que o dashboard ainda não mostra por falta de dado na API (detalhes em docs/SPEC_ADMIN_DASHBOARD.md). */
-const API_GAPS: { label: string; endpoint: string }[] = [
-  { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
-  { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
-  { label: "Livros mais lidos", endpoint: "GET /api/v1/admin/metrics/top-books" },
 ];
 
 type CommunityMetric = "topics" | "replies" | "reports";
@@ -532,6 +528,36 @@ function SentryHealth({ data }: { data: AdminHealth | "error" | undefined }) {
   );
 }
 
+/** Livros do acervo mais lidos no período, pela estante (sem minutos: a leitura diária não guarda o livro). */
+function TopBooksCard({ data }: { data: AdminTopBook[] | "error" | undefined }) {
+  if (data === undefined) return <Spinner label="Carregando livros…" />;
+  if (data === "error") {
+    return <p className="dash-sub">Não foi possível carregar os livros mais lidos agora.</p>;
+  }
+  if (data.length === 0)
+    return <p className="profile-empty">Nenhum livro do acervo lido no período.</p>;
+  return (
+    <ol className="admin-ranking">
+      {data.map((book, index) => (
+        <li key={book.bookKey} className={index < 3 ? `is-top is-place-${index + 1}` : undefined}>
+          <span className="admin-ranking-place">{index + 1}º</span>
+          <span
+            className="admin-ranking-name"
+            title={book.author ? `${book.title} · ${book.author}` : book.title}
+          >
+            {book.title}
+            {book.author ? <span className="muted"> · {book.author}</span> : null}
+          </span>
+          <span className="admin-ranking-minutes">
+            {number(book.readers)} {book.readers === 1 ? "leitor" : "leitores"} ·{" "}
+            {number(book.finished)} {book.finished === 1 ? "terminou" : "terminaram"}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function OverviewSection({ session, roles }: { session: SupabaseSession; roles: string[] }) {
   const superadmin = isSuperadmin(roles);
   const [today] = useState(() => isoDate(new Date()));
@@ -550,6 +576,9 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const [health, setHealth] = useState<Partial<Record<HealthPeriod, AdminHealth | "error">>>({});
   const [traffic, setTraffic] = useState<Partial<Record<PeriodKey, AdminTraffic | "error">>>({});
   const [community, setCommunity] = useState<CommunityPoint[] | "error" | null>(null);
+  const [topBooks, setTopBooks] = useState<Partial<Record<PeriodKey, AdminTopBook[] | "error">>>(
+    {},
+  );
 
   useEffect(() => {
     let alive = true;
@@ -671,6 +700,24 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       alive = false;
     };
   }, [session, superadmin, today, period, loadedTraffic]);
+
+  const loadedTopBooks = Boolean(topBooks[period]);
+
+  useEffect(() => {
+    if (!superadmin || loadedTopBooks) return;
+    let alive = true;
+    const days = PERIODS.find((item) => item.key === period)?.days ?? 7;
+    getTopBooks(session, periodRanges(today, days).current)
+      .then((result) => {
+        if (alive) setTopBooks((value) => ({ ...value, [period]: result }));
+      })
+      .catch(() => {
+        if (alive) setTopBooks((value) => ({ ...value, [period]: "error" }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, superadmin, today, period, loadedTopBooks]);
 
   if (error) {
     return (
@@ -813,8 +860,20 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   signups={signups}
                   signupsBefore={signupsBefore}
                 />
-                <Kpi label="Páginas lidas" value="—">
-                  <Pending endpoint="reading_days.pages + campo pages nas métricas" />
+                {/* 1 página = 250 palavras lidas (regra em src/lib/readingPages.ts). */}
+                <Kpi
+                  label="Páginas lidas"
+                  value={reading.pages === undefined ? "—" : number(reading.pages)}
+                >
+                  {reading.pages === undefined ? (
+                    <Pending endpoint="campo pages em /api/v1/admin/metrics/overview" />
+                  ) : (
+                    <Delta
+                      period={period}
+                      current={reading.pages}
+                      previous={pair.previous.reading.pages ?? 0}
+                    />
+                  )}
                 </Kpi>
               </div>
 
@@ -1037,22 +1096,17 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                 <CommunityCard points={community} period={periodInfo} today={today} />
               </article>
             ) : null}
-          </div>
 
-          <article className="dash-card admin-gaps">
-            <div className="dash-card-head">
-              <span className="dash-label">Ainda sem dados na API</span>
-              <span className="dash-sub">planejado em docs/SPEC_ADMIN_DASHBOARD.md</span>
-            </div>
-            <ul>
-              {API_GAPS.map((gap) => (
-                <li key={gap.label}>
-                  <strong>{gap.label}</strong>
-                  <code>{gap.endpoint}</code>
-                </li>
-              ))}
-            </ul>
-          </article>
+            <article className="dash-card admin-ranking-card">
+              <div className="dash-card-head">
+                <span className="dash-label">Livros mais lidos</span>
+                <span className="dash-sub">estante · {periodInfo.label}</span>
+              </div>
+              <TopBooksCard data={topBooks[period]} />
+            </article>
+
+            <ActiveUsersCard session={session} today={today} />
+          </div>
         </>
       ) : overview.accounts ? (
         <div className="admin-kpis">
