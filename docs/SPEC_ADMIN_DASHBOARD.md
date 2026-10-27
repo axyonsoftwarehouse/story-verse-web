@@ -33,8 +33,9 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 > e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
 > #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
 > tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
-> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Continuam pendentes: 2.2,
-> 2.3, 2.5 e 2.6.
+> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. O 2.5 (livros mais lidos,
+> sem minutos por livro) está no PR da API `feat/admin-top-books` e no card da visão geral.
+> Continuam pendentes: 2.2, 2.3 e 2.6.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
@@ -72,10 +73,19 @@ acervo (`catalog_books`). Proposta:
 - Conversão grátis → pago: `{ trialsStarted, trialsConverted, paidFromFree }` no período, no próprio
   `billing/summary`.
 
-### 2.5 Livros mais lidos
-- `GET /api/v1/admin/metrics/top-books?from&to&limit=10` →
-  `[{ bookKey, title, author, readers, minutes, finished }]` agregando `reading_days` /
-  `library_entries` (só livros do acervo ou com título conhecido; nada de texto do usuário).
+### 2.5 Livros mais lidos — feito (sem minutos por livro)
+- `GET /api/v1/admin/metrics/top-books?from&to&limit=10` (limite de 1 a 20) →
+  `[{ bookKey, title, author, readers, finished }]`, ordenado por `readers` e depois `finished`.
+- Sai só de `public.library_entries` (função `admin_metrics_top_books`, migração V28 da API).
+  `reading_days` não guarda o livro, então **não há `minutes` por livro**, e não vamos criar
+  tabela para isso.
+- `readers`: contas com o livro em `reading` ou `finished` e atividade no período — começou
+  (`started_on`) ou terminou (`finished_on`) no período, ou, se ainda está lendo, a entrada mudou
+  (`updated_at`, que o progresso atualiza) no período. `updated_at` não conta para `finished`:
+  editar a nota de um livro lido há meses não é leitura.
+- `finished`: contas com `finished_on` no período.
+- Só livros do acervo (`gb:`, `cm:` e `cat:`). Nunca `local:`, nem resenha ou notas. Título e
+  autor vêm de `catalog_books` quando o livro está lá; senão, do snapshot mais comum na estante.
 
 ### 2.6 Atividade da comunidade
 - `GET /api/v1/admin/metrics/community?from&to&group=day` →
