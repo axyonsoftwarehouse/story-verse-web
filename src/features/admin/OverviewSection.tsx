@@ -18,6 +18,7 @@ import {
   type MetricsRetention,
 } from "../../lib/adminMetrics";
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
+import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
 import { TrendBars } from "./TrendBars";
 import { isSuperadmin } from "./adminSections";
@@ -83,7 +84,6 @@ const API_GAPS: { label: string; endpoint: string }[] = [
   { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
   { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
   { label: "Livros mais lidos", endpoint: "GET /api/v1/admin/metrics/top-books" },
-  { label: "Visitantes e páginas (Umami)", endpoint: "GET /api/v1/admin/traffic" },
 ];
 
 const TREND_DAYS = 30;
@@ -269,6 +269,117 @@ function percent(value: number): string {
   return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value * 100)}%`;
 }
 
+function duration(seconds: number): string {
+  const total = Math.round(seconds);
+  if (total < 60) return `${total} s`;
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return rest ? `${minutes} min ${rest} s` : `${minutes} min`;
+}
+
+/** Lista curta (páginas, origens) no mesmo desenho dos problemas do Sentry. */
+function TrafficList({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: TrafficItem[];
+  empty: string;
+}) {
+  return (
+    <div className="dash-tile">
+      <span className="dash-label">{title}</span>
+      {items.length === 0 ? (
+        <span>sem dados no período</span>
+      ) : (
+        <ul className="admin-issues">
+          {items.slice(0, 5).map((item) => (
+            <li key={item.value || empty}>
+              <span title={item.value || empty}>{item.value || empty}</span>
+              <span className="muted">{number(item.count)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Visitantes, páginas e origens do Umami no período escolhido. */
+function TrafficCard({
+  data,
+  period,
+}: {
+  data: AdminTraffic | "error" | undefined;
+  period: PeriodKey;
+}) {
+  if (data === undefined) return <Spinner label="Carregando tráfego…" />;
+  if (data === "error" || !data.traffic) {
+    return (
+      <p className="dash-sub">
+        Tráfego indisponível ·{" "}
+        {data === "error"
+          ? "não foi possível consultar o Umami agora."
+          : (data.error ?? "sem dados")}
+      </p>
+    );
+  }
+  const traffic = data.traffic;
+  return (
+    <>
+      <div className="admin-mini-tiles">
+        <div className="dash-tile">
+          <strong>{number(traffic.visitors)}</strong>
+          <span>
+            visitantes ·{" "}
+            <Delta
+              period={period}
+              current={traffic.visitors}
+              previous={traffic.previous.visitors}
+            />
+          </span>
+        </div>
+        <div className="dash-tile">
+          <strong>{number(traffic.pageviews)}</strong>
+          <span>
+            páginas vistas ·{" "}
+            <Delta
+              period={period}
+              current={traffic.pageviews}
+              previous={traffic.previous.pageviews}
+            />
+          </span>
+        </div>
+        <div className="dash-tile">
+          <strong>{number(traffic.visits)}</strong>
+          <span>
+            visitas · {percent(traffic.bounceRate)} de rejeição ·{" "}
+            {duration(traffic.avgVisitSeconds)} em média
+          </span>
+        </div>
+        <div className="dash-tile">
+          <strong>{number(traffic.activeNow)}</strong>
+          <span>no site agora</span>
+        </div>
+        <TrafficList title="Páginas mais vistas" items={traffic.topPages} empty="/" />
+        <TrafficList title="Origens" items={traffic.referrers} empty="acesso direto" />
+      </div>
+      {traffic.series.length > 1 ? (
+        <TrendBars
+          caption="Páginas vistas"
+          unit="páginas"
+          points={traffic.series.map((point) => ({
+            key: point.day,
+            label: dayMonth(point.day),
+            value: point.pageviews,
+          }))}
+        />
+      ) : null}
+    </>
+  );
+}
+
 /** Erros, sessões sem crash e problemas mais frequentes de cada projeto do Sentry. */
 function SentryHealth({ data }: { data: AdminHealth | "error" | undefined }) {
   if (data === undefined) {
@@ -356,6 +467,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const [billingSeries, setBillingSeries] = useState<BillingSeriesPoint[] | null>(null);
   const [billingMetric, setBillingMetric] = useState<BillingMetric>("mrrCents");
   const [health, setHealth] = useState<Partial<Record<HealthPeriod, AdminHealth | "error">>>({});
+  const [traffic, setTraffic] = useState<Partial<Record<PeriodKey, AdminTraffic | "error">>>({});
 
   useEffect(() => {
     let alive = true;
@@ -449,6 +561,24 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       alive = false;
     };
   }, [session, superadmin, healthPeriod, loadedHealth]);
+
+  const loadedTraffic = Boolean(traffic[period]);
+
+  useEffect(() => {
+    if (!superadmin || loadedTraffic) return;
+    let alive = true;
+    const days = PERIODS.find((item) => item.key === period)?.days ?? 7;
+    getTraffic(session, periodRanges(today, days).current)
+      .then((result) => {
+        if (alive) setTraffic((value) => ({ ...value, [period]: result }));
+      })
+      .catch(() => {
+        if (alive) setTraffic((value) => ({ ...value, [period]: "error" }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, superadmin, today, period, loadedTraffic]);
 
   if (error) {
     return (
@@ -795,13 +925,15 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   </div>
                 ) : null}
                 <SentryHealth data={healthData} />
-                <div className="dash-tile">
-                  <strong>—</strong>
-                  <span>
-                    visitantes e páginas (Umami) · <Pending endpoint="GET /api/v1/admin/traffic" />
-                  </span>
-                </div>
               </div>
+            </article>
+
+            <article className="dash-card admin-traffic-card">
+              <div className="dash-card-head">
+                <span className="dash-label">Tráfego do site</span>
+                <span className="dash-sub">Umami · {periodInfo.label}</span>
+              </div>
+              <TrafficCard data={traffic[period]} period={period} />
             </article>
           </div>
 

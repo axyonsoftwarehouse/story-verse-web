@@ -61,6 +61,8 @@ jobs:
           VITE_BILLING_ENABLED: "true"
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN_QA }}
           VITE_SENTRY_ENVIRONMENT: qa
+          # Site de QA no Umami (o id é público; o tracker vem de /u/* pelo Caddy).
+          VITE_UMAMI_WEBSITE_ID: ac74551e-2634-4e26-8b06-aebb050fc8db
           VITE_SENTRY_RELEASE: ${{ steps.release.outputs.sha }}
         run: npm run build
 

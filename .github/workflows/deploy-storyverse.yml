@@ -50,6 +50,8 @@ jobs:
           VITE_LOGIN_REQUIRED: ${{ secrets.VITE_LOGIN_REQUIRED }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: production
+          # Site de produção no Umami (o id é público; o tracker vem de /u/* pelo Caddy).
+          VITE_UMAMI_WEBSITE_ID: ac235b63-f338-4740-bd83-b29b5373f719
           VITE_SENTRY_RELEASE: ${{ github.sha }}
         run: npm run build
 

@@ -59,6 +59,12 @@ storyverse.2.29.42.104.sslip.io {
         reverse_proxy https://covers.openlibrary.org
     }
 
+    # Umami pela mesma origem: /u/script.js e a coleta em /u/api/send, sem mexer na CSP.
+    # O contêiner está na rede storyverse_default (a mesma da API, que lê o tráfego por ele).
+    handle_path /u/* {
+        reverse_proxy umami-umami-1:3000
+    }
+
     # site (arquivos estáticos) com fallback das telas internas (SPA)
     handle {
         root * /srv/storyverse/current
@@ -123,6 +129,12 @@ qa.storyverse.2.29.42.104.sslip.io {
     handle /ol-covers/b/* {
         uri strip_prefix /ol-covers
         reverse_proxy https://covers.openlibrary.org
+    }
+
+    # Umami pela mesma origem: /u/script.js e a coleta em /u/api/send, sem mexer na CSP.
+    # O contêiner está na rede storyverse_default (a mesma da API, que lê o tráfego por ele).
+    handle_path /u/* {
+        reverse_proxy umami-umami-1:3000
     }
 
     # site (arquivos estáticos) com fallback das telas internas (SPA)

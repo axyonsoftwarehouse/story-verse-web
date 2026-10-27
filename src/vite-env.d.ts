@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_ENVIRONMENT?: string;
   readonly VITE_SENTRY_RELEASE?: string;
   readonly VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
+  /** Opcional. Id do site no Umami; sem ele o tracker não entra na página. Não é segredo. */
+  readonly VITE_UMAMI_WEBSITE_ID?: string;
   /** Opcional. "true" pede o código de 6 números no cadastro (OTP configurado no Supabase). */
   readonly VITE_SUPABASE_EMAIL_OTP_ENABLED?: string;
   readonly VITE_GROQ_API_KEY?: string;
