@@ -21,6 +21,7 @@ import { getOverview, type AdminOverview } from "../../lib/adminOverview";
 import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
 import { getTopBooks, type AdminTopBook } from "../../lib/adminTopBooks";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
+import { ActiveUsersCard } from "./ActiveUsersCard";
 import { TrendBars } from "./TrendBars";
 import { isSuperadmin } from "./adminSections";
 import {
@@ -64,11 +65,12 @@ const PERIODS: {
   },
 ];
 
-type TrendMetric = "activeReaders" | "minutes" | "booksFinished" | "signups";
+type TrendMetric = "activeReaders" | "minutes" | "pages" | "booksFinished" | "signups";
 
 const TRENDS: { key: TrendMetric; label: string; unit: string }[] = [
   { key: "activeReaders", label: "Leitores", unit: "leitores" },
   { key: "minutes", label: "Minutos", unit: "minutos" },
+  { key: "pages", label: "Páginas", unit: "páginas" },
   { key: "booksFinished", label: "Terminados", unit: "livros" },
   { key: "signups", label: "Cadastros", unit: "contas" },
 ];
@@ -78,12 +80,6 @@ type BillingMetric = "mrrCents" | "revenueCents";
 const BILLING_TRENDS: { key: BillingMetric; label: string; summary: "last" | "total" }[] = [
   { key: "mrrCents", label: "MRR", summary: "last" },
   { key: "revenueCents", label: "Receita", summary: "total" },
-];
-
-/** O que o dashboard ainda não mostra por falta de dado na API (detalhes em docs/SPEC_ADMIN_DASHBOARD.md). */
-const API_GAPS: { label: string; endpoint: string }[] = [
-  { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
-  { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
 ];
 
 const TREND_DAYS = 30;
@@ -772,8 +768,20 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   signups={signups}
                   signupsBefore={signupsBefore}
                 />
-                <Kpi label="Páginas lidas" value="—">
-                  <Pending endpoint="reading_days.pages + campo pages nas métricas" />
+                {/* 1 página = 250 palavras lidas (regra em src/lib/readingPages.ts). */}
+                <Kpi
+                  label="Páginas lidas"
+                  value={reading.pages === undefined ? "—" : number(reading.pages)}
+                >
+                  {reading.pages === undefined ? (
+                    <Pending endpoint="campo pages em /api/v1/admin/metrics/overview" />
+                  ) : (
+                    <Delta
+                      period={period}
+                      current={reading.pages}
+                      previous={pair.previous.reading.pages ?? 0}
+                    />
+                  )}
                 </Kpi>
               </div>
 
@@ -994,22 +1002,9 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
               </div>
               <TopBooksCard data={topBooks[period]} />
             </article>
-          </div>
 
-          <article className="dash-card admin-gaps">
-            <div className="dash-card-head">
-              <span className="dash-label">Ainda sem dados na API</span>
-              <span className="dash-sub">planejado em docs/SPEC_ADMIN_DASHBOARD.md</span>
-            </div>
-            <ul>
-              {API_GAPS.map((gap) => (
-                <li key={gap.label}>
-                  <strong>{gap.label}</strong>
-                  <code>{gap.endpoint}</code>
-                </li>
-              ))}
-            </ul>
-          </article>
+            <ActiveUsersCard session={session} today={today} />
+          </div>
         </>
       ) : overview.accounts ? (
         <div className="admin-kpis">
