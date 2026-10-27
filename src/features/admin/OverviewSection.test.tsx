@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseSession } from "../../lib/auth";
-import { getBillingSummary, type BillingSummary } from "../../lib/adminBilling";
+import { getBillingSeries, getBillingSummary, type BillingSummary } from "../../lib/adminBilling";
+import { getHealth, type AdminHealth } from "../../lib/adminHealth";
 import {
   getMetricsOverview,
   getMetricsRetention,
@@ -12,7 +13,7 @@ import {
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
 import { fetchRanking } from "../../lib/ranking";
 import { OverviewSection } from "./OverviewSection";
-import { isoDate } from "./dashboardMath";
+import { isoDate, shiftDays } from "./dashboardMath";
 
 vi.mock("../../lib/adminOverview", () => ({ getOverview: vi.fn() }));
 vi.mock("../../lib/adminMetrics", () => ({
@@ -23,7 +24,9 @@ vi.mock("../../lib/adminMetrics", () => ({
 vi.mock("../../lib/adminBilling", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/adminBilling")>()),
   getBillingSummary: vi.fn(),
+  getBillingSeries: vi.fn(),
 }));
+vi.mock("../../lib/adminHealth", () => ({ getHealth: vi.fn() }));
 vi.mock("../../lib/ranking", () => ({ fetchRanking: vi.fn() }));
 
 const session = { access_token: "token", user: { id: "admin-1" } } as unknown as SupabaseSession;
@@ -60,8 +63,38 @@ const billing: BillingSummary = {
   canceled_count: 1,
   failed: 1,
   mrr_cents: 12990,
+  trials_started: 6,
+  trials_ended: 4,
+  trials_converted: 1,
   from: "2026-09-26",
   to: "2026-10-26",
+};
+
+const health: AdminHealth = {
+  period: "7d",
+  sentry: {
+    projects: [
+      {
+        slug: "storyverse-web",
+        errorsSeries: [{ day: "2026-10-25", accepted: 7, filtered: null }],
+        errorsTotal: 7,
+        crashFreeSessions: 0.993,
+        sessionsSeries: [{ day: "2026-10-25", sessions: 120 }],
+        topIssues: [
+          {
+            id: "1",
+            title: "TypeError: x is undefined",
+            count: 5,
+            users: 2,
+            lastSeen: "2026-10-26T10:00:00Z",
+            permalink: "https://sentry.io/issues/1/",
+          },
+        ],
+      },
+    ],
+  },
+  error: null,
+  backup: overview.backup,
 };
 
 function renderSection(roles: string[]) {
@@ -85,6 +118,27 @@ describe("OverviewSection", () => {
     vi.mocked(getReadingSeries).mockResolvedValue([]);
     vi.mocked(getMetricsRetention).mockResolvedValue([]);
     vi.mocked(getBillingSummary).mockResolvedValue(billing);
+    vi.mocked(getBillingSeries).mockResolvedValue([
+      {
+        bucket: shiftDays(today, -1),
+        mrrCents: 12000,
+        active: 8,
+        newCount: 0,
+        canceledCount: 0,
+        revenueCents: 0,
+        estimated: true,
+      },
+      {
+        bucket: today,
+        mrrCents: 12990,
+        active: 9,
+        newCount: 1,
+        canceledCount: 0,
+        revenueCents: 990,
+        estimated: false,
+      },
+    ]);
+    vi.mocked(getHealth).mockResolvedValue(health);
     vi.mocked(fetchRanking).mockResolvedValue([
       {
         place: 1,
@@ -146,6 +200,54 @@ describe("OverviewSection", () => {
     expect(screen.getAllByText("aguardando endpoint").length).toBeGreaterThan(0);
   });
 
+  it("compara cadastros com o período anterior e mostra conversão, MRR e Sentry", async () => {
+    const today = isoDate(new Date());
+    const point = (bucket: string, signups: number) => ({
+      bucket,
+      activeReaders: 0,
+      minutes: 0,
+      booksStarted: 0,
+      booksFinished: 0,
+      signups,
+    });
+    // 9 cadastros nos últimos 7 dias contra 3 nos 7 anteriores.
+    vi.mocked(getReadingSeries).mockResolvedValue([
+      point(today, 4),
+      point(shiftDays(today, -3), 5),
+      point(shiftDays(today, -10), 3),
+    ]);
+    renderSection(["superadmin"]);
+
+    expect(await screen.findByText("↑ 200%")).toBeInTheDocument();
+    expect(await screen.findByText("25%")).toBeInTheDocument(); // 1 convertido ÷ 4 encerrados
+    expect(screen.getByText(/barras tracejadas são estimadas/)).toBeInTheDocument();
+    expect(await screen.findByText(/99,3% das sessões sem crash/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "TypeError: x is undefined" })).toHaveAttribute(
+      "href",
+      "https://sentry.io/issues/1/",
+    );
+    // O que a API já entrega sai da lista de lacunas.
+    expect(screen.queryByText("Erros e sessões (Sentry)")).toBeNull();
+    expect(screen.getByText("Livros mais lidos")).toBeInTheDocument();
+  });
+
+  it("mostra o motivo quando o Sentry não responde e não alarma sem backup registrado", async () => {
+    vi.mocked(getOverview).mockResolvedValue({
+      ...overview,
+      backup: { status: null, finishedAt: null, sizeBytes: null, stale: true },
+    });
+    vi.mocked(getHealth).mockResolvedValue({
+      ...health,
+      sentry: null,
+      error: "Sentry não configurado.",
+    });
+    renderSection(["superadmin"]);
+
+    expect(await screen.findByText(/Sentry não configurado\./)).toBeInTheDocument();
+    expect(screen.getByText("backup · sem backup registrado")).toBeInTheDocument();
+    expect(screen.queryByText("Atrasado")).toBeNull();
+  });
+
   it("moderador vê só as ações, sem métricas de negócio", async () => {
     renderSection(["moderator"]);
 
@@ -153,6 +255,7 @@ describe("OverviewSection", () => {
     expect(getMetricsOverview).not.toHaveBeenCalled();
     expect(getBillingSummary).not.toHaveBeenCalled();
     expect(fetchRanking).not.toHaveBeenCalled();
+    expect(getHealth).not.toHaveBeenCalled();
     expect(screen.queryByText("Ranking da semana")).toBeNull();
   });
 

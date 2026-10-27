@@ -8,6 +8,7 @@ import {
   rangeEnding,
   ratio,
   shiftDays,
+  signupsBetween,
 } from "./dashboardMath";
 
 describe("dashboardMath", () => {
@@ -57,5 +58,44 @@ describe("dashboardMath", () => {
     ];
     expect(latestCompleteD7(rows, "2026-10-26")?.cohortWeek).toBe("2026-10-05");
     expect(latestCompleteD7(rows.slice(2), "2026-10-26")).toBeNull();
+  });
+
+  it("soma os cadastros do intervalo e avisa quando a API não manda", () => {
+    const points = [
+      {
+        bucket: "2026-10-24",
+        activeReaders: 0,
+        minutes: 0,
+        booksStarted: 0,
+        booksFinished: 0,
+        signups: 2,
+      },
+      {
+        bucket: "2026-10-25",
+        activeReaders: 0,
+        minutes: 0,
+        booksStarted: 0,
+        booksFinished: 0,
+        signups: 3,
+      },
+      {
+        bucket: "2026-10-26",
+        activeReaders: 0,
+        minutes: 0,
+        booksStarted: 0,
+        booksFinished: 0,
+        signups: 5,
+      },
+    ];
+    expect(signupsBetween(points, { from: "2026-10-25", to: "2026-10-26" })).toBe(8);
+    expect(
+      signupsBetween(
+        [{ bucket: "2026-10-25", activeReaders: 1, minutes: 1, booksStarted: 0, booksFinished: 0 }],
+        {
+          from: "2026-10-25",
+          to: "2026-10-25",
+        },
+      ),
+    ).toBeNull();
   });
 });

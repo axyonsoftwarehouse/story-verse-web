@@ -75,3 +75,10 @@ export function ratio(part: number, total: number): number | null {
   if (!total) return null;
   return Math.round((part / total) * 100);
 }
+
+/** Soma os cadastros dos dias do intervalo; null se a API ainda não manda `signups`. */
+export function signupsBetween(points: MetricsReadingPoint[], range: MetricsRange): number | null {
+  const inside = points.filter((point) => point.bucket >= range.from && point.bucket <= range.to);
+  if (!inside.some((point) => point.signups !== undefined)) return null;
+  return inside.reduce((sum, point) => sum + (point.signups ?? 0), 0);
+}

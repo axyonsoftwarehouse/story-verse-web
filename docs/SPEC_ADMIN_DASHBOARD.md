@@ -29,10 +29,14 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 
 ## 2. Endpoints e campos que faltam na API
 
+> **Situação em 2026-10-27:** 2.1, 2.4 e 3 já existem na API (axyonsoftwarehouse/story-verse-api#62
+> e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
+> #62. Continuam pendentes: 2.2, 2.3, 2.5, 2.6 e o Umami (4).
+
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
 
-### 2.1 Cadastros por dia (e janela de 24h)
+### 2.1 Cadastros por dia (e janela de 24h) — feito
 - **Novo campo** em `AdminMetrics.Accounts`: `new24h` (`created_at >= now() - interval '24 hours'`)
   e `newToday`.
 - **Novo campo** em `AdminMetricsReadingPoint` (série diária/semanal): `signups` (contas criadas no
@@ -56,7 +60,7 @@ acervo (`catalog_books`). Proposta:
   `reading_heartbeat`).
 - `GET /api/v1/admin/metrics/active?from&to` → `{ dau, wau, mau, series: [{ day, active }] }`.
 
-### 2.4 Assinaturas e receita no tempo
+### 2.4 Assinaturas e receita no tempo — feito (sem `paidFromFree`: o grátis não passa pelo Stripe)
 `billing/summary` é só uma foto. Faltam:
 - `GET /api/v1/admin/billing/series?from&to&group=day|week` →
   `[{ bucket, mrrCents, active, newCount, canceledCount, revenueCents }]`. `mrrCents` precisa de
@@ -74,7 +78,7 @@ acervo (`catalog_books`). Proposta:
 - `GET /api/v1/admin/metrics/community?from&to&group=day` →
   `[{ bucket, topics, replies, reports }]`.
 
-## 3. Saúde do sistema via Sentry
+## 3. Saúde do sistema via Sentry — feito (Web Vitals ainda não)
 
 O app (`@sentry/react`, `src/lib/telemetry.ts`) e a API Java já enviam ao Sentry. O painel lê os
 números por um endpoint da API que chama a API REST do Sentry no servidor.

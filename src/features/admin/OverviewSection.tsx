@@ -1,7 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
-import { brlFromCents, getBillingSummary, type BillingSummary } from "../../lib/adminBilling";
+import {
+  brlFromCents,
+  getBillingSeries,
+  getBillingSummary,
+  type BillingSeriesPoint,
+  type BillingSummary,
+} from "../../lib/adminBilling";
+import { getHealth, type AdminHealth, type HealthPeriod } from "../../lib/adminHealth";
 import {
   getMetricsOverview,
   getMetricsRetention,
@@ -22,37 +29,66 @@ import {
   periodRanges,
   rangeEnding,
   ratio,
+  signupsBetween,
 } from "./dashboardMath";
 
 type PeriodKey = "today" | "7d" | "30d";
 
-const PERIODS: { key: PeriodKey; label: string; days: number; previous: string }[] = [
-  { key: "today", label: "Hoje", days: 1, previous: "ontem" },
-  { key: "7d", label: "7 dias", days: 7, previous: "7 dias anteriores" },
-  { key: "30d", label: "30 dias", days: 30, previous: "30 dias anteriores" },
+/** `health`: janela do Sentry para o período (o endpoint vai até 14 dias). */
+const PERIODS: {
+  key: PeriodKey;
+  label: string;
+  days: number;
+  previous: string;
+  health: HealthPeriod;
+  healthLabel: string;
+}[] = [
+  { key: "today", label: "Hoje", days: 1, previous: "ontem", health: "24h", healthLabel: "24 h" },
+  {
+    key: "7d",
+    label: "7 dias",
+    days: 7,
+    previous: "7 dias anteriores",
+    health: "7d",
+    healthLabel: "7 dias",
+  },
+  {
+    key: "30d",
+    label: "30 dias",
+    days: 30,
+    previous: "30 dias anteriores",
+    health: "14d",
+    healthLabel: "14 dias (máximo do Sentry)",
+  },
 ];
 
-type TrendMetric = "activeReaders" | "minutes" | "booksFinished";
+type TrendMetric = "activeReaders" | "minutes" | "booksFinished" | "signups";
 
 const TRENDS: { key: TrendMetric; label: string; unit: string }[] = [
   { key: "activeReaders", label: "Leitores", unit: "leitores" },
   { key: "minutes", label: "Minutos", unit: "minutos" },
   { key: "booksFinished", label: "Terminados", unit: "livros" },
+  { key: "signups", label: "Cadastros", unit: "contas" },
+];
+
+type BillingMetric = "mrrCents" | "revenueCents";
+
+const BILLING_TRENDS: { key: BillingMetric; label: string; summary: "last" | "total" }[] = [
+  { key: "mrrCents", label: "MRR", summary: "last" },
+  { key: "revenueCents", label: "Receita", summary: "total" },
 ];
 
 /** O que o dashboard ainda não mostra por falta de dado na API (detalhes em docs/SPEC_ADMIN_DASHBOARD.md). */
 const API_GAPS: { label: string; endpoint: string }[] = [
   { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
-  { label: "Cadastros de hoje e por dia", endpoint: "accounts.new24h e signups na série" },
   { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
-  { label: "MRR e receita no tempo", endpoint: "GET /api/v1/admin/billing/series" },
-  { label: "Conversão grátis → pago", endpoint: "trialsConverted em billing/summary" },
   { label: "Livros mais lidos", endpoint: "GET /api/v1/admin/metrics/top-books" },
-  { label: "Erros e sessões (Sentry)", endpoint: "GET /api/v1/admin/health" },
   { label: "Visitantes e páginas (Umami)", endpoint: "GET /api/v1/admin/traffic" },
 ];
 
 const TREND_DAYS = 30;
+/** A série de leitura vem com 60 dias: os 30 do gráfico e os 30 anteriores, para comparar cadastros. */
+const SERIES_DAYS = 60;
 const RETENTION_DAYS = 60;
 
 type Pair = { current: MetricsOverview; previous: MetricsOverview };
@@ -186,6 +222,124 @@ function ActionStrip({ items }: { items: ActionItem[] }) {
   );
 }
 
+/** Novos usuários: hoje pelo calendário de Brasília; 7 e 30 dias pela série, comparando com o período anterior. */
+function NewUsers({
+  period,
+  accounts,
+  signups,
+  signupsBefore,
+}: {
+  period: PeriodKey;
+  accounts: MetricsOverview["accounts"];
+  signups: number | null;
+  signupsBefore: number | null;
+}) {
+  if (period === "today") {
+    if (accounts.newToday === undefined) {
+      return (
+        <Kpi label="Novos usuários" value="—">
+          <Pending endpoint="accounts.newToday em /api/v1/admin/metrics/overview" />
+        </Kpi>
+      );
+    }
+    const notes = [
+      signupsBefore !== null ? `ontem: ${number(signupsBefore)}` : null,
+      accounts.new24h !== undefined ? `${number(accounts.new24h)} nas últimas 24 h` : null,
+    ].filter(Boolean);
+    return (
+      <Kpi label="Novos usuários" value={number(accounts.newToday)}>
+        <span className="admin-delta">{notes.join(" · ")}</span>
+      </Kpi>
+    );
+  }
+  const fallback = period === "7d" ? accounts.new7 : accounts.new30;
+  const current = signups ?? fallback;
+  return (
+    <Kpi label="Novos usuários" value={number(current)}>
+      {signupsBefore !== null ? (
+        <Delta period={period} current={current} previous={signupsBefore} />
+      ) : (
+        <span className="admin-delta">{number(accounts.total)} contas no total</span>
+      )}
+    </Kpi>
+  );
+}
+
+function percent(value: number): string {
+  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value * 100)}%`;
+}
+
+/** Erros, sessões sem crash e problemas mais frequentes de cada projeto do Sentry. */
+function SentryHealth({ data }: { data: AdminHealth | "error" | undefined }) {
+  if (data === undefined) {
+    return (
+      <div className="dash-tile">
+        <strong>…</strong>
+        <span>carregando o Sentry</span>
+      </div>
+    );
+  }
+  if (data === "error" || !data.sentry) {
+    return (
+      <div className="dash-tile">
+        <strong>—</strong>
+        <span>
+          erros (Sentry) ·{" "}
+          {data === "error"
+            ? "não foi possível consultar a saúde agora."
+            : (data.error ?? "indisponível")}
+        </span>
+      </div>
+    );
+  }
+  if (data.sentry.projects.length === 0) {
+    return (
+      <div className="dash-tile">
+        <strong>—</strong>
+        <span>erros (Sentry) · nenhum projeto configurado</span>
+      </div>
+    );
+  }
+  return (
+    <>
+      {data.sentry.projects.map((project) => (
+        <div className="dash-tile admin-health-project" key={project.slug}>
+          <strong>
+            {number(project.errorsTotal)} {project.errorsTotal === 1 ? "erro" : "erros"}
+          </strong>
+          <span>
+            {project.slug}
+            {project.crashFreeSessions !== null
+              ? ` · ${percent(project.crashFreeSessions)} das sessões sem crash`
+              : " · sem sessões registradas"}
+          </span>
+          {project.topIssues.length > 0 ? (
+            <ul className="admin-issues">
+              {project.topIssues.slice(0, 3).map((issue) => (
+                <li key={issue.id}>
+                  {issue.permalink ? (
+                    <a
+                      href={issue.permalink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={issue.title}
+                    >
+                      {issue.title}
+                    </a>
+                  ) : (
+                    <span title={issue.title}>{issue.title}</span>
+                  )}
+                  <span className="muted">{number(issue.count)}×</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function OverviewSection({ session, roles }: { session: SupabaseSession; roles: string[] }) {
   const superadmin = isSuperadmin(roles);
   const [today] = useState(() => isoDate(new Date()));
@@ -199,6 +353,9 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const [retention, setRetention] = useState<MetricsRetention[] | null>(null);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [ranking, setRanking] = useState<RankEntry[] | null>(null);
+  const [billingSeries, setBillingSeries] = useState<BillingSeriesPoint[] | null>(null);
+  const [billingMetric, setBillingMetric] = useState<BillingMetric>("mrrCents");
+  const [health, setHealth] = useState<Partial<Record<HealthPeriod, AdminHealth | "error">>>({});
 
   useEffect(() => {
     let alive = true;
@@ -212,10 +369,10 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       });
     if (superadmin) {
       // Cada bloco carrega sozinho: se o financeiro ou o ranking falhar, o resto continua.
-      const trendRange = rangeEnding(today, TREND_DAYS);
-      getReadingSeries(session, trendRange, "day")
+      const seriesRange = rangeEnding(today, SERIES_DAYS);
+      getReadingSeries(session, seriesRange, "day")
         .then((points) => {
-          if (alive) setSeries(fillDays(points, trendRange));
+          if (alive) setSeries(fillDays(points, seriesRange));
         })
         .catch(() => {
           if (alive) setSeries([]);
@@ -232,6 +389,13 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
           if (alive) setBilling(summary);
         })
         .catch(() => undefined);
+      getBillingSeries(session, rangeEnding(today, TREND_DAYS), "day")
+        .then((points) => {
+          if (alive) setBillingSeries(points);
+        })
+        .catch(() => {
+          if (alive) setBillingSeries([]);
+        });
       fetchRanking(session, 0, 10)
         .then((rows) => {
           if (alive) setRanking(rows);
@@ -267,6 +431,24 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       alive = false;
     };
   }, [session, superadmin, today, period, loadedPair]);
+
+  const healthPeriod = PERIODS.find((item) => item.key === period)?.health ?? "7d";
+  const loadedHealth = Boolean(health[healthPeriod]);
+
+  useEffect(() => {
+    if (!superadmin || loadedHealth) return;
+    let alive = true;
+    getHealth(session, healthPeriod)
+      .then((result) => {
+        if (alive) setHealth((value) => ({ ...value, [healthPeriod]: result }));
+      })
+      .catch(() => {
+        if (alive) setHealth((value) => ({ ...value, [healthPeriod]: "error" }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, superadmin, healthPeriod, loadedHealth]);
 
   if (error) {
     return (
@@ -306,10 +488,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       cta: "ver financeiro",
     });
   }
+  // Sem nenhum backup registrado não é "atraso": o card mostra um aviso neutro em vez do alarme.
+  const backupLate = Boolean(overview.backup?.stale && overview.backup.finishedAt);
   if (overview.backup) {
     actions.push({
       key: "backup",
-      count: overview.backup.stale ? 1 : 0,
+      count: backupLate ? 1 : 0,
       label: "backup atrasado (mais de 26 h)",
     });
   }
@@ -319,6 +503,17 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const trendInfo = TRENDS.find((item) => item.key === trend) ?? TRENDS[0];
   const cohort = retention ? latestCompleteD7(retention, today) : null;
   const reading = pair?.current.reading;
+  const trendPoints = series ? series.slice(-TREND_DAYS) : null;
+  const ranges = periodRanges(today, periodInfo.days);
+  const signups = series ? signupsBetween(series, ranges.current) : null;
+  const signupsBefore = series ? signupsBetween(series, ranges.previous) : null;
+  const healthData = health[healthPeriod];
+  const billingInfo =
+    BILLING_TRENDS.find((item) => item.key === billingMetric) ?? BILLING_TRENDS[0];
+  const conversion =
+    billing?.trials_ended !== undefined && billing.trials_converted !== undefined
+      ? ratio(billing.trials_converted, billing.trials_ended)
+      : undefined;
 
   return (
     <section className="shelf admin-overview admin-dashboard">
@@ -390,26 +585,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                     previous={pair.previous.reading.minutes}
                   />
                 </Kpi>
-                <Kpi
-                  label="Novos usuários"
-                  value={
-                    period === "today"
-                      ? "—"
-                      : number(
-                          period === "7d"
-                            ? pair.current.accounts.new7
-                            : pair.current.accounts.new30,
-                        )
-                  }
-                >
-                  {period === "today" ? (
-                    <Pending endpoint="accounts.new24h em /api/v1/admin/metrics/overview" />
-                  ) : (
-                    <span className="admin-delta">
-                      {number(pair.current.accounts.total)} contas no total
-                    </span>
-                  )}
-                </Kpi>
+                <NewUsers
+                  period={period}
+                  accounts={pair.current.accounts}
+                  signups={signups}
+                  signupsBefore={signupsBefore}
+                />
                 <Kpi label="Páginas lidas" value="—">
                   <Pending endpoint="reading_days.pages + campo pages nas métricas" />
                 </Kpi>
@@ -471,16 +652,16 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   ))}
                 </div>
               </div>
-              {series === null ? (
+              {trendPoints === null ? (
                 <Spinner label="Carregando série…" />
               ) : (
                 <TrendBars
                   caption={trendInfo.label}
                   unit={trendInfo.unit}
-                  points={series.map((point) => ({
+                  points={(trendPoints ?? []).map((point) => ({
                     key: point.bucket,
                     label: dayMonth(point.bucket),
-                    value: point[trend],
+                    value: point[trend] ?? 0,
                   }))}
                 />
               )}
@@ -538,35 +719,82 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                     <strong>{number(billing.failed)}</strong>
                     <span>falhas de cobrança</span>
                   </div>
+                  {conversion !== undefined ? (
+                    <div className="dash-tile">
+                      <strong>{conversion === null ? "—" : `${conversion}%`}</strong>
+                      <span>
+                        testes que viraram pagos ({number(billing.trials_converted ?? 0)} de{" "}
+                        {number(billing.trials_ended ?? 0)} encerrados em 30 dias)
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <p className="dash-sub">Financeiro indisponível agora.</p>
               )}
+              {billingSeries && billingSeries.length > 0 ? (
+                <div className="admin-billing-trend">
+                  <div className="dash-card-head">
+                    <span className="dash-label">Últimos {TREND_DAYS} dias</span>
+                    <div
+                      className="segmented admin-segmented-small"
+                      role="group"
+                      aria-label="Métrica do financeiro"
+                    >
+                      {BILLING_TRENDS.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          className={item.key === billingMetric ? "is-on" : undefined}
+                          aria-pressed={item.key === billingMetric}
+                          onClick={() => setBillingMetric(item.key)}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <TrendBars
+                    caption={billingInfo.label}
+                    unit=""
+                    format={brlFromCents}
+                    summary={billingInfo.summary}
+                    points={billingSeries.map((point) => ({
+                      key: point.bucket,
+                      label: dayMonth(point.bucket),
+                      value: point[billingMetric],
+                      estimated: billingMetric === "mrrCents" && point.estimated,
+                    }))}
+                  />
+                </div>
+              ) : null}
             </article>
 
-            <article className={`dash-card${overview.backup?.stale ? " is-alert" : ""}`}>
+            <article className={`dash-card${backupLate ? " is-alert" : ""}`}>
               <div className="dash-card-head">
                 <span className="dash-label">Saúde do sistema</span>
+                <span className="dash-sub">Sentry · {periodInfo.healthLabel}</span>
               </div>
               <div className="admin-mini-tiles">
                 {overview.backup ? (
                   <div className="dash-tile">
-                    <strong>
-                      {overview.backup.stale ? "Atrasado" : (overview.backup.status ?? "—")}
-                    </strong>
-                    <span>
-                      backup · {when(overview.backup.finishedAt)} ·{" "}
-                      {bytes(overview.backup.sizeBytes)}
-                    </span>
+                    {overview.backup.finishedAt ? (
+                      <>
+                        <strong>{backupLate ? "Atrasado" : (overview.backup.status ?? "—")}</strong>
+                        <span>
+                          backup · {when(overview.backup.finishedAt)} ·{" "}
+                          {bytes(overview.backup.sizeBytes)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <strong>—</strong>
+                        <span>backup · sem backup registrado</span>
+                      </>
+                    )}
                   </div>
                 ) : null}
-                <div className="dash-tile">
-                  <strong>—</strong>
-                  <span>
-                    erros e sessões sem crash (Sentry) ·{" "}
-                    <Pending endpoint="GET /api/v1/admin/health" />
-                  </span>
-                </div>
+                <SentryHealth data={healthData} />
                 <div className="dash-tile">
                   <strong>—</strong>
                   <span>
