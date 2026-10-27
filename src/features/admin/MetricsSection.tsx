@@ -7,6 +7,8 @@ import {
   type MetricsReadingPoint,
   type MetricsRange,
 } from "../../lib/adminMetrics";
+import { TrendBars } from "./TrendBars";
+import { isoDate, rangeEnding } from "./dashboardMath";
 
 const PERIODS = [
   { days: 7, label: "7 dias" },
@@ -18,19 +20,8 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível carregar as métricas.";
 }
 
-function isoDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
 function rangeFor(days: number): MetricsRange {
-  const to = new Date();
-  const from = new Date(to.getTime() - (days - 1) * 86_400_000);
-  return { from: isoDate(from), to: isoDate(to) };
+  return rangeEnding(isoDate(new Date()), days);
 }
 
 function number(value: number): string {
@@ -47,9 +38,28 @@ function pct(part: number, total: number): string {
   return `${Math.round((part / total) * 100)}%`;
 }
 
+/** Faixa de cor da célula de retenção, na mesma escala dourada do mapa de constância do perfil. */
+function heat(part: number, total: number): string {
+  if (!total || !part) return "admin-heat lv-0";
+  const share = part / total;
+  if (share >= 0.4) return "admin-heat lv-3";
+  if (share >= 0.2) return "admin-heat lv-2";
+  return "admin-heat lv-1";
+}
+
+const SERIES_METRICS = [
+  { key: "activeReaders", label: "Leitores ativos", unit: "leitores" },
+  { key: "minutes", label: "Minutos", unit: "minutos" },
+  { key: "booksStarted", label: "Iniciados", unit: "livros" },
+  { key: "booksFinished", label: "Terminados", unit: "livros" },
+] as const;
+
+type SeriesMetric = (typeof SERIES_METRICS)[number]["key"];
+
 export function MetricsSection({ session }: { session: SupabaseSession }) {
   const [period, setPeriod] = useState(30);
   const [group, setGroup] = useState<"day" | "week">("day");
+  const [metric, setMetric] = useState<SeriesMetric>("activeReaders");
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [series, setSeries] = useState<MetricsReadingPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +107,10 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
           </label>
           <label>
             Série
-            <select value={group} onChange={(event) => setGroup(event.target.value as "day" | "week")}>
+            <select
+              value={group}
+              onChange={(event) => setGroup(event.target.value as "day" | "week")}
+            >
               <option value="day">Por dia</option>
               <option value="week">Por semana</option>
             </select>
@@ -190,7 +203,9 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
 
           <div className="shelf-head">
             <h2>Retenção por coorte</h2>
-            <p className="muted">Percentual da coorte que leu nos primeiros N dias após o cadastro.</p>
+            <p className="muted">
+              Percentual da coorte que leu nos primeiros N dias após o cadastro.
+            </p>
           </div>
           {overview.retention.length === 0 ? (
             <p className="profile-empty">Sem dados de retenção no período.</p>
@@ -211,9 +226,15 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
                     <tr key={row.cohortWeek}>
                       <td>{dayMonth(row.cohortWeek)}</td>
                       <td>{number(row.cohortSize)}</td>
-                      <td title={`${row.d1} contas`}>{pct(row.d1, row.cohortSize)}</td>
-                      <td title={`${row.d7} contas`}>{pct(row.d7, row.cohortSize)}</td>
-                      <td title={`${row.d30} contas`}>{pct(row.d30, row.cohortSize)}</td>
+                      <td className={heat(row.d1, row.cohortSize)} title={`${row.d1} contas`}>
+                        {pct(row.d1, row.cohortSize)}
+                      </td>
+                      <td className={heat(row.d7, row.cohortSize)} title={`${row.d7} contas`}>
+                        {pct(row.d7, row.cohortSize)}
+                      </td>
+                      <td className={heat(row.d30, row.cohortSize)} title={`${row.d30} contas`}>
+                        {pct(row.d30, row.cohortSize)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -223,35 +244,71 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
 
           <div className="shelf-head">
             <h2>Série de leitura</h2>
-            <p className="muted">Leitores ativos são únicos no dia/semana; minutos vêm de reading_days.</p>
+            <p className="muted">
+              Leitores ativos são únicos no dia/semana; minutos vêm de reading_days.
+            </p>
           </div>
           {series.length === 0 ? (
             <p className="profile-empty">Sem dados de leitura no período.</p>
           ) : (
-            <div className="import-table-wrap">
-              <table className="import-table">
-                <thead>
-                  <tr>
-                    <th>Período</th>
-                    <th>Leitores ativos</th>
-                    <th>Minutos</th>
-                    <th>Iniciados</th>
-                    <th>Terminados</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {series.map((point) => (
-                    <tr key={point.bucket}>
-                      <td>{dayMonth(point.bucket)}</td>
-                      <td>{number(point.activeReaders)}</td>
-                      <td>{number(point.minutes)}</td>
-                      <td>{number(point.booksStarted)}</td>
-                      <td>{number(point.booksFinished)}</td>
-                    </tr>
+            <article className="dash-card admin-trend-card">
+              <div className="dash-card-head">
+                <span className="dash-label">{group === "week" ? "Por semana" : "Por dia"}</span>
+                <div
+                  className="segmented admin-segmented-small"
+                  role="group"
+                  aria-label="Métrica da série"
+                >
+                  {SERIES_METRICS.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={item.key === metric ? "is-on" : undefined}
+                      aria-pressed={item.key === metric}
+                      onClick={() => setMetric(item.key)}
+                    >
+                      {item.label}
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+              <TrendBars
+                caption={SERIES_METRICS.find((item) => item.key === metric)?.label ?? ""}
+                unit={SERIES_METRICS.find((item) => item.key === metric)?.unit ?? ""}
+                points={series.map((point) => ({
+                  key: point.bucket,
+                  label: dayMonth(point.bucket).slice(0, 5),
+                  value: point[metric],
+                }))}
+              />
+              <details className="admin-table-details">
+                <summary>Ver tabela</summary>
+                <div className="import-table-wrap">
+                  <table className="import-table">
+                    <thead>
+                      <tr>
+                        <th>Período</th>
+                        <th>Leitores ativos</th>
+                        <th>Minutos</th>
+                        <th>Iniciados</th>
+                        <th>Terminados</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {series.map((point) => (
+                        <tr key={point.bucket}>
+                          <td>{dayMonth(point.bucket)}</td>
+                          <td>{number(point.activeReaders)}</td>
+                          <td>{number(point.minutes)}</td>
+                          <td>{number(point.booksStarted)}</td>
+                          <td>{number(point.booksFinished)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </article>
           )}
         </>
       )}
