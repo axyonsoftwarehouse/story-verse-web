@@ -34,7 +34,7 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 > #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
 > tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
 > coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. O 2.5 (livros mais lidos,
-> sem minutos por livro) está no PR da API `feat/admin-top-books` e no card da visão geral.
+> sem minutos por livro) está em story-verse-api#67 e no card da visão geral.
 > Continuam pendentes: 2.2, 2.3 e 2.6.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
