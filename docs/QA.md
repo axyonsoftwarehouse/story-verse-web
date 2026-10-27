@@ -153,6 +153,21 @@ ssh deploy@<vps> 'cd /home/deploy/storyverse-qa && bash reset-qa.sh'
 Os dois scripts recusam rodar fora de `/home/deploy/storyverse-qa` ou com um `.env` que não seja o
 do QA, para nunca tocar na produção.
 
+- Patch SQL só no QA (funções alteradas antes de irem para a produção): `bash apply-sql.sh
+  sql/<arquivo>.sql`. Mesma trava; antes de aplicar, guarda as definições atuais em `backups/`.
+  O banco do QA nasce do `schema.sql` da produção (`/home/deploy/storyverse/schema.sql`), então
+  **depois de um `reset-qa.sh` os patches precisam ser reaplicados** até a release levá-los.
+  - `sql/2026-10-26-revisao-seguranca.sql`: capa só em análise e só do Storage da pessoa, foto do
+    ranking idem, heartbeat com lock compartilhado. Depois dele: `docker compose --project-name
+    storyverse-qa restart qa-api` (o `app.media_origin` vale para conexões novas).
+
+### Caddy de borda
+
+O `deploy/edge/Caddyfile` tem os blocos da produção e do QA. Ao copiar para `/home/deploy/edge/`,
+confira com `bash deploy/edge/check-caddyfile.sh` e recarregue sem derrubar nada:
+`docker compose -p edge exec caddy caddy reload --config /etc/caddy/Caddyfile`. Mudanças só nos blocos
+`qa.storyverse…` não alteram a produção.
+
 ## Limites
 
 API 512 MB e 0,5 CPU; banco 256 MB e 0,5 CPU. A VPS é dividida com a produção e o Foodie.

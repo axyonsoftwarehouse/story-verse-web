@@ -27,8 +27,11 @@ psql_db() {
   docker compose exec -T db psql -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 "$@"
 }
 
-confirmed=$(psql_db -v uid="$user_id" -tAc \
-  "select count(*) from auth.users where id = :'uid'::uuid and email_confirmed_at is not null")
+# Pelo stdin: o psql não substitui variáveis (:'uid') em comandos passados com -c.
+confirmed=$(psql_db -v uid="$user_id" -tA <<'SQL'
+select count(*) from auth.users where id = :'uid'::uuid and email_confirmed_at is not null
+SQL
+)
 if [ "$confirmed" != "1" ]; then
   echo "Conta não encontrada ou e-mail ainda não confirmado." >&2
   exit 1

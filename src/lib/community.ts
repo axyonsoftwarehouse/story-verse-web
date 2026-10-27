@@ -432,7 +432,8 @@ export async function syncSubmissionCovers(session: SupabaseSession, localBooks:
   const mine = await listSubmissions(session, "mine");
   let changed = 0;
   for (const s of mine) {
-    if (s.status === "rejected" || uploadedCoverPath(s.cover_url)) continue;
+    // A capa só muda em análise: depois de aprovada é a que a curadoria viu (set_submission_cover).
+    if (s.status !== "pending" || uploadedCoverPath(s.cover_url)) continue;
     const local =
       localBooks.find((b) => b.submissionId === s.id) ??
       localBooks.find((b) => !b.submissionId && sameTitle(b.title, s.title));
