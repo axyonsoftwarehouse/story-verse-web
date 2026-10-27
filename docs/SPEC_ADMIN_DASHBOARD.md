@@ -98,10 +98,19 @@ Na API, o campo `pages` está em `AdminMetrics.Reading` (`metrics/overview`) e e
 - Conversão grátis → pago: `{ trialsStarted, trialsConverted, paidFromFree }` no período, no próprio
   `billing/summary`.
 
-### 2.5 Livros mais lidos
-- `GET /api/v1/admin/metrics/top-books?from&to&limit=10` →
-  `[{ bookKey, title, author, readers, minutes, finished }]` agregando `reading_days` /
-  `library_entries` (só livros do acervo ou com título conhecido; nada de texto do usuário).
+### 2.5 Livros mais lidos — feito (sem minutos por livro)
+- `GET /api/v1/admin/metrics/top-books?from&to&limit=10` (limite de 1 a 20) →
+  `[{ bookKey, title, author, readers, finished }]`, ordenado por `readers` e depois `finished`.
+- Sai só de `public.library_entries` (função `admin_metrics_top_books`, migração V28 da API).
+  `reading_days` não guarda o livro, então **não há `minutes` por livro**, e não vamos criar
+  tabela para isso.
+- `readers`: contas com o livro em `reading` ou `finished` e atividade no período — começou
+  (`started_on`) ou terminou (`finished_on`) no período, ou, se ainda está lendo, a entrada mudou
+  (`updated_at`, que o progresso atualiza) no período. `updated_at` não conta para `finished`:
+  editar a nota de um livro lido há meses não é leitura.
+- `finished`: contas com `finished_on` no período.
+- Só livros do acervo (`gb:`, `cm:` e `cat:`). Nunca `local:`, nem resenha ou notas. Título e
+  autor vêm de `catalog_books` quando o livro está lá; senão, do snapshot mais comum na estante.
 
 ### 2.6 Atividade da comunidade
 - `GET /api/v1/admin/metrics/community?from&to&group=day` →
