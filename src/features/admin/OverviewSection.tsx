@@ -20,6 +20,7 @@ import {
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
 import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
+import { ActiveUsersCard } from "./ActiveUsersCard";
 import { TrendBars } from "./TrendBars";
 import { isSuperadmin } from "./adminSections";
 import {
@@ -82,7 +83,6 @@ const BILLING_TRENDS: { key: BillingMetric; label: string; summary: "last" | "to
 /** O que o dashboard ainda não mostra por falta de dado na API (detalhes em docs/SPEC_ADMIN_DASHBOARD.md). */
 const API_GAPS: { label: string; endpoint: string }[] = [
   { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
-  { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
   { label: "Livros mais lidos", endpoint: "GET /api/v1/admin/metrics/top-books" },
 ];
 
@@ -935,6 +935,8 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
               </div>
               <TrafficCard data={traffic[period]} period={period} />
             </article>
+
+            <ActiveUsersCard session={session} today={today} />
           </div>
 
           <article className="dash-card admin-gaps">
