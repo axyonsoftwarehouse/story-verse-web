@@ -21,6 +21,7 @@ import { getOverview, type AdminOverview } from "../../lib/adminOverview";
 import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
 import { TrendBars } from "./TrendBars";
+import { WebVitals } from "./WebVitals";
 import { isSuperadmin } from "./adminSections";
 import {
   change,
@@ -925,6 +926,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   </div>
                 ) : null}
                 <SentryHealth data={healthData} />
+                <WebVitals session={session} range={ranges.current} />
               </div>
             </article>
 

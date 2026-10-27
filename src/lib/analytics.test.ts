@@ -29,6 +29,7 @@ describe("installAnalytics", () => {
       doNotTrack: "true",
       beforeSend: "storyverseUmamiBeforeSend",
     });
+    expect(script?.getAttribute("data-performance")).toBe("true");
     expect((window as unknown as Record<string, unknown>).storyverseUmamiBeforeSend).toBe(
       umamiBeforeSend,
     );
