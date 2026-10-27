@@ -7,16 +7,42 @@
   letter-spacing: -0.02em;
 }
 
+/* Assinar e Minha assinatura: coluna única no centro, sem o vazio à direita no computador. */
+.billing-hero {
+  display: grid;
+  justify-items: center;
+  gap: 1.2rem;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
 .billing-hero .shelf-head {
-  max-width: 64ch;
+  display: grid;
+  justify-items: center;
+  max-width: 680px;
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+
+.billing-hero h1 {
+  text-wrap: balance;
+}
+
+.billing-hero .shelf-head p {
+  max-width: 56ch;
+}
+
+.billing-hero .shelf-head p {
+  margin-inline: auto;
 }
 
 .billing-plan,
 .billing-card {
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
+  width: 100%;
   max-width: 640px;
-  padding: 1.4rem 1.5rem;
+  padding: 1.6rem 1.7rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background:
@@ -65,6 +91,7 @@
 }
 
 .billing-notice {
+  width: 100%;
   max-width: 640px;
   margin: 0;
   padding: 0.7rem 0.9rem;
@@ -80,8 +107,9 @@
 }
 
 .billing-fineprint {
-  max-width: 64ch;
-  margin: 1rem 0 0;
+  max-width: 60ch;
+  margin: 0;
+  text-align: center;
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.55;
@@ -138,6 +166,7 @@
 
 .billing-blocked-card {
   display: grid;
+  width: 100%;
   gap: 1rem;
   max-width: 640px;
 }
@@ -145,4 +174,31 @@
 .billing-blocked-card p {
   margin: 0;
   line-height: 1.6;
+}
+
+/* Preço com destaque e ações largas: o botão principal é o primeiro que o olho encontra. */
+.billing-plan-head strong {
+  font-size: clamp(2rem, 6vw, 2.6rem);
+  line-height: 1.1;
+}
+
+.billing-plan .billing-actions > .btn-primary,
+.billing-card .billing-actions > .btn-primary {
+  flex: 1 1 220px;
+}
+
+@media (max-width: 640px) {
+  .billing-plan,
+  .billing-card {
+    padding: 1.3rem 1.2rem;
+  }
+
+  .billing-card-head {
+    flex-wrap: wrap;
+  }
+}
+
+.billing-card > h2,
+.billing-card > p {
+  margin: 0;
 }

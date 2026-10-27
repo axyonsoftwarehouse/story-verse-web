@@ -177,6 +177,7 @@ export function PublicLibraryPage() {
           </p>
         </div>
 
+        <div className="library-panel">
         <form className="library-search" onSubmit={submit}>
           <label>
             Buscar na biblioteca
@@ -251,6 +252,7 @@ export function PublicLibraryPage() {
               Limpar
             </button>
           ) : null}
+        </div>
         </div>
       </section>
 
