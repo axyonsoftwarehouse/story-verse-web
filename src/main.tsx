@@ -7,6 +7,7 @@ import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { OfflineNotice } from "./components/OfflineNotice";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { AdminRoute } from "./features/admin/AdminRoute";
 import { SubscribePage } from "./features/billing/SubscribePage";
 import { SubscriptionPage } from "./features/billing/SubscriptionPage";
@@ -37,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
     <OfflineNotice />
     <ErrorBoundary>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/confirmar-email" element={<App />} />
