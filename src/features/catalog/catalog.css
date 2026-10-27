@@ -8,7 +8,41 @@
 }
 
 .library-hero .shelf-head {
+  max-width: 760px;
+}
+
+.library-hero .shelf-head p {
   max-width: 62ch;
+}
+
+/* Busca e filtros num painel só: fica claro o que é controle e o que é conteúdo. */
+.library-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(165deg, rgba(var(--card-top-rgb), 0.55), rgba(var(--card-bottom-rgb), 0.65));
+}
+
+.library-panel .library-search {
+  margin-bottom: 0;
+}
+
+.library-panel .library-search .btn {
+  min-height: 42px;
+  padding-inline: 1.4rem;
+}
+
+@media (max-width: 640px) {
+  .library-panel {
+    padding: 0.9rem;
+  }
+
+  .library-filters label {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 0;
+  }
 }
 
 .library-search {
@@ -243,5 +277,15 @@
 
   .catalog-book-cover {
     max-width: 180px;
+  }
+}
+
+.library-panel {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 640px) {
+  .library-panel .library-search .btn {
+    width: 100%;
   }
 }

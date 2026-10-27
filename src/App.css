@@ -986,30 +986,84 @@
   margin-top: 2rem;
 }
 
+.home-foot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1rem 2rem;
+  margin-top: 4rem;
+  padding: 1.6rem 0 1.2rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.foot-brand {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.foot-brand p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.foot-wordmark {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.foot-wordmark .wordmark-mark {
+  width: 24px;
+  height: 24px;
+}
+
 .home-foot a {
   color: var(--accent-2);
+  text-underline-offset: 3px;
 }
 
-.footer-about-link {
-  display: block;
-  margin: 0.75rem auto 0;
-  padding: 0;
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem 1.4rem;
+}
+
+.foot-link {
+  padding: 0.35rem 0;
   border: 0;
   background: none;
-  color: var(--accent-2);
+  color: var(--text);
   font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
+  transition: color 0.2s;
 }
 
-.footer-about-link:hover {
+.home-foot .foot-link {
+  color: var(--text);
+}
+
+.home-foot .foot-link:hover,
+.home-foot .foot-link:focus-visible {
   color: var(--accent);
 }
 
+.home-foot > p:only-child {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: center;
+}
+
 .home-credit {
-  display: block;
-  margin-top: 0.5rem;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
 }
 
 .home-credit strong {
@@ -1017,13 +1071,21 @@
   font-weight: 600;
 }
 
-.home-foot {
-  margin-top: 4rem;
-  padding-top: 1.4rem;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.8rem;
-  text-align: center;
+/* Celular: tudo centralizado; os links numa linha só (quebrando se precisar). */
+@media (max-width: 640px) {
+  .home-foot {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .foot-brand {
+    justify-items: center;
+  }
+
+  .foot-links {
+    justify-content: center;
+  }
 }
 
 @media (max-width: 860px) {
@@ -4551,6 +4613,34 @@
   font-size: 0.9rem;
 }
 
+/* Seção vazia do perfil: um cartão discreto com ícone, no lugar da frase solta sob o título. */
+.profile-empty-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.2rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.3);
+  line-height: 1.5;
+}
+
+.profile-empty-card strong {
+  color: var(--text);
+}
+
+.profile-empty-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  font-size: 1.1rem;
+}
+
 .profile-card {
   padding: 1.2rem 1.3rem;
   border: 1px solid var(--border);
@@ -5685,6 +5775,112 @@
 
 .welcome-actions {
   justify-content: center;
+}
+
+/* Assinatura em destaque logo abaixo das ações: dá para ver a situação e abrir "Minha assinatura". */
+.plan-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: min(100%, 520px);
+  margin: 1.4rem auto 0;
+  padding: 0.85rem 0.9rem 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(var(--accent-rgb), 0.2), transparent 60%),
+    var(--surface);
+  box-shadow: 0 14px 34px -18px rgba(var(--accent-rgb), 0.6);
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease-out);
+}
+
+.plan-card:hover,
+.plan-card:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.plan-card.is-trial {
+  border-color: color-mix(in srgb, var(--accent-2) 50%, transparent);
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(var(--accent-2-rgb), 0.2), transparent 60%),
+    var(--surface);
+}
+
+.plan-card.is-warning {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--danger) 18%, transparent), transparent 60%),
+    var(--surface);
+}
+
+.plan-card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 1.3rem;
+}
+
+.plan-card-text {
+  display: grid;
+  flex: 1;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.plan-card-text strong {
+  font-size: 0.98rem;
+}
+
+.plan-card-text span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.plan-card-cta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.45rem 0.6rem 0.45rem 0.9rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--accent-light), var(--accent));
+  color: var(--on-accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.plan-card-cta svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Celular estreito: o botão desce para baixo do texto, ocupando a largura. */
+@media (max-width: 420px) {
+  .plan-card {
+    flex-wrap: wrap;
+  }
+
+  .plan-card-cta {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-card {
+    transition: none;
+  }
 }
 
 /* O personagem chama de volta: capa do livro e o balão que chega depois do "digitando". */
@@ -10399,20 +10595,6 @@ button.ranking-diamonds {
 .ai-pack span {
   color: var(--muted);
   font-size: 0.8rem;
-}
-
-/* Faixa do ambiente de QA (só no build com VITE_APP_ENV=qa). Fica no rodapé para não cobrir a barra do leitor. */
-.qa-banner {
-  position: fixed;
-  inset: auto 0 0 0;
-  z-index: 50;
-  padding: 0.3rem 16px calc(0.3rem + env(safe-area-inset-bottom));
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-align: center;
-  pointer-events: none;
 }
 
 /* Sem conexão: o app instalado abre do cache, então avisa em vez de parecer que travou. */

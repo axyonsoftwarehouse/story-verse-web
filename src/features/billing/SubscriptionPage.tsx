@@ -59,8 +59,8 @@ export function SubscriptionPage() {
             ← Início
           </Link>
         </nav>
-        <section className="shelf">
-          <div className="profile-card">
+        <section className="shelf billing-hero">
+          <div className="profile-card billing-card">
             <h2>Entre para ver sua assinatura</h2>
             <p className="muted">O estado da assinatura fica na sua conta.</p>
             <Link className="btn btn-primary" to="/?login=1&retorno=/conta/assinatura">

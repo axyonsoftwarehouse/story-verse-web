@@ -74,7 +74,7 @@ import {
 } from "./lib/libraryStore";
 import { useFinishPrompt } from "./features/library/useFinishPrompt";
 import { connectShelf } from "./lib/libraryWiring";
-import { BILLING_UI_ENABLED } from "./lib/billing";
+import { BILLING_UI_ENABLED, billingDate, billingStatusLabel, type SubscriptionSnapshot } from "./lib/billing";
 import { BillingBlocked } from "./features/billing/BillingBlocked";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
@@ -3660,6 +3660,43 @@ function welcomeCallLine(hasCharacter: boolean, pick: number, d = new Date()): s
  * foto) até chegar o balão chamando de volta. A capa daqui é a que cresce e abre ao tocar em
  * "Continuar lendo".
  */
+/**
+ * Situação da assinatura em destaque na tela inicial, com o atalho para "Minha assinatura".
+ * Quem está sem acesso nem chega aqui (vê a tela de bloqueio), então só sobram estes casos.
+ */
+function PlanCard({ status }: { status: SubscriptionSnapshot }) {
+  const until = billingDate(status.accessUntil);
+  const view =
+    status.status === "past_due"
+      ? { tone: "is-warning", icon: "⚠️", title: "Pagamento pendente", sub: "Atualize o cartão para não perder o acesso.", cta: "Resolver agora" }
+      : status.status === "trialing"
+        ? { tone: "is-trial", icon: "✨", title: "Você está no teste grátis", sub: `Acesso liberado até ${until}.`, cta: "Ver assinatura" }
+        : status.status === "grant" || status.status === "staff"
+          ? { tone: "", icon: "🎁", title: billingStatusLabel(status.status), sub: "Seu acesso foi liberado pela equipe.", cta: "Ver detalhes" }
+          : {
+              tone: "",
+              icon: "👑",
+              title: `Assinante ${status.plan || "Storyverse"}`,
+              sub: status.cancelAtPeriodEnd ? `Cancelada: acesso até ${until}.` : `Renova em ${until}.`,
+              cta: "Minha assinatura",
+            };
+  return (
+    <Link className={`plan-card ${view.tone}`} to="/conta/assinatura">
+      <span className="plan-card-icon" aria-hidden="true">
+        {view.icon}
+      </span>
+      <span className="plan-card-text">
+        <strong>{view.title}</strong>
+        <span>{view.sub}</span>
+      </span>
+      <span className="plan-card-cta">
+        {view.cta}
+        {Icon.next}
+      </span>
+    </Link>
+  );
+}
+
 function WelcomeCall({ book, onOpen }: { book: Ebook; onOpen: () => void }) {
   const character = useMemo(() => {
     const cast = knownCast(book);
@@ -3935,7 +3972,12 @@ function ProfileShelf({
         {subtitle ? <p>{subtitle}</p> : null}
       </div>
       {items.length === 0 ? (
-        <p className="profile-empty">{empty}</p>
+        <p className="profile-empty profile-empty-card">
+          <span className="profile-empty-icon" aria-hidden="true">
+            {Icon.book}
+          </span>
+          <span>{empty}</span>
+        </p>
       ) : (
         <div className="result-grid">
           {shown.map(({ book, sub, pct, badge }) => (
@@ -4378,8 +4420,11 @@ function ProfilePage({
           <p>Com quem você mais conversou nos livros.</p>
         </div>
         {talks.length === 0 ? (
-          <p className="profile-empty">
-            Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.
+          <p className="profile-empty profile-empty-card">
+            <span className="profile-empty-icon" aria-hidden="true">
+              💬
+            </span>
+            <span>Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.</span>
           </p>
         ) : (
           <ol className="talk-grid">
@@ -4519,8 +4564,11 @@ function ProfilePage({
             ))}
           </ul>
         ) : (
-          <p className="profile-empty">
-            Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.
+          <p className="profile-empty profile-empty-card">
+            <span className="profile-empty-icon" aria-hidden="true">
+              🎁
+            </span>
+            <span>Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.</span>
           </p>
         )}
       </section>
@@ -4531,8 +4579,14 @@ function ProfilePage({
           <p>Os trechos que você destacou, de todos os livros.</p>
         </div>
         {marks.length === 0 ? (
-          <p className="profile-empty">
-            Selecione um trecho durante a leitura e toque em <strong>Marcar</strong> para guardar aqui.
+          <p className="profile-empty profile-empty-card">
+            <span className="profile-empty-icon" aria-hidden="true">
+              {Icon.highlight}
+            </span>
+            <span>
+              <strong>Nenhum trecho marcado ainda.</strong> Durante a leitura, selecione um trecho e toque em{" "}
+              <strong>Marcar</strong>: ele fica guardado aqui.
+            </span>
           </p>
         ) : (
           <div className="profile-marks">
@@ -7856,6 +7910,7 @@ export function App() {
                 </button>
               ) : null}
             </div>
+            {BILLING_UI_ENABLED && subscription?.active ? <PlanCard status={subscription} /> : null}
           </header>
         ) : (
         <>
@@ -8117,22 +8172,35 @@ export function App() {
         {updateBanner}
 
         <footer className="home-foot">
-          Storyverse · leitura que conversa com você · textos em domínio público do{" "}
-          <a href="https://www.gutenberg.org" target="_blank" rel="noreferrer">
-            Project Gutenberg
-          </a>
-          <span className="home-credit">
+          <div className="foot-brand">
+            <span className="wordmark foot-wordmark">
+              <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
+              Storyverse
+            </span>
+            <p>
+              Leitura que conversa com você. Textos em domínio público do{" "}
+              <a href="https://www.gutenberg.org" target="_blank" rel="noreferrer">
+                Project Gutenberg
+              </a>
+              .
+            </p>
+          </div>
+          <nav className="foot-links" aria-label="Links do rodapé">
+            <button type="button" className="foot-link" onClick={() => setAboutOpen(true)}>
+              Sobre nós
+            </button>
+            <Link className="foot-link" to="/biblioteca">
+              Biblioteca pública
+            </Link>
+            {BILLING_UI_ENABLED && authUser ? (
+              <Link className="foot-link" to="/conta/assinatura">
+                Minha assinatura
+              </Link>
+            ) : null}
+          </nav>
+          <p className="home-credit">
             Desenvolvido por <strong>Axyon Software House</strong>
-          </span>
-          <button type="button" className="footer-about-link" onClick={() => setAboutOpen(true)}>
-            Sobre nós
-          </button>
-          <Link className="footer-about-link" to="/biblioteca">
-            Biblioteca pública
-          </Link>
-          <Link className="footer-about-link" to="/conta/assinatura">
-            Minha assinatura
-          </Link>
+          </p>
         </footer>
       </div>
     );
