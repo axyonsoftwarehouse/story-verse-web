@@ -52,6 +52,7 @@ const SERIES_METRICS = [
   { key: "minutes", label: "Minutos", unit: "minutos" },
   { key: "booksStarted", label: "Iniciados", unit: "livros" },
   { key: "booksFinished", label: "Terminados", unit: "livros" },
+  { key: "signups", label: "Cadastros", unit: "contas" },
 ] as const;
 
 type SeriesMetric = (typeof SERIES_METRICS)[number]["key"];
@@ -278,7 +279,7 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
                 points={series.map((point) => ({
                   key: point.bucket,
                   label: dayMonth(point.bucket).slice(0, 5),
-                  value: point[metric],
+                  value: point[metric] ?? 0,
                 }))}
               />
               <details className="admin-table-details">
@@ -292,6 +293,7 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
                         <th>Minutos</th>
                         <th>Iniciados</th>
                         <th>Terminados</th>
+                        <th>Cadastros</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -302,6 +304,7 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
                           <td>{number(point.minutes)}</td>
                           <td>{number(point.booksStarted)}</td>
                           <td>{number(point.booksFinished)}</td>
+                          <td>{point.signups === undefined ? "—" : number(point.signups)}</td>
                         </tr>
                       ))}
                     </tbody>

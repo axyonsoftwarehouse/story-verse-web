@@ -1460,3 +1460,42 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Ponto estimado (MRR reconstruído sem snapshot): só o contorno tracejado, sem preenchimento cheio. */
+.admin-trend-bar.is-estimated .admin-trend-fill {
+  background: rgba(var(--accent-rgb), 0.12);
+  outline: 1px dashed rgba(var(--accent-rgb), 0.7);
+  outline-offset: -1px;
+  box-shadow: none;
+}
+
+.admin-issues {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-issues li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.admin-issues a,
+.admin-issues span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-issues .muted {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-health-project + .admin-health-project {
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}

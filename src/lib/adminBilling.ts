@@ -11,6 +11,10 @@ export type BillingSummary = {
   canceled_count: number;
   failed: number;
   mrr_cents: number;
+  /** Conversão de teste em pago (API a partir da V23); taxa = convertidos ÷ encerrados. */
+  trials_started?: number;
+  trials_ended?: number;
+  trials_converted?: number;
   from: string;
   to: string;
 };
@@ -42,6 +46,28 @@ export function getBillingSummary(
   if (params.to) query.set("to", params.to);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<BillingSummary>(`/api/v1/admin/billing/summary${suffix}`, {
+    accessToken: session.access_token,
+  });
+}
+
+/** Um ponto da série do financeiro; `estimated` = MRR reconstruído, sem snapshot daquele dia. */
+export type BillingSeriesPoint = {
+  bucket: string;
+  mrrCents: number;
+  active: number;
+  newCount: number;
+  canceledCount: number;
+  revenueCents: number;
+  estimated: boolean;
+};
+
+export function getBillingSeries(
+  session: SupabaseSession,
+  range: { from: string; to: string },
+  group: "day" | "week" = "day",
+): Promise<BillingSeriesPoint[]> {
+  const query = new URLSearchParams({ from: range.from, to: range.to, group });
+  return apiRequest<BillingSeriesPoint[]>(`/api/v1/admin/billing/series?${query.toString()}`, {
     accessToken: session.access_token,
   });
 }

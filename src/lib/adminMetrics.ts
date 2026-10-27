@@ -5,6 +5,10 @@ export type MetricsRange = { from: string; to: string };
 
 export type MetricsAccounts = {
   total: number;
+  /** Janela corrida de 24 horas. Opcional: API anterior à V23 não manda. */
+  new24h?: number;
+  /** Criadas hoje no calendário de São Paulo. */
+  newToday?: number;
   new7: number;
   new30: number;
   confirmed: number;
@@ -40,13 +44,18 @@ export type MetricsReadingPoint = {
   minutes: number;
   booksStarted: number;
   booksFinished: number;
+  /** Contas criadas no bucket (API a partir da V23). */
+  signups?: number;
 };
 
 function rangeParams(range: MetricsRange): string {
   return `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
 }
 
-export function getMetricsOverview(session: SupabaseSession, range: MetricsRange): Promise<MetricsOverview> {
+export function getMetricsOverview(
+  session: SupabaseSession,
+  range: MetricsRange,
+): Promise<MetricsOverview> {
   return apiRequest<MetricsOverview>(`/api/v1/admin/metrics/overview?${rangeParams(range)}`, {
     accessToken: session.access_token,
   });
@@ -63,7 +72,10 @@ export function getReadingSeries(
   );
 }
 
-export function getMetricsRetention(session: SupabaseSession, range: MetricsRange): Promise<MetricsRetention[]> {
+export function getMetricsRetention(
+  session: SupabaseSession,
+  range: MetricsRange,
+): Promise<MetricsRetention[]> {
   return apiRequest<MetricsRetention[]>(`/api/v1/admin/metrics/retention?${rangeParams(range)}`, {
     accessToken: session.access_token,
   });
