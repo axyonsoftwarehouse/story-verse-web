@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import "../../App.css";
+import { getOverview } from "../../lib/adminOverview";
 import { apiRequest } from "../../lib/backend";
 import { useStoredSession } from "../auth/useStoredSession";
 import { AccountDetail } from "./AccountDetail";
 import { AccountsSection } from "./AccountsSection";
 import { AdminAcervo } from "./AdminAcervo";
-import { AdminNav } from "./AdminNav";
+import { AdminNav, type AdminPending } from "./AdminNav";
 import { AuditSection } from "./AuditSection";
 import { BillingSection } from "./BillingSection";
 import { CatalogBookPage } from "./CatalogBookPage";
@@ -69,6 +70,7 @@ function RequireSection({
 export function AdminRoute() {
   const { session, loading } = useStoredSession();
   const [roles, setRoles] = useState<string[] | null>(null);
+  const [pending, setPending] = useState<AdminPending>({});
 
   useEffect(() => {
     if (!session) {
@@ -89,6 +91,25 @@ export function AdminRoute() {
       alive = false;
     };
   }, [session]);
+
+  // Contadores do menu: a mesma visão geral do dashboard, carregada uma vez por sessão.
+  const isAdmin = (roles ?? []).some((role) => ADMIN_ROLES.includes(role));
+  useEffect(() => {
+    if (!session || !isAdmin) return;
+    let alive = true;
+    getOverview(session)
+      .then((result) => {
+        if (!alive || !result.moderation) return;
+        setPending({
+          catalog: result.moderation.pendingSubmissions,
+          forum: result.moderation.openReports,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [session, isAdmin]);
 
   if (loading) {
     return (
@@ -160,14 +181,14 @@ export function AdminRoute() {
   return (
     <Page>
       <div className="admin-shell">
-        <AdminNav roles={allowed} />
+        <AdminNav roles={allowed} pending={pending} />
         <div className="admin-content">
           <Routes>
             <Route
               index
               element={
                 <RequireSection id="overview" roles={allowed}>
-                  <OverviewSection session={session} />
+                  <OverviewSection session={session} roles={allowed} />
                 </RequireSection>
               }
             />

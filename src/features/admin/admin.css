@@ -300,6 +300,360 @@
   }
 }
 
+/* ============ Dashboard (visão geral) ============
+ * Mesmo desenho do painel "Sua leitura": cartões dash-card, dourado em escala e barras animadas.
+ * Verde e vermelho só nas setas de variação, sempre com o sinal escrito ao lado (não só a cor).
+ */
+
+.admin-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.admin-nav-badge {
+  min-width: 1.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--accent-rgb), 0.18);
+  color: var(--accent-light);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-nav a[aria-current="page"] .admin-nav-badge {
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--on-accent);
+}
+
+.admin-dashboard {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.admin-dashboard > .shelf-head {
+  margin-bottom: 0;
+}
+
+.segmented.admin-segmented-small button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.admin-actions.has-open {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.12),
+    var(--shadow-soft);
+}
+
+.admin-action-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem;
+}
+
+.admin-action-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0.15rem 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.03);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.admin-action-list li strong {
+  grid-row: span 2;
+  color: var(--muted);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-action-list li.is-open {
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--text);
+}
+
+.admin-action-list li.is-open strong {
+  color: var(--accent-light);
+}
+
+.admin-action-list .link-btn {
+  justify-self: start;
+  font-size: 0.8rem;
+}
+
+.admin-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.9rem;
+}
+
+.admin-kpi {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.admin-kpi strong {
+  color: var(--text);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-delta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-delta.is-up {
+  color: #7fcf9a;
+}
+
+.admin-delta.is-down {
+  color: var(--danger);
+}
+
+.admin-pending {
+  justify-self: start;
+  padding: 0.1rem 0.5rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: help;
+}
+
+.admin-insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.4);
+}
+
+.admin-period-note {
+  margin: -0.4rem 0 0;
+}
+
+.admin-dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+.admin-mini-tiles {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-mini-tiles .dash-tile strong {
+  font-size: 1.25rem;
+}
+
+/* Barras de tendência: a mesma linguagem de .week-bar do perfil, com 7 a 90 colunas. */
+.admin-trend {
+  margin: 0;
+}
+
+.admin-trend-plot {
+  display: grid;
+  align-items: end;
+  gap: 3px;
+  height: 150px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.admin-trend-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.admin-trend-fill {
+  display: block;
+  width: 100%;
+  max-width: 22px;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, var(--accent) 62%, var(--bg));
+  transform-origin: bottom;
+  animation: bar-grow 0.7s var(--ease-out) both;
+  transition: filter 0.15s;
+}
+
+.admin-trend-bar:hover .admin-trend-fill {
+  filter: brightness(1.2);
+}
+
+.admin-trend-bar.is-last .admin-trend-fill {
+  background: var(--accent);
+  box-shadow: 0 0 14px -2px rgba(var(--accent-rgb), 0.55);
+}
+
+.admin-trend-axis {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0.35rem 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.admin-trend-axis span:last-child {
+  text-align: right;
+}
+
+.admin-table-details {
+  margin-top: 0.8rem;
+}
+
+.admin-table-details summary {
+  color: var(--muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.admin-table-details[open] summary {
+  margin-bottom: 0.6rem;
+}
+
+.admin-ranking {
+  /* Mesmas cores do pódio do ranking (.podium no App.css). */
+  --gold: #e9c46a;
+  --silver: #c9d1dc;
+  --bronze: #cd8f5a;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.admin-ranking li {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+}
+
+.admin-ranking li:nth-child(odd) {
+  background: rgba(255, 248, 235, 0.03);
+}
+
+.admin-ranking-place {
+  color: var(--muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-ranking li.is-place-1 .admin-ranking-place {
+  color: var(--gold);
+}
+
+.admin-ranking li.is-place-2 .admin-ranking-place {
+  color: var(--silver);
+}
+
+.admin-ranking li.is-place-3 .admin-ranking-place {
+  color: var(--bronze);
+}
+
+.admin-ranking-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-ranking-minutes {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-gaps ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.admin-gaps li {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.84rem;
+}
+
+.admin-gaps code {
+  color: var(--muted);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+/* Retenção em escala dourada (mesmos degraus do mapa de constância). */
+.import-table td.admin-heat {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.import-table td.admin-heat.lv-1 {
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+.import-table td.admin-heat.lv-2 {
+  background: rgba(var(--accent-rgb), 0.32);
+}
+
+.import-table td.admin-heat.lv-3 {
+  background: rgba(var(--accent-rgb), 0.55);
+  color: var(--text);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .admin-dash-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-insights {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-kpi strong {
+    font-size: 1.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-trend-fill {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* ============ Acervo: catálogo ============ */
 
 .acervo-tabs {
@@ -313,7 +667,9 @@
   font-size: 0.82rem;
   font-weight: 600;
   text-decoration: none;
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 
 .segmented a:hover {

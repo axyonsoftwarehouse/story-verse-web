@@ -1,7 +1,61 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
+import { brlFromCents, getBillingSummary, type BillingSummary } from "../../lib/adminBilling";
+import {
+  getMetricsOverview,
+  getMetricsRetention,
+  getReadingSeries,
+  type MetricsOverview,
+  type MetricsReadingPoint,
+  type MetricsRetention,
+} from "../../lib/adminMetrics";
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
+import { fetchRanking, type RankEntry } from "../../lib/ranking";
+import { TrendBars } from "./TrendBars";
+import { isSuperadmin } from "./adminSections";
+import {
+  change,
+  fillDays,
+  isoDate,
+  latestCompleteD7,
+  periodRanges,
+  rangeEnding,
+  ratio,
+} from "./dashboardMath";
+
+type PeriodKey = "today" | "7d" | "30d";
+
+const PERIODS: { key: PeriodKey; label: string; days: number; previous: string }[] = [
+  { key: "today", label: "Hoje", days: 1, previous: "ontem" },
+  { key: "7d", label: "7 dias", days: 7, previous: "7 dias anteriores" },
+  { key: "30d", label: "30 dias", days: 30, previous: "30 dias anteriores" },
+];
+
+type TrendMetric = "activeReaders" | "minutes" | "booksFinished";
+
+const TRENDS: { key: TrendMetric; label: string; unit: string }[] = [
+  { key: "activeReaders", label: "Leitores", unit: "leitores" },
+  { key: "minutes", label: "Minutos", unit: "minutos" },
+  { key: "booksFinished", label: "Terminados", unit: "livros" },
+];
+
+/** O que o dashboard ainda não mostra por falta de dado na API (detalhes em docs/SPEC_ADMIN_DASHBOARD.md). */
+const API_GAPS: { label: string; endpoint: string }[] = [
+  { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
+  { label: "Cadastros de hoje e por dia", endpoint: "accounts.new24h e signups na série" },
+  { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
+  { label: "MRR e receita no tempo", endpoint: "GET /api/v1/admin/billing/series" },
+  { label: "Conversão grátis → pago", endpoint: "trialsConverted em billing/summary" },
+  { label: "Livros mais lidos", endpoint: "GET /api/v1/admin/metrics/top-books" },
+  { label: "Erros e sessões (Sentry)", endpoint: "GET /api/v1/admin/health" },
+  { label: "Visitantes e páginas (Umami)", endpoint: "GET /api/v1/admin/traffic" },
+];
+
+const TREND_DAYS = 30;
+const RETENTION_DAYS = 60;
+
+type Pair = { current: MetricsOverview; previous: MetricsOverview };
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível carregar a visão geral.";
@@ -29,9 +83,122 @@ function bytes(value: number | null): string {
   return `${number} ${units[unit]}`;
 }
 
-export function OverviewSection({ session }: { session: SupabaseSession }) {
+function number(value: number): string {
+  return new Intl.NumberFormat("pt-BR").format(value);
+}
+
+function hours(minutes: number): string {
+  const value = minutes / 60;
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: value < 10 ? 1 : 0 }).format(
+    value,
+  );
+}
+
+function dayMonth(value: string): string {
+  const [, month, day] = value.split("-");
+  return `${day}/${month}`;
+}
+
+function Spinner({ label }: { label: string }) {
+  return (
+    <div className="page-status">
+      <span className="spinner" aria-hidden="true" />
+      {label}
+    </div>
+  );
+}
+
+/** Variação contra o período anterior; em "Hoje" mostra o valor de ontem (o dia ainda não acabou). */
+function Delta({
+  current,
+  previous,
+  period,
+}: {
+  current: number;
+  previous: number;
+  period: PeriodKey;
+}) {
+  if (period === "today") return <span className="admin-delta">ontem: {number(previous)}</span>;
+  const pct = change(current, previous);
+  if (pct === null) return <span className="admin-delta">sem base anterior</span>;
+  const tone = pct > 0 ? " is-up" : pct < 0 ? " is-down" : "";
+  const arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "→";
+  return (
+    <span className={`admin-delta${tone}`}>
+      {arrow} {Math.abs(pct)}%
+    </span>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <article className="dash-card admin-kpi">
+      <span className="dash-label">{label}</span>
+      <strong>{value}</strong>
+      {children}
+    </article>
+  );
+}
+
+function Pending({ endpoint }: { endpoint: string }) {
+  return (
+    <span className="admin-pending" title={endpoint}>
+      aguardando endpoint
+    </span>
+  );
+}
+
+type ActionItem = { key: string; count: number; label: string; to?: string; cta?: string };
+
+function ActionStrip({ items }: { items: ActionItem[] }) {
+  if (items.length === 0) return null;
+  const open = items.filter((item) => item.count > 0).length;
+  return (
+    <article className={`dash-card admin-actions${open ? " has-open" : ""}`}>
+      <div className="dash-card-head">
+        <span className="dash-label">Precisa de ação</span>
+        <span className="dash-sub">
+          {open ? `${open} ${open === 1 ? "item" : "itens"} em aberto` : "Tudo em dia"}
+        </span>
+      </div>
+      <ul className="admin-action-list">
+        {items.map((item) => (
+          <li key={item.key} className={item.count > 0 ? "is-open" : undefined}>
+            <strong>{number(item.count)}</strong>
+            <span>{item.label}</span>
+            {item.to && item.count > 0 ? (
+              <Link className="link-btn" to={item.to}>
+                {item.cta ?? "abrir"}
+              </Link>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+export function OverviewSection({ session, roles }: { session: SupabaseSession; roles: string[] }) {
+  const superadmin = isSuperadmin(roles);
+  const [today] = useState(() => isoDate(new Date()));
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
+  const [period, setPeriod] = useState<PeriodKey>("7d");
+  const [trend, setTrend] = useState<TrendMetric>("activeReaders");
+  const [pairs, setPairs] = useState<Partial<Record<PeriodKey, Pair>>>({});
+  const [pairError, setPairError] = useState("");
+  const [series, setSeries] = useState<MetricsReadingPoint[] | null>(null);
+  const [retention, setRetention] = useState<MetricsRetention[] | null>(null);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [ranking, setRanking] = useState<RankEntry[] | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -43,10 +210,63 @@ export function OverviewSection({ session }: { session: SupabaseSession }) {
       .catch((err) => {
         if (alive) setError(message(err));
       });
+    if (superadmin) {
+      // Cada bloco carrega sozinho: se o financeiro ou o ranking falhar, o resto continua.
+      const trendRange = rangeEnding(today, TREND_DAYS);
+      getReadingSeries(session, trendRange, "day")
+        .then((points) => {
+          if (alive) setSeries(fillDays(points, trendRange));
+        })
+        .catch(() => {
+          if (alive) setSeries([]);
+        });
+      getMetricsRetention(session, rangeEnding(today, RETENTION_DAYS))
+        .then((rows) => {
+          if (alive) setRetention(rows);
+        })
+        .catch(() => {
+          if (alive) setRetention([]);
+        });
+      getBillingSummary(session)
+        .then((summary) => {
+          if (alive) setBilling(summary);
+        })
+        .catch(() => undefined);
+      fetchRanking(session, 0, 10)
+        .then((rows) => {
+          if (alive) setRanking(rows);
+        })
+        .catch(() => {
+          if (alive) setRanking([]);
+        });
+    }
     return () => {
       alive = false;
     };
-  }, [session]);
+  }, [session, superadmin, today]);
+
+  const loadedPair = Boolean(pairs[period]);
+
+  useEffect(() => {
+    if (!superadmin || loadedPair) return;
+    let alive = true;
+    setPairError("");
+    const days = PERIODS.find((item) => item.key === period)?.days ?? 7;
+    const ranges = periodRanges(today, days);
+    Promise.all([
+      getMetricsOverview(session, ranges.current),
+      getMetricsOverview(session, ranges.previous),
+    ])
+      .then(([current, previous]) => {
+        if (alive) setPairs((value) => ({ ...value, [period]: { current, previous } }));
+      })
+      .catch((err) => {
+        if (alive) setPairError(message(err));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, superadmin, today, period, loadedPair]);
 
   if (error) {
     return (
@@ -56,98 +276,328 @@ export function OverviewSection({ session }: { session: SupabaseSession }) {
     );
   }
 
-  if (!overview) {
-    return (
-      <div className="page-status">
-        <span className="spinner" aria-hidden="true" />
-        Carregando…
-      </div>
+  if (!overview) return <Spinner label="Carregando…" />;
+
+  const actions: ActionItem[] = [];
+  if (overview.moderation) {
+    actions.push(
+      {
+        key: "submissions",
+        count: overview.moderation.pendingSubmissions,
+        label: "envios esperando revisão",
+        to: "/admin/acervo/envios",
+        cta: "revisar",
+      },
+      {
+        key: "reports",
+        count: overview.moderation.openReports,
+        label: "denúncias abertas no fórum",
+        to: "/admin/moderacao/forum",
+        cta: "ver fórum",
+      },
     );
   }
+  if (billing) {
+    actions.push({
+      key: "past_due",
+      count: billing.past_due,
+      label: "assinaturas com pagamento pendente",
+      to: "/admin/financeiro",
+      cta: "ver financeiro",
+    });
+  }
+  if (overview.backup) {
+    actions.push({
+      key: "backup",
+      count: overview.backup.stale ? 1 : 0,
+      label: "backup atrasado (mais de 26 h)",
+    });
+  }
+
+  const periodInfo = PERIODS.find((item) => item.key === period) ?? PERIODS[1];
+  const pair = pairs[period];
+  const trendInfo = TRENDS.find((item) => item.key === trend) ?? TRENDS[0];
+  const cohort = retention ? latestCompleteD7(retention, today) : null;
+  const reading = pair?.current.reading;
 
   return (
-    <section className="shelf admin-overview">
+    <section className="shelf admin-overview admin-dashboard">
       <div className="shelf-head">
-        <h1>Visão geral</h1>
+        <div>
+          <h1>Visão geral</h1>
+          <p className="muted">
+            Como o Storyverse está hoje. Números da API, atualizados a cada 5 minutos.
+          </p>
+        </div>
+        {superadmin ? (
+          <div className="segmented" role="group" aria-label="Período">
+            {PERIODS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={item.key === period ? "is-on" : undefined}
+                aria-pressed={item.key === period}
+                onClick={() => setPeriod(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      <div className="dash-tiles">
-        {overview.moderation ? (
-          <article className="dash-card">
-            <div className="dash-card-head">
-              <span className="dash-label">Moderação</span>
-            </div>
-            <div className="dash-tile">
-              <strong>{overview.moderation.pendingSubmissions}</strong>
-              <span>
-                envios esperando ·{" "}
-                <Link className="link-btn" to="/admin/moderacao/acervo">
-                  revisar
-                </Link>
-              </span>
-            </div>
-            <div className="dash-tile">
-              <strong>{overview.moderation.openReports}</strong>
-              <span>
-                denúncias abertas ·{" "}
-                <Link className="link-btn" to="/admin/moderacao/forum">
-                  ver fórum
-                </Link>
-              </span>
-            </div>
-          </article>
-        ) : null}
 
-        {overview.accounts ? (
-          <article className="dash-card">
-            <div className="dash-card-head">
-              <span className="dash-label">Contas</span>
-            </div>
-            <div className="dash-tile">
-              <strong>{overview.accounts.total}</strong>
-              <span>contas no total</span>
-            </div>
-            <div className="dash-tile">
-              <strong>{overview.accounts.newLast7Days}</strong>
-              <span>novas nos últimos 7 dias</span>
-            </div>
-          </article>
-        ) : null}
+      <ActionStrip items={actions} />
 
-        {overview.features ? (
-          <article className="dash-card">
-            <div className="dash-card-head">
-              <span className="dash-label">Features</span>
-            </div>
-            {Object.keys(overview.features).length === 0 ? (
-              <p className="dash-sub">Nenhuma feature ligada.</p>
-            ) : (
-              Object.entries(overview.features).map(([feature, count]) => (
-                <div className="dash-tile" key={feature}>
-                  <strong>{count}</strong>
-                  <span>{feature} ligada(s)</span>
+      {superadmin ? (
+        <>
+          {pairError ? (
+            <p className="auth-error" role="alert">
+              {pairError}
+            </p>
+          ) : null}
+          {!pair || !reading ? (
+            pairError ? null : (
+              <Spinner label="Carregando números do período…" />
+            )
+          ) : (
+            <>
+              <div className="admin-kpis">
+                <Kpi label="Leitores ativos" value={number(reading.activeReaders)}>
+                  <Delta
+                    period={period}
+                    current={reading.activeReaders}
+                    previous={pair.previous.reading.activeReaders}
+                  />
+                </Kpi>
+                <Kpi label="Livros terminados" value={number(reading.booksFinished)}>
+                  <Delta
+                    period={period}
+                    current={reading.booksFinished}
+                    previous={pair.previous.reading.booksFinished}
+                  />
+                </Kpi>
+                <Kpi label="Livros iniciados" value={number(reading.booksStarted)}>
+                  <Delta
+                    period={period}
+                    current={reading.booksStarted}
+                    previous={pair.previous.reading.booksStarted}
+                  />
+                </Kpi>
+                <Kpi label="Horas lidas" value={hours(reading.minutes)}>
+                  <Delta
+                    period={period}
+                    current={reading.minutes}
+                    previous={pair.previous.reading.minutes}
+                  />
+                </Kpi>
+                <Kpi
+                  label="Novos usuários"
+                  value={
+                    period === "today"
+                      ? "—"
+                      : number(
+                          period === "7d"
+                            ? pair.current.accounts.new7
+                            : pair.current.accounts.new30,
+                        )
+                  }
+                >
+                  {period === "today" ? (
+                    <Pending endpoint="accounts.new24h em /api/v1/admin/metrics/overview" />
+                  ) : (
+                    <span className="admin-delta">
+                      {number(pair.current.accounts.total)} contas no total
+                    </span>
+                  )}
+                </Kpi>
+                <Kpi label="Páginas lidas" value="—">
+                  <Pending endpoint="reading_days.pages + campo pages nas métricas" />
+                </Kpi>
+              </div>
+
+              <div className="admin-insights">
+                <div className="dash-tile">
+                  <strong>
+                    {reading.booksStarted
+                      ? `${ratio(reading.booksFinished, reading.booksStarted)}%`
+                      : "—"}
+                  </strong>
+                  <span>taxa de conclusão (terminados ÷ iniciados)</span>
                 </div>
-              ))
-            )}
-          </article>
-        ) : null}
+                <div className="dash-tile">
+                  <strong>
+                    {reading.activeReaders
+                      ? number(Math.round(reading.minutes / reading.activeReaders))
+                      : "—"}
+                  </strong>
+                  <span>minutos por leitor ativo</span>
+                </div>
+                <div className="dash-tile">
+                  <strong>{cohort ? `${ratio(cohort.d7, cohort.cohortSize)}%` : "—"}</strong>
+                  <span>
+                    {cohort
+                      ? `voltaram a ler em 7 dias (coorte de ${dayMonth(cohort.cohortWeek)}, ${number(cohort.cohortSize)} contas)`
+                      : "retenção D7: sem coorte completa ainda"}
+                  </span>
+                </div>
+              </div>
+              <p className="dash-sub admin-period-note">
+                {periodInfo.key === "today"
+                  ? "Hoje = dia do calendário em Brasília, ainda em andamento."
+                  : `Setas comparam com os ${periodInfo.previous}.`}
+              </p>
+            </>
+          )}
 
-        {overview.backup ? (
-          <article className={`dash-card${overview.backup.stale ? " is-alert" : ""}`}>
+          <div className="admin-dash-grid">
+            <article className="dash-card admin-trend-card">
+              <div className="dash-card-head">
+                <span className="dash-label">Últimos {TREND_DAYS} dias</span>
+                <div
+                  className="segmented admin-segmented-small"
+                  role="group"
+                  aria-label="Métrica da tendência"
+                >
+                  {TRENDS.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={item.key === trend ? "is-on" : undefined}
+                      aria-pressed={item.key === trend}
+                      onClick={() => setTrend(item.key)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {series === null ? (
+                <Spinner label="Carregando série…" />
+              ) : (
+                <TrendBars
+                  caption={trendInfo.label}
+                  unit={trendInfo.unit}
+                  points={series.map((point) => ({
+                    key: point.bucket,
+                    label: dayMonth(point.bucket),
+                    value: point[trend],
+                  }))}
+                />
+              )}
+            </article>
+
+            <article className="dash-card admin-ranking-card">
+              <div className="dash-card-head">
+                <span className="dash-label">Ranking da semana</span>
+                <span className="dash-sub">minutos lidos</span>
+              </div>
+              {ranking === null ? (
+                <Spinner label="Carregando ranking…" />
+              ) : ranking.length === 0 ? (
+                <p className="profile-empty">Ninguém pontuou nesta semana ainda.</p>
+              ) : (
+                <ol className="admin-ranking">
+                  {ranking.map((entry) => (
+                    <li
+                      key={entry.user_id}
+                      className={entry.place <= 3 ? `is-top is-place-${entry.place}` : undefined}
+                    >
+                      <span className="admin-ranking-place">{entry.place}º</span>
+                      <span className="admin-ranking-name">{entry.name}</span>
+                      <span className="admin-ranking-minutes">{number(entry.minutes)} min</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </article>
+
+            <article className="dash-card">
+              <div className="dash-card-head">
+                <span className="dash-label">Assinaturas</span>
+                <Link className="link-btn" to="/admin/financeiro">
+                  financeiro
+                </Link>
+              </div>
+              {billing ? (
+                <div className="admin-mini-tiles">
+                  <div className="dash-tile">
+                    <strong>{brlFromCents(billing.mrr_cents)}</strong>
+                    <span>MRR</span>
+                  </div>
+                  <div className="dash-tile">
+                    <strong>{number(billing.active)}</strong>
+                    <span>ativas · {number(billing.trialing)} em teste</span>
+                  </div>
+                  <div className="dash-tile">
+                    <strong>
+                      +{number(billing.new_count)} / −{number(billing.canceled_count)}
+                    </strong>
+                    <span>novas / canceladas em 30 dias</span>
+                  </div>
+                  <div className="dash-tile">
+                    <strong>{number(billing.failed)}</strong>
+                    <span>falhas de cobrança</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="dash-sub">Financeiro indisponível agora.</p>
+              )}
+            </article>
+
+            <article className={`dash-card${overview.backup?.stale ? " is-alert" : ""}`}>
+              <div className="dash-card-head">
+                <span className="dash-label">Saúde do sistema</span>
+              </div>
+              <div className="admin-mini-tiles">
+                {overview.backup ? (
+                  <div className="dash-tile">
+                    <strong>
+                      {overview.backup.stale ? "Atrasado" : (overview.backup.status ?? "—")}
+                    </strong>
+                    <span>
+                      backup · {when(overview.backup.finishedAt)} ·{" "}
+                      {bytes(overview.backup.sizeBytes)}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="dash-tile">
+                  <strong>—</strong>
+                  <span>
+                    erros e sessões sem crash (Sentry) ·{" "}
+                    <Pending endpoint="GET /api/v1/admin/health" />
+                  </span>
+                </div>
+                <div className="dash-tile">
+                  <strong>—</strong>
+                  <span>
+                    visitantes e páginas (Umami) · <Pending endpoint="GET /api/v1/admin/traffic" />
+                  </span>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <article className="dash-card admin-gaps">
             <div className="dash-card-head">
-              <span className="dash-label">Backup</span>
-              {overview.backup.stale ? <span className="dash-sub">Backup atrasado</span> : null}
+              <span className="dash-label">Ainda sem dados na API</span>
+              <span className="dash-sub">planejado em docs/SPEC_ADMIN_DASHBOARD.md</span>
             </div>
-            <div className="dash-tile">
-              <strong>{overview.backup.status ?? "—"}</strong>
-              <span>{when(overview.backup.finishedAt)}</span>
-            </div>
-            <div className="dash-tile">
-              <strong>{bytes(overview.backup.sizeBytes)}</strong>
-              <span>último tamanho</span>
-            </div>
+            <ul>
+              {API_GAPS.map((gap) => (
+                <li key={gap.label}>
+                  <strong>{gap.label}</strong>
+                  <code>{gap.endpoint}</code>
+                </li>
+              ))}
+            </ul>
           </article>
-        ) : null}
-      </div>
+        </>
+      ) : overview.accounts ? (
+        <div className="admin-kpis">
+          <Kpi label="Contas no total" value={number(overview.accounts.total)} />
+          <Kpi label="Novas em 7 dias" value={number(overview.accounts.newLast7Days)} />
+        </div>
+      ) : null}
     </section>
   );
 }
