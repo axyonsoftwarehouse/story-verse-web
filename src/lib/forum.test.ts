@@ -52,4 +52,13 @@ describe("forum api", () => {
     const { forumDate } = await import("./forum");
     expect(forumDate("2026-10-19T12:00:00Z")).toContain("2026");
   });
+
+  it("junta páginas sem repetir id", async () => {
+    const { mergeById } = await import("./forum");
+    const merged = mergeById(
+      [{ id: "a" }, { id: "b" }],
+      [{ id: "b" }, { id: "c" }],
+    );
+    expect(merged.map((item) => item.id)).toEqual(["a", "b", "c"]);
+  });
 });

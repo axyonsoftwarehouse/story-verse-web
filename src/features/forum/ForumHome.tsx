@@ -10,6 +10,7 @@ import {
   forumDate,
   listSpaces,
   listTopics,
+  mergeById,
   SPOILER_LABELS,
   toggleBookmark,
   toggleReaction,
@@ -121,7 +122,7 @@ export function ForumHome() {
         q: query || undefined,
         cursor: nextCursor,
       });
-      setTopics((current) => [...current, ...page.items]);
+      setTopics((current) => mergeById(current, page.items));
       setNextCursor(page.nextCursor);
     } catch (err: unknown) {
       setError(message(err));
