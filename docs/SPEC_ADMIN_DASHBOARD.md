@@ -20,7 +20,8 @@ chama `/api/v1/admin/**`.
 | Novos usuários em 7 e 30 dias | `metrics/overview` → `accounts.new7` / `accounts.new30` |
 | Taxa de conclusão (terminados ÷ iniciados), minutos por leitor | derivados dos números acima |
 | Retenção D7 da coorte mais recente completa | `metrics/overview` → `retention[]` |
-| Tendência de 30 dias (leitores / minutos / livros terminados) | série diária |
+| Tendência de 30 dias (leitores / minutos / páginas / livros terminados) | série diária |
+| Páginas lidas (+ período anterior), 1 página = 250 palavras | `metrics/overview` → `reading.pages` (item 2.2) |
 | Ranking da semana (top 10, respeita quem se escondeu) | RPC `weekly_ranking` (`POST /api/v1/rpc/weekly_ranking`) |
 | Assinaturas: MRR, ativas, em teste, novas × canceladas (30 dias) | `GET /api/v1/admin/billing/summary` |
 
@@ -33,8 +34,9 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 > e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
 > #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
 > tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
-> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Continuam pendentes: 2.2,
-> 2.3, 2.5 e 2.6.
+> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. O 2.2 (páginas lidas) está
+> em axyonsoftwarehouse/story-verse-api#69 (V26) e no PR do leitor/painel no story-verse-web.
+> Continuam pendentes: 2.3, 2.5 e 2.6.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
@@ -48,14 +50,31 @@ Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`,
 - Com isso o dashboard ganha comparação de novos usuários com o período anterior e a barra de
   cadastros na tendência.
 
-### 2.2 Páginas lidas
-Hoje **não existe** em lugar nenhum: `reading_days` só guarda `seconds`, e `page_count` existe só no
-acervo (`catalog_books`). Proposta:
-- Coluna `pages integer not null default 0` em `public.reading_days`, alimentada pelo leitor (o app
-  já envia os segundos por dia em `report_reading`; passaria a enviar `{ day: { seconds, pages } }`).
-  A contagem de página precisa de regra única no leitor (ex.: página = tela virada no modo paginado,
-  ou 250 palavras no modo rolagem) — decisão de produto antes de implementar.
-- Campo `pages` em `AdminMetrics.Reading` e em `AdminMetricsReadingPoint`.
+### 2.2 Páginas lidas — feito (story-verse-api#69, migração V26)
+**Regra: 1 página = 250 palavras lidas.** Vale para qualquer modo de leitura e não muda com o
+tamanho da tela ou da fonte. No leitor (`src/lib/readingPages.ts`):
+- o app olha o que está na tela quando a rolagem fica parada por 1 s e a cada 15 s de leitura
+  ativa (aba visível, interação nos últimos 2 min). Passar correndo pelo texto não conta;
+- conta o parágrafo que está pelo menos pela metade na tela, ou que ocupa metade da tela.
+  Ilustrações não contam;
+- cada parágrafo (livro + capítulo + número do parágrafo) conta uma vez por dia. Voltar ou reler no
+  mesmo dia não soma;
+- palavra = sequência de letras ou números separada por espaço;
+- páginas do dia = palavras do dia ÷ 250, arredondado para baixo. A conta fica no aparelho, por
+  conta de usuário.
+
+O app envia `{ "2026-10-27": { "seconds": 900, "pages": 12 } }` em `report_reading`, e o formato
+antigo (`{ dia: segundos }`) continua aceito. No banco (`public.reading_days.pages`):
+- `check (pages between 0 and 1000)`. Valor fora disso ou não inteiro é erro, e o app nunca manda
+  mais que 1000;
+- no máximo 1 página a cada 6 segundos de leitura contados pelo servidor (`reading_heartbeat`):
+  dia sem tempo contado não ganha página;
+- só valem os últimos 8 dias, e vale o maior valor enviado no dia. Dois aparelhos no mesmo dia não
+  somam: fica o maior.
+
+Na API, o campo `pages` está em `AdminMetrics.Reading` (`metrics/overview`) e em
+`AdminMetricsReadingPoint` (`metrics/reading`, por dia e por semana). No dashboard, o KPI
+"Páginas lidas" compara com o período anterior, e a tendência de 30 dias tem a opção "Páginas".
 
 ### 2.3 Usuários ativos (DAU / WAU / MAU)
 "Leitor ativo" só conta quem leu. Para atividade geral:
