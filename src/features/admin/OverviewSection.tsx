@@ -8,6 +8,7 @@ import {
   type BillingSeriesPoint,
   type BillingSummary,
 } from "../../lib/adminBilling";
+import { communityTotals, getCommunitySeries, type CommunityPoint } from "../../lib/adminCommunity";
 import { getHealth, type AdminHealth, type HealthPeriod } from "../../lib/adminHealth";
 import {
   getMetricsOverview,
@@ -19,6 +20,7 @@ import {
 } from "../../lib/adminMetrics";
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
 import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
+import { FORUM_VISIBLE } from "../../lib/features";
 import { getTopBooks, type AdminTopBook } from "../../lib/adminTopBooks";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
 import { ActiveUsersCard } from "./ActiveUsersCard";
@@ -80,6 +82,14 @@ type BillingMetric = "mrrCents" | "revenueCents";
 const BILLING_TRENDS: { key: BillingMetric; label: string; summary: "last" | "total" }[] = [
   { key: "mrrCents", label: "MRR", summary: "last" },
   { key: "revenueCents", label: "Receita", summary: "total" },
+];
+
+type CommunityMetric = "topics" | "replies" | "reports";
+
+const COMMUNITY: { key: CommunityMetric; label: string; unit: string }[] = [
+  { key: "topics", label: "Tópicos", unit: "tópicos" },
+  { key: "replies", label: "Respostas", unit: "respostas" },
+  { key: "reports", label: "Denúncias", unit: "denúncias" },
 ];
 
 const TREND_DAYS = 30;
@@ -376,6 +386,77 @@ function TrafficCard({
   );
 }
 
+/** Tópicos, respostas e denúncias do fórum no período e a série dos últimos 30 dias. */
+function CommunityCard({
+  points,
+  period,
+  today,
+}: {
+  points: CommunityPoint[] | "error" | null;
+  period: (typeof PERIODS)[number];
+  today: string;
+}) {
+  const [metric, setMetric] = useState<CommunityMetric>("topics");
+  if (points === null) return <Spinner label="Carregando o fórum…" />;
+  if (points === "error") {
+    return <p className="dash-sub">Atividade do fórum indisponível agora.</p>;
+  }
+  const ranges = periodRanges(today, period.days);
+  const current = communityTotals(points, ranges.current);
+  const previous = communityTotals(points, ranges.previous);
+  const info = COMMUNITY.find((item) => item.key === metric) ?? COMMUNITY[0];
+  return (
+    <>
+      <div className="admin-mini-tiles">
+        {COMMUNITY.map((item) => (
+          <div className="dash-tile" key={item.key}>
+            <strong>{number(current[item.key])}</strong>
+            <span>
+              {item.unit} ·{" "}
+              <Delta
+                period={period.key}
+                current={current[item.key]}
+                previous={previous[item.key]}
+              />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="admin-community-trend">
+        <div className="dash-card-head">
+          <span className="dash-label">Últimos {TREND_DAYS} dias</span>
+          <div
+            className="segmented admin-segmented-small"
+            role="group"
+            aria-label="Métrica do fórum"
+          >
+            {COMMUNITY.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={item.key === metric ? "is-on" : undefined}
+                aria-pressed={item.key === metric}
+                onClick={() => setMetric(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <TrendBars
+          caption={info.label}
+          unit={info.unit}
+          points={points.slice(-TREND_DAYS).map((point) => ({
+            key: point.bucket,
+            label: dayMonth(point.bucket),
+            value: point[metric],
+          }))}
+        />
+      </div>
+    </>
+  );
+}
+
 /** Erros, sessões sem crash e problemas mais frequentes de cada projeto do Sentry. */
 function SentryHealth({ data }: { data: AdminHealth | "error" | undefined }) {
   if (data === undefined) {
@@ -494,6 +575,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const [billingMetric, setBillingMetric] = useState<BillingMetric>("mrrCents");
   const [health, setHealth] = useState<Partial<Record<HealthPeriod, AdminHealth | "error">>>({});
   const [traffic, setTraffic] = useState<Partial<Record<PeriodKey, AdminTraffic | "error">>>({});
+  const [community, setCommunity] = useState<CommunityPoint[] | "error" | null>(null);
   const [topBooks, setTopBooks] = useState<Partial<Record<PeriodKey, AdminTopBook[] | "error">>>(
     {},
   );
@@ -537,6 +619,16 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
         .catch(() => {
           if (alive) setBillingSeries([]);
         });
+      if (FORUM_VISIBLE) {
+        // 60 dias: os 30 do gráfico e os anteriores, para comparar qualquer período.
+        getCommunitySeries(session, rangeEnding(today, SERIES_DAYS), "day")
+          .then((points) => {
+            if (alive) setCommunity(points);
+          })
+          .catch(() => {
+            if (alive) setCommunity("error");
+          });
+      }
       fetchRanking(session, 0, 10)
         .then((rows) => {
           if (alive) setRanking(rows);
@@ -994,6 +1086,16 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
               </div>
               <TrafficCard data={traffic[period]} period={period} />
             </article>
+
+            {FORUM_VISIBLE ? (
+              <article className="dash-card admin-community-card">
+                <div className="dash-card-head">
+                  <span className="dash-label">Comunidade</span>
+                  <span className="dash-sub">Fórum · {periodInfo.label}</span>
+                </div>
+                <CommunityCard points={community} period={periodInfo} today={today} />
+              </article>
+            ) : null}
 
             <article className="dash-card admin-ranking-card">
               <div className="dash-card-head">
