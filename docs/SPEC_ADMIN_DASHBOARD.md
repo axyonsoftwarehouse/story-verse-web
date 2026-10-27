@@ -34,9 +34,9 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 > e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
 > #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
 > tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
-> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. O 2.2 (páginas lidas) está
-> em axyonsoftwarehouse/story-verse-api#69 (V26) e no PR do leitor/painel no story-verse-web.
-> Continuam pendentes: 2.3, 2.5 e 2.6.
+> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Também estão na API e no
+> dashboard: 2.2 páginas lidas (story-verse-api#69, V26), 2.3 usuários ativos (#70, V27), 2.5 livros
+> mais lidos (#67, V28), 2.6 comunidade (#66, V29) e os Web Vitals pelo Umami (#68). Nada pendente.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
@@ -76,11 +76,18 @@ Na API, o campo `pages` está em `AdminMetrics.Reading` (`metrics/overview`) e e
 `AdminMetricsReadingPoint` (`metrics/reading`, por dia e por semana). No dashboard, o KPI
 "Páginas lidas" compara com o período anterior, e a tendência de 30 dias tem a opção "Páginas".
 
-### 2.3 Usuários ativos (DAU / WAU / MAU)
+### 2.3 Usuários ativos (DAU / WAU / MAU) — feito
 "Leitor ativo" só conta quem leu. Para atividade geral:
-- Tabela `public.activity_days(user_id, day)` (upsert no primeiro request autenticado do dia, ou no
-  `reading_heartbeat`).
+- Tabela `public.activity_days(user_id, day)` (migração V27, RLS com policy do runtime). A API grava
+  no primeiro request autenticado (Bearer de acesso) do dia em America/Sao_Paulo: um conjunto em
+  memória por dia evita gravar a cada request, e o upsert roda numa fila de uma thread, fora do
+  request. O refresh de token não conta. Os dados começam no deploy da V27: antes disso a série vem
+  zerada.
 - `GET /api/v1/admin/metrics/active?from&to` → `{ dau, wau, mau, series: [{ day, active }] }`.
+  DAU = pessoas no dia `to`; WAU = nos 7 dias até `to`; MAU = nos 30 dias até `to` (janelas que não
+  dependem de `from`). `series` traz todos os dias do período, com 0 nos dias sem atividade.
+- No dashboard, o card "Usuários ativos" pede sempre os 30 dias até hoje (não segue o seletor de
+  período, porque as três janelas já são fixas).
 
 ### 2.4 Assinaturas e receita no tempo — feito (sem `paidFromFree`: o grátis não passa pelo Stripe)
 `billing/summary` é só uma foto. Faltam:
