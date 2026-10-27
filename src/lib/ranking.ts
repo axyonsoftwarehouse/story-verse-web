@@ -1,4 +1,5 @@
 import type { SupabaseSession } from "./auth";
+import { recentReadingPages } from "./readingPages";
 import { recentReadingSeconds } from "./readingStats";
 import { rpc } from "./rpc";
 
@@ -32,9 +33,27 @@ export async function readingHeartbeat(session: SupabaseSession, active: boolean
   await call<number>(session, "reading_heartbeat", { p_active: active });
 }
 
-/** Envia os segundos lidos nos últimos 8 dias (cobre a semana atual e o fim da passada). Diz se enviou. */
+/** O banco recusa mais que isso por dia (check de reading_days.pages). */
+const MAX_PAGES_PER_DAY = 1000;
+
+/** O que vai para report_reading: `{ "2026-10-27": { seconds, pages } }` por dia. */
+export function readingReport(): Record<string, { seconds: number; pages: number }> {
+  const seconds = recentReadingSeconds(8);
+  const pages = recentReadingPages(8);
+  const days: Record<string, { seconds: number; pages: number }> = {};
+  for (const day of new Set([...Object.keys(seconds), ...Object.keys(pages)])) {
+    days[day] = { seconds: seconds[day] ?? 0, pages: Math.min(MAX_PAGES_PER_DAY, pages[day] ?? 0) };
+  }
+  return days;
+}
+
+/**
+ * Envia os segundos e as páginas lidas nos últimos 8 dias (cobre a semana atual e o fim da
+ * passada). Os segundos o banco ignora (só o reading_heartbeat conta tempo); as páginas vão para
+ * as métricas do painel (ver readingPages.ts). Diz se enviou.
+ */
 export async function reportReading(session: SupabaseSession, opts: { keepalive?: boolean } = {}): Promise<boolean> {
-  const days = recentReadingSeconds(8);
+  const days = readingReport();
   if (Object.keys(days).length === 0) return false;
   const body = JSON.stringify(days);
   if (lastReported.get(session.user.id) === body) return false;

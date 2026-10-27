@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseSession } from "../../lib/auth";
@@ -112,8 +112,20 @@ describe("OverviewSection", () => {
     const today = isoDate(new Date());
     vi.mocked(getMetricsOverview).mockImplementation(async (_session, range) =>
       range.to === today
-        ? metrics({ activeReaders: 20, minutes: 600, booksStarted: 8, booksFinished: 4 })
-        : metrics({ activeReaders: 10, minutes: 300, booksStarted: 4, booksFinished: 4 }),
+        ? metrics({
+            activeReaders: 20,
+            minutes: 600,
+            booksStarted: 8,
+            booksFinished: 4,
+            pages: 120,
+          })
+        : metrics({
+            activeReaders: 10,
+            minutes: 300,
+            booksStarted: 4,
+            booksFinished: 4,
+            pages: 60,
+          }),
     );
     vi.mocked(getReadingSeries).mockResolvedValue([]);
     vi.mocked(getMetricsRetention).mockResolvedValue([]);
@@ -177,6 +189,9 @@ describe("OverviewSection", () => {
     expect(screen.getAllByText("↑ 100%").length).toBeGreaterThan(0);
     expect(screen.getByText("50%")).toBeInTheDocument(); // 4 terminados ÷ 8 iniciados
     expect(screen.getByText("30")).toBeInTheDocument(); // 600 min ÷ 20 leitores
+    const pages = screen.getByText("Páginas lidas").closest("article") as HTMLElement;
+    expect(within(pages).getByText("120")).toBeInTheDocument();
+    expect(within(pages).getByText("↑ 100%")).toBeInTheDocument();
 
     expect(await screen.findByText("Ana")).toBeInTheDocument();
     expect(screen.getByText("320 min")).toBeInTheDocument();

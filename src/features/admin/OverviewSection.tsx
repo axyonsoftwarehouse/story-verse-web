@@ -63,11 +63,12 @@ const PERIODS: {
   },
 ];
 
-type TrendMetric = "activeReaders" | "minutes" | "booksFinished" | "signups";
+type TrendMetric = "activeReaders" | "minutes" | "pages" | "booksFinished" | "signups";
 
 const TRENDS: { key: TrendMetric; label: string; unit: string }[] = [
   { key: "activeReaders", label: "Leitores", unit: "leitores" },
   { key: "minutes", label: "Minutos", unit: "minutos" },
+  { key: "pages", label: "Páginas", unit: "páginas" },
   { key: "booksFinished", label: "Terminados", unit: "livros" },
   { key: "signups", label: "Cadastros", unit: "contas" },
 ];
@@ -81,7 +82,6 @@ const BILLING_TRENDS: { key: BillingMetric; label: string; summary: "last" | "to
 
 /** O que o dashboard ainda não mostra por falta de dado na API (detalhes em docs/SPEC_ADMIN_DASHBOARD.md). */
 const API_GAPS: { label: string; endpoint: string }[] = [
-  { label: "Páginas lidas", endpoint: "reading_days.pages + campo pages nas métricas" },
   { label: "Usuários ativos (DAU/WAU/MAU)", endpoint: "GET /api/v1/admin/metrics/active" },
   { label: "Livros mais lidos", endpoint: "GET /api/v1/admin/metrics/top-books" },
 ];
@@ -721,8 +721,20 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   signups={signups}
                   signupsBefore={signupsBefore}
                 />
-                <Kpi label="Páginas lidas" value="—">
-                  <Pending endpoint="reading_days.pages + campo pages nas métricas" />
+                {/* 1 página = 250 palavras lidas (regra em src/lib/readingPages.ts). */}
+                <Kpi
+                  label="Páginas lidas"
+                  value={reading.pages === undefined ? "—" : number(reading.pages)}
+                >
+                  {reading.pages === undefined ? (
+                    <Pending endpoint="campo pages em /api/v1/admin/metrics/overview" />
+                  ) : (
+                    <Delta
+                      period={period}
+                      current={reading.pages}
+                      previous={pair.previous.reading.pages ?? 0}
+                    />
+                  )}
                 </Kpi>
               </div>
 

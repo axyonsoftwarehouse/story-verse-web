@@ -16,6 +16,7 @@ const VAULT_PREFIX = "storyverse:vault:";
 const USER_KEYS = new Set([
   "storyverse:reading-progress",
   "storyverse:reading-stats",
+  "storyverse:reading-pages",
   "storyverse:streak-meta",
   "storyverse:auto-freeze",
   "storyverse:spin-offered",
