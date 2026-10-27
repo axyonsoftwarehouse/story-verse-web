@@ -53,6 +53,9 @@ jobs:
           # Site de produção no Umami (o id é público; o tracker vem de /u/* pelo Caddy).
           VITE_UMAMI_WEBSITE_ID: ac235b63-f338-4740-bd83-b29b5373f719
           VITE_SENTRY_RELEASE: ${{ github.sha }}
+          # Paywall no site. Fica desligado até a variável do repositório VITE_BILLING_ENABLED
+          # valer "true", e só deve ser ligado junto com BILLING_ENABLED=true no .env da API.
+          VITE_BILLING_ENABLED: ${{ vars.VITE_BILLING_ENABLED }}
         run: npm run build
 
       - name: Configurar chave SSH
