@@ -132,6 +132,7 @@ import { missYouMessage } from "./lib/readingAmbient";
 import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
 import { cachedPortrait, requestPortrait } from "./lib/portraits";
 import { excerptNearScrollRatio } from "./lib/readingContext";
+import { addSeenBlocks, countWords, type SeenBlock } from "./lib/readingPages";
 import {
   addReadingSeconds,
   GOAL_OPTIONS,
@@ -6217,6 +6218,9 @@ export function App() {
   const jumpToBlockRef = useRef<number | null>(null);
   /** Última interação no leitor: o tempo de leitura só conta com o leitor presente. */
   const lastActivityRef = useRef(Date.now());
+  /** Conta as palavras na tela para as páginas lidas (definida junto dos parágrafos, mais abaixo). */
+  const countVisibleWordsRef = useRef<() => void>(() => {});
+  const scrollIdleRef = useRef<number | undefined>(undefined);
 
   const [prefs, setPrefs] = useState(loadPrefs);
   /** Ajustes de leitura no celular: fonte, tema, luz noturna e tela cheia. */
@@ -6518,6 +6522,9 @@ export function App() {
     lastActivityRef.current = Date.now();
     setSelection(null);
     setWordCard(null);
+    // Páginas lidas: conta o que está na tela quando a rolagem para por 1 s.
+    window.clearTimeout(scrollIdleRef.current);
+    scrollIdleRef.current = window.setTimeout(() => countVisibleWordsRef.current(), 1000);
     const max = el.scrollHeight - el.clientHeight;
     const r = max <= 0 ? 0 : el.scrollTop / max;
     setScrollRatio(r);
@@ -6725,7 +6732,10 @@ export function App() {
     const t = window.setInterval(() => {
       const active = Date.now() - lastActivityRef.current < 120_000 || speechRef.current !== null;
       const reading = document.visibilityState === "visible" && active;
-      if (reading) celebrate(addReadingSeconds(TICK));
+      if (reading) {
+        celebrate(addReadingSeconds(TICK));
+        countVisibleWordsRef.current();
+      }
       if (session && authSessionRef.current?.user.id === session.user.id)
         void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
     }, TICK * 1000);
@@ -6908,6 +6918,31 @@ export function App() {
     () => blocks.findIndex((b) => b.kind === "p" && b.text.length > 80),
     [blocks],
   );
+
+  /**
+   * Páginas lidas (1 página = 250 palavras; a regra completa está em readingPages.ts): soma os
+   * parágrafos que estão pelo menos pela metade na tela, ou que ocupam metade dela.
+   */
+  useEffect(() => {
+    countVisibleWordsRef.current = () => {
+      const el = readRef.current;
+      if (!el || !book || loadState !== "ready" || document.visibilityState !== "visible") return;
+      // Capítulo ainda não posicionado: a tela ainda é a do anterior.
+      if (ratioKeyRef.current !== `${book.gutenbergId}:${chapterIndex}`) return;
+      const view = el.getBoundingClientRect();
+      const seen: SeenBlock[] = [];
+      for (const node of el.querySelectorAll<HTMLElement>("[data-block]")) {
+        const r = node.getBoundingClientRect();
+        const shown = Math.min(r.bottom, view.bottom) - Math.max(r.top, view.top);
+        if (shown <= 0 || (shown < r.height / 2 && shown < view.height / 2)) continue;
+        const i = Number(node.dataset.block);
+        const b = blocks[i];
+        if (b && b.kind !== "image") seen.push({ key: `${book.gutenbergId}:${chapterIndex}:${i}`, words: countWords(b.text) });
+      }
+      addSeenBlocks(seen);
+    };
+  }, [book, loadState, chapterIndex, blocks]);
+  useEffect(() => () => window.clearTimeout(scrollIdleRef.current), []);
 
   /* ---- Tradução dos livros em inglês: trecho a trecho, conforme o leitor avança. ---- */
   const [engine, setEngine] = useState<TranslationEngine>("google");
