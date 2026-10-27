@@ -17,11 +17,15 @@ import { ForumHome } from "./features/forum/ForumHome";
 import { TopicPage } from "./features/forum/TopicPage";
 import { FORUM_VISIBLE } from "./lib/features";
 import { installTelemetry } from "./lib/telemetry";
+import { installAnalytics } from "./lib/analytics";
 import { registerServiceWorker } from "./lib/pwa";
 import { startSplashExit } from "./lib/splash";
 import { applyAppTheme } from "./lib/appTheme";
 
 installTelemetry();
+
+// Tráfego no Umami (só nos builds com VITE_UMAMI_WEBSITE_ID).
+installAnalytics();
 
 // Cor escolhida pela pessoa antes do primeiro desenho (sem piscar o dourado antes).
 applyAppTheme();

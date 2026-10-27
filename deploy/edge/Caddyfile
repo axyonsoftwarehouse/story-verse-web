@@ -59,6 +59,16 @@ storyverse.2.29.42.104.sslip.io {
         reverse_proxy https://covers.openlibrary.org
     }
 
+    # Umami pela mesma origem: só o script e o envio de visitas (a CSP continua self).
+    handle /u/script.js {
+        uri strip_prefix /u
+        reverse_proxy umami-umami-1:3000
+    }
+    handle /u/api/send {
+        uri strip_prefix /u
+        reverse_proxy umami-umami-1:3000
+    }
+
     # site (arquivos estáticos) com fallback das telas internas (SPA)
     handle {
         root * /srv/storyverse/current
@@ -125,10 +135,32 @@ qa.storyverse.2.29.42.104.sslip.io {
         reverse_proxy https://covers.openlibrary.org
     }
 
+    # Umami pela mesma origem: só o script e o envio de visitas (a CSP continua self).
+    handle /u/script.js {
+        uri strip_prefix /u
+        reverse_proxy umami-umami-1:3000
+    }
+    handle /u/api/send {
+        uri strip_prefix /u
+        reverse_proxy umami-umami-1:3000
+    }
+
     # site (arquivos estáticos) com fallback das telas internas (SPA)
     handle {
         root * /srv/storyverse/qa/current
         try_files {path} /index.html
         file_server
     }
+}
+
+# ── Umami (painel de visitas; só a equipe, com login) ──────────────
+umami.2.29.42.104.sslip.io {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        Strict-Transport-Security "max-age=31536000"
+        X-Robots-Tag "noindex, nofollow"
+    }
+    reverse_proxy umami-umami-1:3000
 }

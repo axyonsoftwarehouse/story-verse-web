@@ -31,7 +31,10 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 
 > **Situação em 2026-10-27:** 2.1, 2.4 e 3 já existem na API (axyonsoftwarehouse/story-verse-api#62
 > e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
-> #62. Continuam pendentes: 2.2, 2.3, 2.5, 2.6 e o Umami (4).
+> #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
+> tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
+> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Continuam pendentes: 2.2,
+> 2.3, 2.5 e 2.6.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
