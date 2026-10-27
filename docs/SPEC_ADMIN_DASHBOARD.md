@@ -33,8 +33,9 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 > e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
 > #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
 > tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
-> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Continuam pendentes: 2.2,
-> 2.3, 2.5 e 2.6.
+> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. A 2.6 (atividade da
+> comunidade) está em axyonsoftwarehouse/story-verse-api#66, e o card "Comunidade" só aparece com o
+> fórum ligado (`FORUM_VISIBLE`). Continuam pendentes: 2.2, 2.3 e 2.5.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
@@ -77,9 +78,17 @@ acervo (`catalog_books`). Proposta:
   `[{ bookKey, title, author, readers, minutes, finished }]` agregando `reading_days` /
   `library_entries` (só livros do acervo ou com título conhecido; nada de texto do usuário).
 
-### 2.6 Atividade da comunidade
-- `GET /api/v1/admin/metrics/community?from&to&group=day` →
-  `[{ bucket, topics, replies, reports }]`.
+### 2.6 Atividade da comunidade — feito
+- `GET /api/v1/admin/metrics/community?from&to&group=day|week` →
+  `[{ bucket, topics, replies, reports }]` (axyonsoftwarehouse/story-verse-api#66, migração V29).
+- Conta `forum_topics`, `forum_replies` e `forum_reports` pelo `created_at` no calendário de São
+  Paulo; a semana começa na segunda. Os buckets vazios já vêm com zero da API.
+- O que a moderação escondeu ou apagou depois **continua contando como criado**: a métrica mede o
+  que a comunidade escreveu e denunciou. Denúncias contam em qualquer status. O fórum só faz exclusão
+  lógica; uma linha some apenas quando a conta do autor é apagada.
+- Painel: card "Comunidade" na visão geral, com os totais do período comparados ao período anterior
+  e as barras dos últimos 30 dias. O card só aparece quando o fórum está visível
+  (`FORUM_VISIBLE` em `src/lib/features.ts`), portanto fica escondido em produção.
 
 ## 3. Saúde do sistema via Sentry — feito (Web Vitals ainda não)
 
@@ -193,4 +202,4 @@ painel mostra "Tráfego indisponível".
 3. VPS: Umami + proxy `/u/*`; depois API `admin/traffic` e o tracker no frontend.
 4. API: `admin/health` (Sentry) e amostra de traces para Web Vitals.
 5. Produto decide a regra de "página lida" (2.2); depois API + leitor.
-6. 2.3, 2.5 e 2.6.
+6. 2.3, 2.5 e 2.6 (2.6 feito).
