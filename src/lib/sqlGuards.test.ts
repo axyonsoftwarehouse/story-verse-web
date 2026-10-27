@@ -36,11 +36,15 @@ describe("garantias de SQL", () => {
     }
   });
 
-  it("o patch de QA traz as funções iguais às do schema", () => {
+  it.each([
+    ["deploy/storyverse-qa/sql/2026-10-26-revisao-seguranca.sql", "https://api.qa.storyverse.2.29.42.104.sslip.io"],
+    ["deploy/sql/2026-10-26-revisao-seguranca-producao.sql", "https://api.storyverse.2.29.42.104.sslip.io"],
+  ])("o patch %s traz as funções iguais às do schema e a origem certa", (path, origin) => {
     const schema = read("database/schema.sql");
-    const patch = read("deploy/storyverse-qa/sql/2026-10-26-revisao-seguranca.sql");
+    const patch = read(path);
     const fns = patch.match(/^create or replace function[\s\S]*?^\$\$;$/gm) ?? [];
     expect(fns.length).toBe(5);
     for (const fn of fns) expect(schema).toContain(fn);
+    expect(patch).toContain(`current_database(), '${origin}')`);
   });
 });
