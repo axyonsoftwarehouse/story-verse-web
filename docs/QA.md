@@ -163,10 +163,20 @@ do QA, para nunca tocar na produção.
 
 ### Caddy de borda
 
-O `deploy/edge/Caddyfile` tem os blocos da produção e do QA. Ao copiar para `/home/deploy/edge/`,
-confira com `bash deploy/edge/check-caddyfile.sh` e recarregue sem derrubar nada:
-`docker compose -p edge exec caddy caddy reload --config /etc/caddy/Caddyfile`. Mudanças só nos blocos
-`qa.storyverse…` não alteram a produção.
+O Caddy de borda (`/home/deploy/edge/Caddyfile`, contêiner `edge-caddy-1`) atende a produção, o QA
+e o Foodie. O arquivo da VPS é **mais antigo** que o `deploy/edge/Caddyfile` daqui: **não o
+substitua inteiro**, troque só os blocos `qa.storyverse…`/`api.qa.storyverse…`.
+
+1. Leve a versão do repositório para o lado: `scp deploy/edge/Caddyfile deploy@<vps>:/home/deploy/edge/Caddyfile.repo`.
+2. Na VPS, em `/home/deploy/edge`: backup (`cp Caddyfile Caddyfile.bak-$(date +%Y%m%d-%H%M)`) e
+   `diff Caddyfile Caddyfile.repo` para ver o que muda.
+3. Edite **no mesmo arquivo** (é bind mount de arquivo único: `mv` e `sed -i` deixam o contêiner
+   lendo o antigo). `nano Caddyfile` ou `cat Caddyfile.novo > Caddyfile` servem.
+4. `docker exec edge-caddy-1 caddy validate --config /etc/caddy/Caddyfile` e, só se passar,
+   `docker exec edge-caddy-1 caddy reload --config /etc/caddy/Caddyfile` (sem queda; config
+   inválida é recusada e a antiga continua).
+5. Confira produção, QA e Foodie respondendo. Se algo der errado: `cat Caddyfile.bak-… > Caddyfile`
+   e `caddy reload` de novo.
 
 ## Limites
 
