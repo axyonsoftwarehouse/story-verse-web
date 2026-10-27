@@ -12,10 +12,18 @@ const UNTRACKED_PATHS = /^\/admin(?:\/|$)/;
 
 type UmamiPayload = { url?: string } & Record<string, unknown>;
 
+/** Caminho da URL do envio. O Umami 3 manda a URL completa (com o domínio), não só o caminho. */
+function pathOf(url: string): string {
+  try {
+    return new URL(url, window.location.origin).pathname;
+  } catch {
+    return url.split(/[?#]/)[0];
+  }
+}
+
 /** Descarta o envio (retorna false) para as telas da equipe; o resto passa como veio. */
 export function umamiBeforeSend(_type: string, payload: UmamiPayload): UmamiPayload | false {
-  const path = (payload.url ?? "").split(/[?#]/)[0];
-  return UNTRACKED_PATHS.test(path) ? false : payload;
+  return UNTRACKED_PATHS.test(pathOf(payload.url ?? "")) ? false : payload;
 }
 
 let installed = false;
