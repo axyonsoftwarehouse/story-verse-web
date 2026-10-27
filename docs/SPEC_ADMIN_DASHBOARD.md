@@ -124,7 +124,7 @@ Na API, o campo `pages` está em `AdminMetrics.Reading` (`metrics/overview`) e e
   e as barras dos últimos 30 dias. O card só aparece quando o fórum está visível
   (`FORUM_VISIBLE` em `src/lib/features.ts`), portanto fica escondido em produção.
 
-## 3. Saúde do sistema via Sentry — feito (Web Vitals ainda não)
+## 3. Saúde do sistema via Sentry — feito (Web Vitals pelo Umami — feito)
 
 O app (`@sentry/react`, `src/lib/telemetry.ts`) e a API Java já enviam ao Sentry. O painel lê os
 números por um endpoint da API que chama a API REST do Sentry no servidor.
@@ -167,9 +167,31 @@ curto; se o Sentry cair, devolve `{ sentry: null, error: "..." }` sem derrubar o
   — devolver só título, contagem, usuários, `lastSeen` e `permalink` (sem stack, sem dados de
   usuário).
 
-**Web Vitals (LCP, INP, CLS):** só existem se o Sentry receber transações. Hoje
-`VITE_SENTRY_TRACES_SAMPLE_RATE` = 0. Ligar com amostra pequena (ex.: `0.05`) e, no endpoint,
-`GET /organizations/{org}/events/?dataset=metrics&field=p75(measurements.lcp)&field=p75(measurements.inp)&field=p75(measurements.cls)&statsPeriod=7d&project={id}`.
+**Web Vitals (LCP, INP, CLS) — pelo Umami, não pelo Sentry** (decisão de produto: não ligar
+transações no Sentry só para isso; `VITE_SENTRY_TRACES_SAMPLE_RATE` continua 0).
+- **Tracker:** `installAnalytics` (`src/lib/analytics.ts`) liga `data-performance="true"`. O
+  tracker do Umami 3.4.1 passa a mandar, ao esconder/sair da página (ou após 10 s), um envio do
+  tipo `"performance"` com `lcp`, `inp`, `cls`, `fcp` e `ttfb` (ms; CLS sem unidade). O
+  `umamiBeforeSend` descarta `/admin` também nesses envios.
+- **Umami:** grava em colunas de `website_event` (`event_type = 5`) e expõe
+  `GET /api/websites/{websiteId}/performance/stats?startAt&endAt` →
+  `{ lcp: {p50, p75, p95}, inp: {…}, cls: {…}, fcp: {…}, ttfb: {…}, count }`. Métrica sem medida
+  vem como `0` (o Umami faz `Number(x || 0)`). Também há `/performance/chart` (série) e
+  `/performance/metrics?type=path&metric=lcp` (por página), ainda não usados.
+- **Endpoint novo:** `GET /api/v1/admin/vitals?from&to` (superadmin, até 90 dias em datas de São
+  Paulo, cache 5 min; falha → 200 com `vitals: null` e `error`), com o mesmo `UmamiApiClient` do
+  tráfego:
+
+```json
+{ "from": "2026-10-21", "to": "2026-10-27",
+  "vitals": { "lcp": 2712.3, "inp": 184, "cls": 0.06, "samples": 148 }, "error": null }
+```
+
+  `lcp`/`inp` = `null` quando o Umami devolve `0` (LCP/INP reais nunca são 0 ms; INP fica sem
+  medida em visita sem interação). CLS `0` é medida válida. Sem envios no período (`samples: 0`),
+  as três vêm `null` e o painel diz "nenhuma medida no período".
+- **Painel:** card "Saúde do sistema", p75 de cada métrica com a faixa do Google — LCP bom até
+  2,5 s, ruim acima de 4 s; INP 200 ms / 500 ms; CLS 0,1 / 0,25 (o limite conta como bom).
 
 ## 4. Tráfego via Umami (auto-hospedado na VPS)
 
@@ -234,6 +256,6 @@ painel mostra "Tráfego indisponível".
 1. Este PR (frontend): dashboard com os dados atuais e os blocos "aguardando endpoint".
 2. API: 2.1 (cadastros) e 2.4 (série de assinaturas) — maior valor de negócio, sem decisão pendente.
 3. VPS: Umami + proxy `/u/*`; depois API `admin/traffic` e o tracker no frontend.
-4. API: `admin/health` (Sentry) e amostra de traces para Web Vitals.
+4. API: `admin/health` (Sentry) e Web Vitals pelo Umami (`admin/vitals`).
 5. Produto decide a regra de "página lida" (2.2); depois API + leitor.
 6. 2.3, 2.5 e 2.6 (2.6 feito).

@@ -43,6 +43,8 @@ export function installAnalytics(websiteId = import.meta.env.VITE_UMAMI_WEBSITE_
   script.dataset.excludeHash = "true";
   script.dataset.doNotTrack = "true";
   script.dataset.beforeSend = BEFORE_SEND;
+  // Web Vitals (LCP, INP, CLS, FCP, TTFB) em envios do tipo "performance"; o painel do admin lê o p75.
+  script.dataset.performance = "true";
   document.head.appendChild(script);
 }
 

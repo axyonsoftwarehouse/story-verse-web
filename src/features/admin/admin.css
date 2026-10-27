@@ -1478,3 +1478,43 @@
   padding-top: 0.8rem;
   border-top: 1px solid var(--border);
 }
+
+/* Web Vitals: p75 de LCP/INP/CLS com a faixa do Google (bom / melhorar / ruim). */
+.admin-vitals ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.admin-vitals li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.admin-vitals-name {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.admin-vital {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.admin-vital.is-good {
+  color: #7fcf9a;
+}
+
+.admin-vital.is-needs-improvement {
+  color: var(--accent);
+}
+
+.admin-vital.is-poor {
+  color: var(--danger);
+}
