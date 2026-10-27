@@ -197,7 +197,8 @@ describe("OverviewSection", () => {
     expect(screen.getByText("320 min")).toBeInTheDocument();
     expect(await screen.findByText("R$ 129,90")).toBeInTheDocument();
     expect(screen.getByText("assinaturas com pagamento pendente")).toBeInTheDocument();
-    expect(screen.getByText("Ainda sem dados na API")).toBeInTheDocument();
+    // Todos os blocos da spec têm dado na API: o card de pendências saiu.
+    expect(screen.queryByText("Ainda sem dados na API")).not.toBeInTheDocument();
   });
 
   it("em Hoje compara com ontem e marca novos usuários como pendentes de endpoint", async () => {
