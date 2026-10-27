@@ -590,27 +590,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.admin-gaps ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 0.5rem 1rem;
-}
-
-.admin-gaps li {
-  display: grid;
-  gap: 0.15rem;
-  font-size: 0.84rem;
-}
-
-.admin-gaps code {
-  color: var(--muted);
-  font-size: 0.74rem;
-  overflow-wrap: anywhere;
-}
-
 /* Retenção em escala dourada (mesmos degraus do mapa de constância). */
 .import-table td.admin-heat {
   font-variant-numeric: tabular-nums;

@@ -21,6 +21,8 @@ export type MetricsReading = {
   booksStarted: number;
   booksFinished: number;
   shelfEntries: number;
+  /** Páginas lidas, 1 página = 250 palavras (API a partir da V26). */
+  pages?: number;
 };
 
 export type MetricsRetention = {
@@ -46,6 +48,8 @@ export type MetricsReadingPoint = {
   booksFinished: number;
   /** Contas criadas no bucket (API a partir da V23). */
   signups?: number;
+  /** Páginas lidas no bucket, 1 página = 250 palavras (API a partir da V26). */
+  pages?: number;
 };
 
 function rangeParams(range: MetricsRange): string {

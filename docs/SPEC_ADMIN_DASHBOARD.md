@@ -20,7 +20,8 @@ chama `/api/v1/admin/**`.
 | Novos usuários em 7 e 30 dias | `metrics/overview` → `accounts.new7` / `accounts.new30` |
 | Taxa de conclusão (terminados ÷ iniciados), minutos por leitor | derivados dos números acima |
 | Retenção D7 da coorte mais recente completa | `metrics/overview` → `retention[]` |
-| Tendência de 30 dias (leitores / minutos / livros terminados) | série diária |
+| Tendência de 30 dias (leitores / minutos / páginas / livros terminados) | série diária |
+| Páginas lidas (+ período anterior), 1 página = 250 palavras | `metrics/overview` → `reading.pages` (item 2.2) |
 | Ranking da semana (top 10, respeita quem se escondeu) | RPC `weekly_ranking` (`POST /api/v1/rpc/weekly_ranking`) |
 | Assinaturas: MRR, ativas, em teste, novas × canceladas (30 dias) | `GET /api/v1/admin/billing/summary` |
 
@@ -33,8 +34,9 @@ trabalham com `date`). "Últimas 24 horas" de verdade exige o item 2.1.
 > e #63, publicados no QA) e o dashboard já usa esses dados. O contrato exato está na descrição do
 > #62. O Umami (4) está no ar na VPS, a API lê o tráfego (story-verse-api#64) e o site carrega o
 > tracker por `/u/script.js` (nome padrão do Umami; `TRACKER_SCRIPT_NAME` não foi definido) com a
-> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Continuam pendentes: 2.2,
-> 2.3, 2.5 e 2.6.
+> coleta em `/u/api/send`. As telas `/admin/*` não contam como tráfego. Também estão na API e no
+> dashboard: 2.2 páginas lidas (story-verse-api#69, V26), 2.3 usuários ativos (#70, V27), 2.5 livros
+> mais lidos (#67, V28), 2.6 comunidade (#66, V29) e os Web Vitals pelo Umami (#68). Nada pendente.
 
 Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`, mesmo limite de
 90 dias e fuso America/Sao_Paulo.
@@ -48,20 +50,44 @@ Todos superadmin, com o mesmo cache curto de 5 minutos do `AdminMetricsService`,
 - Com isso o dashboard ganha comparação de novos usuários com o período anterior e a barra de
   cadastros na tendência.
 
-### 2.2 Páginas lidas
-Hoje **não existe** em lugar nenhum: `reading_days` só guarda `seconds`, e `page_count` existe só no
-acervo (`catalog_books`). Proposta:
-- Coluna `pages integer not null default 0` em `public.reading_days`, alimentada pelo leitor (o app
-  já envia os segundos por dia em `report_reading`; passaria a enviar `{ day: { seconds, pages } }`).
-  A contagem de página precisa de regra única no leitor (ex.: página = tela virada no modo paginado,
-  ou 250 palavras no modo rolagem) — decisão de produto antes de implementar.
-- Campo `pages` em `AdminMetrics.Reading` e em `AdminMetricsReadingPoint`.
+### 2.2 Páginas lidas — feito (story-verse-api#69, migração V26)
+**Regra: 1 página = 250 palavras lidas.** Vale para qualquer modo de leitura e não muda com o
+tamanho da tela ou da fonte. No leitor (`src/lib/readingPages.ts`):
+- o app olha o que está na tela quando a rolagem fica parada por 1 s e a cada 15 s de leitura
+  ativa (aba visível, interação nos últimos 2 min). Passar correndo pelo texto não conta;
+- conta o parágrafo que está pelo menos pela metade na tela, ou que ocupa metade da tela.
+  Ilustrações não contam;
+- cada parágrafo (livro + capítulo + número do parágrafo) conta uma vez por dia. Voltar ou reler no
+  mesmo dia não soma;
+- palavra = sequência de letras ou números separada por espaço;
+- páginas do dia = palavras do dia ÷ 250, arredondado para baixo. A conta fica no aparelho, por
+  conta de usuário.
 
-### 2.3 Usuários ativos (DAU / WAU / MAU)
+O app envia `{ "2026-10-27": { "seconds": 900, "pages": 12 } }` em `report_reading`, e o formato
+antigo (`{ dia: segundos }`) continua aceito. No banco (`public.reading_days.pages`):
+- `check (pages between 0 and 1000)`. Valor fora disso ou não inteiro é erro, e o app nunca manda
+  mais que 1000;
+- no máximo 1 página a cada 6 segundos de leitura contados pelo servidor (`reading_heartbeat`):
+  dia sem tempo contado não ganha página;
+- só valem os últimos 8 dias, e vale o maior valor enviado no dia. Dois aparelhos no mesmo dia não
+  somam: fica o maior.
+
+Na API, o campo `pages` está em `AdminMetrics.Reading` (`metrics/overview`) e em
+`AdminMetricsReadingPoint` (`metrics/reading`, por dia e por semana). No dashboard, o KPI
+"Páginas lidas" compara com o período anterior, e a tendência de 30 dias tem a opção "Páginas".
+
+### 2.3 Usuários ativos (DAU / WAU / MAU) — feito
 "Leitor ativo" só conta quem leu. Para atividade geral:
-- Tabela `public.activity_days(user_id, day)` (upsert no primeiro request autenticado do dia, ou no
-  `reading_heartbeat`).
+- Tabela `public.activity_days(user_id, day)` (migração V27, RLS com policy do runtime). A API grava
+  no primeiro request autenticado (Bearer de acesso) do dia em America/Sao_Paulo: um conjunto em
+  memória por dia evita gravar a cada request, e o upsert roda numa fila de uma thread, fora do
+  request. O refresh de token não conta. Os dados começam no deploy da V27: antes disso a série vem
+  zerada.
 - `GET /api/v1/admin/metrics/active?from&to` → `{ dau, wau, mau, series: [{ day, active }] }`.
+  DAU = pessoas no dia `to`; WAU = nos 7 dias até `to`; MAU = nos 30 dias até `to` (janelas que não
+  dependem de `from`). `series` traz todos os dias do período, com 0 nos dias sem atividade.
+- No dashboard, o card "Usuários ativos" pede sempre os 30 dias até hoje (não segue o seletor de
+  período, porque as três janelas já são fixas).
 
 ### 2.4 Assinaturas e receita no tempo — feito (sem `paidFromFree`: o grátis não passa pelo Stripe)
 `billing/summary` é só uma foto. Faltam:
@@ -72,14 +98,31 @@ acervo (`catalog_books`). Proposta:
 - Conversão grátis → pago: `{ trialsStarted, trialsConverted, paidFromFree }` no período, no próprio
   `billing/summary`.
 
-### 2.5 Livros mais lidos
-- `GET /api/v1/admin/metrics/top-books?from&to&limit=10` →
-  `[{ bookKey, title, author, readers, minutes, finished }]` agregando `reading_days` /
-  `library_entries` (só livros do acervo ou com título conhecido; nada de texto do usuário).
+### 2.5 Livros mais lidos — feito (sem minutos por livro)
+- `GET /api/v1/admin/metrics/top-books?from&to&limit=10` (limite de 1 a 20) →
+  `[{ bookKey, title, author, readers, finished }]`, ordenado por `readers` e depois `finished`.
+- Sai só de `public.library_entries` (função `admin_metrics_top_books`, migração V28 da API).
+  `reading_days` não guarda o livro, então **não há `minutes` por livro**, e não vamos criar
+  tabela para isso.
+- `readers`: contas com o livro em `reading` ou `finished` e atividade no período — começou
+  (`started_on`) ou terminou (`finished_on`) no período, ou, se ainda está lendo, a entrada mudou
+  (`updated_at`, que o progresso atualiza) no período. `updated_at` não conta para `finished`:
+  editar a nota de um livro lido há meses não é leitura.
+- `finished`: contas com `finished_on` no período.
+- Só livros do acervo (`gb:`, `cm:` e `cat:`). Nunca `local:`, nem resenha ou notas. Título e
+  autor vêm de `catalog_books` quando o livro está lá; senão, do snapshot mais comum na estante.
 
-### 2.6 Atividade da comunidade
-- `GET /api/v1/admin/metrics/community?from&to&group=day` →
-  `[{ bucket, topics, replies, reports }]`.
+### 2.6 Atividade da comunidade — feito
+- `GET /api/v1/admin/metrics/community?from&to&group=day|week` →
+  `[{ bucket, topics, replies, reports }]` (axyonsoftwarehouse/story-verse-api#66, migração V29).
+- Conta `forum_topics`, `forum_replies` e `forum_reports` pelo `created_at` no calendário de São
+  Paulo; a semana começa na segunda. Os buckets vazios já vêm com zero da API.
+- O que a moderação escondeu ou apagou depois **continua contando como criado**: a métrica mede o
+  que a comunidade escreveu e denunciou. Denúncias contam em qualquer status. O fórum só faz exclusão
+  lógica; uma linha some apenas quando a conta do autor é apagada.
+- Painel: card "Comunidade" na visão geral, com os totais do período comparados ao período anterior
+  e as barras dos últimos 30 dias. O card só aparece quando o fórum está visível
+  (`FORUM_VISIBLE` em `src/lib/features.ts`), portanto fica escondido em produção.
 
 ## 3. Saúde do sistema via Sentry — feito (Web Vitals pelo Umami — feito)
 
@@ -215,4 +258,4 @@ painel mostra "Tráfego indisponível".
 3. VPS: Umami + proxy `/u/*`; depois API `admin/traffic` e o tracker no frontend.
 4. API: `admin/health` (Sentry) e Web Vitals pelo Umami (`admin/vitals`).
 5. Produto decide a regra de "página lida" (2.2); depois API + leitor.
-6. 2.3, 2.5 e 2.6.
+6. 2.3, 2.5 e 2.6 (2.6 feito).
