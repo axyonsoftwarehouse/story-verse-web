@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
-import { getCatalog, setFeature, type FeatureCatalogEntry } from "../../lib/adminFeatures";
+import {
+  featureName,
+  getCatalog,
+  setFeature,
+  type FeatureCatalogEntry,
+} from "../../lib/adminFeatures";
 import {
   getUser,
   revokeSessions,
@@ -394,21 +399,23 @@ export function AccountDetail({
       {superadmin && !own ? (
         <div className="profile-card">
           <div className="shelf-head">
-            <h2>Features</h2>
+            <h2>Recursos em teste</h2>
           </div>
           {catalog.length === 0 ? (
-            <p className="muted">Nenhuma feature conhecida.</p>
+            <p className="muted">Nenhum recurso em teste.</p>
           ) : (
             catalog.map((entry) => (
               <label className="admin-toggle" key={entry.feature}>
                 <input
                   type="checkbox"
-                  checked={detail.features.includes(entry.feature)}
-                  disabled={busy}
+                  checked={entry.everyone || detail.features.includes(entry.feature)}
+                  disabled={busy || entry.everyone}
                   onChange={(event) => void toggleFeature(entry.feature, event.target.checked)}
                 />
-                {entry.feature}
-                <span className="muted">{entry.enabledCount} conta(s)</span>
+                {featureName(entry.feature)}
+                <span className="muted">
+                  {entry.everyone ? "ligado para todas as contas" : `${entry.enabledCount} conta(s)`}
+                </span>
               </label>
             ))
           )}

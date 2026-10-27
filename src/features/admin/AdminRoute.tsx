@@ -16,6 +16,7 @@ import { ForumModeration } from "./ForumModeration";
 import { MetricsSection } from "./MetricsSection";
 import { OverviewSection } from "./OverviewSection";
 import { SanctionsSection } from "./SanctionsSection";
+import { SiteSection } from "./SiteSection";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
 import "./admin.css";
 
@@ -282,6 +283,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="metrics" roles={allowed}>
                   <MetricsSection session={session} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="site"
+              element={
+                <RequireSection id="site" roles={allowed}>
+                  <SiteSection session={session} />
                 </RequireSection>
               }
             />

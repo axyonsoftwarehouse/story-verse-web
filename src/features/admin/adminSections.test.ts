@@ -19,6 +19,7 @@ describe("seções do admin", () => {
       "catalog",
       "forum",
       "metrics",
+      "site",
       "billing",
       "audit",
     ]);

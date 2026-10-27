@@ -19,16 +19,16 @@ import {
   type MetricsRetention,
 } from "../../lib/adminMetrics";
 import { getOverview, type AdminOverview } from "../../lib/adminOverview";
-import { getTraffic, type AdminTraffic, type TrafficItem } from "../../lib/adminTraffic";
+import { getTraffic, type AdminTraffic } from "../../lib/adminTraffic";
 import { FORUM_VISIBLE } from "../../lib/features";
 import { getTopBooks, type AdminTopBook } from "../../lib/adminTopBooks";
 import { fetchRanking, type RankEntry } from "../../lib/ranking";
 import { ActiveUsersCard } from "./ActiveUsersCard";
 import { TrendBars } from "./TrendBars";
-import { WebVitals } from "./WebVitals";
+import { dayMonth, number, PERIODS, type PeriodKey } from "./adminDashboardFormat";
+import { Delta, PeriodPicker, Spinner } from "./adminDashboardParts";
 import { isSuperadmin } from "./adminSections";
 import {
-  change,
   fillDays,
   isoDate,
   latestCompleteD7,
@@ -37,36 +37,6 @@ import {
   ratio,
   signupsBetween,
 } from "./dashboardMath";
-
-type PeriodKey = "today" | "7d" | "30d";
-
-/** `health`: janela do Sentry para o período (o endpoint vai até 14 dias). */
-const PERIODS: {
-  key: PeriodKey;
-  label: string;
-  days: number;
-  previous: string;
-  health: HealthPeriod;
-  healthLabel: string;
-}[] = [
-  { key: "today", label: "Hoje", days: 1, previous: "ontem", health: "24h", healthLabel: "24 h" },
-  {
-    key: "7d",
-    label: "7 dias",
-    days: 7,
-    previous: "7 dias anteriores",
-    health: "7d",
-    healthLabel: "7 dias",
-  },
-  {
-    key: "30d",
-    label: "30 dias",
-    days: 30,
-    previous: "30 dias anteriores",
-    health: "14d",
-    healthLabel: "14 dias (máximo do Sentry)",
-  },
-];
 
 type TrendMetric = "activeReaders" | "minutes" | "pages" | "booksFinished" | "signups";
 
@@ -126,50 +96,10 @@ function bytes(value: number | null): string {
   return `${number} ${units[unit]}`;
 }
 
-function number(value: number): string {
-  return new Intl.NumberFormat("pt-BR").format(value);
-}
-
 function hours(minutes: number): string {
   const value = minutes / 60;
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: value < 10 ? 1 : 0 }).format(
     value,
-  );
-}
-
-function dayMonth(value: string): string {
-  const [, month, day] = value.split("-");
-  return `${day}/${month}`;
-}
-
-function Spinner({ label }: { label: string }) {
-  return (
-    <div className="page-status">
-      <span className="spinner" aria-hidden="true" />
-      {label}
-    </div>
-  );
-}
-
-/** Variação contra o período anterior; em "Hoje" mostra o valor de ontem (o dia ainda não acabou). */
-function Delta({
-  current,
-  previous,
-  period,
-}: {
-  current: number;
-  previous: number;
-  period: PeriodKey;
-}) {
-  if (period === "today") return <span className="admin-delta">ontem: {number(previous)}</span>;
-  const pct = change(current, previous);
-  if (pct === null) return <span className="admin-delta">sem base anterior</span>;
-  const tone = pct > 0 ? " is-up" : pct < 0 ? " is-down" : "";
-  const arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "→";
-  return (
-    <span className={`admin-delta${tone}`}>
-      {arrow} {Math.abs(pct)}%
-    </span>
   );
 }
 
@@ -272,121 +202,6 @@ function NewUsers({
   );
 }
 
-function percent(value: number): string {
-  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value * 100)}%`;
-}
-
-function duration(seconds: number): string {
-  const total = Math.round(seconds);
-  if (total < 60) return `${total} s`;
-  const minutes = Math.floor(total / 60);
-  const rest = total % 60;
-  return rest ? `${minutes} min ${rest} s` : `${minutes} min`;
-}
-
-/** Lista curta (páginas, origens) no mesmo desenho dos problemas do Sentry. */
-function TrafficList({
-  title,
-  items,
-  empty,
-}: {
-  title: string;
-  items: TrafficItem[];
-  empty: string;
-}) {
-  return (
-    <div className="dash-tile">
-      <span className="dash-label">{title}</span>
-      {items.length === 0 ? (
-        <span>sem dados no período</span>
-      ) : (
-        <ul className="admin-issues">
-          {items.slice(0, 5).map((item) => (
-            <li key={item.value || empty}>
-              <span title={item.value || empty}>{item.value || empty}</span>
-              <span className="muted">{number(item.count)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** Visitantes, páginas e origens do Umami no período escolhido. */
-function TrafficCard({
-  data,
-  period,
-}: {
-  data: AdminTraffic | "error" | undefined;
-  period: PeriodKey;
-}) {
-  if (data === undefined) return <Spinner label="Carregando tráfego…" />;
-  if (data === "error" || !data.traffic) {
-    return (
-      <p className="dash-sub">
-        Tráfego indisponível ·{" "}
-        {data === "error"
-          ? "não foi possível consultar o Umami agora."
-          : (data.error ?? "sem dados")}
-      </p>
-    );
-  }
-  const traffic = data.traffic;
-  return (
-    <>
-      <div className="admin-mini-tiles">
-        <div className="dash-tile">
-          <strong>{number(traffic.visitors)}</strong>
-          <span>
-            visitantes ·{" "}
-            <Delta
-              period={period}
-              current={traffic.visitors}
-              previous={traffic.previous.visitors}
-            />
-          </span>
-        </div>
-        <div className="dash-tile">
-          <strong>{number(traffic.pageviews)}</strong>
-          <span>
-            páginas vistas ·{" "}
-            <Delta
-              period={period}
-              current={traffic.pageviews}
-              previous={traffic.previous.pageviews}
-            />
-          </span>
-        </div>
-        <div className="dash-tile">
-          <strong>{number(traffic.visits)}</strong>
-          <span>
-            visitas · {percent(traffic.bounceRate)} de rejeição ·{" "}
-            {duration(traffic.avgVisitSeconds)} em média
-          </span>
-        </div>
-        <div className="dash-tile">
-          <strong>{number(traffic.activeNow)}</strong>
-          <span>no site agora</span>
-        </div>
-        <TrafficList title="Páginas mais vistas" items={traffic.topPages} empty="/" />
-        <TrafficList title="Origens" items={traffic.referrers} empty="acesso direto" />
-      </div>
-      {traffic.series.length > 1 ? (
-        <TrendBars
-          caption="Páginas vistas"
-          unit="páginas"
-          points={traffic.series.map((point) => ({
-            key: point.day,
-            label: dayMonth(point.day),
-            value: point.pageviews,
-          }))}
-        />
-      ) : null}
-    </>
-  );
-}
-
 /** Tópicos, respostas e denúncias do fórum no período e a série dos últimos 30 dias. */
 function CommunityCard({
   points,
@@ -458,8 +273,8 @@ function CommunityCard({
   );
 }
 
-/** Erros, sessões sem crash e problemas mais frequentes de cada projeto do Sentry. */
-function SentryHealth({ data }: { data: AdminHealth | "error" | undefined }) {
+/** Resumo do Sentry na visão geral: total de erros; o detalhe fica na aba Site. */
+function ErrorsSummary({ data, label }: { data: AdminHealth | "error" | undefined; label: string }) {
   if (data === undefined) {
     return (
       <div className="dash-tile">
@@ -468,64 +283,67 @@ function SentryHealth({ data }: { data: AdminHealth | "error" | undefined }) {
       </div>
     );
   }
-  if (data === "error" || !data.sentry) {
+  if (data === "error" || !data.sentry || data.sentry.projects.length === 0) {
+    const reason =
+      data === "error"
+        ? "não foi possível consultar agora."
+        : !data.sentry
+          ? (data.error ?? "indisponível")
+          : "nenhum projeto configurado";
     return (
       <div className="dash-tile">
         <strong>—</strong>
-        <span>
-          erros (Sentry) ·{" "}
-          {data === "error"
-            ? "não foi possível consultar a saúde agora."
-            : (data.error ?? "indisponível")}
-        </span>
+        <span>erros (Sentry) · {reason}</span>
       </div>
     );
   }
-  if (data.sentry.projects.length === 0) {
+  const total = data.sentry.projects.reduce((sum, project) => sum + project.errorsTotal, 0);
+  return (
+    <div className="dash-tile">
+      <strong>{number(total)}</strong>
+      <span>
+        {total === 1 ? "erro" : "erros"} no Sentry · {label}
+      </span>
+    </div>
+  );
+}
+
+/** Resumo do Umami na visão geral: visitantes do período. */
+function VisitorsSummary({
+  data,
+  period,
+}: {
+  data: AdminTraffic | "error" | undefined;
+  period: PeriodKey;
+}) {
+  if (data === undefined) {
+    return (
+      <div className="dash-tile">
+        <strong>…</strong>
+        <span>carregando o Umami</span>
+      </div>
+    );
+  }
+  if (data === "error" || !data.traffic) {
     return (
       <div className="dash-tile">
         <strong>—</strong>
-        <span>erros (Sentry) · nenhum projeto configurado</span>
+        <span>visitantes · Umami indisponível</span>
       </div>
     );
   }
   return (
-    <>
-      {data.sentry.projects.map((project) => (
-        <div className="dash-tile admin-health-project" key={project.slug}>
-          <strong>
-            {number(project.errorsTotal)} {project.errorsTotal === 1 ? "erro" : "erros"}
-          </strong>
-          <span>
-            {project.slug}
-            {project.crashFreeSessions !== null
-              ? ` · ${percent(project.crashFreeSessions)} das sessões sem crash`
-              : " · sem sessões registradas"}
-          </span>
-          {project.topIssues.length > 0 ? (
-            <ul className="admin-issues">
-              {project.topIssues.slice(0, 3).map((issue) => (
-                <li key={issue.id}>
-                  {issue.permalink ? (
-                    <a
-                      href={issue.permalink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={issue.title}
-                    >
-                      {issue.title}
-                    </a>
-                  ) : (
-                    <span title={issue.title}>{issue.title}</span>
-                  )}
-                  <span className="muted">{number(issue.count)}×</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ))}
-    </>
+    <div className="dash-tile">
+      <strong>{number(data.traffic.visitors)}</strong>
+      <span>
+        visitantes ·{" "}
+        <Delta
+          period={period}
+          current={data.traffic.visitors}
+          previous={data.traffic.previous.visitors}
+        />
+      </span>
+    </div>
   );
 }
 
@@ -795,19 +613,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
           </p>
         </div>
         {superadmin ? (
-          <div className="segmented" role="group" aria-label="Período">
-            {PERIODS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={item.key === period ? "is-on" : undefined}
-                aria-pressed={item.key === period}
-                onClick={() => setPeriod(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <PeriodPicker value={period} onChange={setPeriod} />
         ) : null}
       </div>
 
@@ -1054,8 +860,10 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
 
             <article className={`dash-card${backupLate ? " is-alert" : ""}`}>
               <div className="dash-card-head">
-                <span className="dash-label">Saúde do sistema</span>
-                <span className="dash-sub">Sentry · {periodInfo.healthLabel}</span>
+                <span className="dash-label">Site</span>
+                <Link className="link-btn" to="/admin/site">
+                  erros, desempenho e tráfego
+                </Link>
               </div>
               <div className="admin-mini-tiles">
                 {overview.backup ? (
@@ -1076,17 +884,9 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                     )}
                   </div>
                 ) : null}
-                <SentryHealth data={healthData} />
-                <WebVitals session={session} range={ranges.current} />
+                <ErrorsSummary data={healthData} label={periodInfo.healthLabel} />
+                <VisitorsSummary data={traffic[period]} period={period} />
               </div>
-            </article>
-
-            <article className="dash-card admin-traffic-card">
-              <div className="dash-card-head">
-                <span className="dash-label">Tráfego do site</span>
-                <span className="dash-sub">Umami · {periodInfo.label}</span>
-              </div>
-              <TrafficCard data={traffic[period]} period={period} />
             </article>
 
             {FORUM_VISIBLE ? (

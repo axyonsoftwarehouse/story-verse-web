@@ -4,7 +4,22 @@ import { apiRequest } from "./backend";
 export type FeatureCatalogEntry = {
   feature: string;
   enabledCount: number;
+  /** Ligado para todas as contas pela configuração da API: não se liga nem desliga por conta. */
+  everyone?: boolean;
 };
+
+/** O que cada recurso em teste faz, para quem não conhece o nome técnico. */
+export const FEATURE_DESCRIPTIONS: Record<string, { name: string; description: string }> = {
+  library: {
+    name: "Estante na conta",
+    description:
+      "Salva a estante na conta e sincroniza entre aparelhos; libera “adicionar à estante” na página do livro.",
+  },
+};
+
+export function featureName(feature: string): string {
+  return FEATURE_DESCRIPTIONS[feature]?.name ?? feature;
+}
 
 export type FeatureUser = {
   userId: string;
