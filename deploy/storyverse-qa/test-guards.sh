@@ -44,7 +44,7 @@ printf 'POSTGRES_DB=storyverse\nPOSTGRES_USER=storyverse\n' > "$T/storyverse-qa/
 # Pasta do QA sem .env.
 mkdir -p "$T/vazio/storyverse-qa"
 
-for script in seed-qa.sh reset-qa.sh; do
+for script in seed-qa.sh reset-qa.sh apply-sql.sh; do
   expect_refusal "$T/storyverse" "$script" "na pasta da produção"
   expect_refusal "$T/storyverse-qa" "$script" "com o .env da produção"
   expect_refusal "$T/vazio/storyverse-qa" "$script" "sem .env"

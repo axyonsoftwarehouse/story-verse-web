@@ -468,7 +468,7 @@ Depois de subir a API, os links enviados apontam para:
 Para promover um admin ja cadastrado e confirmado:
 
 `ash
-bash /home/deploy/storyverse/deploy/promote-admin.sh email@exemplo.com
+bash /home/deploy/storyverse/deploy/promote-admin.sh <uuid-da-conta-em-auth.users>
 `
 
 Sem SMTP configurado, cadastro e recuperacao de senha respondem 503; login de contas ja
