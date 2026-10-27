@@ -253,6 +253,22 @@ export const SPOILER_LABELS: Record<SpoilerLevel, string> = {
   book: "Spoiler do livro",
 };
 
+/** Situação de um tópico fora do ar, como o autor ou a equipe o veem. */
+export const TOPIC_STATUS_LABELS: Record<string, string> = {
+  pending: "Em análise",
+  hidden: "Oculto pela moderação",
+  deleted: "Removido",
+};
+
+/**
+ * Junta a página seguinte na lista sem repetir itens: entre uma página e outra a ordem pode
+ * mudar (um tópico recebe resposta e sobe), e o mesmo id não pode aparecer duas vezes.
+ */
+export function mergeById<T extends { id: string }>(current: T[], next: T[]): T[] {
+  const seen = new Set(current.map((item) => item.id));
+  return [...current, ...next.filter((item) => !seen.has(item.id))];
+}
+
 export function forumDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";

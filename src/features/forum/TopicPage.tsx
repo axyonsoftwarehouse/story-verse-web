@@ -12,9 +12,11 @@ import {
   forumDate,
   getTopic,
   listReplies,
+  mergeById,
   REPORT_REASONS,
   reportContent,
   SPOILER_LABELS,
+  TOPIC_STATUS_LABELS,
   toggleBookmark,
   toggleReaction,
   type ForumReply,
@@ -47,7 +49,9 @@ export function TopicPage() {
   const [replySpoiler, setReplySpoiler] = useState<SpoilerLevel>("none");
   const [parent, setParent] = useState<ForumReply | null>(null);
   const [busy, setBusy] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ type: "topic" | "reply"; id: string } | null>(
+    null,
+  );
   const [reportReason, setReportReason] = useState("spam");
   const [reportDetails, setReportDetails] = useState("");
 
@@ -104,23 +108,12 @@ export function TopicPage() {
     return session;
   }
 
-  async function reload() {
-    if (!id) return;
-    const [loadedTopic, page] = await Promise.all([
-      getTopic(session, id),
-      listReplies(session, id),
-    ]);
-    setTopic(loadedTopic);
-    setReplies(page.items);
-    setNextCursor(page.nextCursor);
-  }
-
   async function loadMore() {
     if (!id || !nextCursor || more) return;
     setMore(true);
     try {
       const page = await listReplies(session, id, nextCursor);
-      setReplies((current) => [...current, ...page.items]);
+      setReplies((current) => mergeById(current, page.items));
       setNextCursor(page.nextCursor);
     } catch (err: unknown) {
       setError(message(err));
@@ -185,10 +178,21 @@ export function TopicPage() {
       setParent(null);
       // A resposta pode entrar em moderação: dizer "publicada" nesse caso some com o texto
       // da tela (a fila do tópico só mostra publicadas) e parece que a resposta se perdeu.
-      setNotice(
-        created.status === "pending" ? "Resposta enviada para análise." : "Resposta publicada.",
-      );
-      await reload();
+      if (created.status !== "published") {
+        setNotice("Resposta enviada para análise.");
+      } else if (nextCursor) {
+        // Ainda há páginas antes dela: recarregar voltava para a 1ª página e a resposta sumia.
+        setTopic((current) =>
+          current ? { ...current, reply_count: current.reply_count + 1 } : current,
+        );
+        setNotice("Resposta publicada. Ela aparece no fim da conversa.");
+      } else {
+        setReplies((list) => mergeById(list, [created]));
+        setTopic((current) =>
+          current ? { ...current, reply_count: current.reply_count + 1 } : current,
+        );
+        setNotice("Resposta publicada.");
+      }
     } catch (err: unknown) {
       setError(message(err));
     } finally {
@@ -230,6 +234,9 @@ export function TopicPage() {
     try {
       await deleteReply(current, reply.id);
       setReplies((list) => list.filter((item) => item.id !== reply.id));
+      setTopic((value) =>
+        value ? { ...value, reply_count: Math.max(0, value.reply_count - 1) } : value,
+      );
       setNotice("Resposta removida.");
     } catch (err: unknown) {
       setError(message(err));
@@ -239,20 +246,62 @@ export function TopicPage() {
   async function submitReport(event: FormEvent) {
     event.preventDefault();
     const current = requireSession();
-    if (!current || !topic) return;
+    if (!current || !reportTarget) return;
     try {
       await reportContent(current, {
-        targetType: "topic",
-        targetId: topic.id,
+        targetType: reportTarget.type,
+        targetId: reportTarget.id,
         reasonCode: reportReason,
         details: reportDetails,
       });
-      setReportOpen(false);
+      setReportTarget(null);
       setReportDetails("");
       setNotice("Denúncia enviada para a moderação.");
     } catch (err: unknown) {
       setError(message(err));
     }
+  }
+
+  function openReport(type: "topic" | "reply", targetId: string) {
+    if (!requireSession()) return;
+    setReportTarget((open) =>
+      open?.type === type && open.id === targetId ? null : { type, id: targetId },
+    );
+  }
+
+  function reportForm(type: "topic" | "reply", targetId: string) {
+    if (reportTarget?.type !== type || reportTarget.id !== targetId) return null;
+    return (
+      <form className="profile-card forum-report" onSubmit={submitReport}>
+        <label>
+          Motivo
+          <select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>
+            {REPORT_REASONS.map((reason) => (
+              <option key={reason.value} value={reason.value}>
+                {reason.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Detalhes (opcional)
+          <textarea
+            value={reportDetails}
+            onChange={(event) => setReportDetails(event.target.value)}
+            rows={3}
+            maxLength={1000}
+          />
+        </label>
+        <div className="forum-form-actions">
+          <button type="button" className="btn" onClick={() => setReportTarget(null)}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn-primary">
+            Enviar denúncia
+          </button>
+        </div>
+      </form>
+    );
   }
 
   function parentLabel(reply: ForumReply): string | null {
@@ -298,6 +347,8 @@ export function TopicPage() {
 
   const mine = session?.user.id === topic.author_id;
   const hidden = topic.spoiler_level !== "none" && !revealed;
+  // reply_count é o total publicado; a lista pode ter só a primeira página.
+  const replyTotal = Math.max(topic.reply_count, replies.length);
 
   return (
     <div className="home forum-topic-page">
@@ -328,7 +379,9 @@ export function TopicPage() {
           <span>·</span>
           <time dateTime={topic.created_at}>{forumDate(topic.created_at)}</time>
           {topic.status !== "published" ? (
-            <span className="status-chip is-pending">Em análise</span>
+            <span className="status-chip is-pending">
+              {TOPIC_STATUS_LABELS[topic.status] ?? "Fora do ar"}
+            </span>
           ) : null}
           {topic.is_pinned ? <span className="status-chip is-approved">Fixado</span> : null}
           {topic.is_locked ? <span className="status-chip">Fechado</span> : null}
@@ -366,55 +419,22 @@ export function TopicPage() {
           <button type="button" className="btn" onClick={() => void bookmarkTopic()}>
             {topic.bookmarked ? "Salvo" : "Salvar"}
           </button>
-          <button type="button" className="btn" onClick={() => setReportOpen((open) => !open)}>
+          <button type="button" className="btn" onClick={() => openReport("topic", topic.id)}>
             Denunciar
           </button>
-          {mine ? (
+          {mine || staff ? (
             <button type="button" className="btn forum-danger" onClick={() => void removeTopic()}>
               Remover tópico
             </button>
           ) : null}
         </div>
-        {reportOpen ? (
-          <form className="profile-card forum-report" onSubmit={submitReport}>
-            <label>
-              Motivo
-              <select
-                value={reportReason}
-                onChange={(event) => setReportReason(event.target.value)}
-              >
-                {REPORT_REASONS.map((reason) => (
-                  <option key={reason.value} value={reason.value}>
-                    {reason.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Detalhes (opcional)
-              <textarea
-                value={reportDetails}
-                onChange={(event) => setReportDetails(event.target.value)}
-                rows={3}
-                maxLength={1000}
-              />
-            </label>
-            <div className="forum-form-actions">
-              <button type="button" className="btn" onClick={() => setReportOpen(false)}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn-primary">
-                Enviar denúncia
-              </button>
-            </div>
-          </form>
-        ) : null}
+        {reportForm("topic", topic.id)}
       </article>
 
       <section className="shelf">
         <div className="shelf-head">
           <h2>
-            {replies.length} {replies.length === 1 ? "resposta" : "respostas"}
+            {replyTotal} {replyTotal === 1 ? "resposta" : "respostas"}
           </h2>
         </div>
         {replies.length === 0 ? (
@@ -488,7 +508,15 @@ export function TopicPage() {
                         Aceitar resposta
                       </button>
                     ) : null}
-                    {session?.user.id === reply.author_id || mine ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => openReport("reply", reply.id)}
+                    >
+                      Denunciar
+                    </button>
+                    {/* A API só deixa o autor da resposta ou a equipe remover. */}
+                    {session?.user.id === reply.author_id || staff ? (
                       <button
                         type="button"
                         className="btn forum-danger"
@@ -498,6 +526,7 @@ export function TopicPage() {
                       </button>
                     ) : null}
                   </div>
+                  {reportForm("reply", reply.id)}
                 </article>
               );
             })}
