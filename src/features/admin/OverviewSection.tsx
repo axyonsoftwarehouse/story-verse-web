@@ -145,11 +145,22 @@ function ActionStrip({ items }: { items: ActionItem[] }) {
       <ul className="admin-action-list">
         {items.map((item) => (
           <li key={item.key} className={item.count > 0 ? "is-open" : undefined}>
-            <strong>{number(item.count)}</strong>
-            <span>{item.label}</span>
+            <strong className="admin-action-count">
+              {item.count > 0 ? (
+                number(item.count)
+              ) : (
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-label="nenhum">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              )}
+            </strong>
+            <span className="admin-action-label">{item.label}</span>
             {item.to && item.count > 0 ? (
-              <Link className="link-btn" to={item.to}>
+              <Link className="admin-action-cta" to={item.to}>
                 {item.cta ?? "abrir"}
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
               </Link>
             ) : null}
           </li>
@@ -604,7 +615,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       : undefined;
 
   return (
-    <section className="shelf admin-overview admin-dashboard">
+    <section className="shelf admin-overview admin-dashboard admin-home">
       <div className="shelf-head">
         <div>
           <h1>Visão geral</h1>
