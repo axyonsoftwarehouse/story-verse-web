@@ -212,6 +212,18 @@ function metaUserId(): string | null {
   }
 }
 
+/**
+ * Este navegador pode ter um cookie de sessão? Login sempre grava os metadados e logout os
+ * apaga; sem eles não há o que renovar. Sem acesso ao armazenamento não dá para saber: tenta.
+ */
+function mayHaveSession(): boolean {
+  try {
+    return localStorage.getItem(SESSION_META_KEY) !== null;
+  } catch {
+    return true;
+  }
+}
+
 /** Metadados sem tokens: permitem lembrar quem estava logado e sincronizar abas. */
 function writeSessionMeta(session: SupabaseSession | null): void {
   try {
@@ -422,6 +434,8 @@ async function restoreAuthSessionOnce(): Promise<SupabaseSession | null> {
     } catch (error) {
       if (error instanceof AuthNetworkError) return null;
     }
+    // Quem nunca entrou (ou saiu) abre na hora, sem esperar a API responder que não há sessão.
+    if (!mayHaveSession()) return null;
     const generation = authGeneration;
     try {
       return await refreshAuthSession();
