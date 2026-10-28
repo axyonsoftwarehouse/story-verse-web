@@ -48,7 +48,13 @@ function Terms() {
           cancelar.
         </li>
         <li>
-          O pagamento é processado pelo Stripe. Nenhum dado de cartão passa pelos nossos servidores.
+          Também é possível pagar com Pix: cada pagamento libera 30 dias de acesso, sem renovação
+          automática. Pagar de novo antes do fim soma os dias ao período atual. Avisamos por e-mail antes de
+          o acesso acabar.
+        </li>
+        <li>
+          O pagamento é processado pelo Stripe. Nenhum dado de cartão ou do seu banco passa pelos nossos
+          servidores.
         </li>
         <li>
           Se uma cobrança falhar, o Stripe tenta de novo e o acesso continua por até 3 dias depois do fim do
@@ -231,13 +237,14 @@ function Cancellation() {
       <ul>
         <li>No período de teste grátis: o acesso termina no fim do teste e nada é cobrado.</li>
         <li>Com a assinatura paga: o acesso continua até o fim do mês já pago, e não há novas cobranças.</li>
+        <li>Com Pix: não há o que cancelar. O acesso vale até o fim dos dias pagos e termina sozinho.</li>
         <li>Seus dados de leitura continuam na conta, caso você volte a assinar.</li>
       </ul>
 
       <h2>Reembolso</h2>
       <ul>
         <li>
-          <strong>Até 7 dias depois da primeira cobrança:</strong> devolvemos o valor integral, pelo direito
+          <strong>Até 7 dias depois da primeira cobrança (ou de cada pagamento com Pix):</strong> devolvemos o valor integral, pelo direito
           de arrependimento do Código de Defesa do Consumidor (art. 49). Peça por <Contact /> com o e-mail da
           conta.
         </li>
@@ -252,7 +259,8 @@ function Cancellation() {
       </ul>
       <p>
         O reembolso volta para o mesmo cartão da compra. O prazo para aparecer na fatura depende do banco
-        emissor, normalmente de 5 a 10 dias úteis.
+        emissor, normalmente de 5 a 10 dias úteis. No Pix, o valor volta para a conta que pagou, normalmente
+        em minutos, e o período reembolsado deixa de dar acesso.
       </p>
     </>
   );

@@ -5,6 +5,7 @@ import {
   billingStatusLabel,
   billingTone,
   openBillingPortal,
+  startPixCheckout,
 } from "../../lib/billing";
 import { useStoredSession } from "../auth/useStoredSession";
 import { useSubscription } from "./useSubscription";
@@ -18,7 +19,7 @@ export function SubscriptionPage() {
   const { session, loading } = useStoredSession();
   const { status, loading: statusLoading, error, refresh } = useSubscription(session);
   const [params] = useSearchParams();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"portal" | "pix" | null>(null);
   const [actionError, setActionError] = useState("");
   const ok = params.get("ok") === "1";
 
@@ -29,16 +30,16 @@ export function SubscriptionPage() {
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [ok, session, refresh]);
 
-  async function manage() {
+  async function open(kind: "portal" | "pix") {
     if (!session) return;
-    setBusy(true);
+    setBusy(kind);
     setActionError("");
     try {
-      const { url } = await openBillingPortal(session);
+      const { url } = await (kind === "pix" ? startPixCheckout(session) : openBillingPortal(session));
       window.location.assign(url);
     } catch (err) {
-      setActionError(message(err, "Não foi possível abrir o portal do Stripe."));
-      setBusy(false);
+      setActionError(message(err, kind === "pix" ? "Não foi possível abrir o Pix." : "Não foi possível abrir o portal do Stripe."));
+      setBusy(null);
     }
   }
 
@@ -75,6 +76,10 @@ export function SubscriptionPage() {
   const active = Boolean(status?.active);
   const trial = status?.status === "trialing";
   const pastDue = status?.status === "past_due";
+  const pix = status?.reason === "pix";
+  const pixDays = status?.pixDays ?? 30;
+  // Pix soma dias para quem já pagou com Pix e é a saída para quem está no teste sem cartão.
+  const offerPix = Boolean(status?.pixAvailable) && (pix || trial);
 
   return (
     <div className="home">
@@ -96,7 +101,7 @@ export function SubscriptionPage() {
 
         {ok && active ? (
           <p className="billing-notice is-ok" role="status">
-            Pagamento confirmado. Sua assinatura está ativa.
+            {pix ? "Pagamento com Pix confirmado. Seu acesso está liberado." : "Pagamento confirmado. Sua assinatura está ativa."}
           </p>
         ) : null}
         {ok && !active && !statusLoading ? (
@@ -116,7 +121,7 @@ export function SubscriptionPage() {
             <div className="billing-card-head">
               <div>
                 <span className="eyebrow">Situação</span>
-                <h2>{billingStatusLabel(status?.status)}</h2>
+                <h2>{billingStatusLabel(pix ? "pix" : status?.status)}</h2>
               </div>
               <span className={`status-chip ${billingTone(status?.status)}`}>
                 {active ? "Acesso liberado" : "Sem acesso"}
@@ -126,7 +131,7 @@ export function SubscriptionPage() {
             <dl className="billing-facts">
               <div>
                 <dt>Plano</dt>
-                <dd>{status?.plan || "Storyverse"}</dd>
+                <dd>{pix ? `Pix — ${pixDays} dias` : status?.plan || "Storyverse"}</dd>
               </div>
               <div>
                 <dt>Acesso até</dt>
@@ -138,16 +143,24 @@ export function SubscriptionPage() {
                   <dd>{billingDate(status?.trialEnd)}</dd>
                 </div>
               ) : null}
-              <div>
-                <dt>Cancelamento</dt>
-                <dd>{status?.cancelAtPeriodEnd ? "Agendado para o fim do período" : "Não agendado"}</dd>
-              </div>
+              {pix ? null : (
+                <div>
+                  <dt>Cancelamento</dt>
+                  <dd>{status?.cancelAtPeriodEnd ? "Agendado para o fim do período" : "Não agendado"}</dd>
+                </div>
+              )}
             </dl>
 
             {trial ? (
               <p className="billing-hint">
                 Você está no teste grátis. Adicione um cartão antes do fim para continuar sem
-                interrupção.
+                interrupção{status?.pixAvailable ? ", ou pague com Pix" : ""}.
+              </p>
+            ) : null}
+            {pix ? (
+              <p className="billing-hint">
+                O Pix não renova sozinho. Avisamos por e-mail antes do fim; pagar de novo antes soma{" "}
+                {pixDays} dias ao que você já tem.
               </p>
             ) : null}
             {pastDue ? (
@@ -164,9 +177,19 @@ export function SubscriptionPage() {
             ) : null}
 
             <div className="billing-actions">
-              {active && status?.portalAvailable ? (
-                <button type="button" className="btn btn-primary" onClick={() => void manage()} disabled={busy}>
-                  {busy ? "Abrindo portal…" : "Gerenciar assinatura"}
+              {offerPix ? (
+                <button type="button" className="btn btn-primary" onClick={() => void open("pix")} disabled={busy !== null}>
+                  {busy === "pix" ? "Abrindo Pix…" : `Pagar ${pix ? "mais " : ""}${pixDays} dias com Pix`}
+                </button>
+              ) : null}
+              {active && !pix && status?.portalAvailable ? (
+                <button
+                  type="button"
+                  className={offerPix ? "btn" : "btn btn-primary"}
+                  onClick={() => void open("portal")}
+                  disabled={busy !== null}
+                >
+                  {busy === "portal" ? "Abrindo portal…" : "Gerenciar assinatura"}
                 </button>
               ) : null}
               {!active ? (
@@ -184,7 +207,7 @@ export function SubscriptionPage() {
             {status?.portalAvailable && !active ? (
               <p className="muted">
                 Já tem cadastro no Stripe?{" "}
-                <button type="button" className="link-btn" onClick={() => void manage()} disabled={busy}>
+                <button type="button" className="link-btn" onClick={() => void open("portal")} disabled={busy !== null}>
                   Abrir portal
                 </button>
               </p>

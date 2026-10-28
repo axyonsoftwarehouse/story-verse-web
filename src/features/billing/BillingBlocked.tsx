@@ -24,8 +24,8 @@ export function BillingBlocked({
         </div>
         <div className="profile-card billing-blocked-card">
           <p>
-            Para voltar a ler, conversar com os personagens e usar a estante, assine o plano mensal.
-            Seus livros, progresso e conversas continuam guardados.
+            Para voltar a ler, conversar com os personagens e usar a estante, assine o plano mensal no
+            cartão ou pague um período com Pix. Seus livros, progresso e conversas continuam guardados.
           </p>
           <div className="billing-actions">
             <Link className="btn btn-primary btn-lg" to="/assinar">
@@ -40,7 +40,7 @@ export function BillingBlocked({
           </div>
           <p className="muted">
             Já pagou? O Stripe pode levar alguns segundos para avisar o servidor. Abra “Minha
-            assinatura” e atualize o status.
+            assinatura” para conferir.
           </p>
         </div>
       </section>
