@@ -42,7 +42,7 @@ O que o usuário disse que conta como sucesso: **o site poder ser usado** depois
    - **Começar teste grátis** (cartão, como hoje; 7 dias sem cartão no começo).
    - **Pagar 30 dias com Pix — R$ 9,90**.
 2. Ao escolher Pix, abre o Checkout do Stripe só com Pix. Ela lê o QR no app do banco e paga.
-3. O Stripe confirma em segundos; a página volta para `/conta/assinatura?checkout=ok`, que já se atualiza sozinha (1,5 s / 4 s / 8 s).
+3. O Stripe confirma em segundos; a página volta para `/conta/assinatura?ok=1`, que já se atualiza sozinha (1,5 s / 4 s / 8 s).
 4. Ela recebe um e-mail "Pagamento recebido — acesso até DD/MM/AAAA". O parceiro de Pix do Stripe (Ebanx) também manda o recibo dele por padrão.
 5. 3 dias antes do fim, e no dia do fim, recebe um e-mail "Seu acesso termina em …" com o link para pagar de novo.
 6. Em `/conta/assinatura`: situação "Pago com Pix", "Acesso até …", botões **Pagar mais 30 dias com Pix**, **Assinar no cartão** e **Ir para o início**.
@@ -102,7 +102,7 @@ O pagamento também entra em `billing_invoices` (`stripe_invoice_id` = id do Pay
   - item com `price_data` em BRL, `unit_amount = STRIPE_PIX_AMOUNT_CENTS` (990), produto "Storyverse — 30 dias";
   - `payment_method_configuration = STRIPE_PIX_PMC_ID` (configuração só com Pix; ver §10);
   - `payment_method_options[pix][expires_after_seconds] = 3600`;
-  - `success_url = /conta/assinatura?checkout=ok`, `cancel_url = /assinar`.
+  - `success_url = /conta/assinatura?ok=1`, `cancel_url = /assinar`.
 - `GET /api/v1/billing/status` ganha `prepaid: { accessUntil, lastPaidAt } | null` e `pixAvailable: boolean`.
 - Webhook:
   - `checkout.session.completed` com `mode=payment` e `payment_status=paid` → grava o período (idempotente pela `stripe_checkout_session_id`) e manda o e-mail de confirmação.
