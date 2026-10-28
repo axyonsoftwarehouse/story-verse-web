@@ -22,6 +22,10 @@ export type SubscriptionStatus = SubscriptionSnapshot & {
   trialDays?: number;
   trialEnd?: string | null;
   portalAvailable?: boolean;
+  /** Pix pré-pago: cada pagamento libera `pixDays` dias; não renova sozinho. */
+  pixAvailable?: boolean;
+  pixDays?: number;
+  prepaid?: { accessUntil: string | null; lastPaidAt: string | null } | null;
 };
 
 export type SubscriptionPlan = {
@@ -72,6 +76,13 @@ export function startBillingCheckout(
   );
 }
 
+/** Checkout avulso só com Pix (QR code no Stripe). */
+export function startPixCheckout(session: SupabaseSession): Promise<{ url: string }> {
+  return withFreshSession(session, (accessToken) =>
+    apiRequest<{ url: string }>("/api/v1/billing/pix-checkout", { method: "POST", accessToken }),
+  );
+}
+
 export function openBillingPortal(session: SupabaseSession): Promise<{ url: string }> {
   return withFreshSession(session, (accessToken) =>
     apiRequest<{ url: string }>("/api/v1/billing/portal", { method: "POST", accessToken }),
@@ -89,6 +100,7 @@ const STATUS_LABELS: Record<string, string> = {
   incomplete_expired: "Checkout expirado",
   paused: "Pausada",
   grant: "Acesso liberado",
+  pix: "Pago com Pix",
   staff: "Equipe",
   disabled: "Assinatura desligada",
 };
