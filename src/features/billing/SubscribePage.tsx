@@ -147,7 +147,9 @@ export function SubscribePage() {
 
         <p className="billing-fineprint">
           Pagamento pelo Stripe no cartão. Nenhum dado de cartão passa pelo Storyverse. O acesso é
-          validado no servidor; cancelar mantém o acesso até o fim do período já pago.
+          validado no servidor; cancelar mantém o acesso até o fim do período já pago. Ao assinar, você
+          concorda com os <Link to="/termos">Termos de uso</Link> e a{" "}
+          <Link to="/cancelamento">política de cancelamento e reembolso</Link>.
         </p>
       </section>
     </div>
