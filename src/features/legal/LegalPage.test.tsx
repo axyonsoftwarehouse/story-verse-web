@@ -24,6 +24,11 @@ describe("LegalPage", () => {
     expect(links.querySelectorAll("a")).toHaveLength(2);
   });
 
+  it.each(["termos", "privacidade"] as const)("%s identifica quem vende pelo CPF", (doc) => {
+    renderDoc(doc);
+    expect(screen.getByText(/nome comercial de Werner Saboia, CPF 857\.167\.403-59/)).toBeTruthy();
+  });
+
   it("cancelamento promete reembolso integral em até 7 dias da primeira cobrança", () => {
     renderDoc("cancelamento");
     expect(screen.getByText(/Até 7 dias depois da primeira cobrança/)).toBeTruthy();
