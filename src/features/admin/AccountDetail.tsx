@@ -18,10 +18,11 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { applySanction, revokeSanction, type AdminSanction, type SanctionKind } from "../../lib/adminSanctions";
 import { isSuperadmin } from "./adminSections";
 import { SanctionDialog } from "./SanctionDialog";
+import { FreeAccessCard } from "./FreeAccessCard";
 
 const SANCTION_LABEL: Record<SanctionKind, string> = {
   warning: "Aviso",
-  suspension: "Suspens?o",
+  suspension: "Suspensão",
   ban: "Banimento",
 };
 
@@ -394,6 +395,10 @@ export function AccountDetail({
             <p className="muted">Confirme o e-mail antes de conceder um papel.</p>
           ) : null}
         </div>
+      ) : null}
+
+      {superadmin ? (
+        <FreeAccessCard session={session} userId={detail.id} userName={detail.name} staff={staffTarget} />
       ) : null}
 
       {superadmin && !own ? (

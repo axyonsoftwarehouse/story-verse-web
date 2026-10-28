@@ -27,6 +27,13 @@ vi.mock("../../lib/adminFeatures", async (importOriginal) => ({
   listFeatureUsers: vi.fn(),
 }));
 
+vi.mock("../../lib/adminBilling", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/adminBilling")>()),
+  listBillingGrants: vi.fn().mockResolvedValue([]),
+  createBillingGrant: vi.fn(),
+  revokeBillingGrant: vi.fn(),
+}));
+
 const session = { access_token: "token", user: { id: "admin-1" } } as unknown as SupabaseSession;
 
 const detail: AdminUserDetail = {
