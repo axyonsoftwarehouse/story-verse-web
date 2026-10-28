@@ -63,7 +63,7 @@ export function BillingSection({ session }: { session: SupabaseSession }) {
     <section className="shelf admin-billing">
       <div className="shelf-head">
         <div>
-          <h2>Financeiro</h2>
+          <h1>Financeiro</h1>
           <p>
             Somente leitura. Cobrança, reembolso e cancelamento ficam no dashboard do Stripe; aqui
             só acompanhamos o estado.

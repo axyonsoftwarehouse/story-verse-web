@@ -25,12 +25,30 @@ export function Delta({
   if (period === "today") return <span className="admin-delta">ontem: {number(previous)}</span>;
   const pct = change(current, previous);
   if (pct === null) return <span className="admin-delta">sem base anterior</span>;
-  const tone = pct > 0 ? " is-up" : pct < 0 ? " is-down" : "";
-  const arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "→";
+  const tone = pct > 0 ? " is-up" : pct < 0 ? " is-down" : " is-flat";
+  const sign = pct > 0 ? "+" : pct < 0 ? "−" : "";
+  const said = pct > 0 ? "subiu" : pct < 0 ? "caiu" : "igual ao período anterior";
   return (
-    <span className={`admin-delta${tone}`}>
-      {arrow} {Math.abs(pct)}%
+    <span className={`admin-delta is-pill${tone}`} title={`${said}${pct ? ` ${Math.abs(pct)}%` : ""}`}>
+      <TrendIcon direction={pct > 0 ? "up" : pct < 0 ? "down" : "flat"} />
+      {sign}
+      {Math.abs(pct)}%
     </span>
+  );
+}
+
+/** Seta de tendência (linha que sobe, desce ou segue reta), no lugar de ↑ ↓ de texto. */
+function TrendIcon({ direction }: { direction: "up" | "down" | "flat" }) {
+  const path =
+    direction === "up"
+      ? "M3 17l6-6 4 4 8-8M15 7h6v6"
+      : direction === "down"
+        ? "M3 7l6 6 4-4 8 8M15 17h6v-6"
+        : "M4 12h16M15 7l5 5-5 5";
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={path} />
+    </svg>
   );
 }
 
