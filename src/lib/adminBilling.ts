@@ -99,3 +99,46 @@ export function brlFromCents(cents: number | null | undefined): string {
   if (cents == null) return "—";
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+/** Acesso grátis manual (família, testes, fundadores). Nunca gera cobrança. Só superadmin. */
+export type BillingGrant = {
+  id: string;
+  reason: string;
+  expires_at: string | null;
+  created_at: string;
+  revoked_at: string | null;
+  created_by_name: string | null;
+  revoked_by_name: string | null;
+  active: boolean;
+};
+
+export function listBillingGrants(session: SupabaseSession, userId: string): Promise<BillingGrant[]> {
+  return apiRequest<BillingGrant[]>(
+    `/api/v1/admin/billing/grants?userId=${encodeURIComponent(userId)}`,
+    { accessToken: session.access_token },
+  );
+}
+
+export function createBillingGrant(
+  session: SupabaseSession,
+  input: { userId: string; reason: string; expiresAt: string | null },
+): Promise<BillingGrant> {
+  return apiRequest<BillingGrant>("/api/v1/admin/billing/grants", {
+    method: "POST",
+    body: input,
+    accessToken: session.access_token,
+  });
+}
+
+export function revokeBillingGrant(session: SupabaseSession, id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/admin/billing/grants/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    accessToken: session.access_token,
+  });
+}
+
+/** Validade a partir do preset em dias; vazio = sem prazo. */
+export function grantExpiresAt(preset: string, now = Date.now()): string | null {
+  const days = Number(preset);
+  return preset && days > 0 ? new Date(now + days * 86_400_000).toISOString() : null;
+}

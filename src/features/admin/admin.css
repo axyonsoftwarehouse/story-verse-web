@@ -2112,3 +2112,35 @@ a.admin-user-row:hover {
     transition: none;
   }
 }
+
+/* Acesso grátis na ficha da conta: motivo, validade e botão na mesma linha quando cabe. */
+.admin-grant-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 0.8rem;
+}
+
+.admin-grant-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-grant-form label:first-child {
+  flex: 1;
+  min-width: min(220px, 100%);
+}
+
+.admin-grant-form input {
+  width: 100%;
+}
+
+.admin-grant-history {
+  margin-top: 0.8rem;
+}
+
+.admin-grant-history summary {
+  cursor: pointer;
+  margin-bottom: 0.6rem;
+  color: var(--muted);
+}

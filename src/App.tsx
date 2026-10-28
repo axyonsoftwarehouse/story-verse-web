@@ -5447,6 +5447,12 @@ function AuthModal({
           <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
             {loading ? "Aguarde..." : kind === "login" ? "Fazer login" : kind === "register" ? "Criar conta" : "Enviar link"}
           </button>
+          {kind === "register" ? (
+            <p className="auth-legal">
+              Ao criar a conta, você concorda com os <Link to="/termos">Termos de uso</Link> e a{" "}
+              <Link to="/privacidade">Política de privacidade</Link>.
+            </p>
+          ) : null}
         </form>
         <p className="auth-switch">
           {kind === "register" ? "Já tem uma conta?" : kind === "forgot" ? "Lembrou a senha?" : "Ainda não tem conta?"}{" "}
@@ -8200,6 +8206,15 @@ export function App() {
                 Minha assinatura
               </Link>
             ) : null}
+            <Link className="foot-link" to="/termos">
+              Termos de uso
+            </Link>
+            <Link className="foot-link" to="/privacidade">
+              Privacidade
+            </Link>
+            <Link className="foot-link" to="/cancelamento">
+              Cancelamento e reembolso
+            </Link>
           </nav>
           <p className="home-credit">
             Desenvolvido por <strong>Axyon Software House</strong>
