@@ -5,6 +5,7 @@ import {
   billingTone,
   fetchBillingPlans,
   startBillingCheckout,
+  startPixCheckout,
   type SubscriptionPlan,
 } from "../../lib/billing";
 import { useStoredSession } from "../auth/useStoredSession";
@@ -29,7 +30,7 @@ export function SubscribePage() {
   const { status, loading: statusLoading } = useSubscription(session);
   const [plan, setPlan] = useState<SubscriptionPlan>(DEFAULT_PLAN);
   const [params] = useSearchParams();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"card" | "pix" | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -46,21 +47,22 @@ export function SubscribePage() {
     };
   }, []);
 
-  async function subscribe() {
+  async function subscribe(kind: "card" | "pix") {
     if (!session) return;
-    setBusy(true);
+    setBusy(kind);
     setError("");
     try {
-      const { url } = await startBillingCheckout(session);
+      const { url } = await (kind === "pix" ? startPixCheckout(session) : startBillingCheckout(session));
       window.location.assign(url);
     } catch (err) {
-      setError(message(err, "Não foi possível abrir o checkout."));
-      setBusy(false);
+      setError(message(err, kind === "pix" ? "Não foi possível abrir o Pix." : "Não foi possível abrir o checkout."));
+      setBusy(null);
     }
   }
 
   const cancelled = params.get("cancelado") === "1";
   const active = Boolean(status?.active);
+  const pixDays = status?.pixDays ?? 30;
   const price = `${plan.priceLabel}/${plan.interval === "month" ? "mês" : plan.interval}`;
 
   return (
@@ -125,11 +127,29 @@ export function SubscribePage() {
                 </Link>
               </>
             ) : (
-              <button type="button" className="btn btn-primary btn-lg" onClick={() => void subscribe()} disabled={busy}>
-                {busy ? "Abrindo checkout…" : "Começar teste grátis"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-lg"
+                  onClick={() => void subscribe("card")}
+                  disabled={busy !== null}
+                >
+                  {busy === "card" ? "Abrindo checkout…" : "Começar teste grátis"}
+                </button>
+                {status?.pixAvailable ? (
+                  <button type="button" className="btn btn-lg" onClick={() => void subscribe("pix")} disabled={busy !== null}>
+                    {busy === "pix" ? "Abrindo Pix…" : `Pagar ${pixDays} dias com Pix — ${plan.priceLabel}`}
+                  </button>
+                ) : null}
+              </>
             )}
           </div>
+          {status?.pixAvailable && !active ? (
+            <p className="muted billing-pix-hint">
+              Com Pix você paga {pixDays} dias de uma vez e não há renovação automática: avisamos por e-mail
+              antes de acabar.
+            </p>
+          ) : null}
           {status && !active ? (
             <p className="muted">
               Situação atual:{" "}
@@ -146,7 +166,7 @@ export function SubscribePage() {
         </div>
 
         <p className="billing-fineprint">
-          Pagamento pelo Stripe no cartão. Nenhum dado de cartão passa pelo Storyverse. O acesso é
+          Pagamento pelo Stripe, no cartão ou no Pix. Nenhum dado de cartão ou do banco passa pelo Storyverse. O acesso é
           validado no servidor; cancelar mantém o acesso até o fim do período já pago. Ao assinar, você
           concorda com os <Link to="/termos">Termos de uso</Link> e a{" "}
           <Link to="/cancelamento">política de cancelamento e reembolso</Link>.

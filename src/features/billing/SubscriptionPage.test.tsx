@@ -77,4 +77,27 @@ describe("SubscriptionPage", () => {
     );
     expect(screen.queryByRole("link", { name: "Ir para o início" })).toBeNull();
   });
+
+  it("mostra o período pago com Pix e oferece somar mais dias", async () => {
+    authState.status = {
+      ...active,
+      status: "none",
+      reason: "pix",
+      accessUntil: "2026-11-27T12:00:00Z",
+      pixAvailable: true,
+      pixDays: 30,
+    };
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Pago com Pix" })).toBeInTheDocument();
+    expect(screen.getByText("Pix — 30 dias")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pagar mais 30 dias com Pix" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gerenciar assinatura" })).toBeNull();
+    expect(screen.queryByText("Cancelamento")).toBeNull();
+  });
+
+  it("no teste grátis oferece pagar com Pix", async () => {
+    authState.status = { ...active, status: "trialing", trialEnd: "2026-11-04T00:00:00Z", pixAvailable: true };
+    renderPage();
+    expect(await screen.findByRole("button", { name: "Pagar 30 dias com Pix" })).toBeInTheDocument();
+  });
 });
