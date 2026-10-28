@@ -174,9 +174,11 @@ export function SubscriptionPage() {
                   Assinar agora
                 </Link>
               ) : null}
-              <button type="button" className="btn" onClick={() => void refresh()} disabled={statusLoading}>
-                {statusLoading ? "Atualizando…" : "Atualizar status"}
-              </button>
+              {active ? (
+                <Link className="btn" to="/">
+                  Ir para o início
+                </Link>
+              ) : null}
             </div>
 
             {status?.portalAvailable && !active ? (
