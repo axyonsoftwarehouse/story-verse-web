@@ -238,10 +238,7 @@ export function ImportsSection({ session }: { session: SupabaseSession }) {
       <div className="shelf-head">
         <div>
           <h2>Importações</h2>
-          <p>
-            Suba um ZIP com <code>metadata.csv</code> e os livros (TXT, MD, EPUB ou PDF). A prévia
-            mostra o que entraria antes de criar qualquer coisa.
-          </p>
+          <p className="muted">ZIP com <code>metadata.csv</code> e os livros (TXT, MD, EPUB ou PDF). Nada é criado antes da prévia.</p>
         </div>
       </div>
 

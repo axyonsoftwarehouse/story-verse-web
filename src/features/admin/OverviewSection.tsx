@@ -145,11 +145,22 @@ function ActionStrip({ items }: { items: ActionItem[] }) {
       <ul className="admin-action-list">
         {items.map((item) => (
           <li key={item.key} className={item.count > 0 ? "is-open" : undefined}>
-            <strong>{number(item.count)}</strong>
-            <span>{item.label}</span>
+            <strong className="admin-action-count">
+              {item.count > 0 ? (
+                number(item.count)
+              ) : (
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-label="nenhum">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              )}
+            </strong>
+            <span className="admin-action-label">{item.label}</span>
             {item.to && item.count > 0 ? (
-              <Link className="link-btn" to={item.to}>
+              <Link className="admin-action-cta" to={item.to}>
                 {item.cta ?? "abrir"}
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
               </Link>
             ) : null}
           </li>
@@ -582,7 +593,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     actions.push({
       key: "backup",
       count: backupLate ? 1 : 0,
-      label: "backup atrasado (mais de 26 h)",
+      label: backupLate ? "backup atrasado (mais de 26 h)" : "backup em dia",
     });
   }
 
@@ -604,13 +615,11 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       : undefined;
 
   return (
-    <section className="shelf admin-overview admin-dashboard">
+    <section className="shelf admin-overview admin-dashboard admin-home">
       <div className="shelf-head">
         <div>
           <h1>Visão geral</h1>
-          <p className="muted">
-            Como o Storyverse está hoje. Números da API, atualizados a cada 5 minutos.
-          </p>
+          <p className="muted">Atualizado a cada 5 minutos.</p>
         </div>
         {superadmin ? (
           <PeriodPicker value={period} onChange={setPeriod} />
@@ -691,7 +700,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                       ? `${ratio(reading.booksFinished, reading.booksStarted)}%`
                       : "—"}
                   </strong>
-                  <span>taxa de conclusão (terminados ÷ iniciados)</span>
+                  <span>taxa de conclusão</span>
                 </div>
                 <div className="dash-tile">
                   <strong>
@@ -705,16 +714,11 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                   <strong>{cohort ? `${ratio(cohort.d7, cohort.cohortSize)}%` : "—"}</strong>
                   <span>
                     {cohort
-                      ? `voltaram a ler em 7 dias (coorte de ${dayMonth(cohort.cohortWeek)}, ${number(cohort.cohortSize)} contas)`
-                      : "retenção D7: sem coorte completa ainda"}
+                      ? `voltaram a ler em 7 dias · ${number(cohort.cohortSize)} contas`
+                      : "retenção em 7 dias: sem dados ainda"}
                   </span>
                 </div>
               </div>
-              <p className="dash-sub admin-period-note">
-                {periodInfo.key === "today"
-                  ? "Hoje = dia do calendário em Brasília, ainda em andamento."
-                  : `Setas comparam com os ${periodInfo.previous}.`}
-              </p>
             </>
           )}
 
@@ -783,9 +787,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
             <article className="dash-card">
               <div className="dash-card-head">
                 <span className="dash-label">Assinaturas</span>
-                <Link className="link-btn" to="/admin/financeiro">
-                  financeiro
-                </Link>
+                <Link className="link-btn" to="/admin/financeiro" aria-label="Abrir Financeiro">abrir</Link>
               </div>
               {billing ? (
                 <div className="admin-mini-tiles">
@@ -811,8 +813,8 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
                     <div className="dash-tile">
                       <strong>{conversion === null ? "—" : `${conversion}%`}</strong>
                       <span>
-                        testes que viraram pagos ({number(billing.trials_converted ?? 0)} de{" "}
-                        {number(billing.trials_ended ?? 0)} encerrados em 30 dias)
+                        testes convertidos · {number(billing.trials_converted ?? 0)} de{" "}
+                        {number(billing.trials_ended ?? 0)}
                       </span>
                     </div>
                   ) : null}
@@ -861,19 +863,22 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
             <article className={`dash-card${backupLate ? " is-alert" : ""}`}>
               <div className="dash-card-head">
                 <span className="dash-label">Site</span>
-                <Link className="link-btn" to="/admin/site">
-                  erros, desempenho e tráfego
-                </Link>
+                <Link className="link-btn" to="/admin/site" aria-label="Abrir Site">abrir</Link>
               </div>
               <div className="admin-mini-tiles">
                 {overview.backup ? (
                   <div className="dash-tile">
                     {overview.backup.finishedAt ? (
                       <>
-                        <strong>{backupLate ? "Atrasado" : (overview.backup.status ?? "—")}</strong>
-                        <span>
-                          backup · {when(overview.backup.finishedAt)} ·{" "}
-                          {bytes(overview.backup.sizeBytes)}
+                        <strong>
+                          {backupLate
+                            ? "Atrasado"
+                            : overview.backup.status === "success"
+                              ? "Em dia"
+                              : (overview.backup.status ?? "—")}
+                        </strong>
+                        <span title={bytes(overview.backup.sizeBytes)}>
+                          backup · {when(overview.backup.finishedAt)}
                         </span>
                       </>
                     ) : (

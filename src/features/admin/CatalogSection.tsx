@@ -95,9 +95,7 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
       <div className="shelf-head">
         <div>
           <h2>Catálogo</h2>
-          <p>
-            O acervo público curado. Rascunhos, ocultos e arquivados só aparecem aqui no painel.
-          </p>
+          <p className="muted">Rascunhos, ocultos e arquivados só aparecem aqui.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
           Adicionar livro

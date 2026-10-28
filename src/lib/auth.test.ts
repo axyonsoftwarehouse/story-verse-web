@@ -18,8 +18,46 @@ const old = {
   user,
 };
 const refreshed = { accessToken: "new-access", expiresIn: 1800, user };
+const SESSION_META = "storyverse:session-meta";
+
+describe("restoring the session on open", () => {
+  it("does not call the API when this browser never signed in", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const { restoreAuthSession } = await import("./auth");
+
+    await expect(restoreAuthSession()).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("renews through the cookie when a signed-in user is remembered", async () => {
+    localStorage.setItem(SESSION_META, JSON.stringify({ user, expires_at: 1 }));
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(refreshed)));
+    vi.stubGlobal("fetch", fetch);
+    const { restoreAuthSession } = await import("./auth");
+
+    await expect(restoreAuthSession()).resolves.toMatchObject({ access_token: "new-access" });
+    expect(String(fetch.mock.calls[0][0])).toContain("/api/v1/auth/refresh");
+  });
+
+  it("still tries the cookie when storage cannot be read", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(refreshed)));
+    vi.stubGlobal("fetch", fetch);
+    const { restoreAuthSession } = await import("./auth");
+
+    await expect(restoreAuthSession()).resolves.toMatchObject({ access_token: "new-access" });
+    vi.restoreAllMocks();
+  });
+});
 
 describe("session refresh races", () => {
+  beforeEach(() => {
+    localStorage.setItem(SESSION_META, JSON.stringify({ user, expires_at: 1 }));
+  });
+
   it("serializes concurrent restores and reuses the first result", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(refreshed)));
     vi.stubGlobal("fetch", fetch);

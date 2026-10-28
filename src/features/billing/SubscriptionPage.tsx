@@ -56,7 +56,7 @@ export function SubscriptionPage() {
       <div className="home">
         <nav className="home-nav profile-nav">
           <Link className="btn" to="/">
-            ← Início
+            Voltar
           </Link>
         </nav>
         <section className="shelf billing-hero">
@@ -80,7 +80,7 @@ export function SubscriptionPage() {
     <div className="home">
       <nav className="home-nav profile-nav">
         <Link className="btn" to="/">
-          ← Início
+          Voltar
         </Link>
         <Link className="btn" to="/assinar">
           Ver plano
@@ -91,7 +91,7 @@ export function SubscriptionPage() {
         <div className="shelf-head">
           <span className="eyebrow">Minha assinatura</span>
           <h1>Seu acesso ao Storyverse</h1>
-          <p>O servidor valida a assinatura a cada acesso; esta tela só mostra o estado atual.</p>
+          <p>Situação do seu plano e do pagamento.</p>
         </div>
 
         {ok && active ? (

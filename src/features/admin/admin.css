@@ -286,7 +286,27 @@
     position: static;
     margin-bottom: 1rem;
     padding: 0.4rem;
-    scrollbar-width: thin;
+    /* Sem a barra de rolagem: as bordas esmaecem para indicar que dá para arrastar. */
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 var(--fade-start, 0px),
+      #000 calc(100% - var(--fade-end, 0px)),
+      transparent
+    );
+  }
+
+  .admin-nav[data-more-start] {
+    --fade-start: 2rem;
+  }
+
+  .admin-nav[data-more-end] {
+    --fade-end: 2rem;
+  }
+
+  .admin-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .admin-nav a {
@@ -1517,4 +1537,578 @@
 
 .admin-vital.is-poor {
   color: var(--danger);
+}
+
+/* =====================================================================================
+   Acabamento do painel: a mesma linguagem do resto do app (títulos em serifa, campos
+   arredondados, cartões com gradiente, texto de apoio em cinza). Vale para todas as abas.
+   ===================================================================================== */
+
+/* Cabeçalho de cada aba: título, frase de apoio e, à direita, o seletor de período ou a ação. */
+.admin-content > .shelf {
+  margin: 0;
+}
+
+.admin-content > .shelf > .shelf-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-bottom: 1.4rem;
+  text-align: left;
+}
+
+/* Título num bloco e uma ação ao lado (período, Atualizar, Adicionar livro): lado a lado. */
+.admin-content > .shelf > .shelf-head:has(> div:first-child:not(.segmented)) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.9rem 1.2rem;
+}
+
+.admin-content > .shelf > .shelf-head > div:first-child:not(.segmented) {
+  display: grid;
+  flex: 1 1 320px;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.admin-content .shelf-head h1 {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: clamp(1.8rem, 3.2vw, 2.4rem);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.admin-content > .shelf > .shelf-head p {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+/* Títulos de seção dentro de uma aba (Contas recentes, Retenção, Sanções da conta…). */
+.admin-content .shelf .shelf-head h2,
+.admin-content .profile-card > .shelf-head h2 {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 1.3rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.admin-content .shelf .shelf-head + p {
+  margin-top: -0.6rem;
+}
+
+.admin-content > .shelf > .shelf-head ~ .shelf-head,
+.admin-content > .shelf > .shelf,
+.admin-content > .shelf > section {
+  margin-top: 2rem;
+}
+
+/* Campos: o mesmo visual da busca da biblioteca, em vez do controle cru do navegador. */
+.admin-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+.admin-content select,
+.admin-content textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 248, 235, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  color-scheme: dark;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.admin-content textarea {
+  min-height: 96px;
+  line-height: 1.5;
+}
+
+.admin-content select {
+  padding-right: 2rem;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 52%,
+    calc(100% - 12px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.admin-content select option {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.admin-content input::placeholder,
+.admin-content textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
+}
+
+.admin-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-content select:focus,
+.admin-content textarea:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
+}
+
+.admin-content input[type="checkbox"],
+.admin-content input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* Busca + filtros: rótulos pequenos em cinza, tudo alinhado pela base. */
+.admin-search,
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.7rem 0.8rem;
+}
+
+.admin-search {
+  margin-bottom: 0.8rem;
+}
+
+.admin-filters {
+  margin-bottom: 1.4rem;
+}
+
+.admin-search label,
+.admin-filters label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.admin-filters label {
+  flex: 0 1 180px;
+  min-width: 140px;
+}
+
+.admin-search label {
+  flex: 1 1 260px;
+}
+
+.admin-search .btn,
+.admin-filters .btn {
+  min-height: 40px;
+}
+
+/* Linhas das listas (contas, sanções, assinaturas, quem tem o recurso). */
+.admin-user-list,
+.admin-sanction-list {
+  gap: 0.5rem;
+}
+
+.admin-user-row,
+.admin-sanction-row {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(165deg, rgba(var(--card-top-rgb), 0.55), rgba(var(--card-bottom-rgb), 0.6));
+  font-size: 0.86rem;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease-out);
+}
+
+a.admin-user-row:hover {
+  border-color: var(--accent-dim);
+  transform: translateY(-1px);
+}
+
+.admin-user-row strong,
+.admin-sanction-row strong {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.admin-user-row .muted,
+.admin-sanction-row .muted {
+  font-size: 0.8rem;
+}
+
+.admin-user-flags {
+  gap: 0.4rem;
+}
+
+.admin-sanction-row > span {
+  display: grid;
+  justify-items: start;
+  gap: 0.2rem;
+}
+
+/* Links dentro do painel: na cor de destaque, nunca o azul padrão do navegador. */
+.admin-content a:not(.btn):not(.admin-user-row):not(.admin-action-cta):not(.segmented a) {
+  color: var(--accent-2);
+  text-underline-offset: 3px;
+}
+
+.admin-content a.admin-user-row {
+  color: inherit;
+}
+
+/* Auditoria: cada ação vira um cartão leve, com a data à direita. */
+.admin-audit-list {
+  gap: 0.5rem;
+}
+
+.admin-audit-list li {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--card-top-rgb), 0.4);
+  font-size: 0.86rem;
+}
+
+.admin-audit-head strong {
+  font-size: 0.92rem;
+}
+
+.admin-audit-head .muted {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.admin-audit-meta {
+  display: inline-block;
+  margin: 0.4rem 0.35rem 0 0;
+  padding: 0.12rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 248, 235, 0.05);
+  color: var(--muted);
+}
+
+/* Financeiro: os quatro números em cartões de verdade (rótulo, valor grande, apoio). */
+.billing-tiles {
+  margin-bottom: 1.4rem;
+}
+
+.billing-tiles .dash-card {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.billing-tiles .dash-card strong {
+  color: var(--text);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-search .billing-status-filter {
+  flex: 0 1 220px;
+}
+
+.admin-billing .admin-user-flags .muted {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.billing-detail-card {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* Recursos em teste: cartões com largura certa e o número em destaque. */
+.admin-content .dash-tiles:has(.admin-feature-card) {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.admin-feature-card {
+  gap: 0.4rem;
+  padding: 1.1rem 1.2rem;
+  transition: border-color 0.2s;
+}
+
+.admin-feature-card:hover {
+  border-color: var(--accent-dim);
+}
+
+.admin-feature-card strong {
+  font-size: 1.9rem;
+  line-height: 1.1;
+}
+
+.admin-feature-panel {
+  margin-top: 1.6rem;
+}
+
+/* Detalhe da conta: blocos separados, papéis e recursos como opções. */
+.admin-account > .profile-card,
+.admin-account > .shelf,
+.admin-account > section {
+  margin-top: 1.2rem;
+}
+
+.admin-account .profile-card:not(.profile-account) {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-account .profile-card > .shelf-head {
+  margin: 0;
+}
+
+.admin-account .profile-card > p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.admin-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.03);
+  cursor: pointer;
+}
+
+.admin-toggle:hover {
+  border-color: var(--accent-dim);
+}
+
+/* Métricas: cada cartão mostra os números em duas colunas, sem a pilha alta. */
+.admin-overview:not(.admin-dashboard) .dash-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+
+.admin-overview:not(.admin-dashboard) .dash-tiles > .dash-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem 1rem;
+}
+
+.admin-overview:not(.admin-dashboard) .dash-tiles > .dash-card > .dash-card-head {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* Filtros que moram no cabeçalho (Métricas): em linha, ao lado do título. */
+.admin-content > .shelf > .shelf-head > .admin-filters {
+  flex-wrap: nowrap;
+  margin: 0;
+}
+
+.admin-content > .shelf > .shelf-head > .admin-filters label {
+  flex: 0 0 150px;
+  min-width: 0;
+}
+
+/* Acervo: as linhas de apoio do livro menores que o título. */
+.catalog-main > .muted {
+  font-size: 0.84rem;
+}
+
+.catalog-title strong {
+  font-size: 1.1rem;
+}
+
+/* Muitos filtros (Acervo, Auditoria): dividem a linha por igual. */
+.admin-content .admin-filters label {
+  flex: 1 1 150px;
+}
+
+/* Seletor de série dentro do cartão: vai para a linha de baixo inteiro, sem quebrar no meio. */
+.dash-card-head:has(.segmented) {
+  flex-wrap: wrap;
+}
+
+.dash-card-head .segmented {
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Tabelas (retenção, importações): moldura e cabeçalho em destaque leve. */
+.admin-content .import-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+}
+
+.admin-content .import-table th {
+  background: rgba(var(--card-top-rgb), 0.6);
+}
+
+/* Visão geral: KPIs todos numa linha (6 cabem) e o delta como selo. */
+.admin-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 0.7rem;
+}
+
+/* Itens de grade podem encolher abaixo do conteúdo: sem isso a coluna passava da tela no celular. */
+.admin-dashboard > *,
+.admin-dash-grid > *,
+.admin-kpis > *,
+.admin-action-list > li {
+  min-width: 0;
+}
+
+/* Cartões da grade não esticam até a altura do vizinho (sobrava vazio embaixo). */
+.admin-dash-grid {
+  align-items: start;
+}
+
+.admin-kpi {
+  gap: 0.45rem;
+  padding: 1rem 1.05rem;
+}
+
+.admin-kpi .dash-label {
+  min-height: 2.5em;
+  line-height: 1.25;
+}
+
+.admin-kpi strong {
+  font-size: 1.85rem;
+}
+
+.admin-delta.is-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.3rem;
+  padding: 0.18rem 0.5rem 0.18rem 0.4rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 248, 235, 0.06);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.admin-delta.is-pill.is-up {
+  background: rgba(127, 207, 154, 0.12);
+}
+
+.admin-delta.is-pill.is-down {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.admin-delta.is-pill svg {
+  flex: none;
+}
+
+/* "Precisa de ação": número num selo, o texto ao lado e o atalho como botão à direita. */
+.admin-action-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+
+.admin-action-list li {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.admin-action-list li.is-open {
+  border-color: rgba(var(--accent-rgb), 0.28);
+}
+
+.admin-action-list li .admin-action-count {
+  display: grid;
+  grid-row: auto;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.4rem;
+  border-radius: 12px;
+  background: rgba(127, 207, 154, 0.12);
+  color: #7fcf9a;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.admin-action-list li.is-open .admin-action-count {
+  background: linear-gradient(145deg, var(--accent-light), var(--accent));
+  color: var(--on-accent);
+}
+
+.admin-action-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.55rem 0.35rem 0.75rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  border-radius: var(--radius-pill);
+  color: var(--accent-light);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.admin-action-cta:hover {
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+/* Cartões da visão geral com vários números: grade de 2 colunas em vez da pilha comprida. */
+.admin-home .admin-dash-grid .admin-mini-tiles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.admin-home .admin-dash-grid .admin-mini-tiles .dash-tile {
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.03);
+}
+
+.admin-insights .dash-tile strong {
+  font-size: 1.6rem;
+}
+
+@media (max-width: 900px) {
+  .admin-dash-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-home .admin-dash-grid .admin-mini-tiles,
+  .admin-insights {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-filters label {
+    flex: 1 1 calc(50% - 0.4rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-user-row,
+  .admin-sanction-row {
+    transition: none;
+  }
 }

@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./index.css";
@@ -8,13 +8,16 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { OfflineNotice } from "./components/OfflineNotice";
 import { ScrollToTop } from "./components/ScrollToTop";
-import { AdminRoute } from "./features/admin/AdminRoute";
-import { SubscribePage } from "./features/billing/SubscribePage";
-import { SubscriptionPage } from "./features/billing/SubscriptionPage";
-import { PublicBookPage } from "./features/catalog/PublicBookPage";
-import { PublicLibraryPage } from "./features/catalog/PublicLibraryPage";
-import { ForumHome } from "./features/forum/ForumHome";
-import { TopicPage } from "./features/forum/TopicPage";
+import {
+  AdminRoute,
+  ForumHome,
+  PublicBookPage,
+  PublicLibraryPage,
+  RouteLoading,
+  SubscribePage,
+  SubscriptionPage,
+  TopicPage,
+} from "./lazyRoutes";
 import { FORUM_VISIBLE } from "./lib/features";
 import { installTelemetry } from "./lib/telemetry";
 import { installAnalytics } from "./lib/analytics";
@@ -39,25 +42,27 @@ createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <BrowserRouter>
         <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/confirmar-email" element={<App />} />
-          <Route path="/redefinir-senha" element={<App />} />
-          <Route
-            path="/comunidade"
-            element={FORUM_VISIBLE ? <ForumHome /> : <Navigate to="/" replace />}
-          />
-          <Route
-            path="/comunidade/t/:id"
-            element={FORUM_VISIBLE ? <TopicPage /> : <Navigate to="/" replace />}
-          />
-          <Route path="/admin/*" element={<AdminRoute />} />
-          <Route path="/assinar" element={<SubscribePage />} />
-          <Route path="/conta/assinatura" element={<SubscriptionPage />} />
-          <Route path="/biblioteca" element={<PublicLibraryPage />} />
-          <Route path="/biblioteca/:bookKey" element={<PublicBookPage />} />
-          <Route path="*" element={<App />} />
-        </Routes>
+        <Suspense fallback={<RouteLoading />}>
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/confirmar-email" element={<App />} />
+            <Route path="/redefinir-senha" element={<App />} />
+            <Route
+              path="/comunidade"
+              element={FORUM_VISIBLE ? <ForumHome /> : <Navigate to="/" replace />}
+            />
+            <Route
+              path="/comunidade/t/:id"
+              element={FORUM_VISIBLE ? <TopicPage /> : <Navigate to="/" replace />}
+            />
+            <Route path="/admin/*" element={<AdminRoute />} />
+            <Route path="/assinar" element={<SubscribePage />} />
+            <Route path="/conta/assinatura" element={<SubscriptionPage />} />
+            <Route path="/biblioteca" element={<PublicLibraryPage />} />
+            <Route path="/biblioteca/:bookKey" element={<PublicBookPage />} />
+            <Route path="*" element={<App />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ErrorBoundary>
     <DiagnosticsPanel />

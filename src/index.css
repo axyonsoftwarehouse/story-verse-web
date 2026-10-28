@@ -237,3 +237,8 @@ textarea:focus-visible {
     scroll-behavior: auto;
   }
 }
+
+/* Texto de apoio (e-mail, datas, contagens). Já era usado no admin e nas assinaturas, mas não existia. */
+.muted {
+  color: var(--muted);
+}

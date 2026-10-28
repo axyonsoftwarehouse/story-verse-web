@@ -198,12 +198,12 @@ describe("OverviewSection", () => {
     expect(screen.queryByRole("link", { name: "ver fórum" })).toBeNull();
 
     expect(await screen.findByText("20")).toBeInTheDocument();
-    expect(screen.getAllByText("↑ 100%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+100%").length).toBeGreaterThan(0);
     expect(screen.getByText("50%")).toBeInTheDocument(); // 4 terminados ÷ 8 iniciados
     expect(screen.getByText("30")).toBeInTheDocument(); // 600 min ÷ 20 leitores
     const pages = screen.getByText("Páginas lidas").closest("article") as HTMLElement;
     expect(within(pages).getByText("120")).toBeInTheDocument();
-    expect(within(pages).getByText("↑ 100%")).toBeInTheDocument();
+    expect(within(pages).getByText("+100%")).toBeInTheDocument();
 
     expect(await screen.findByText("Ana")).toBeInTheDocument();
     expect(screen.getByText("320 min")).toBeInTheDocument();
@@ -246,13 +246,13 @@ describe("OverviewSection", () => {
     ]);
     renderSection(["superadmin"]);
 
-    expect(await screen.findByText("↑ 200%")).toBeInTheDocument();
+    expect(await screen.findByText("+200%")).toBeInTheDocument();
     expect(await screen.findByText("25%")).toBeInTheDocument(); // 1 convertido ÷ 4 encerrados
     expect(screen.getByText(/barras tracejadas são estimadas/)).toBeInTheDocument();
     // O detalhe do Sentry foi para a aba Site; aqui fica o total e o atalho.
     expect(await screen.findByText(/erros no Sentry · 7 dias/)).toBeInTheDocument();
     expect(screen.queryByText(/99,3% das sessões sem crash/)).toBeNull();
-    expect(screen.getByRole("link", { name: "erros, desempenho e tráfego" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Abrir Site" })).toHaveAttribute(
       "href",
       "/admin/site",
     );
@@ -302,7 +302,7 @@ describe("OverviewSection", () => {
     renderSection(["superadmin"]);
     expect(await screen.findByText("Comunidade")).toBeInTheDocument();
     expect(await screen.findByText("11")).toBeInTheDocument(); // 6 + 5 respostas
-    expect(screen.getByText("↑ 200%")).toBeInTheDocument(); // tópicos: 3 contra 1
+    expect(screen.getByText("+200%")).toBeInTheDocument(); // tópicos: 3 contra 1
     expect(getCommunitySeries).toHaveBeenCalledWith(
       session,
       { from: shiftDays(today, -59), to: today },
