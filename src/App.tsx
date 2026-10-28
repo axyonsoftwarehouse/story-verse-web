@@ -3,6 +3,7 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
+import { ReaderCount } from "./components/ReaderCount";
 import { ApiHttpError } from "./lib/backend";
 import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
@@ -3807,6 +3808,7 @@ function FeaturedRow({
               ) : null}
               <strong>{b.title}</strong>
               <span className="row-card-author">{b.author}</span>
+              <ReaderCount bookKey={bookKeyOf(b)} />
               {b.characters?.length ? (
                 <span className="row-card-cast">
                   <span className="avatar-stack">
@@ -3991,6 +3993,7 @@ function ProfileShelf({
               ) : null}
               <strong>{book.title}</strong>
               <span>{sub}</span>
+              <ReaderCount bookKey={bookKeyOf(book)} />
             </button>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ReaderCount } from "../../components/ReaderCount";
 import { hasFeature } from "../../lib/accountFeatures";
 import { ApiHttpError } from "../../lib/backend";
 import {
@@ -162,6 +163,7 @@ export function PublicBookPage() {
             <span className="eyebrow">Biblioteca pública</span>
             <h1>{book.title}</h1>
             <p className="catalog-book-author">{book.author || "Autor não informado"}</p>
+            <ReaderCount bookKey={book.book_key} className="is-large" />
 
             {meta.length > 0 ? (
               <div className="catalog-book-meta">
