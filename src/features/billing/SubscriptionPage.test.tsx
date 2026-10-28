@@ -53,6 +53,8 @@ describe("SubscriptionPage", () => {
     expect(await screen.findByRole("heading", { name: "Assinatura ativa" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gerenciar assinatura" })).toBeInTheDocument();
     expect(screen.getByText("Acesso liberado")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ir para o início" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("button", { name: "Atualizar status" })).toBeNull();
   });
 
   it("mostra o teste grátis e a data", async () => {
@@ -73,5 +75,6 @@ describe("SubscriptionPage", () => {
       "href",
       "/assinar",
     );
+    expect(screen.queryByRole("link", { name: "Ir para o início" })).toBeNull();
   });
 });
