@@ -2786,7 +2786,7 @@ function DiamondShopPage({
       ) : null}
       <nav className="home-nav profile-nav">
         <button type="button" className="btn" onClick={onClose}>
-          {Icon.back} Voltar
+          Voltar
         </button>
       </nav>
 
@@ -3183,7 +3183,7 @@ function RankingPage({
     <div className="home profile moderation ranking">
       <nav className="home-nav profile-nav">
         <button type="button" className="btn" onClick={onClose}>
-          {Icon.back} Voltar
+          Voltar
         </button>
         {profile ? (
           <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
@@ -4337,7 +4337,7 @@ function ProfilePage({
       {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
       <nav className="home-nav profile-nav nav-split">
         <button type="button" className="btn" onClick={settingsOpen ? () => setSettingsOpen(false) : leave}>
-          {Icon.back} {settingsOpen ? "Perfil" : "Voltar"}
+          Voltar
         </button>
         <span className="profile-nav-actions">
           {settingsOpen ? null : (
@@ -8215,7 +8215,7 @@ export function App() {
     <div className={`reader theme-${prefs.theme}${immersive ? " is-immersive" : ""}`}>
       {immersive || isFullscreen ? (
         <button type="button" className="reader-immersive-exit" onClick={() => void toggleReadingFullscreen()}>
-          {Icon.back} Sair da tela cheia
+          Sair da tela cheia
         </button>
       ) : null}
       {/* Por cima de tudo, sem pegar cliques: tira o azul da tela para ler à noite. */}

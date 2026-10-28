@@ -64,10 +64,7 @@ export function BillingSection({ session }: { session: SupabaseSession }) {
       <div className="shelf-head">
         <div>
           <h1>Financeiro</h1>
-          <p>
-            Somente leitura. Cobrança, reembolso e cancelamento ficam no dashboard do Stripe; aqui
-            só acompanhamos o estado.
-          </p>
+          <p className="muted">Somente leitura. Cobranças e reembolsos ficam no Stripe.</p>
         </div>
         <button type="button" className="btn" onClick={() => setVersion((value) => value + 1)}>
           Atualizar
@@ -203,10 +200,6 @@ export function BillingSection({ session }: { session: SupabaseSession }) {
               </dd>
             </div>
           </dl>
-          <p className="muted">
-            Cobrança, cartão e reembolso são feitos no dashboard do Stripe. Nenhuma ação de
-            cobrança existe neste painel.
-          </p>
         </div>
       ) : null}
     </section>

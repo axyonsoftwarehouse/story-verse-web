@@ -205,10 +205,7 @@ export function SubmissionsModeration({
         <header className="moderation-head">
           <span className="eyebrow">Admin</span>
           <h1>Moderação do acervo</h1>
-          <p>
-            Aprove só o que pode ser distribuído: domínio público, obra do próprio autor ou licença
-            livre. Na dúvida, recuse.
-          </p>
+          <p className="muted">Só domínio público, obra do próprio autor ou licença livre. Na dúvida, recuse.</p>
         </header>
       ) : null}
 

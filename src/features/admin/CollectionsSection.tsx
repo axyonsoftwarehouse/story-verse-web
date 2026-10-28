@@ -514,10 +514,7 @@ export function CollectionsSection({ session }: { session: SupabaseSession }) {
       <div className="shelf-head">
         <div>
           <h2>Coleções</h2>
-          <p>
-            Curadoria manual do acervo: agrupe livros e controle a ordem em que aparecem na
-            biblioteca.
-          </p>
+          <p className="muted">Agrupe livros e defina a ordem na biblioteca.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
           Nova coleção

@@ -29,7 +29,7 @@ export function Delta({
   const sign = pct > 0 ? "+" : pct < 0 ? "−" : "";
   const said = pct > 0 ? "subiu" : pct < 0 ? "caiu" : "igual ao período anterior";
   return (
-    <span className={`admin-delta is-pill${tone}`} title={`${said}${pct ? ` ${Math.abs(pct)}%` : ""}`}>
+    <span className={`admin-delta is-pill${tone}`} title={`${said}${pct ? ` ${Math.abs(pct)}% em relação ao período anterior` : ""}`}>
       <TrendIcon direction={pct > 0 ? "up" : pct < 0 ? "down" : "flat"} />
       {sign}
       {Math.abs(pct)}%

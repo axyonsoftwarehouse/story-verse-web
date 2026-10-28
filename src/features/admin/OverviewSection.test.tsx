@@ -252,7 +252,7 @@ describe("OverviewSection", () => {
     // O detalhe do Sentry foi para a aba Site; aqui fica o total e o atalho.
     expect(await screen.findByText(/erros no Sentry · 7 dias/)).toBeInTheDocument();
     expect(screen.queryByText(/99,3% das sessões sem crash/)).toBeNull();
-    expect(screen.getByRole("link", { name: "erros, desempenho e tráfego" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Abrir Site" })).toHaveAttribute(
       "href",
       "/admin/site",
     );

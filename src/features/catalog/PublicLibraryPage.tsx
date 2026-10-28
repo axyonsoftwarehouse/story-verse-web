@@ -163,7 +163,7 @@ export function PublicLibraryPage() {
     <div className="home">
       <nav className="home-nav profile-nav">
         <Link className="btn" to="/">
-          ← Início
+          Voltar
         </Link>
       </nav>
 

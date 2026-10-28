@@ -18,12 +18,7 @@ export function AdminAcervo({
   return (
     <div className="moderation admin-acervo">
       <header className="moderation-head">
-        <span className="eyebrow">Admin</span>
         <h1>Acervo</h1>
-        <p>
-          O catálogo público do Storyverse: cadastre e publique livros e aprove o que os leitores
-          enviaram. Rascunhos e livros ocultos só aparecem aqui.
-        </p>
       </header>
 
       <nav className="segmented acervo-tabs" aria-label="Seções do acervo">

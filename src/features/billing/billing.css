@@ -187,6 +187,21 @@
   flex: 1 1 220px;
 }
 
+/* Minha assinatura: as ações ocupam a largura do cartão (sozinho, "Atualizar status" ficava
+ * encostado à esquerda). Com o botão principal ao lado, o secundário fica menor. */
+.billing-card .billing-actions {
+  padding-top: 0.3rem;
+}
+
+.billing-card .billing-actions > .btn {
+  flex: 1 1 160px;
+  justify-content: center;
+}
+
+.billing-card .billing-actions > .btn-primary {
+  flex-grow: 2;
+}
+
 @media (max-width: 640px) {
   .billing-plan,
   .billing-card {

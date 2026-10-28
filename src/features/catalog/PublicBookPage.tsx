@@ -119,7 +119,7 @@ export function PublicBookPage() {
       <div className="home">
         <nav className="home-nav profile-nav">
           <Link className="btn" to="/biblioteca">
-            ← Biblioteca
+            Voltar
           </Link>
         </nav>
         <section className="shelf">
@@ -148,7 +148,7 @@ export function PublicBookPage() {
     <div className="home">
       <nav className="home-nav profile-nav">
         <Link className="btn" to="/biblioteca">
-          ← Biblioteca
+          Voltar
         </Link>
       </nav>
 

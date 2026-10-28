@@ -239,7 +239,7 @@ export function SiteSection({ session }: { session: SupabaseSession }) {
       <div className="shelf-head">
         <div>
           <h1>Site</h1>
-          <p className="muted">Erros e desempenho (Sentry, Web Vitals) e tráfego (Umami).</p>
+          <p className="muted">Erros, desempenho e tráfego.</p>
         </div>
         <PeriodPicker value={period} onChange={setPeriod} />
       </div>
