@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import "./legal.css";
+import { LEGAL_HOLDER } from "./holder";
 
 export type LegalDoc = "termos" | "privacidade" | "cancelamento";
 
@@ -22,7 +23,7 @@ function Terms() {
       <h2>1. Quem somos</h2>
       <p>
         O Storyverse é um serviço de leitura com conversa com os personagens dos livros, oferecido pela{" "}
-        <strong>Axyon Software House</strong> ("nós"). Contato: <Contact />.
+        <strong>Axyon Software House</strong> ("nós"), nome comercial de {LEGAL_HOLDER}. Contato: <Contact />.
       </p>
 
       <h2>2. Conta</h2>
@@ -118,7 +119,7 @@ function Privacy() {
       <p>
         Esta política explica quais dados o Storyverse trata, para quê e quais são os seus direitos pela Lei
         Geral de Proteção de Dados (LGPD). A responsável pelos dados é a <strong>Axyon Software House</strong>
-        . Pedidos sobre os seus dados: <Contact />.
+        , nome comercial de {LEGAL_HOLDER}. Pedidos sobre os seus dados: <Contact />.
       </p>
 
       <h2>1. O que guardamos</h2>
