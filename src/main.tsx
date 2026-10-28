@@ -11,6 +11,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import {
   AdminRoute,
   ForumHome,
+  LegalPage,
   PublicBookPage,
   PublicLibraryPage,
   RouteLoading,
@@ -60,6 +61,9 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/conta/assinatura" element={<SubscriptionPage />} />
             <Route path="/biblioteca" element={<PublicLibraryPage />} />
             <Route path="/biblioteca/:bookKey" element={<PublicBookPage />} />
+            <Route path="/termos" element={<LegalPage doc="termos" />} />
+            <Route path="/privacidade" element={<LegalPage doc="privacidade" />} />
+            <Route path="/cancelamento" element={<LegalPage doc="cancelamento" />} />
             <Route path="*" element={<App />} />
           </Routes>
         </Suspense>

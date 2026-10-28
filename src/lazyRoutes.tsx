@@ -33,6 +33,10 @@ export const PublicLibraryPage = lazy(() =>
   })),
 );
 
+export const LegalPage = lazy(() =>
+  loadRoute(() => import("./features/legal/LegalPage")).then((m) => ({ default: m.LegalPage })),
+);
+
 /** Enquanto o código da rota chega (na primeira visita a abertura ainda cobre a tela). */
 export function RouteLoading() {
   return (
