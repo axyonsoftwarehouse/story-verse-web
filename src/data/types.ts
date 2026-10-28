@@ -40,10 +40,13 @@ export type Ebook = {
   /**
    * "local": importado pelo leitor, com o texto guardado só no navegador (id negativo).
    * "community": enviado por um leitor e aprovado pelo admin; o texto vem do Supabase.
+   * "catalog": catálogo público curado; o texto vem de `/api/v1/catalog/books/{key}/text`.
    */
-  source?: "gutenberg" | "local" | "community";
+  source?: "gutenberg" | "local" | "community" | "catalog";
   /** Caminho do texto no Storage do Supabase (livros da comunidade). */
   communityPath?: string;
+  /** Chave do livro no catálogo público (`cat:<uuid>`). */
+  catalogKey?: string;
   /** Quando o admin aprovou (livros da comunidade): até 7 dias depois aparece em "Novidades". */
   publishedAt?: string;
   /** Livro importado que também foi enviado ao acervo: id do envio (a capa de lá segue a daqui). */

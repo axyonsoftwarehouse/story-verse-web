@@ -14,6 +14,8 @@ export type AchievementInput = {
   charactersTalked: number;
   /** Presentes recebidos de outros leitores (`null`: ainda não carregou ou sem presentes). */
   giftsReceived: number | null;
+  /** Números da estante (biblioteca pessoal). Sem a estante (`null`/ausente) as conquistas dela nem aparecem. */
+  shelf?: { ratings: number; reviews: number; genresFinished: number; finishedThisYear: number } | null;
 };
 
 export type Achievement = {
@@ -52,6 +54,16 @@ const RULES: Rule[] = [
   { id: "streak-30", emoji: "🌋", title: "Um mês de fogo", description: "Leu 30 dias seguidos", value: (i) => i.bestStreak, target: 30, unit: ["dia", "dias"] },
 ];
 
+/** Conquistas da estante (spec 10.1); "Colecionador de séries" fica para a Fase 2. */
+const SHELF_RULES: Rule[] = [
+  { id: "first-rating", emoji: "⭐", title: "Primeira nota", description: "Deu nota a um livro", value: (i) => i.shelf?.ratings ?? 0, target: 1, unit: ["nota", "notas"] },
+  { id: "ratings-5", emoji: "🌟", title: "Crítico iniciante", description: "Deu nota a 5 livros", value: (i) => i.shelf?.ratings ?? 0, target: 5, unit: ["nota", "notas"] },
+  { id: "first-review", emoji: "✍️", title: "Resenha de estreia", description: "Escreveu uma resenha de 200+ caracteres", value: (i) => i.shelf?.reviews ?? 0, target: 1, unit: ["resenha", "resenhas"] },
+  { id: "reviews-3", emoji: "📝", title: "Voz da estante", description: "Escreveu 3 resenhas", value: (i) => i.shelf?.reviews ?? 0, target: 3, unit: ["resenha", "resenhas"] },
+  { id: "genres-3", emoji: "🧭", title: "Leitor eclético", description: "Terminou livros de 3 gêneros diferentes", value: (i) => i.shelf?.genresFinished ?? 0, target: 3, unit: ["gênero", "gêneros"] },
+  { id: "year-10", emoji: "🗓️", title: "Dez no ano", description: "Terminou 10 livros no ano", value: (i) => i.shelf?.finishedThisYear ?? 0, target: 10, unit: ["livro", "livros"] },
+];
+
 function missingText(left: number, [one, many]: [string, string]): string {
   // Horas leem melhor que "faltam 540 minutos".
   if (many === "minutos" && left >= 120) {
@@ -62,7 +74,7 @@ function missingText(left: number, [one, many]: [string, string]): string {
 }
 
 export function achievements(input: AchievementInput): Achievement[] {
-  return RULES.map((r) => {
+  return (input.shelf ? [...RULES, ...SHELF_RULES] : RULES).map((r) => {
     const raw = r.value(input) ?? 0;
     const current = Math.max(0, Math.floor(raw));
     const unlocked = current >= r.target;

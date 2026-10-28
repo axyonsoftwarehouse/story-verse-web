@@ -2,6 +2,10 @@
 
 Cópia do Storyverse para testar antes de chegar aos usuários. **Dados de teste, nada aqui é real.**
 
+**Resultados e defeitos:** o painel único fica em [`docs/qa/RESULTADOS.md`](qa/RESULTADOS.md).
+Cada rodada tem um relatório em `docs/qa/AAAA-MM-DD-<bloco>.md` e cada defeito ganha um `BUG-###`
+no painel, com status e link do PR da correção.
+
 | | Endereço |
 |---|---|
 | Site | https://qa.storyverse.2.29.42.104.sslip.io |
@@ -13,8 +17,12 @@ mostra a faixa "Ambiente de QA" no rodapé e nenhum dos dois domínios é indexa
 ## O que o QA não tem
 
 - **E-mail**: cadastro entra direto, sem confirmação; "esqueci a senha" não envia nada.
-- **IA paga**: o chat com personagens roda em modo demonstração.
+- **IA de produção**: o QA usa uma chave Gemini exclusiva, com teto de 20 mensagens por conta/dia e
+  100/dia no QA inteiro. Não consome a cota de produção.
 - **Dados de produção**: o banco começa vazio e só tem as contas de teste.
+
+Erros do site e da API vão para os projetos Sentry `storyverse-web-qa` e `storyverse-api-qa`, com
+`environment=qa`.
 
 ## Contas de teste
 
@@ -23,21 +31,110 @@ mostra a faixa "Ambiente de QA" no rodapé e nenhum dos dois domínios é indexa
 | `qa-leitor@example.com` | leitor com a estante (feature `library`) |
 | `qa-sem-estante@example.com` | leitor sem a estante (tudo dela escondido) |
 | `qa-admin@example.com` | superadmin |
+| `qa-moderador@example.com` | moderador: acervo e fórum |
+| `qa-suporte@example.com` | suporte: contas e fórum só leitura |
+| `qa-suspenso@example.com` | suspensa por 30 dias: login bloqueado (recriada pelo `reset-qa.sh`) |
 
 Senha: `QA_TEST_PASSWORD` no `.env` de QA da VPS (`/home/deploy/storyverse-qa/.env`). `example.com`
 é reservado: nenhum e-mail real recebe nada. Para criar mais contas, use o cadastro do próprio site.
+Se as contas de papel ainda não existirem, rode `bash seed-qa.sh` de novo. `qa-suspenso` já nasce
+com uma suspensão ativa: use a senha normal e confira a mensagem de bloqueio com motivo e prazo.
+
+## Roteiro do painel admin
+
+Entre em `/admin` com cada conta e confira a tabela da spec:
+
+| Conta | Seções visíveis | Ação permitida | URL proibida |
+|---|---|---|---|
+| `qa-leitor` | nenhuma (mostra "Sem permissão") | — | `/admin` |
+| `qa-suporte` | Visão geral, Contas, Sanções, Fórum (sem botões de ação) | buscar uma conta, encerrar sessões e ver sanções | `/admin/features`, `/admin/acervo`, `/admin/acervo/envios`, `/admin/financeiro`, `/admin/auditoria`, `/admin/metricas` |
+| `qa-moderador` | Visão geral, Sanções, Acervo, Fórum (com ações) | cadastrar/publicar/ocultar livro, moderar envios, resolver uma denúncia e ver sanções | `/admin/contas`, `/admin/features`, `/admin/financeiro`, `/admin/auditoria`, `/admin/metricas` |
+| `qa-admin` | todas (inclui Sanções, Métricas e Financeiro) | conceder/remover `moderator`/`support`, ligar/desligar features, aplicar/revogar sanções, ver auditoria, métricas e financeiro | dar/remover `superadmin` (não existe no painel) |
+
+**Métricas** (`/admin/metricas`) são somente leitura e só do `superadmin`. **Sanções** são visíveis
+para todo o staff, mas só o `superadmin` aplica/revoga.
+
+A URL proibida deve mostrar "Sem permissão" sem quebrar. As ações sensíveis pedem confirmação.
+
+O Acervo tem quatro abas: **Catálogo** (`/admin/acervo`), **Envios** (`/admin/acervo/envios`),
+**Coleções** (`/admin/acervo/colecoes`) e **Importações** (`/admin/acervo/importacoes`). O
+endereço antigo `/admin/moderacao/acervo` redireciona para a aba Envios.
+
+## Rodada da Fase 2 do admin (AD2)
+
+Pré-requisitos: `seed-qa.sh` rodado (contas e `qa-suspenso` com suspensão ativa). Use
+`qa-runs/AAAA-MM-DD-admin-fase-2/evidencias/` para prints, CSV baixado e console.
+
+| ID | Cenário | Conta | Esperado |
+|---|---|---|---|
+| AD2-01 | Contas recentes | `qa-admin`, `qa-suporte` | Bloco com 20 contas, e-mail mascarado, papéis, criação e último login; sem e-mail completo |
+| AD2-02 | Busca e filtros de contas | `qa-admin` | `qa-leitor` sem domínio acha a conta; UUID acha; papel Suporte e feature Estante filtram; “Limpar” volta às recentes |
+| AD2-03 | Paginação de contas | `qa-admin` | Com mais de 20 contas, “Carregar mais” append sem duplicar. Com as 6 do seed o botão não aparece; validar o cursor via API com `limit=1` |
+| AD2-04 | Detalhe da conta | `qa-admin`, `qa-suporte` | Papéis, features, sessões, sanções e (só admin) últimas ações; contas consultadas ficam na auditoria |
+| AD2-05 | Permissão de contas | `qa-moderador`, `qa-suporte` | Moderador recebe “Sem permissão”; suporte vê a lista e o detalhe |
+| AD2-06 | Aviso (`warning`) | `qa-admin` + `qa-sem-estante` | Admin aplica aviso; usuário entra e vê o banner; admin revoga; próximo login sem banner; `sanction.create`/`sanction.revoke` na auditoria |
+| AD2-07 | Suspensão e revogação | `qa-admin` + `qa-suspenso` | Login bloqueado com motivo/prazo; revogar libera o login na hora; reaplicar volta a bloquear. Terminar com `qa-suspenso` suspenso |
+| AD2-08 | Página de sanções | `qa-admin`, `qa-suporte`, `qa-moderador` | Filtros ativa/revogada/todas, tipo e busca; staff vê a lista; só admin vê “Revogar” |
+| AD2-09 | Sanção em si/staff | `qa-admin` | Detalhe da própria conta e de conta com papel de staff não mostra “Aplicar sanção”; API devolve 403 se forçada |
+| AD2-10 | Métricas | `qa-admin` | 7/30/90 dias, cards de contas/leitura/features, retenção D1/D7/D30, série dia/semana; sem PII |
+| AD2-11 | Métricas — permissão | `qa-suporte`, `qa-moderador` | “Sem permissão” em `/admin/metricas` e item ausente no menu |
+| AD2-12 | Exportar auditoria | `qa-admin` | CSV do período/filtros baixa com BOM, `;` e cabeçalho `id;createdAt;actor;action;targetType;targetId;metadata`; abre no Excel; `audit.export` aparece na lista |
+| AD2-13 | Limites do CSV | `qa-admin` | Sem período o botão fica desabilitado; período > 31 dias devolve erro claro |
+| AD2-14 | Matriz de papéis | todas | URLs proibidas da tabela acima mostram “Sem permissão” sem tela branca; itens do menu respeitam o papel |
+
+**Cuidados:** os testes de AD2-06/07 mudam sanções de verdade. No fim, revogue o aviso de
+`qa-sem-estante` e mantenha `qa-suspenso` com suspensão ativa (rode `seed-qa.sh` de novo se precisar).
+Para AD2-03, se quiser ver o botão no navegador, crie contas extras no QA (SQL copiando o hash do
+`qa-leitor`) e remova depois; não use o cadastro do site por causa do limite de 5/hora por IP.
+
+## Biblioteca pública
+
+`/biblioteca` mostra o catálogo curado para qualquer pessoa: busca, filtros, destaques e novidades.
+A ficha do livro (`/biblioteca/cat:<uuid>`) é aberta; **ler e conversar exigem conta**. Livros do
+catálogo entram na estante como `cat:<uuid>` e o leitor os carrega por
+`GET /api/v1/catalog/books/{bookKey}/text`.
+
+## Assinatura (Stripe)
+
+`/assinar` e `/conta/assinatura` são públicas (a segunda pede login para mostrar os dados). O
+paywall só liga com **`BILLING_ENABLED=true` na API e `VITE_BILLING_ENABLED=true` no build do web**;
+sem as duas, ninguém é bloqueado. O QA precisa das chaves de **teste** do Stripe
+(`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`) e do webhook configurado para
+`https://api.qa…/api/v1/billing/webhook`. Sem chaves, `/assinar` mostra o plano, mas o checkout
+responde 503.
+
+## Fluxo de branches
+
+- `main` = produção. Só recebe release do `develop`, pelo workflow `deploy-storyverse.yml`.
+- `develop` = integração/próxima release e **branch padrão do repositório**. Todo push no `develop`
+  publica no QA sozinho; PRs de feature já nascem com ele como base.
+- Feature: PR para `develop`; review + `verify`; merge publica no QA; teste.
+- Release: PR `develop` → `main`; depois merge de `main` de volta no `develop`.
+- Hotfix: branch a partir da `main`, PR para `main`, e back-merge no `develop`.
+- Para testar uma branch antes do merge, publique à mão; o QA mostra essa branch até o próximo
+  deploy do `develop`.
 
 ## Publicar no QA
 
-Push no branch `qa` publica sozinho. Para testar um PR sem mexer em branch nenhum:
+Push no `develop` publica sozinho. Para testar uma branch sem mergear:
 
 ```bash
 gh workflow run deploy-qa.yml -f ref=feat/minha-branch                                   # site
 gh workflow run deploy-api-qa.yml -R axyonsoftwarehouse/story-verse-api -f ref=feat/minha-branch   # API
 ```
 
-Sem `-f ref`, publica a `main`. Site e API são independentes: publique os dois quando a mudança
-mexer nos dois.
+Sem `-f ref`, publica a `develop`. Na API, o push no `develop` também publica no QA pelo
+`deploy-api-qa.yml`. Site e API são independentes: publique os dois quando a mudança mexer nos dois.
+
+## Chave de deploy do QA
+
+Os workflows de QA usam secrets próprios no environment `qa` (`QA_SSH_KEY`, `QA_KNOWN_HOSTS`,
+`QA_USER`, `QA_HOST`), nunca a chave compartilhada da produção. Na VPS a chave é restrita por
+`command="/home/deploy/qa-deploy/gate.sh"`: só aceita `rsync` para `_incoming-qa` (via `rrsync`) e
+`deploy-web.sh` / `deploy-api.sh <imagem> <sha>`. Os scripts ficam em `/home/deploy/qa-deploy/`
+(fonte em `deploy/storyverse-qa/vps/`). O environment `qa` não tem regra de branch, de propósito: é
+ele que permite publicar uma branch antes do merge. Para trocar a chave, gere outra, acrescente a
+linha em `~/.ssh/authorized_keys` e atualize `QA_SSH_KEY`/`QA_KNOWN_HOSTS` nos dois repositórios.
 
 ## Banco do QA
 
@@ -55,6 +152,31 @@ ssh deploy@<vps> 'cd /home/deploy/storyverse-qa && bash reset-qa.sh'
 
 Os dois scripts recusam rodar fora de `/home/deploy/storyverse-qa` ou com um `.env` que não seja o
 do QA, para nunca tocar na produção.
+
+- Patch SQL só no QA (funções alteradas antes de irem para a produção): `bash apply-sql.sh
+  sql/<arquivo>.sql`. Mesma trava; antes de aplicar, guarda as definições atuais em `backups/`.
+  O banco do QA nasce do `schema.sql` da produção (`/home/deploy/storyverse/schema.sql`), então
+  **depois de um `reset-qa.sh` os patches precisam ser reaplicados** até a release levá-los.
+  - `sql/2026-10-26-revisao-seguranca.sql`: capa só em análise e só do Storage da pessoa, foto do
+    ranking idem, heartbeat com lock compartilhado. Depois dele: `docker compose --project-name
+    storyverse-qa restart qa-api` (o `app.media_origin` vale para conexões novas).
+
+### Caddy de borda
+
+O Caddy de borda (`/home/deploy/edge/Caddyfile`, contêiner `edge-caddy-1`) atende a produção, o QA
+e o Foodie. O arquivo da VPS é **mais antigo** que o `deploy/edge/Caddyfile` daqui: **não o
+substitua inteiro**, troque só os blocos `qa.storyverse…`/`api.qa.storyverse…`.
+
+1. Leve a versão do repositório para o lado: `scp deploy/edge/Caddyfile deploy@<vps>:/home/deploy/edge/Caddyfile.repo`.
+2. Na VPS, em `/home/deploy/edge`: backup (`cp Caddyfile Caddyfile.bak-$(date +%Y%m%d-%H%M)`) e
+   `diff Caddyfile Caddyfile.repo` para ver o que muda.
+3. Edite **no mesmo arquivo** (é bind mount de arquivo único: `mv` e `sed -i` deixam o contêiner
+   lendo o antigo). `nano Caddyfile` ou `cat Caddyfile.novo > Caddyfile` servem.
+4. `docker exec edge-caddy-1 caddy validate --config /etc/caddy/Caddyfile` e, só se passar,
+   `docker exec edge-caddy-1 caddy reload --config /etc/caddy/Caddyfile` (sem queda; config
+   inválida é recusada e a antiga continua).
+5. Confira produção, QA e Foodie respondendo. Se algo der errado: `cat Caddyfile.bak-… > Caddyfile`
+   e `caddy reload` de novo.
 
 ## Limites
 

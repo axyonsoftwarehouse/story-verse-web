@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import "../../App.css";
 import "./forum.css";
 import { FORUM_ENABLED, FORUM_PREVIEW } from "../../lib/features";
+import { ApiHttpError } from "../../lib/backend";
 import { useStoredSession } from "../auth/useStoredSession";
 import {
   createTopic,
   forumDate,
   listSpaces,
   listTopics,
+  mergeById,
   SPOILER_LABELS,
   toggleBookmark,
   toggleReaction,
@@ -53,6 +55,9 @@ export function ForumHome() {
   const [loading, setLoading] = useState(true);
   const [more, setMore] = useState(false);
   const [error, setError] = useState("");
+  // Paywall: a API responde 402 e a lista vem vazia — sem separar os dois, a tela
+  // mostrava "Nenhum tópico por aqui ainda" junto do aviso de assinatura.
+  const [paywall, setPaywall] = useState(false);
   const [notice, setNotice] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -86,7 +91,9 @@ export function ForumHome() {
         setNextCursor(page.nextCursor);
       })
       .catch((err: unknown) => {
-        if (alive) setError(message(err));
+        if (!alive) return;
+        setError(message(err));
+        setPaywall(err instanceof ApiHttpError && err.status === 402);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -115,7 +122,7 @@ export function ForumHome() {
         q: query || undefined,
         cursor: nextCursor,
       });
-      setTopics((current) => [...current, ...page.items]);
+      setTopics((current) => mergeById(current, page.items));
       setNextCursor(page.nextCursor);
     } catch (err: unknown) {
       setError(message(err));
@@ -292,9 +299,19 @@ export function ForumHome() {
         </p>
       ) : null}
       {error ? (
-        <p className="auth-error forum-error" role="alert">
-          {error}
-        </p>
+        <div className="forum-error-block">
+          <p className="auth-error forum-error" role="alert">
+            {error}
+          </p>
+          {paywall ? (
+            <p className="forum-hint">
+              O fórum faz parte da assinatura.{" "}
+              <Link className="btn btn-primary" to="/assinar">
+                Ver o plano
+              </Link>
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {composerOpen ? (
@@ -392,7 +409,7 @@ export function ForumHome() {
             <span className="spinner" aria-hidden="true" />
             Carregando tópicos…
           </div>
-        ) : topics.length === 0 ? (
+        ) : error ? null : topics.length === 0 ? (
           <p className="profile-empty">
             {query
               ? "Nenhum tópico encontrado para essa busca."

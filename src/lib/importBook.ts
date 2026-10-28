@@ -94,7 +94,7 @@ export async function importBookFile(file: File): Promise<ImportedBook> {
   const buf = new Uint8Array(await file.arrayBuffer());
 
   let result: Parsed;
-  if (ext === "txt") result = { text: parseTxt(buf) };
+  if (ext === "txt" || ext === "md" || ext === "markdown") result = { text: parseTxt(buf) };
   else if (ext === "epub") result = await parseEpub(buf);
   else if (ext === "pdf") result = await parsePdf(buf);
   else throw new Error("Formato não suportado. Use um arquivo .txt, .epub ou .pdf.");
@@ -226,10 +226,12 @@ function epubBlocks(
 }
 
 /** "Chapter 1: First Sight", "1. PRIMEIRA VISTA" → "First Sight" / "PRIMEIRA VISTA". */
-function chapterSubtitle(title: string): string {
+export function chapterSubtitle(title: string): string {
   const t = title
     .replace(/^(cap[ií]tulo|chapter)\s+[\wÀ-ú]+\s*[.:—–-]?\s*/i, "")
-    .replace(/^[\dIVXLC]+\s*[.:—–-]?\s*/, "")
+    // Numeração só sai quando vem seguida de pontuação ("1.", "IV.") ou de um número arábico
+    // sozinho ("1 PRIMEIRA"). Sem o separador, "Coelho" virava "oelho" e "Iracema" virava "racema".
+    .replace(/^(?:[\divxlcdm]+\s*[.):—–-]|\d+\s)\s*/i, "")
     .trim();
   return t.length > 70 ? `${t.slice(0, 67)}…` : t;
 }

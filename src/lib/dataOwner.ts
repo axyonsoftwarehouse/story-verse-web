@@ -16,6 +16,7 @@ const VAULT_PREFIX = "storyverse:vault:";
 const USER_KEYS = new Set([
   "storyverse:reading-progress",
   "storyverse:reading-stats",
+  "storyverse:reading-pages",
   "storyverse:streak-meta",
   "storyverse:auto-freeze",
   "storyverse:spin-offered",
@@ -30,6 +31,11 @@ const USER_KEYS = new Set([
   "storyverse:achievements-seen",
   "storyverse:recap-dismissed",
   "storyverse:app-theme",
+  // Estante (biblioteca pessoal): por conta, mas sincronizada só pelo librarySync.
+  "storyverse:shelf-entries",
+  "storyverse:shelf-sync",
+  "storyverse:shelf-migrated",
+  "storyverse:shelf-finish-prompted",
 ]);
 const USER_PREFIXES = ["storyverse:highlights:", "storyverse:chat:"];
 

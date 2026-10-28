@@ -23,7 +23,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # Produção é sempre a `main`, inclusive quando o workflow é disparado à mão
+      # com o branch padrão em `develop`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -46,7 +50,12 @@ jobs:
           VITE_LOGIN_REQUIRED: ${{ secrets.VITE_LOGIN_REQUIRED }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: production
+          # Site de produção no Umami (o id é público; o tracker vem de /u/* pelo Caddy).
+          VITE_UMAMI_WEBSITE_ID: ac235b63-f338-4740-bd83-b29b5373f719
           VITE_SENTRY_RELEASE: ${{ github.sha }}
+          # Paywall no site. Fica desligado até a variável do repositório VITE_BILLING_ENABLED
+          # valer "true", e só deve ser ligado junto com BILLING_ENABLED=true no .env da API.
+          VITE_BILLING_ENABLED: ${{ vars.VITE_BILLING_ENABLED }}
         run: npm run build
 
       - name: Configurar chave SSH

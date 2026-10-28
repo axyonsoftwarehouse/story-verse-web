@@ -17,8 +17,9 @@ declare
   today date;
 begin
   if uid is null then raise exception 'Entre na sua conta.'; end if;
-  -- Same lock as weekly closing: no report may write a week after its awards are fixed.
-  perform pg_advisory_xact_lock(664332);
+  -- Shared side of the weekly-closing lock: heartbeats run in parallel with each other, and no
+  -- report may write a week after its awards are fixed (close_reading_week takes it exclusive).
+  perform pg_advisory_xact_lock_shared(664332);
   tick := clock_timestamp();
   insert into public.reading_clock(user_id,last_tick,active) values(uid,tick,false) on conflict do nothing;
   select * into previous from public.reading_clock where user_id=uid for update;

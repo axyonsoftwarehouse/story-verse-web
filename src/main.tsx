@@ -6,17 +6,26 @@ import "./App.css";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
-import { QaBanner } from "./components/QaBanner";
+import { OfflineNotice } from "./components/OfflineNotice";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { AdminRoute } from "./features/admin/AdminRoute";
+import { SubscribePage } from "./features/billing/SubscribePage";
+import { SubscriptionPage } from "./features/billing/SubscriptionPage";
+import { PublicBookPage } from "./features/catalog/PublicBookPage";
+import { PublicLibraryPage } from "./features/catalog/PublicLibraryPage";
 import { ForumHome } from "./features/forum/ForumHome";
 import { TopicPage } from "./features/forum/TopicPage";
 import { FORUM_VISIBLE } from "./lib/features";
 import { installTelemetry } from "./lib/telemetry";
+import { installAnalytics } from "./lib/analytics";
 import { registerServiceWorker } from "./lib/pwa";
 import { startSplashExit } from "./lib/splash";
 import { applyAppTheme } from "./lib/appTheme";
 
 installTelemetry();
+
+// Tráfego no Umami (só nos builds com VITE_UMAMI_WEBSITE_ID).
+installAnalytics();
 
 // Cor escolhida pela pessoa antes do primeiro desenho (sem piscar o dourado antes).
 applyAppTheme();
@@ -26,9 +35,10 @@ registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QaBanner env={import.meta.env.VITE_APP_ENV} />
+    <OfflineNotice />
     <ErrorBoundary>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/confirmar-email" element={<App />} />
@@ -42,6 +52,10 @@ createRoot(document.getElementById("root")!).render(
             element={FORUM_VISIBLE ? <TopicPage /> : <Navigate to="/" replace />}
           />
           <Route path="/admin/*" element={<AdminRoute />} />
+          <Route path="/assinar" element={<SubscribePage />} />
+          <Route path="/conta/assinatura" element={<SubscriptionPage />} />
+          <Route path="/biblioteca" element={<PublicLibraryPage />} />
+          <Route path="/biblioteca/:bookKey" element={<PublicBookPage />} />
           <Route path="*" element={<App />} />
         </Routes>
       </BrowserRouter>

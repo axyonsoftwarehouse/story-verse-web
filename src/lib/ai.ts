@@ -1,6 +1,7 @@
 import type { StoryCharacter } from "../data/types";
 import { storedAuthSession } from "./auth";
 import { apiEnabled, apiRequest } from "./backend";
+import type { ShelfStatus } from "./library";
 import { NATURAL_SPEECH_RULES, naturalizeReply } from "./naturalSpeech";
 import { captureError, captureEvent } from "./telemetry";
 import { applyServerQuota } from "./usageLimit";
@@ -433,6 +434,8 @@ export async function characterReply(params: {
   readingProgressPct: number;
   /** Idioma principal do texto na tela. */
   textLanguage: "pt" | "en";
+  /** O que o leitor marcou na estante para ESTE livro (só com a estante ligada). */
+  shelf?: { status: ShelfStatus; rating: number | null };
 }): Promise<{ text: string; reaction: string | null }> {
   const {
     character,
@@ -443,6 +446,7 @@ export async function characterReply(params: {
     textExcerpt,
     readingProgressPct,
     textLanguage,
+    shelf,
   } = params;
 
   await ensureAiStatus();
@@ -473,6 +477,7 @@ export async function characterReply(params: {
     REACTION_RULES,
     "Não revele acontecimentos que vêm depois do trecho em que o leitor está (sem spoilers).",
     `Posição de leitura: ~${Math.round(readingProgressPct)}% do livro.`,
+    ...(shelf ? [shelfContextLine(shelf)] : []),
     langNote,
     textExcerpt.slice(0, EXCERPT_MAX_CHARS),
   ].join("\n");
@@ -488,7 +493,20 @@ export async function characterReply(params: {
   return { text: reply, reaction };
 }
 
-export const CAST_COLORS = ["#c9a88c", "#9eb8c9", "#c49ab8", "#9cb9a8", "#c4b07a"];
+const SHELF_STATUS_TEXT: Record<ShelfStatus, string> = {
+  want_to_read: "quer ler",
+  reading: "lendo",
+  finished: "terminado",
+  abandoned: "abandonado",
+};
+
+/** Uma linha curta com o status e a nota que o leitor deu a este livro na estante. */
+function shelfContextLine(shelf: { status: ShelfStatus; rating: number | null }): string {
+  const rating = shelf.rating === null ? "" : `, nota ${String(shelf.rating).replace(".", ",")} de 5`;
+  return `Para este livro o leitor marcou: ${SHELF_STATUS_TEXT[shelf.status]}${rating}.`;
+}
+
+export const CAST_COLORS =["#c9a88c", "#9eb8c9", "#c49ab8", "#9cb9a8", "#c4b07a"];
 
 /** Personagem neutro usado quando a IA não está disponível ou falha ao sugerir o elenco. */
 export function narratorCharacter(title: string): StoryCharacter {

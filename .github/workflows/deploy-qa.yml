@@ -1,21 +1,23 @@
 name: Deploy QA (VPS)
 
 # Ambiente de QA: https://qa.storyverse.2.29.42.104.sslip.io (API: api.qa…). Dados de teste.
-# Publica em push no branch `qa` ou à mão, escolhendo o branch/commit:
+# Push no branch `develop` (integração/próxima release) publica sozinho. Para testar uma branch
+# antes do merge, escolha o ref à mão:
 #   gh workflow run deploy-qa.yml -f ref=feat/minha-branch
 # Manual: docs/QA.md.
 #
 # O código do branch (npm ci/test/build) roda no job `build`, que não tem segredo nenhum. Só o job
-# `deploy` recebe a chave da VPS, e ele não faz checkout: baixa o site pronto e publica.
+# `deploy` recebe a chave de QA (environment `qa`), e ele não faz checkout: baixa o site pronto e
+# publica. A chave é restrita por command= e só alcança o site/API de QA.
 on:
   workflow_dispatch:
     inputs:
       ref:
         description: Branch, tag ou commit para publicar no QA
         required: true
-        default: main
+        default: develop
   push:
-    branches: [qa]
+    branches: [develop]
 
 permissions:
   contents: read
@@ -52,8 +54,15 @@ jobs:
         env:
           VITE_API_URL: https://api.qa.storyverse.2.29.42.104.sslip.io
           VITE_APP_ENV: qa
+          # O fórum fica no build do QA para os cenários F-01/F-02 (tópico, resposta e
+          # denúncia na moderação). Em produção continua desligado.
+          VITE_FORUM_ENABLED: "true"
+          # A assinatura só aparece na tela com esta flag; as chaves do Stripe ficam na API do QA.
+          VITE_BILLING_ENABLED: "true"
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN_QA }}
           VITE_SENTRY_ENVIRONMENT: qa
+          # Site de QA no Umami (o id é público; o tracker vem de /u/* pelo Caddy).
+          VITE_UMAMI_WEBSITE_ID: ac74551e-2634-4e26-8b06-aebb050fc8db
           VITE_SENTRY_RELEASE: ${{ steps.release.outputs.sha }}
         run: npm run build
 
@@ -67,6 +76,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # A chave de QA só existe neste environment e só aceita rsync para a pasta de entrada
+    # e os scripts de deploy de QA (command= no authorized_keys). Sem acesso à produção.
+    environment: qa
     steps:
       - name: Baixar o site pronto
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -76,31 +88,26 @@ jobs:
 
       - name: Configurar chave SSH
         env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          QA_SSH_KEY: ${{ secrets.QA_SSH_KEY }}
+          QA_KNOWN_HOSTS: ${{ secrets.QA_KNOWN_HOSTS }}
         run: |
-          test -n "$VPS_KNOWN_HOSTS" || { echo "Configure VPS_KNOWN_HOSTS com a chave verificada da VPS"; exit 1; }
+          test -n "$QA_KNOWN_HOSTS" || { echo "Configure QA_KNOWN_HOSTS com a chave verificada da VPS"; exit 1; }
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
-
-      - name: Conferir que a VPS tem o publish.sh com suporte a QA
-        run: |
-          # O publish.sh antigo ignora as variáveis de QA e mexeria no site de produção.
-          ssh -i ~/.ssh/id_deploy "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'grep -q STORYVERSE_WEB_DIR /home/deploy/storyverse/deploy/publish.sh' \
-            || { echo "::error::publish.sh da VPS não suporta QA; atualize-o antes (docs/QA.md)."; exit 1; }
+          printf '%s\n' "$QA_SSH_KEY" > ~/.ssh/id_qa
+          chmod 600 ~/.ssh/id_qa
+          printf '%s\n' "$QA_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
       - name: Enviar o build para a VPS
         run: |
+          # Com a chave restrita, "/" é a pasta _incoming-qa (rrsync); o caminho completo criaria
+          # uma subpasta dentro dela.
           rsync -az --delete \
-            -e "ssh -i ~/.ssh/id_deploy" \
+            -e "ssh -i ~/.ssh/id_qa" \
             dist/ \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/deploy/storyverse/_incoming-qa/"
+            "${{ secrets.QA_USER }}@${{ secrets.QA_HOST }}:/"
 
       - name: Publicar no QA (troca a versão e confere)
         run: |
-          ssh -i ~/.ssh/id_deploy \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'STORYVERSE_WEB_DIR=/home/deploy/storyverse/web/qa STORYVERSE_INCOMING=/home/deploy/storyverse/_incoming-qa STORYVERSE_URL=https://qa.storyverse.2.29.42.104.sslip.io bash /home/deploy/storyverse/deploy/publish.sh'
+          ssh -i ~/.ssh/id_qa \
+            "${{ secrets.QA_USER }}@${{ secrets.QA_HOST }}" \
+            'bash /home/deploy/qa-deploy/deploy-web.sh'

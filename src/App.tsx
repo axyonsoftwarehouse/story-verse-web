@@ -2,6 +2,9 @@ import { userStorage } from "./lib/dataOwner";
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useConfirm } from "./components/ConfirmDialog";
+import { ApiHttpError } from "./lib/backend";
+import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
@@ -42,9 +45,37 @@ import {
 import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
-import { findOpenLibraryCover, forgetCover, knownCover, lookupPublication, type PublicationInfo } from "./lib/bookCovers";
+import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers";
+import {
+  catalogBookToEbook,
+  catalogNumericId,
+  fetchCatalogBookText,
+  getCatalogBook,
+  searchCatalog,
+} from "./lib/catalog";
 import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
+import { useAccountFeatures } from "./features/auth/useAccountFeatures";
+import { isStaff } from "./features/admin/adminSections";
+import { BookStatusControl } from "./features/library/BookStatusControl";
+import { FinishBookDialog } from "./features/library/FinishBookDialog";
+import { LibraryPage } from "./features/library/LibraryPage";
+import { hasFeature } from "./lib/accountFeatures";
+import { bookKeyOf, todayInBrazil } from "./lib/library";
+import {
+  recordFinished,
+  recordOpened,
+  recordProgress,
+  shelfAchievementInput,
+  shelfEnabled,
+  shelfEntries,
+  shelfEntry,
+  type LocalShelfEntry,
+} from "./lib/libraryStore";
+import { useFinishPrompt } from "./features/library/useFinishPrompt";
+import { connectShelf } from "./lib/libraryWiring";
+import { BILLING_UI_ENABLED, billingDate, billingStatusLabel, type SubscriptionSnapshot } from "./lib/billing";
+import { BillingBlocked } from "./features/billing/BillingBlocked";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
 import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
@@ -52,7 +83,6 @@ import { pushLayer, removeLayer } from "./lib/backStack";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
-  checkIsAdmin,
   deleteSubmission,
   fetchCommunityText,
   isNewCommunityBook,
@@ -60,11 +90,7 @@ import {
   matchesCommunitySearch,
   newBookLabel,
   normalizeText,
-  reviewSubmission,
-  changeSubmissionCover,
-  rightsLabel,
   RIGHTS_OPTIONS,
-  submissionToEbook,
   submitBook,
   syncSubmissionCovers,
   type Rights,
@@ -106,6 +132,7 @@ import { missYouMessage } from "./lib/readingAmbient";
 import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
 import { cachedPortrait, requestPortrait } from "./lib/portraits";
 import { excerptNearScrollRatio } from "./lib/readingContext";
+import { addSeenBlocks, countWords, type SeenBlock } from "./lib/readingPages";
 import {
   addReadingSeconds,
   GOAL_OPTIONS,
@@ -212,6 +239,7 @@ import {
   resendSignupCode,
   requestPasswordReset,
   resetPasswordWithToken,
+  validateResetToken,
   updateProfileData,
   updatePassword,
   restoreAuthSession,
@@ -2395,13 +2423,6 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Tamanho aproximado em páginas (≈1.800 caracteres por página impressa). */
-function pagesOf(chars: number | null): string {
-  if (!chars) return "";
-  const n = Math.max(1, Math.round(chars / 1800));
-  return `~${n} ${n === 1 ? "página" : "páginas"}`;
-}
-
 const STATUS_LABELS: Record<Submission["status"], string> = {
   pending: "Em análise",
   approved: "Publicado",
@@ -2452,42 +2473,6 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
         ))}
       </ul>
     </section>
-  );
-}
-
-/** Ano a partir do qual a obra quase certamente ainda tem direitos autorais (autor vivo ou morto há < 70 anos). */
-const LIKELY_PROTECTED_AFTER = 1955;
-
-/** Alerta da moderação: obra publicada recentemente (pela Open Library) provavelmente é protegida. */
-function RightsAlert({ title, author, onProtected }: { title: string; author?: string | null; onProtected?: (flag: boolean) => void }) {
-  const [info, setInfo] = useState<PublicationInfo | null | undefined>(undefined);
-  useEffect(() => {
-    let alive = true;
-    void lookupPublication(title, author ?? "").then((r) => {
-      if (!alive) return;
-      setInfo(r);
-      onProtected?.(Boolean(r && r.year > LIKELY_PROTECTED_AFTER));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [title, author]);
-  if (info === undefined) return <p className="rights-alert is-checking">Conferindo a obra na Open Library…</p>;
-  if (!info) return <p className="rights-alert is-unknown">Não encontramos esta obra na Open Library. Confira os direitos antes de aprovar.</p>;
-  const by = info.authors.slice(0, 2).join(", ");
-  if (info.year > LIKELY_PROTECTED_AFTER) {
-    return (
-      <p className="rights-alert is-danger" role="alert">
-        ⚠️ <strong>Possível obra protegida:</strong> “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}. Obras
-        recentes quase sempre têm direitos autorais — só aprove com autorização do autor ou da editora.
-      </p>
-    );
-  }
-  return (
-    <p className="rights-alert is-ok">
-      “{info.title}”{by ? `, de ${by},` : ""} foi publicada em {info.year}: pode ser domínio público (confira a data de
-      morte do autor: mais de 70 anos).
-    </p>
   );
 }
 
@@ -2644,7 +2629,7 @@ function DailySpinModal({
   }
 
   return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
+    <div className="about-backdrop spin-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
       <section className="spin-dialog" role="dialog" aria-modal="true" aria-labelledby="spin-title">
         <button type="button" className="auth-close spin-close" onClick={onClose} disabled={phase === "spinning"} aria-label="Fechar roleta">
           {Icon.close}
@@ -3460,240 +3445,6 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-/** Moderação (só admin): aprovar ou recusar envios e tirar livros do acervo. */
-function ModerationPage({
-  session,
-  onClose,
-  onRead,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onRead: (book: Ebook) => void;
-}) {
-  const [tab, setTab] = useState<"pending" | "approved">("pending");
-  const [pending, setPending] = useState<Submission[] | null>(null);
-  const [approved, setApproved] = useState<Submission[] | null>(null);
-  const [error, setError] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [rejecting, setRejecting] = useState<{ id: string; note: string } | null>(null);
-  const [coverBusyId, setCoverBusyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-    Promise.all([listSubmissions(session, "pending"), listSubmissions(session, "approved")])
-      .then(([p, a]) => {
-        setPending(p);
-        setApproved(a);
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar os envios."));
-  }, [session]);
-
-  /** Envios que a Open Library indica como obra recente (provavelmente protegida). */
-  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
-  /** Autorização confirmada pelo admin para aprovar mesmo assim. */
-  const [authorized, setAuthorized] = useState<Record<string, boolean>>({});
-
-  async function approve(s: Submission) {
-    if (flagged[s.id] && !authorized[s.id]) {
-      return setError("Obra provavelmente protegida: confirme que tem autorização do autor ou da editora antes de aprovar.");
-    }
-    setBusyId(s.id);
-    setError("");
-    try {
-      // Capa encontrada agora fica gravada no livro (não precisa buscar ao mostrar).
-      const cover = s.cover_url ?? (await findOpenLibraryCover(s.title, s.author ?? "", s.language).catch(() => undefined));
-      const updated = await reviewSubmission(session, s.id, "approved", undefined, cover ?? null);
-      setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
-      setApproved((list) => [updated, ...(list ?? [])]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível aprovar.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function reject(s: Submission, note: string) {
-    if (!note.trim()) return setError("Escreva o motivo da recusa: quem enviou vai ver.");
-    setBusyId(s.id);
-    setError("");
-    try {
-      await reviewSubmission(session, s.id, "rejected", note);
-      setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
-      setRejecting(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível recusar.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  /** Troca a capa por uma imagem do aparelho (mesmo recorte 400×600 da importação). */
-  async function changeCover(s: Submission, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setCoverBusyId(s.id);
-    setError("");
-    try {
-      const updated = await changeSubmissionCover(session, s, await prepareImage(file, "book"));
-      const swap = (list: Submission[] | null) => list?.map((x) => (x.id === s.id ? updated : x)) ?? null;
-      setPending(swap);
-      setApproved(swap);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível trocar a capa.");
-    } finally {
-      setCoverBusyId(null);
-    }
-  }
-
-  async function remove(s: Submission) {
-    if (!window.confirm(`Tirar “${s.title}” do acervo? O arquivo também será apagado.`)) return;
-    setBusyId(s.id);
-    setError("");
-    try {
-      await deleteSubmission(session, s);
-      setApproved((list) => list?.filter((x) => x.id !== s.id) ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível remover.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  const list = tab === "pending" ? pending : approved;
-  return (
-    <div className="home profile moderation">
-      <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
-          {Icon.back} Voltar
-        </button>
-      </nav>
-      <header className="moderation-head">
-        <span className="eyebrow">Admin</span>
-        <h1>Moderação do acervo</h1>
-        <p>
-          Aprove só o que pode ser distribuído: domínio público, obra do próprio autor ou licença livre. Na dúvida,
-          recuse.
-        </p>
-      </header>
-
-      <div className="segmented moderation-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === "pending"} className={tab === "pending" ? "is-on" : ""} onClick={() => setTab("pending")}>
-          Em análise{pending ? ` (${pending.length})` : ""}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "approved"} className={tab === "approved" ? "is-on" : ""} onClick={() => setTab("approved")}>
-          Publicados{approved ? ` (${approved.length})` : ""}
-        </button>
-      </div>
-
-      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
-
-      {list === null && !error ? (
-        <div className="page-status">
-          <span className="spinner" aria-hidden="true" />
-          Carregando envios…
-        </div>
-      ) : list && list.length === 0 ? (
-        <p className="profile-empty moderation-empty">
-          {tab === "pending" ? "Nenhum envio esperando análise. 🎉" : "Nenhum livro publicado ainda."}
-        </p>
-      ) : (
-        <ul className="submission-list">
-          {list?.map((s) => (
-            <li key={s.id} className="profile-card moderation-item">
-              <div className="moderation-body">
-                <div className="moderation-cover">
-                  <BookCover book={submissionToEbook(s)} />
-                  <label className={`btn moderation-cover-btn ${coverBusyId === s.id ? "is-disabled" : ""}`}>
-                    {Icon.camera}
-                    {coverBusyId === s.id ? "Enviando…" : "Trocar capa"}
-                    <input type="file" accept="image/*" onChange={(e) => void changeCover(s, e)} disabled={coverBusyId === s.id} />
-                  </label>
-                </div>
-                <div className="submission-main">
-                  <strong>{s.title}</strong>
-                  <span>
-                    {s.author || "Autor não informado"} · {s.language === "en" ? "Inglês" : "Português"}
-                    {s.char_count ? ` · ${pagesOf(s.char_count)}` : ""}
-                  </span>
-                  <span>
-                    Enviado por {s.submitter_name || "leitor"} em {formatDate(s.created_at)}
-                    {s.reviewed_at && tab === "approved" ? ` · publicado em ${formatDate(s.reviewed_at)}` : ""}
-                  </span>
-                  <p className="moderation-rights">
-                    <strong>{rightsLabel(s.rights)}</strong>
-                    {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
-                  </p>
-                  <RightsAlert title={s.title} author={s.author} onProtected={(flag) => setFlagged((m) => ({ ...m, [s.id]: flag }))} />
-                  {tab === "pending" && flagged[s.id] ? (
-                    <label className="rights-confirm">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(authorized[s.id])}
-                        onChange={(e) => setAuthorized((m) => ({ ...m, [s.id]: e.target.checked }))}
-                      />
-                      <span>
-                        Tenho autorização por escrito do autor ou da editora para distribuir esta obra no Storyverse.
-                      </span>
-                    </label>
-                  ) : null}
-                  {s.characters ? <p className="submission-note">Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}</p> : null}
-                </div>
-              </div>
-
-              {rejecting?.id === s.id ? (
-                <div className="moderation-reject">
-                  <textarea
-                    value={rejecting.note}
-                    onChange={(e) => setRejecting({ id: s.id, note: e.target.value })}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Motivo (quem enviou vai ver). Ex.: obra ainda tem direitos autorais."
-                    autoFocus
-                  />
-                  <div className="moderation-actions">
-                    <button type="button" className="btn" onClick={() => setRejecting(null)} disabled={busyId === s.id}>
-                      Cancelar
-                    </button>
-                    <button type="button" className="btn profile-logout" onClick={() => void reject(s, rejecting.note)} disabled={busyId === s.id}>
-                      {busyId === s.id ? "Recusando…" : "Recusar envio"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="moderation-actions">
-                  <button type="button" className="btn" onClick={() => onRead(submissionToEbook(s))}>
-                    {Icon.book} Ler
-                  </button>
-                  {tab === "pending" ? (
-                    <>
-                      <button type="button" className="btn profile-logout" onClick={() => setRejecting({ id: s.id, note: "" })} disabled={busyId === s.id}>
-                        Recusar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => void approve(s)}
-                        disabled={busyId === s.id || (flagged[s.id] && !authorized[s.id])}
-                        title={flagged[s.id] && !authorized[s.id] ? "Confirme a autorização para aprovar" : undefined}
-                      >
-                        {busyId === s.id ? "Aprovando…" : "Aprovar"}
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" className="btn profile-logout" onClick={() => void remove(s)} disabled={busyId === s.id}>
-                      {busyId === s.id ? "Removendo…" : "Tirar do acervo"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 /**
  * Enquanto `open`, o botão voltar do celular fecha esta tela/janela (chama `close`) em vez de
@@ -3727,6 +3478,19 @@ function usePresenceCount(room: string | null, who: string | undefined): number 
 }
 
 /** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
+/** Números da estante para as conquistas (`null` sem a estante: as conquistas dela não aparecem). */
+function shelfAchievements() {
+  return shelfEnabled() ? shelfAchievementInput(shelfEntries(), Number(todayInBrazil().slice(0, 4))) : null;
+}
+
+/** Status e nota deste livro na estante, para o chat (só com a estante ligada). */
+function shelfContextFor(book: Ebook) {
+  if (!shelfEnabled()) return undefined;
+  const key = bookKeyOf(book);
+  const entry = key ? shelfEntry(key) : null;
+  return entry ? { status: entry.status, rating: entry.rating } : undefined;
+}
+
 /** Conquistas da conta agora (sem presentes: esses dependem do servidor e só contam no perfil). */
 function currentAchievements(): Achievement[] {
   const talks = characterTalks();
@@ -3740,6 +3504,7 @@ function currentAchievements(): Achievement[] {
     messagesSent: talks.reduce((n, t) => n + t.sent, 0),
     charactersTalked: talks.length,
     giftsReceived: null,
+    shelf: shelfAchievements(),
   });
 }
 
@@ -3895,6 +3660,43 @@ function welcomeCallLine(hasCharacter: boolean, pick: number, d = new Date()): s
  * foto) até chegar o balão chamando de volta. A capa daqui é a que cresce e abre ao tocar em
  * "Continuar lendo".
  */
+/**
+ * Situação da assinatura em destaque na tela inicial, com o atalho para "Minha assinatura".
+ * Quem está sem acesso nem chega aqui (vê a tela de bloqueio), então só sobram estes casos.
+ */
+function PlanCard({ status }: { status: SubscriptionSnapshot }) {
+  const until = billingDate(status.accessUntil);
+  const view =
+    status.status === "past_due"
+      ? { tone: "is-warning", icon: "⚠️", title: "Pagamento pendente", sub: "Atualize o cartão para não perder o acesso.", cta: "Resolver agora" }
+      : status.status === "trialing"
+        ? { tone: "is-trial", icon: "✨", title: "Você está no teste grátis", sub: `Acesso liberado até ${until}.`, cta: "Ver assinatura" }
+        : status.status === "grant" || status.status === "staff"
+          ? { tone: "", icon: "🎁", title: billingStatusLabel(status.status), sub: "Seu acesso foi liberado pela equipe.", cta: "Ver detalhes" }
+          : {
+              tone: "",
+              icon: "👑",
+              title: `Assinante ${status.plan || "Storyverse"}`,
+              sub: status.cancelAtPeriodEnd ? `Cancelada: acesso até ${until}.` : `Renova em ${until}.`,
+              cta: "Minha assinatura",
+            };
+  return (
+    <Link className={`plan-card ${view.tone}`} to="/conta/assinatura">
+      <span className="plan-card-icon" aria-hidden="true">
+        {view.icon}
+      </span>
+      <span className="plan-card-text">
+        <strong>{view.title}</strong>
+        <span>{view.sub}</span>
+      </span>
+      <span className="plan-card-cta">
+        {view.cta}
+        {Icon.next}
+      </span>
+    </Link>
+  );
+}
+
 function WelcomeCall({ book, onOpen }: { book: Ebook; onOpen: () => void }) {
   const character = useMemo(() => {
     const cast = knownCast(book);
@@ -4023,7 +3825,26 @@ function FeaturedRow({
   );
 }
 
-/** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
+/** Card do perfil que leva à "Minha estante", com os totais. */
+function ShelfSummary({ onOpen }: { onOpen: () => void }) {
+  const entries = shelfEntries();
+  const finished = entries.filter((e) => e.status === "finished").length;
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h2>Minha estante</h2>
+        <p>
+          {entries.length === 1 ? "1 livro" : `${entries.length} livros`} ·{" "}
+          {finished === 1 ? "1 terminado" : `${finished} terminados`}
+        </p>
+      </div>
+      <button type="button" className="btn" onClick={onOpen}>
+        Abrir minha estante
+      </button>
+    </section>
+  );
+}
+
 /**
  * Aviso curto de privacidade nas telas de conversa e busca: o que acontece com o que a pessoa
  * digita, com o detalhe a um toque. A lista completa fica na Central de Privacidade (Ajustes).
@@ -4119,6 +3940,7 @@ function PrivacyCenter() {
   );
 }
 
+/** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
 function ProfileShelf({
   title,
   subtitle,
@@ -4126,6 +3948,7 @@ function ProfileShelf({
   className,
   items,
   empty,
+  action,
   onOpen,
 }: {
   title: string;
@@ -4134,6 +3957,8 @@ function ProfileShelf({
   className?: string;
   items: { book: Ebook; sub: string; pct?: number; badge?: string }[];
   empty?: string;
+  /** Link/ação extra no rodapé da estante (ex.: "Ver a biblioteca"). */
+  action?: React.ReactNode;
   onOpen: (book: Ebook) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
@@ -4147,7 +3972,12 @@ function ProfileShelf({
         {subtitle ? <p>{subtitle}</p> : null}
       </div>
       {items.length === 0 ? (
-        <p className="profile-empty">{empty}</p>
+        <p className="profile-empty profile-empty-card">
+          <span className="profile-empty-icon" aria-hidden="true">
+            {Icon.book}
+          </span>
+          <span>{empty}</span>
+        </p>
       ) : (
         <div className="result-grid">
           {shown.map(({ book, sub, pct, badge }) => (
@@ -4172,6 +4002,7 @@ function ProfileShelf({
           </button>
         </div>
       ) : null}
+      {action ? <div className="shelf-more">{action}</div> : null}
     </section>
   );
 }
@@ -4193,9 +4024,10 @@ function ProfilePage({
   setPrefs,
   lastBook,
   isAvailable,
-  isAdmin,
-  onOpenModeration,
+  isStaff,
+  canModerate,
   onOpenShop,
+  onOpenShelf,
 }: {
   session: SupabaseSession;
   onSessionChange: (session: SupabaseSession) => void;
@@ -4210,9 +4042,11 @@ function ProfilePage({
   lastBook?: LastBook;
   /** Livro ainda existe para esta conta (ver `bookAvailable`). */
   isAvailable: (book: Ebook) => boolean;
-  isAdmin?: boolean;
-  onOpenModeration?: () => void;
+  isStaff?: boolean;
+  canModerate?: boolean;
   onOpenShop: () => void;
+  /** Abre "Minha estante"; ausente quando a conta não tem a estante. */
+  onOpenShelf?: () => void;
 }) {
   const user = session.user;
   const [diamonds, setDiamonds] = useState<number | null>(null);
@@ -4224,7 +4058,7 @@ function ProfilePage({
     fetchWallet(session)
       .then((w) => alive && setDiamonds(w.balance))
       .catch(() => {
-        // Sem a loja no Supabase ou sem internet: o botão mostra só "Loja".
+        // Sem a loja no Supabase ou sem internet: o botão mostra "–" no lugar do saldo.
       });
     Promise.all([fetchGiftSummary(session), fetchReceivedGifts(session, 6)])
       .then(([summary, gifts]) => {
@@ -4241,6 +4075,20 @@ function ProfilePage({
   }, [session]);
   const name = displayNameOf(user);
   const since = memberSince(user.created_at);
+  const { confirm, dialog } = useConfirm();
+
+  async function askLogout() {
+    if (
+      await confirm({
+        title: "Sair da conta?",
+        message: "Você precisará entrar de novo para continuar lendo neste aparelho.",
+        confirmLabel: "Sair",
+        danger: true,
+      })
+    ) {
+      onLogout();
+    }
+  }
 
   const [summary, setSummary] = useState(readingSummary);
   const totals = useMemo(readingTotals, []);
@@ -4360,6 +4208,7 @@ function ProfilePage({
         messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
         charactersTalked: allTalks.length,
         giftsReceived: giftSummary?.received_total ?? null,
+        shelf: shelfAchievements(),
       }),
     [totals, finished.length, markCount, allTalks, giftSummary],
   );
@@ -4500,7 +4349,7 @@ function ProfilePage({
         <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
           <span aria-hidden="true">💎</span>{" "}
           <strong className={`count-up ${shownDiamonds !== null && shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
-          <span className="sr-only"> diamantes</span> · Loja
+          <span className="sr-only"> diamantes. Abrir a loja</span>
         </button>
         </span>
       </nav>
@@ -4571,8 +4420,11 @@ function ProfilePage({
           <p>Com quem você mais conversou nos livros.</p>
         </div>
         {talks.length === 0 ? (
-          <p className="profile-empty">
-            Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.
+          <p className="profile-empty profile-empty-card">
+            <span className="profile-empty-icon" aria-hidden="true">
+              💬
+            </span>
+            <span>Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.</span>
           </p>
         ) : (
           <ol className="talk-grid">
@@ -4650,6 +4502,8 @@ function ProfilePage({
         </ol>
       </section>
 
+      {onOpenShelf ? <ShelfSummary onOpen={onOpenShelf} /> : null}
+
       <ProfileShelf
         title="Lendo agora"
         empty="Nenhum livro começado ainda."
@@ -4710,8 +4564,11 @@ function ProfilePage({
             ))}
           </ul>
         ) : (
-          <p className="profile-empty">
-            Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.
+          <p className="profile-empty profile-empty-card">
+            <span className="profile-empty-icon" aria-hidden="true">
+              🎁
+            </span>
+            <span>Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.</span>
           </p>
         )}
       </section>
@@ -4722,8 +4579,14 @@ function ProfilePage({
           <p>Os trechos que você destacou, de todos os livros.</p>
         </div>
         {marks.length === 0 ? (
-          <p className="profile-empty">
-            Selecione um trecho durante a leitura e toque em <strong>Marcar</strong> para guardar aqui.
+          <p className="profile-empty profile-empty-card">
+            <span className="profile-empty-icon" aria-hidden="true">
+              {Icon.highlight}
+            </span>
+            <span>
+              <strong>Nenhum trecho marcado ainda.</strong> Durante a leitura, selecione um trecho e toque em{" "}
+              <strong>Marcar</strong>: ele fica guardado aqui.
+            </span>
           </p>
         ) : (
           <div className="profile-marks">
@@ -4824,20 +4687,27 @@ function ProfilePage({
         </div>
       </section>
 
-      {isAdmin ? (
+      {isStaff ? (
         <section className="shelf">
           <div className="shelf-head">
             <h2>Admin</h2>
           </div>
-          <div className="profile-card profile-admin">
+          <a className="profile-card profile-admin admin-entry" href="/admin">
             <div>
-              <strong>Moderação do acervo</strong>
-              <span>Aprove ou recuse os livros que os leitores sugeriram.</span>
+              <strong>Painel administrativo</strong>
+              <span>Visão geral, contas, moderação e auditoria.</span>
             </div>
-            <button type="button" className="btn btn-primary" onClick={onOpenModeration}>
-              Abrir moderação
-            </button>
-          </div>
+            <span className="btn btn-primary">Abrir painel</span>
+          </a>
+          {canModerate ? (
+            <a className="profile-card profile-admin admin-entry" href="/admin/acervo">
+              <div>
+                <strong>Acervo</strong>
+                <span>Cadastre, publique e modere os livros do catálogo.</span>
+              </div>
+              <span className="btn">Abrir acervo</span>
+            </a>
+          ) : null}
         </section>
       ) : null}
 
@@ -4896,7 +4766,7 @@ function ProfilePage({
               <span className="profile-account-label">Sessão</span>
               <strong>Conectado neste aparelho</strong>
             </div>
-            <button type="button" className="btn profile-logout" onClick={onLogout} disabled={loggingOut}>
+            <button type="button" className="btn profile-logout" onClick={() => void askLogout()} disabled={loggingOut}>
               {loggingOut ? "Saindo…" : "Sair da conta"}
             </button>
           </div>
@@ -4973,6 +4843,7 @@ function ProfilePage({
           <span>✓ Alterações salvas</span>
         </div>
       ) : null}
+      {dialog}
     </div>
   );
 }
@@ -5225,7 +5096,6 @@ function bookAvailable(b: Ebook, known: { localIds: Set<number> | null; communit
   if (b.source === "community") return known.communityIds?.has(b.id) ?? true;
   return true;
 }
-
 /** Livros começados, para retomar do ponto onde o leitor parou: os 4 mais recentes e "Ver todos". */
 function ContinueReading({
   items,
@@ -5254,9 +5124,10 @@ function ContinueReading({
       {undo ? (
         <div className="continue-undo" role="status">
           <span>
-            “{undo.book.title}” saiu de Continue lendo.
+            <strong>{undo.book.title}</strong> saiu da lista
           </span>
-          <button type="button" className="inline-link" onClick={onUndo}>
+          <button type="button" className="btn continue-undo-btn" onClick={onUndo}>
+            {Icon.refresh}
             Desfazer
           </button>
         </div>
@@ -5450,7 +5321,11 @@ function AuthModal({
         onAuthenticated(await signInWithPassword(normalizedEmail, password));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível concluir a autenticação.");
+      if (err instanceof ApiHttpError && err.code === "ACCOUNT_SANCTIONED") {
+        setError(sanctionMessage(err.body));
+      } else {
+        setError(err instanceof Error ? err.message : "Não foi possível concluir a autenticação.");
+      }
     } finally {
       setLoading(false);
     }
@@ -5600,15 +5475,30 @@ function NewPasswordModal({
   session,
   token,
   onDone,
+  onCancel,
 }: {
   session?: SupabaseSession;
   token?: string;
   onDone: (message: string) => void;
+  onCancel?: () => void;
 }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  /** O link do e-mail é conferido antes de pedir a senha: não adianta digitar se ele já venceu. */
+  const [link, setLink] = useState<"checking" | "valid" | "expired">(token ? "checking" : "valid");
+
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    void validateResetToken(token).then((valid) => {
+      if (alive) setLink(valid ? "valid" : "expired");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -5630,6 +5520,28 @@ function NewPasswordModal({
     } finally {
       setLoading(false);
     }
+  }
+
+  if (link !== "valid") {
+    const expired = link === "expired";
+    return (
+      <div className="auth-backdrop" role="presentation">
+        <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
+          <span className="eyebrow">Storyverse</span>
+          <h2 id="new-password-title">{expired ? "Link inválido ou expirado" : "Conferindo o link…"}</h2>
+          <p className="auth-subtitle">
+            {expired
+              ? "Este link de recuperação já foi usado ou passou do prazo. Peça um novo em “Esqueci minha senha”."
+              : "Só um instante enquanto confirmamos o seu link."}
+          </p>
+          {expired && onCancel ? (
+            <button type="button" className="btn btn-primary btn-lg" onClick={onCancel}>
+              Voltar para o login
+            </button>
+          ) : null}
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -5931,6 +5843,7 @@ export function App() {
   useEffect(() => () => releaseSplash(), []);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<{ text: string; ok?: boolean } | null>(null);
+  const [sanctionNotice, setSanctionNotice] = useState<string | null>(null);
   const authUser: SupabaseUser | null = authSession?.user ?? null;
   const [readyOwner, setReadyOwner] = useState<string | null>(null);
   const [ownerError, setOwnerError] = useState<string | null>(null);
@@ -5940,17 +5853,41 @@ export function App() {
   const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [moderationOpen, setModerationOpen] = useState(false);
   const [rankingOpen, setRankingOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  /** Estante (biblioteca pessoal): só para contas com a feature `library`. */
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [shelfPanelOpen, setShelfPanelOpen] = useState(false);
+  const { capabilities } = useAccountFeatures(authSession);
+  const subscription = capabilities?.subscription;
+  const authScreen =
+    window.location.pathname === "/confirmar-email" || window.location.pathname === "/redefinir-senha";
+  const billingBlocked =
+    BILLING_UI_ENABLED && !authScreen && Boolean(authUser) && subscription !== undefined && !subscription.active;
+  /** Voltou do login pedindo /assinar ou /conta/assinatura: continua de onde parou. */
+  useEffect(() => {
+    if (!authUser) return;
+    const retorno = new URLSearchParams(window.location.search).get("retorno");
+    if (retorno === "/assinar" || retorno === "/conta/assinatura") {
+      window.location.assign(retorno);
+    }
+  }, [authUser]);
+  const shelfOn = hasFeature(capabilities, "library");
+  const canModerate = (capabilities?.roles ?? []).some(
+    (role) => role === "superadmin" || role === "moderator",
+  );
+  const staffOn = isStaff(capabilities?.roles ?? []);
+  // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
+  useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
   const [freezeOutcome, setFreezeOutcome] = useState<FreezeOutcome | null>(null);
   const [freezeBusy, setFreezeBusy] = useState(false);
   /** Roleta diária aberta (sozinha na primeira visita do dia, se ainda não girou). */
   const [spinOpen, setSpinOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [communityBooks, setCommunityBooks] = useState<Ebook[]>([]);
   const [communityTick, setCommunityTick] = useState(0);
+  /** Novidades do catálogo público (a biblioteca completa fica em /biblioteca). */
+  const [catalogNew, setCatalogNew] = useState<Ebook[]>([]);
   /** Aberto pelo perfil numa marcação: o livro abre direto nesse trecho. */
   const openAtRef = useRef<{ bookId: string; chapterIndex: number; chapterLabel: string; paragraph: number } | null>(null);
 
@@ -6057,16 +5994,6 @@ export function App() {
   }, []);
 
   const authUserId = authSession?.user.id;
-  useEffect(() => {
-    if (!authSession) return setIsAdmin(false);
-    let alive = true;
-    void checkIsAdmin(authSession).then((ok) => alive && setIsAdmin(ok));
-    return () => {
-      alive = false;
-    };
-    // Só quando troca de usuário (não a cada renovação do token).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUserId]);
 
   /**
    * Cada conta com os próprios dados de leitura neste aparelho: ao trocar de conta (ou sair), troca
@@ -6180,6 +6107,7 @@ export function App() {
     if (!authSession || authActionLoading) return;
     setAuthActionLoading(true);
     setAuthNotice(null);
+    setSanctionNotice(null);
     try {
       // Antes de sair, guarda na nuvem o que ainda não foi enviado.
       await syncNow(authSession).catch(() => {});
@@ -6190,7 +6118,6 @@ export function App() {
       setAuthSession(null);
       setAuthActionLoading(false);
       setProfileOpen(false);
-      setModerationOpen(false);
     }
   }
 
@@ -6345,6 +6272,9 @@ export function App() {
   const jumpToBlockRef = useRef<number | null>(null);
   /** Última interação no leitor: o tempo de leitura só conta com o leitor presente. */
   const lastActivityRef = useRef(Date.now());
+  /** Conta as palavras na tela para as páginas lidas (definida junto dos parágrafos, mais abaixo). */
+  const countVisibleWordsRef = useRef<() => void>(() => {});
+  const scrollIdleRef = useRef<number | undefined>(undefined);
 
   const [prefs, setPrefs] = useState(loadPrefs);
   /** Ajustes de leitura no celular: fonte, tema, luz noturna e tela cheia. */
@@ -6362,7 +6292,7 @@ export function App() {
   /** Página inicial: estantes entram ao aparecer na tela; a barra do topo encolhe ao rolar. */
   const homeRef = useRef<HTMLDivElement>(null);
   useEffect(() => installCoverTilt(), []);
-  useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length]);
+  useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length, catalogNew.length]);
   const [navScrolled, setNavScrolled] = useState(false);
   useEffect(() => {
     if (book) return;
@@ -6392,15 +6322,39 @@ export function App() {
       alive = false;
     };
   }, [book, authUserId, communityTick]);
+  /** Novidades da biblioteca pública: metadados abertos, sem sessão. */
+  useEffect(() => {
+    if (book) return;
+    let alive = true;
+    void searchCatalog({ sort: "new", limit: 6 })
+      .then((page) => {
+        if (!alive) return;
+        // Os envios da comunidade já têm a estante "Novidades" deles; aqui ficam os curados.
+        setCatalogNew(
+          page.items.filter((item) => item.book_key.startsWith("cat:")).map(catalogBookToEbook),
+        );
+      })
+      .catch(() => {
+        if (alive) setCatalogNew([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [book, homeTick]);
   /** Livros importados que estão neste aparelho (`null`: ainda lendo do navegador). */
   const [localIds, setLocalIds] = useState<Set<number> | null>(null);
+  const [localBookList, setLocalBookList] = useState<Ebook[]>([]);
   useEffect(() => {
     // O livro aberto agora existe: ao voltar para o início ele não some nem por um instante.
     if (book && isLocalBook(book)) setLocalIds((prev) => (prev?.has(book.gutenbergId) ? prev : new Set([...(prev ?? []), book.gutenbergId])));
     if (book) return;
     let alive = true;
     void listLocalBooks()
-      .then((list) => alive && setLocalIds(new Set(list.map((b) => b.gutenbergId))))
+      .then((list) => {
+        if (!alive) return;
+        setLocalIds(new Set(list.map((b) => b.gutenbergId)));
+        setLocalBookList(list);
+      })
       .catch(() => alive && setLocalIds(new Set()));
     return () => {
       alive = false;
@@ -6410,6 +6364,56 @@ export function App() {
     (b: Ebook) => bookAvailable(b, { localIds, communityIds }),
     [localIds, communityIds],
   );
+  /** Estante: o livro da entrada ainda abre aqui? (mesma regra de bookAvailable, pela chave) */
+  const shelfAvailable = useCallback(
+    (bookKey: string) => {
+      if (bookKey.startsWith("local:")) return localIds?.has(Number(bookKey.slice(6))) ?? false;
+      if (bookKey.startsWith("cm:")) return communityIds?.has(`cm-${bookKey.slice(3)}`) ?? true;
+      return true;
+    },
+    [localIds, communityIds],
+  );
+  /** Estante: o Ebook completo da entrada (os conhecidos aqui ou um do Gutenberg montado da entrada). */
+  const shelfBookFor = useCallback(
+    (entry: LocalShelfEntry): Ebook => {
+      const known = [
+        ...localBookList,
+        ...communityBooks,
+        ...recentProgress().map((p) => p.book),
+        ...finishedBooks().map((f) => f.book),
+      ].find((b) => bookKeyOf(b) === entry.bookKey);
+      if (known) return known;
+      if (entry.bookKey.startsWith("cat:")) {
+        const uuid = entry.bookKey.slice(4);
+        return {
+          id: `cat-${uuid}`,
+          gutenbergId: catalogNumericId(entry.bookKey),
+          title: entry.title,
+          author: entry.author ?? "",
+          genre: entry.genre ?? undefined,
+          coverUrl: entry.coverUrl ?? undefined,
+          textLanguage: entry.language ?? "pt",
+          source: "catalog",
+          catalogKey: entry.bookKey,
+        };
+      }
+      const id = entry.bookKey.slice(entry.bookKey.indexOf(":") + 1);
+      return {
+        id: entry.bookKey.replace(":", "-"),
+        gutenbergId: Number(id) || 0,
+        title: entry.title,
+        author: entry.author ?? "",
+        genre: entry.genre ?? undefined,
+        coverUrl: entry.coverUrl ?? undefined,
+        textLanguage: entry.language ?? "pt",
+        source: entry.source,
+      };
+    },
+    [localBookList, communityBooks],
+  );
+  /** Nota/resenha do livro terminado: abre quando a comemoração some (toque ou timer). */
+  const finishPrompt = useFinishPrompt(celebration !== null);
+  const queueFinishPrompt = finishPrompt.queue;
   /** Capas do acervo iguais às de "Seus livros" (envios antigos ficaram com a da Open Library). */
   useEffect(() => {
     const session = authSessionRef.current;
@@ -6497,7 +6501,9 @@ export function App() {
       ? loadLocalBookText(book.gutenbergId)
       : book.source === "community" && book.communityPath
         ? fetchCommunityText(authSessionRef.current, book.communityPath)
-        : fetchBookText(book.gutenbergId))
+        : book.source === "catalog" && book.catalogKey
+          ? fetchCatalogBookText(authSessionRef.current, book.catalogKey)
+          : fetchBookText(book.gutenbergId))
       .then((text) => {
         if (cancelled) return;
         const saved = loadProgress(book.gutenbergId);
@@ -6570,6 +6576,9 @@ export function App() {
     lastActivityRef.current = Date.now();
     setSelection(null);
     setWordCard(null);
+    // Páginas lidas: conta o que está na tela quando a rolagem para por 1 s.
+    window.clearTimeout(scrollIdleRef.current);
+    scrollIdleRef.current = window.setTimeout(() => countVisibleWordsRef.current(), 1000);
     const max = el.scrollHeight - el.clientHeight;
     const r = max <= 0 ? 0 : el.scrollTop / max;
     setScrollRatio(r);
@@ -6596,6 +6605,12 @@ export function App() {
       setAuthModal("login");
       return;
     }
+    // O texto do catálogo exige sessão mesmo quando o login é opcional para o resto do app.
+    if (b.source === "catalog" && !authUser) {
+      setAuthModal("login");
+      return;
+    }
+    recordOpened(b);
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
@@ -6608,7 +6623,37 @@ export function App() {
       setChatOpen(false);
       window.scrollTo({ top: 0 });
     });
-  }, [authLoading, canRead]);
+  }, [authLoading, authUser, canRead]);
+
+  /**
+   * Link direto para um livro da biblioteca (`/?abrir=cat:<uuid>`). Se a pessoa ainda não entrou,
+   * abre o login e tenta de novo quando a sessão chegar; o parâmetro fica na URL até abrir.
+   */
+  const openedFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (openedFromUrlRef.current || authLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("abrir");
+    if (!key || !/^cat:[0-9a-fA-F-]{36}$/.test(key)) return;
+    if (!canRead || !authUser) {
+      setAuthModal("login");
+      return;
+    }
+    openedFromUrlRef.current = true;
+    const chat = params.get("chat") === "1";
+    getCatalogBook(key)
+      .then((loaded) => {
+        window.history.replaceState({}, "", window.location.pathname);
+        startBook(catalogBookToEbook(loaded));
+        if (chat) setChatOpen(true);
+      })
+      .catch((err: unknown) => {
+        openedFromUrlRef.current = false;
+        setAuthNotice({
+          text: err instanceof Error ? err.message : "Não foi possível abrir o livro.",
+        });
+      });
+  }, [authLoading, authUser, canRead, startBook]);
 
   const requestImport = useCallback(
     (hint: BookHint | Record<string, never> = {}) => {
@@ -6741,7 +6786,10 @@ export function App() {
     const t = window.setInterval(() => {
       const active = Date.now() - lastActivityRef.current < 120_000 || speechRef.current !== null;
       const reading = document.visibilityState === "visible" && active;
-      if (reading) celebrate(addReadingSeconds(TICK));
+      if (reading) {
+        celebrate(addReadingSeconds(TICK));
+        countVisibleWordsRef.current();
+      }
       if (session && authSessionRef.current?.user.id === session.user.id)
         void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
     }, TICK * 1000);
@@ -6842,20 +6890,21 @@ export function App() {
     // Abrir e fechar um livro sem ler nada não o coloca em “Continue lendo”.
     if (chapterIndex === 0 && scrollRatio < 0.02 && !loadProgress(book.gutenbergId)) return;
     const owner = currentDataOwner();
-    const t = setTimeout(
-      () =>
-        saveProgress(
-          {
-            book,
-            chapterIndex,
-            chapterLabel: currentChapter.label,
-            chapterCount: chapters.length,
-            scrollRatio,
-          },
-          owner,
-        ),
-      300,
-    );
+    const t = setTimeout(() => {
+      saveProgress(
+        {
+          book,
+          chapterIndex,
+          chapterLabel: currentChapter.label,
+          chapterCount: chapters.length,
+          scrollRatio,
+        },
+        owner,
+      );
+      if (owner === currentDataOwner()) {
+        recordProgress(book, ((chapterIndex + scrollRatio) / Math.max(1, chapters.length)) * 100, currentChapter.label);
+      }
+    }, 300);
     return () => clearTimeout(t);
   }, [book, loadState, chapterIndex, currentChapter, chapters.length, scrollRatio]);
 
@@ -6871,6 +6920,8 @@ export function App() {
     finishedChaptersRef.current.add(key);
     if (chapterIndex >= chapters.length - 1) {
       markBookFinished(book);
+      recordFinished(book);
+      if (shelfEnabled()) queueFinishPrompt(book);
       setCelebration({
         emoji: "🏆",
         title: `Você terminou “${book.title}”!`,
@@ -6881,7 +6932,7 @@ export function App() {
       setChapterDone({ key, label: currentChapter.label, done: chapterIndex + 1, total: chapters.length });
       haptic(20);
     }
-  }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length]);
+  }, [book, loadState, currentChapter, scrollRatio, chapterIndex, chapters.length, queueFinishPrompt]);
 
   const displayedStory = currentChapter?.body ?? "";
 
@@ -6921,6 +6972,31 @@ export function App() {
     () => blocks.findIndex((b) => b.kind === "p" && b.text.length > 80),
     [blocks],
   );
+
+  /**
+   * Páginas lidas (1 página = 250 palavras; a regra completa está em readingPages.ts): soma os
+   * parágrafos que estão pelo menos pela metade na tela, ou que ocupam metade dela.
+   */
+  useEffect(() => {
+    countVisibleWordsRef.current = () => {
+      const el = readRef.current;
+      if (!el || !book || loadState !== "ready" || document.visibilityState !== "visible") return;
+      // Capítulo ainda não posicionado: a tela ainda é a do anterior.
+      if (ratioKeyRef.current !== `${book.gutenbergId}:${chapterIndex}`) return;
+      const view = el.getBoundingClientRect();
+      const seen: SeenBlock[] = [];
+      for (const node of el.querySelectorAll<HTMLElement>("[data-block]")) {
+        const r = node.getBoundingClientRect();
+        const shown = Math.min(r.bottom, view.bottom) - Math.max(r.top, view.top);
+        if (shown <= 0 || (shown < r.height / 2 && shown < view.height / 2)) continue;
+        const i = Number(node.dataset.block);
+        const b = blocks[i];
+        if (b && b.kind !== "image") seen.push({ key: `${book.gutenbergId}:${chapterIndex}:${i}`, words: countWords(b.text) });
+      }
+      addSeenBlocks(seen);
+    };
+  }, [book, loadState, chapterIndex, blocks]);
+  useEffect(() => () => window.clearTimeout(scrollIdleRef.current), []);
 
   /* ---- Tradução dos livros em inglês: trecho a trecho, conforme o leitor avança. ---- */
   const [engine, setEngine] = useState<TranslationEngine>("google");
@@ -7424,6 +7500,7 @@ export function App() {
         textExcerpt,
         readingProgressPct,
         textLanguage: book.textLanguage,
+        shelf: shelfContextFor(book),
       });
       if (!stillCurrent()) return;
       const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
@@ -7470,8 +7547,8 @@ export function App() {
   // Botão voltar do celular: fecha o que estiver aberto por cima, na ordem em que foi aberto.
   useBackClose(Boolean(book), leaveBook);
   useBackClose(profileOpen, () => setProfileOpen(false));
-  useBackClose(moderationOpen, () => setModerationOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
+  useBackClose(libraryOpen, () => setLibraryOpen(false));
   useBackClose(shopOpen, () => setShopOpen(false));
   useBackClose(spinOpen, () => setSpinOpen(false));
   useBackClose(authModal !== null, () => setAuthModal(null));
@@ -7490,6 +7567,10 @@ export function App() {
         <p>Abrindo o Storyverse…</p>
       </main>
     );
+  }
+
+  if (billingBlocked && subscription) {
+    return <BillingBlocked status={subscription} onLogout={() => void logout()} />;
   }
 
   if (!book) {
@@ -7516,18 +7597,6 @@ export function App() {
       const who = talkBook && (top.characterId === "narrador" ? narratorCharacter(talkBook.title) : knownCast(talkBook)?.find((c) => c.id === top.characterId));
       return who && talkBook ? { name: who.name, book: talkBook.title } : undefined;
     })();
-    if (moderationOpen && authSession && isAdmin) {
-      return (
-        <ModerationPage
-          session={authSession}
-          onClose={() => {
-            setModerationOpen(false);
-            setCommunityTick((n) => n + 1);
-          }}
-          onRead={startBook}
-        />
-      );
-    }
     if (shopOpen && authSession) {
       return (
         <DiamondShopPage
@@ -7540,15 +7609,30 @@ export function App() {
         />
       );
     }
+    if (libraryOpen && authSession && shelfOn) {
+      return (
+        <LibraryPage
+          onClose={() => setLibraryOpen(false)}
+          onOpenBook={(b) => {
+            setLibraryOpen(false);
+            setProfileOpen(false);
+            startBook(b);
+          }}
+          available={shelfAvailable}
+          bookFor={shelfBookFor}
+        />
+      );
+    }
     if (rankingOpen && authSession) {
       return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
     }
     if (profileOpen && authSession) {
       return (
         <ProfilePage
-          isAdmin={isAdmin}
-          onOpenModeration={() => setModerationOpen(true)}
+          isStaff={staffOn}
+          canModerate={canModerate}
           onOpenShop={() => setShopOpen(true)}
+          onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
           session={authSession}
           onSessionChange={setAuthSession}
           onClose={() => setProfileOpen(false)}
@@ -7590,6 +7674,7 @@ export function App() {
             onAuthenticated={(session) => {
               setAuthSession(session);
               setAuthNotice(null);
+              setSanctionNotice(session.warning ? warningMessage(session.warning.reason) : null);
               setAuthModal(null);
             }}
           />
@@ -7602,6 +7687,11 @@ export function App() {
               setAuthNotice({ text: message, ok: true });
               if (!authSession) setAuthModal("login");
             }}
+            onCancel={() => {
+              setResetToken(null);
+              setAuthNotice(null);
+              setAuthModal("login");
+            }}
           />
         ) : passwordReset && authSession ? (
           <NewPasswordModal
@@ -7610,6 +7700,7 @@ export function App() {
               setPasswordReset(false);
               setAuthNotice({ text: message, ok: true });
             }}
+            onCancel={() => setPasswordReset(false)}
           />
         ) : null}
         <nav className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""}`}>
@@ -7640,10 +7731,19 @@ export function App() {
                 <span className="nav-install-label">Baixar app</span>
               </button>
             ) : null}
+            <Link className="btn nav-library" to="/biblioteca" aria-label="Abrir a biblioteca pública">
+              <span className="nav-library-long">Biblioteca</span>
+              <span className="nav-library-short">Livros</span>
+            </Link>
             {FORUM_VISIBLE ? (
               <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
                 <span className="nav-community-long">Comunidade</span>
                 <span className="nav-community-short">Fórum</span>
+              </Link>
+            ) : null}
+            {staffOn ? (
+              <Link className="btn nav-admin" to="/admin" aria-label="Abrir painel administrativo">
+                Admin
               </Link>
             ) : null}
             {canRead ? (
@@ -7676,6 +7776,15 @@ export function App() {
           <p className={`auth-global-notice ${authNotice.ok ? "is-ok" : ""}`} role={authNotice.ok ? "status" : "alert"}>
             {authNotice.text}
           </p>
+        ) : null}
+
+        {sanctionNotice ? (
+          <div className="auth-global-notice auth-sanction-notice" role="status">
+            <span>{sanctionNotice}</span>
+            <button type="button" className="btn" onClick={() => setSanctionNotice(null)}>
+              Fechar
+            </button>
+          </div>
         ) : null}
 
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
@@ -7801,6 +7910,7 @@ export function App() {
                 </button>
               ) : null}
             </div>
+            {BILLING_UI_ENABLED && subscription?.active ? <PlanCard status={subscription} /> : null}
           </header>
         ) : (
         <>
@@ -7912,6 +8022,21 @@ export function App() {
         ) : null}
 
         {canRead ? <DailyQuote books={featuredBooks} /> : null}
+
+        {catalogNew.length > 0 ? (
+          <ProfileShelf
+            eyebrow="📚 Biblioteca pública"
+            title="Novidades da biblioteca"
+            subtitle="Livros que acabaram de entrar no catálogo curado."
+            items={catalogNew.map((b) => ({ book: b, sub: b.author }))}
+            onOpen={startBook}
+            action={
+              <Link className="btn" to="/biblioteca">
+                Ver a biblioteca
+              </Link>
+            }
+          />
+        ) : null}
 
         {communityBooks.some(isNewCommunityBook) ? (
           <ProfileShelf
@@ -8031,6 +8156,7 @@ export function App() {
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {finishPrompt.open ? <FinishBookDialog book={finishPrompt.open} onClose={finishPrompt.close} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {bookmarkDrop ? (
@@ -8046,16 +8172,35 @@ export function App() {
         {updateBanner}
 
         <footer className="home-foot">
-          Storyverse · leitura que conversa com você · textos em domínio público do{" "}
-          <a href="https://www.gutenberg.org" target="_blank" rel="noreferrer">
-            Project Gutenberg
-          </a>
-          <span className="home-credit">
+          <div className="foot-brand">
+            <span className="wordmark foot-wordmark">
+              <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
+              Storyverse
+            </span>
+            <p>
+              Leitura que conversa com você. Textos em domínio público do{" "}
+              <a href="https://www.gutenberg.org" target="_blank" rel="noreferrer">
+                Project Gutenberg
+              </a>
+              .
+            </p>
+          </div>
+          <nav className="foot-links" aria-label="Links do rodapé">
+            <button type="button" className="foot-link" onClick={() => setAboutOpen(true)}>
+              Sobre nós
+            </button>
+            <Link className="foot-link" to="/biblioteca">
+              Biblioteca pública
+            </Link>
+            {BILLING_UI_ENABLED && authUser ? (
+              <Link className="foot-link" to="/conta/assinatura">
+                Minha assinatura
+              </Link>
+            ) : null}
+          </nav>
+          <p className="home-credit">
             Desenvolvido por <strong>Axyon Software House</strong>
-          </span>
-          <button type="button" className="footer-about-link" onClick={() => setAboutOpen(true)}>
-            Sobre nós
-          </button>
+          </p>
         </footer>
       </div>
     );
@@ -8176,6 +8321,18 @@ export function App() {
           >
             {Icon.search}
           </button>
+          {shelfOn ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setShelfPanelOpen(true)}
+              aria-label="Na estante"
+              title="Na estante: status, nota e resenha"
+            >
+              {Icon.book}
+            </button>
+          ) : null}
+          {shelfOn && shelfPanelOpen ? <BookStatusControl book={book} onClose={() => setShelfPanelOpen(false)} /> : null}
           <button
             type="button"
             className="icon-btn marks-btn"
@@ -8256,7 +8413,7 @@ export function App() {
                 onClick={() => setReaderSettingsOpen(false)}
                 aria-label="Fechar ajustes"
               >
-                ×
+                {Icon.close}
               </button>
             </div>
             <div className="reader-settings-row">
@@ -8478,6 +8635,10 @@ export function App() {
                   <span className="source-link">Livro importado · {authSession ? "guardado na sua conta" : "guardado só neste aparelho"}</span>
                 ) : book.source === "community" ? (
                   <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
+                ) : book.source === "catalog" && book.catalogKey ? (
+                  <Link className="source-link" to={`/biblioteca/${encodeURIComponent(book.catalogKey)}`}>
+                    Livro da biblioteca pública · ver a ficha do livro
+                  </Link>
                 ) : (
                   <a
                     className="source-link"
@@ -8763,6 +8924,7 @@ export function App() {
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
+        {finishPrompt.open ? <FinishBookDialog book={finishPrompt.open} onClose={finishPrompt.close} /> : null}
         {achievementQueue[0] ? <AchievementToast key={achievementQueue[0].id} achievement={achievementQueue[0]} onDone={nextAchievement} /> : null}
 
         {updateBanner}

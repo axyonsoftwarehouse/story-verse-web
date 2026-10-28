@@ -66,6 +66,12 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
+      # Assinatura (Stripe, modo real). Desligada por padrão: com BILLING_ENABLED=false a API
+      # não cobra nem mostra paywall, mesmo com as chaves no .env.
+      BILLING_ENABLED: ${BILLING_ENABLED:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
