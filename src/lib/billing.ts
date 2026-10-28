@@ -1,5 +1,5 @@
-import type { SupabaseSession } from "./auth";
-import { apiRequest } from "./backend";
+import { refreshAuthSession, type SupabaseSession } from "./auth";
+import { apiRequest, AuthSessionError } from "./backend";
 
 /** Assinatura mensal: o servidor decide o acesso; aqui só lemos e abrimos Stripe/Portal. */
 
@@ -41,26 +41,41 @@ export function fetchBillingPlans(): Promise<PlansResponse> {
   return apiRequest<PlansResponse>("/api/v1/billing/plans");
 }
 
+/**
+ * Token de acesso velho (outra aba ou o link de confirmação renovou a sessão e esta tela ficou com o
+ * anterior): renova pelo cookie uma vez e repete. Sem isso a conta nova via "Sessão inválida." no checkout.
+ */
+async function withFreshSession<T>(
+  session: SupabaseSession,
+  call: (accessToken: string) => Promise<T>,
+): Promise<T> {
+  try {
+    return await call(session.access_token);
+  } catch (error) {
+    if (!(error instanceof AuthSessionError)) throw error;
+    const fresh = await refreshAuthSession(true);
+    return call(fresh.access_token);
+  }
+}
+
 export function fetchBillingStatus(session: SupabaseSession): Promise<SubscriptionStatus> {
-  return apiRequest<SubscriptionStatus>("/api/v1/billing/status", {
-    accessToken: session.access_token,
-  });
+  return withFreshSession(session, (accessToken) =>
+    apiRequest<SubscriptionStatus>("/api/v1/billing/status", { accessToken }),
+  );
 }
 
 export function startBillingCheckout(
   session: SupabaseSession,
 ): Promise<{ url: string }> {
-  return apiRequest<{ url: string }>("/api/v1/billing/checkout", {
-    method: "POST",
-    accessToken: session.access_token,
-  });
+  return withFreshSession(session, (accessToken) =>
+    apiRequest<{ url: string }>("/api/v1/billing/checkout", { method: "POST", accessToken }),
+  );
 }
 
 export function openBillingPortal(session: SupabaseSession): Promise<{ url: string }> {
-  return apiRequest<{ url: string }>("/api/v1/billing/portal", {
-    method: "POST",
-    accessToken: session.access_token,
-  });
+  return withFreshSession(session, (accessToken) =>
+    apiRequest<{ url: string }>("/api/v1/billing/portal", { method: "POST", accessToken }),
+  );
 }
 
 const STATUS_LABELS: Record<string, string> = {
