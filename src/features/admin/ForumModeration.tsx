@@ -131,9 +131,6 @@ export function ForumModeration({
       <div className="shelf-head">
         <h2>Moderação do fórum</h2>
       </div>
-      <p className="forum-intro">
-        Aprove tópicos e respostas de contas novas e resolva denúncias. Ações ficam registradas na auditoria.
-      </p>
 
       <div className="forum-admin-tabs" role="tablist" aria-label="Moderação do fórum">
         {TABS.map((item) => (

@@ -9,6 +9,7 @@ import {
   type CatalogCollection,
   type CatalogSort,
 } from "../../lib/catalog";
+import { ReaderCount } from "../../components/ReaderCount";
 import { CatalogCover } from "./CatalogCover";
 import "./catalog.css";
 
@@ -22,6 +23,7 @@ function CatalogCard({ book }: { book: CatalogBook }) {
       <span className="catalog-card-meta">
         {[book.genre, book.language === "en" ? "Inglês" : "Português"].filter(Boolean).join(" · ")}
       </span>
+      <ReaderCount bookKey={book.book_key} />
     </Link>
   );
 }
@@ -163,7 +165,7 @@ export function PublicLibraryPage() {
     <div className="home">
       <nav className="home-nav profile-nav">
         <Link className="btn" to="/">
-          ← Início
+          Voltar
         </Link>
       </nav>
 

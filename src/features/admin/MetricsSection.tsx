@@ -93,7 +93,7 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
       <div className="shelf-head">
         <div>
           <h1>Métricas</h1>
-          <p className="muted">Números agregados; a fonte é atualizada a cada 5 minutos.</p>
+          <p className="muted">Atualizado a cada 5 minutos.</p>
         </div>
         <div className="admin-filters">
           <label>
@@ -204,9 +204,7 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
 
           <div className="shelf-head">
             <h2>Retenção por coorte</h2>
-            <p className="muted">
-              Percentual da coorte que leu nos primeiros N dias após o cadastro.
-            </p>
+            <p className="muted">Quem leu nos primeiros dias após o cadastro.</p>
           </div>
           {overview.retention.length === 0 ? (
             <p className="profile-empty">Sem dados de retenção no período.</p>
@@ -245,9 +243,6 @@ export function MetricsSection({ session }: { session: SupabaseSession }) {
 
           <div className="shelf-head">
             <h2>Série de leitura</h2>
-            <p className="muted">
-              Leitores ativos são únicos no dia/semana; minutos vêm de reading_days.
-            </p>
           </div>
           {series.length === 0 ? (
             <p className="profile-empty">Sem dados de leitura no período.</p>

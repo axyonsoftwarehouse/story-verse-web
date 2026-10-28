@@ -342,7 +342,7 @@ export function CatalogBookPage({
     <section className="shelf admin-catalog-detail">
       <div className="catalog-detail-head">
         <Link className="btn" to="/admin/acervo">
-          ← Acervo
+          Voltar
         </Link>
         <div className="catalog-detail-title">
           <h1>{book.title}</h1>

@@ -569,7 +569,7 @@ function median(values: number[]): number {
  * Junta as linhas do PDF em parágrafos, sem cabeçalho, rodapé e número de página. As ilustrações
  * de cada página entram entre as linhas, na altura em que aparecem.
  */
-function pdfLinesToText(pages: PdfLine[][], pageImages: PdfImage[][] = []): string {
+export function pdfLinesToText(pages: PdfLine[][], pageImages: PdfImage[][] = []): string {
   // Cabeçalho/rodapé: linhas do topo ou do fim que se repetem em muitas páginas.
   const key = (t: string) => t.toLowerCase().replace(/\d+/g, "#");
   const edgeCount = new Map<string, number>();
@@ -613,9 +613,12 @@ function pdfLinesToText(pages: PdfLine[][], pageImages: PdfImage[][] = []): stri
     else para += ` ${t}`;
   };
   let chapter = 0;
+  // Último título em fonte grande, para juntar as linhas seguintes que continuam o mesmo título.
+  let title: { at: number; line: PdfLine } | null = null;
 
   pages.forEach((lines, pageIndex) => {
     let prev: PdfLine | null = null;
+    title = null;
     // Imagens da página, de cima para baixo (no PDF, "y" maior = mais alto na página).
     const imgs = [...(pageImages[pageIndex] ?? [])].sort((a, b) => b.y - a.y);
     let next = 0;
@@ -635,14 +638,26 @@ function pdfLinesToText(pages: PdfLine[][], pageImages: PdfImage[][] = []): stri
       // Fonte bem maior que o corpo: título. Número sozinho em fonte grande = começo de capítulo.
       if (l.h > bodyH * 1.35 && l.text.length <= 80) {
         flush();
-        if (/^\d{1,3}$/.test(l.text) || /^(cap[ií]tulo|chapter)\b/i.test(l.text)) {
+        const last = paragraphs.length - 1;
+        const bareNumber = /^\d{1,3}$/.test(l.text);
+        if (bareNumber || /^(cap[ií]tulo|chapter)\b/i.test(l.text)) {
           chapter++;
-          paragraphs.push(`Capítulo ${chapter}`);
-        } else if (/^capítulo \d+$/i.test(paragraphs[paragraphs.length - 1] ?? "")) {
-          paragraphs[paragraphs.length - 1] += `: ${chapterSubtitle(l.text)}`;
+          // "CAPÍTULO 1: ZEN" mantém o nome que vem na mesma linha.
+          const sub = bareNumber ? "" : chapterSubtitle(l.text);
+          paragraphs.push(`Capítulo ${chapter}${sub ? `: ${sub}` : ""}`);
+        } else if (/^capítulo \d+$/i.test(paragraphs[last] ?? "")) {
+          paragraphs[last] += `: ${chapterSubtitle(l.text)}`;
+        } else if (
+          title?.at === last &&
+          title.line.y - l.y < Math.max(title.line.h, l.h) * 2.2 &&
+          paragraphs[last].length + l.text.length < 140
+        ) {
+          // Título quebrado em várias linhas ("CAPÍTULO 1: ZEN" / "NAS" / "ARTES MARCIAIS").
+          paragraphs[last] += ` ${l.text}`;
         } else {
           paragraphs.push(l.text);
         }
+        title = { at: paragraphs.length - 1, line: l };
         prev = null;
         return;
       }

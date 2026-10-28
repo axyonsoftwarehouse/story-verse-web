@@ -1,0 +1,34 @@
+/* Contador de leitores: discreto, logo abaixo do autor. ".result > span" dos cards também casa com
+ * ele, por isso as regras repetem o seletor com a classe. */
+.reader-count,
+.result > .reader-count,
+.row-card > .reader-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  margin-top: 0.15rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.reader-count svg {
+  flex: none;
+  color: var(--accent-2);
+}
+
+/* Página do livro: um pouco maior, ao lado do autor. */
+.reader-count.is-large {
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  font-size: 0.88rem;
+}
+
+.reader-count.is-large svg {
+  width: 15px;
+  height: 15px;
+}

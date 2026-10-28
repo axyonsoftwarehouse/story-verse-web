@@ -125,8 +125,7 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
         <h1>Recursos em teste</h1>
       </div>
       <p className="muted">
-        Recursos novos que ainda não estão abertos para todo mundo. Para ligar um recurso para
-        alguém, abra o detalhe da conta em{" "}
+        Para ligar para alguém, abra a conta em{" "}
         <Link className="link-btn" to="/admin/contas">
           Contas
         </Link>
@@ -159,8 +158,7 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
                 <span className="dash-label">{featureName(entry.feature)}</span>
                 <strong>Todas as contas</strong>
                 <span className="dash-sub">
-                  {FEATURE_DESCRIPTIONS[entry.feature]?.description ?? entry.feature} Ligado para
-                  todo mundo pela configuração da API.
+                  {FEATURE_DESCRIPTIONS[entry.feature]?.description ?? entry.feature}
                 </span>
               </div>
             ) : (
@@ -173,10 +171,7 @@ export function FeaturesSection({ session }: { session: SupabaseSession }) {
                 <span className="dash-label">{featureName(entry.feature)}</span>
                 <strong>{entry.enabledCount}</strong>
                 <span className="dash-sub">
-                  {FEATURE_DESCRIPTIONS[entry.feature]?.description
-                    ? `${FEATURE_DESCRIPTIONS[entry.feature].description} `
-                    : ""}
-                  Contas com o recurso ligado.
+                  {FEATURE_DESCRIPTIONS[entry.feature]?.description ?? "contas com o recurso ligado"}
                 </span>
               </button>
             ),

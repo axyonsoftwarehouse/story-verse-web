@@ -67,7 +67,7 @@ export function SubscribePage() {
     <div className="home">
       <nav className="home-nav profile-nav">
         <Link className="btn" to="/">
-          ← Início
+          Voltar
         </Link>
         {session ? (
           <Link className="btn" to="/conta/assinatura">

@@ -38,7 +38,7 @@ export function ActiveUsersCard({ session, today }: { session: SupabaseSession; 
     <article className="dash-card">
       <div className="dash-card-head">
         <span className="dash-label">Usuários ativos</span>
-        <span className="dash-sub">request autenticado no dia · {SERIES_DAYS} dias</span>
+        <span className="dash-sub">{SERIES_DAYS} dias</span>
       </div>
       {data === null ? (
         <div className="page-status">
