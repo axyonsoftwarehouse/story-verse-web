@@ -44,8 +44,8 @@ O que o usuário disse que conta como sucesso: **o site poder ser usado** depois
 2. Ao escolher Pix, abre o Checkout do Stripe só com Pix. Ela lê o QR no app do banco e paga.
 3. O Stripe confirma em segundos; a página volta para `/conta/assinatura?ok=1`, que já se atualiza sozinha (1,5 s / 4 s / 8 s).
 4. Ela recebe um e-mail "Pagamento recebido — acesso até DD/MM/AAAA". O parceiro de Pix do Stripe (Ebanx) também manda o recibo dele por padrão.
-5. 3 dias antes do fim, e no dia do fim, recebe um e-mail "Seu acesso termina em …" com o link para pagar de novo.
-6. Em `/conta/assinatura`: situação "Pago com Pix", "Acesso até …", botões **Pagar mais 30 dias com Pix**, **Assinar no cartão** e **Ir para o início**.
+5. Até 3 dias antes do fim recebe um e-mail "Seu acesso termina em …" com o link para pagar de novo (um aviso por sequência paga).
+6. Em `/conta/assinatura`: situação "Pago com Pix", "Acesso até …", botões **Pagar mais 30 dias com Pix** e **Ir para o início**. Quem está no teste grátis vê **Pagar 30 dias com Pix**.
 
 ## 6. Regras de acesso (API)
 
@@ -110,7 +110,7 @@ O pagamento também entra em `billing_invoices` (`stripe_invoice_id` = id do Pay
   - `checkout.session.async_payment_failed` → só registra.
   - `charge.refunded` → se o PaymentIntent for de um período Pix, marca `refunded_at`.
   - A sessão de assinatura continua no caminho atual (`mode=subscription`).
-- Job agendado (junto do `BillingSnapshotJob`, de hora em hora): manda o aviso para períodos que terminam em até 3 dias e ainda não foram avisados (`reminded_at`), e o aviso do dia do fim, se não houver período seguinte.
+- Job agendado `PrepaidReminderJob` (de hora em hora, minuto 10): manda um aviso para o fim de sequência que termina em até 3 dias, sem período seguinte e ainda sem `reminded_at`. Falha de e-mail não marca e tenta de novo na hora seguinte.
 - E-mails pelo `MailService` atual (SMTP já configurado): confirmação e aviso de fim.
 
 Variáveis novas: `STRIPE_PIX_PMC_ID`, `STRIPE_PIX_AMOUNT_CENTS` (padrão 990), `STRIPE_PIX_DAYS` (padrão 30). Sem `STRIPE_PIX_PMC_ID`, o Pix fica escondido (`pixAvailable=false`): é o interruptor para ligar e desligar.
@@ -142,6 +142,7 @@ Variáveis novas: `STRIPE_PIX_PMC_ID`, `STRIPE_PIX_AMOUNT_CENTS` (padrão 990), 
 - Pix pago durante o teste começa quando o teste acaba.
 - Checkout do Stripe com só Pix (configuração própria), em vez de tela própria de QR.
 - QR expira em 1 hora.
-- Aviso de fim 3 dias antes e no dia.
+- Um aviso de fim, até 3 dias antes (o aviso "no dia" ficou de fora para não mandar dois e-mails seguidos).
+- Enquanto o Pix está valendo, "Minha assinatura" não oferece o cartão: assinar no cartão por cima cobraria em dobro depois do teste. Quem quiser o cartão assina quando o Pix acabar.
 - Reembolso de Pix tira aquele período do acesso; no cartão a regra atual (reembolso não mexe no acesso) continua.
 - Admin: o período Pix aparece no status da conta pelo `accessUntil`; uma lista própria de pagamentos Pix no financeiro fica para depois.
