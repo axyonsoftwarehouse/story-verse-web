@@ -111,6 +111,18 @@
   accent-color: var(--accent);
 }
 
+/* Toque: a caixinha de 13px vira 20px e a linha inteira fica com altura de dedo. */
+@media (pointer: coarse) {
+  .library-filters .library-check {
+    min-height: 40px;
+  }
+
+  .library-check input {
+    width: 20px;
+    height: 20px;
+  }
+}
+
 .catalog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
