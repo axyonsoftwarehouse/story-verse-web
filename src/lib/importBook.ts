@@ -1,5 +1,6 @@
 import { strFromU8 } from "fflate";
 import { unzipBounded } from "./safeZip";
+import { epubDetails, pdfDetails, type BookDetails } from "./bookMetadata";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 /**
@@ -20,9 +21,18 @@ export type ImportedBook = {
    * "[[img:<id>]]" no lugar em que estava no arquivo.
    */
   images?: Record<string, Blob>;
+  /** Resumo, assuntos, série e ISBN, quando o arquivo traz (EPUB e PDF). */
+  details?: BookDetails;
 };
 
-type Parsed = { text: string; title?: string; author?: string; cover?: string; images?: Record<string, Blob> };
+type Parsed = {
+  text: string;
+  title?: string;
+  author?: string;
+  cover?: string;
+  images?: Record<string, Blob>;
+  details?: BookDetails;
+};
 
 /** Ilustração no meio do texto: largura máxima guardada (boa na tela do celular e do computador). */
 const IMAGE_MAX_WIDTH = 1000;
@@ -108,6 +118,7 @@ export async function importBookFile(file: File): Promise<ImportedBook> {
     language: detectLanguage(text.replace(/\[\[img:[\w-]+\]\]/g, "")),
     cover: result.cover,
     images: result.images && Object.keys(result.images).length > 0 ? result.images : undefined,
+    details: result.details,
   };
 }
 
@@ -282,7 +293,10 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
     (coverMetaId ? manifest.get(coverMetaId) : undefined) ??
     images.find(([id, it]) => /cover|capa/i.test(id) || /cover|capa/i.test(it.href))?.[1];
   const coverBytes = coverItem ? files[resolvePath(base, decodeURIComponent(coverItem.href))] : undefined;
-  const cover = coverBytes ? await shrinkCover(new Blob([coverBytes], { type: coverItem!.type })) : undefined;
+  // Arquivos do EPUB (fflate) ficam sobre ArrayBuffer comum; o TS 6 exige isso explícito no Blob.
+  const cover = coverBytes
+    ? await shrinkCover(new Blob([coverBytes as Uint8Array<ArrayBuffer>], { type: coverItem!.type }))
+    : undefined;
 
   // Ilustrações: cada arquivo de imagem vira um id; a capa não se repete dentro do texto.
   const coverPath = coverItem ? resolvePath(base, decodeURIComponent(coverItem.href)) : null;
@@ -337,7 +351,7 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   for (const [path, id] of imagePaths) {
     if (!usedText.includes(imageMarker(id))) continue;
     const type = [...manifest.values()].find((it) => resolvePath(base, decodeURIComponent(it.href)) === path)?.type;
-    const small = await shrinkImage(new Blob([files[path]], { type: type || "image/jpeg" }));
+    const small = await shrinkImage(new Blob([files[path] as Uint8Array<ArrayBuffer>], { type: type || "image/jpeg" }));
     if (small) illustrations[id] = small;
   }
 
@@ -347,6 +361,7 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
     author: meta("creator"),
     cover,
     images: illustrations,
+    details: epubDetails(opf),
   };
 }
 
@@ -540,7 +555,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   }
 
   const meta = await doc.getMetadata().catch(() => null);
-  const info = (meta?.info ?? {}) as { Title?: string; Author?: string };
+  const info = (meta?.info ?? {}) as { Title?: string; Author?: string; Subject?: string; Keywords?: string };
   await task.destroy();
 
   // A mesma imagem em muitas páginas é logotipo ou vinheta, não ilustração.
@@ -556,6 +571,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
     author: info.Author,
     cover,
     images,
+    details: pdfDetails(info),
   };
 }
 

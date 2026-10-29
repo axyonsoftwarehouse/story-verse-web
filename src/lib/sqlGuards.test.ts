@@ -1,3 +1,5 @@
+/// <reference types="node" />
+// O TS 6 não inclui mais os tipos do Node sozinho; só este teste lê arquivos do disco.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";

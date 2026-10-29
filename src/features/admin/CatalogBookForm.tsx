@@ -17,6 +17,7 @@ import {
 } from "../../lib/adminCatalog";
 import { MAX_INPUT_BYTES, dataUrlToBlob, prepareImage, uploadBookCover } from "../../lib/profileMedia";
 import { importBookFile } from "../../lib/importBook";
+import { genreFromSubjects, lookupBookDetails, type DetailSource } from "../../lib/bookMetadata";
 import { CatalogMetadataFields, CatalogRightsFields } from "./CatalogFields";
 import {
   EMPTY_METADATA,
@@ -29,7 +30,11 @@ type Draft = CatalogMetadataValue &
     featured: boolean;
     sortOrder: string;
     publishNow: boolean;
+    /** De onde veio cada campo preenchido sozinho (some quando o admin edita o campo). */
+    sources: MetadataSources;
   };
+
+type MetadataSources = Partial<Record<keyof CatalogMetadataValue, DetailSource>>;
 
 const STEPS = ["Arquivo", "Metadados", "Direitos", "Capa e publicação"];
 const LAST_STEP = STEPS.length - 1;
@@ -41,7 +46,20 @@ const EMPTY_DRAFT: Draft = {
   featured: false,
   sortOrder: "0",
   publishNow: false,
+  sources: {},
 };
+
+/** Preenche só os campos ainda vazios, anotando a fonte; o que o admin digitou nunca muda. */
+function fillEmpty(draft: Draft, patch: Partial<CatalogMetadataValue>, source: DetailSource): Draft {
+  const next = { ...draft, sources: { ...draft.sources } };
+  for (const key of Object.keys(patch) as (keyof CatalogMetadataValue)[]) {
+    const value = patch[key];
+    if (key === "language" || !value || draft[key].trim()) continue;
+    next[key] = value;
+    next.sources[key] = source;
+  }
+  return next;
+}
 
 function megabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
@@ -86,7 +104,10 @@ export function CatalogBookForm({
   const [error, setError] = useState("");
   const [duplicate, setDuplicate] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
   const parseToken = useRef(0);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const coverTouched = useRef(false);
 
   useEffect(() => {
@@ -117,7 +138,8 @@ export function CatalogBookForm({
     setUploaded(null);
     setError("");
     setDuplicate("");
-    // Reaproveita o leitor do app: lê título, autor, idioma e capa do arquivo.
+    // Reaproveita o leitor do app: lê título, autor, idioma, capa, resumo, assuntos e série do
+    // arquivo; o que faltar, busca na Open Library e na Wikipedia.
     const token = ++parseToken.current;
     const ext = picked.name.toLowerCase().split(".").pop();
     if (!["txt", "md", "markdown", "epub", "pdf"].includes(ext ?? "")) return;
@@ -125,26 +147,77 @@ export function CatalogBookForm({
     void importBookFile(picked)
       .then(async (parsed) => {
         if (token !== parseToken.current) return;
-        setDraft((current) => ({
-          ...current,
-          title: current.title.trim() ? current.title : parsed.title,
-          author: current.author.trim() ? current.author : parsed.author,
-          language:
-            current.language === EMPTY_METADATA.language ? parsed.language : current.language,
-        }));
+        const details = parsed.details ?? {};
+        setDraft((current) =>
+          fillEmpty(
+            {
+              ...current,
+              language:
+                current.language === EMPTY_METADATA.language ? parsed.language : current.language,
+            },
+            {
+              title: parsed.title,
+              author: parsed.author,
+              description: details.description,
+              genre: genreFromSubjects(details.subjects),
+              series: details.series,
+              seriesIndex: details.seriesIndex ? String(details.seriesIndex) : undefined,
+            },
+            "arquivo",
+          ),
+        );
         if (parsed.cover && !coverTouched.current) {
           const blob = await dataUrlToBlob(parsed.cover);
           if (token !== parseToken.current) return;
           setCoverFile(new File([blob], "capa.jpg", { type: blob.type || "image/jpeg" }));
           setCoverPreview(parsed.cover);
         }
+        if (token !== parseToken.current) return;
+        // O setDraft acima ainda não renderizou: refaz a conta do que ficou vazio.
+        const current = draftRef.current;
+        const title = current.title.trim() || parsed.title;
+        const needsDescription = !current.description.trim() && !details.description;
+        const needsGenre = !current.genre.trim() && !genreFromSubjects(details.subjects);
+        const needsSeries = !current.series.trim() && !details.series;
+        if (!needsDescription && !needsGenre && !needsSeries) return;
+        setLookingUp(true);
+        const found = await lookupBookDetails({
+          title,
+          author: current.author.trim() || parsed.author,
+          language:
+            current.language === EMPTY_METADATA.language ? parsed.language : current.language,
+          isbn: details.isbn,
+        }).catch(() => ({}) as Awaited<ReturnType<typeof lookupBookDetails>>);
+        if (token !== parseToken.current) return;
+        setDraft((latest) => {
+          let next = latest;
+          if (found.description && found.descriptionSource) {
+            next = fillEmpty(next, { description: found.description }, found.descriptionSource);
+          }
+          return fillEmpty(
+            next,
+            { genre: genreFromSubjects(found.subjects), series: found.series },
+            "Open Library",
+          );
+        });
       })
       .catch(() => {
         // Arquivo sem metadados/texto suficiente: os campos continuam para preencher à mão.
       })
       .finally(() => {
-        if (token === parseToken.current) setParsing(false);
+        if (token === parseToken.current) {
+          setParsing(false);
+          setLookingUp(false);
+        }
       });
+  }
+
+  function editMetadata(patch: Partial<CatalogMetadataValue>) {
+    setDraft((current) => {
+      const sources = { ...current.sources };
+      for (const key of Object.keys(patch)) delete sources[key as keyof MetadataSources];
+      return { ...current, ...patch, sources };
+    });
   }
 
   function pickCover(event: ChangeEvent<HTMLInputElement>) {
@@ -293,9 +366,10 @@ export function CatalogBookForm({
                 <input type="file" accept={CATALOG_ACCEPT} onChange={pickFile} disabled={busy} />
               </label>
               <p className="muted">
-                TXT, MD, EPUB ou PDF, até 50 MB. O app lê título, autor, idioma e capa do arquivo
-                quando existirem; o servidor extrai o texto e guarda o original. O layout do
-                PDF/EPUB não é preservado.
+                TXT, MD, EPUB ou PDF, até 50 MB. O app lê título, autor, idioma, capa, resumo,
+                gênero e série do arquivo quando existirem e busca o que faltar na Open Library e
+                na Wikipedia; o servidor extrai o texto e guarda o original. O layout do PDF/EPUB
+                não é preservado.
               </p>
               {file ? (
                 <p className="catalog-file-summary">
@@ -303,16 +377,26 @@ export function CatalogBookForm({
                   <span className="muted">{megabytes(file.size)}</span>
                 </p>
               ) : null}
-              {parsing ? <p className="muted">Lendo metadados do arquivo…</p> : null}
+              {lookingUp ? (
+                <p className="muted">Buscando resumo, gênero e série na Open Library e na Wikipedia…</p>
+              ) : parsing ? (
+                <p className="muted">Lendo metadados do arquivo…</p>
+              ) : null}
             </div>
           ) : null}
 
           {step === 1 ? (
-            <CatalogMetadataFields
-              value={draft}
-              onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-              disabled={busy}
-            />
+            <>
+              {lookingUp ? (
+                <p className="muted">Buscando resumo, gênero e série na Open Library e na Wikipedia…</p>
+              ) : null}
+              <CatalogMetadataFields
+                value={draft}
+                onChange={editMetadata}
+                sources={draft.sources}
+                disabled={busy}
+              />
+            </>
           ) : null}
 
           {step === 2 ? (
