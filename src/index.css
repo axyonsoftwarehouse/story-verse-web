@@ -225,6 +225,18 @@ textarea {
   font: inherit;
 }
 
+/*
+ * No toque, campo com letra menor que 16px faz o iPhone dar zoom ao focar (e não voltar).
+ * O !important vence as regras de cada tela, que encolhem a letra para caber no desktop.
+ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 a:focus-visible,
 button:focus-visible,
 textarea:focus-visible {
@@ -241,4 +253,14 @@ textarea:focus-visible {
 /* Texto de apoio (e-mail, datas, contagens). Já era usado no admin e nas assinaturas, mas não existia. */
 .muted {
   color: var(--muted);
+}
+
+/*
+ * App instalado no iPhone (barra de status translúcida + viewport-fit=cover): o conteúdo vai até
+ * a borda, então as barras do topo descem o tamanho do relógio/notch e as laterais respeitam o
+ * notch deitado. No navegador comum esses valores são 0 e nada muda.
+ */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

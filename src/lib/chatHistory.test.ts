@@ -18,3 +18,20 @@ describe("histórico de conversas na Central de Privacidade", () => {
     expect(loadChat("livro-b")).toBeNull();
   });
 });
+
+describe("conversa guardada com mensagens automáticas antigas", () => {
+  it("abre sem as mensagens de capítulo que enchiam o histórico", () => {
+    saveChat(
+      "livro-c",
+      {
+        colton: [
+          { id: "1", role: "assistant", text: "Começamos “Capítulo 42”. Leia com calma, estou aqui se quiser conversar." },
+          { id: "2", role: "user", text: "Oi, Colton" },
+          { id: "3", role: "assistant", text: "Oi! Que bom te ver." },
+        ],
+      },
+      "colton",
+    );
+    expect(loadChat("livro-c")?.threads.colton.map((m) => m.id)).toEqual(["2", "3"]);
+  });
+});

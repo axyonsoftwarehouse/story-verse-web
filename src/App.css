@@ -3768,8 +3768,8 @@
 }
 
 /*
- * Celular: o carrossel continua andando, mais devagar, com cards do tamanho da tela (86%) para o
- * texto não aparecer cortado; ele não para.
+ * Tela estreita: o carrossel anda mais devagar, com cards do tamanho da tela (86%) para o texto
+ * não aparecer cortado. No toque ele vira lista de arrastar (regra logo abaixo).
  */
 @media (max-width: 700px) {
   .book-carousel {
@@ -3787,6 +3787,46 @@
 
   .book-carousel-track {
     animation-duration: 80s;
+  }
+}
+
+/* Com mouse: parar em cima (ou com o foco do teclado) para dar tempo de ler e clicar. */
+.book-carousel:hover .book-carousel-track,
+.book-carousel:focus-within .book-carousel-track {
+  animation-play-state: paused;
+}
+
+/*
+ * Toque: andando sozinho, o botão fugia do dedo e não dava para voltar a um livro. Aqui o
+ * carrossel para e a pessoa arrasta, card a card; a cópia usada no laço infinito some.
+ */
+@media (hover: none) {
+  .book-carousel {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 0.75rem;
+    scrollbar-width: none;
+  }
+
+  .book-carousel::-webkit-scrollbar,
+  .book-carousel::before,
+  .book-carousel::after {
+    display: none;
+  }
+
+  .book-carousel-track {
+    padding-inline: 0.75rem;
+    animation: none;
+  }
+
+  .book-carousel .book {
+    flex-basis: min(350px, 80vw);
+    scroll-snap-align: start;
+  }
+
+  .book-carousel .book[aria-hidden="true"] {
+    display: none;
   }
 }
 
@@ -10614,4 +10654,60 @@ button.ranking-diamonds {
   font-weight: 600;
   text-align: center;
   pointer-events: none;
+}
+
+/*
+ * Toque: os links de texto e os filtros tinham 15–31px de altura, difíceis de acertar com o
+ * dedo. Aqui eles ganham pelo menos 40px de área clicável sem mudar o desenho.
+ */
+@media (pointer: coarse) {
+  .my-book-remove,
+  .streak-goal-foot .inline-link,
+  .marks-actions .link-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  .my-book-remove {
+    padding-inline: 0.5rem;
+    margin-inline: -0.5rem;
+  }
+
+  .streak-select select {
+    min-height: 36px;
+    padding-inline: 0.5rem;
+  }
+
+  .filter-pill {
+    min-height: 40px;
+  }
+
+  .foot-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+}
+
+/* Celular: a fita de "Marcamos onde você parou" desce abaixo do cabeçalho, sem cobrir o perfil. */
+@media (max-width: 560px) {
+  .bookmark-drop {
+    top: calc(3.75rem + env(safe-area-inset-top));
+  }
+}
+
+/* Notch do iPhone no app instalado: só lá a barra de status fica por cima da página. */
+@media (display-mode: standalone) {
+  .home-nav {
+    padding-top: max(1.4rem, calc(env(safe-area-inset-top) + 0.6rem));
+  }
+
+  .reader-bar {
+    padding-top: max(0.65rem, calc(env(safe-area-inset-top) + 0.3rem));
+  }
+
+  .chat-head {
+    padding-top: max(1rem, calc(env(safe-area-inset-top) + 0.5rem));
+  }
 }

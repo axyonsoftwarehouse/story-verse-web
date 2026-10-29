@@ -1,5 +1,6 @@
 import { currentDataOwner, storageForOwner } from "./dataOwner";
 import { naturalizeReply } from "./naturalSpeech";
+import { tidyAmbientMessages } from "./readingAmbient";
 
 /** Conversa com os personagens de cada livro, guardada no navegador para continuar depois. */
 
@@ -23,6 +24,8 @@ export function loadChat(bookId: string, owner: string | null = currentDataOwner
     for (const msgs of Object.values(saved.threads)) {
       for (const m of msgs) if (m.role === "assistant") m.text = naturalizeReply(m.text);
     }
+    // Sem as mensagens automáticas que enchiam a conversa (ver readingAmbient).
+    for (const [id, msgs] of Object.entries(saved.threads)) saved.threads[id] = tidyAmbientMessages(msgs);
     return saved;
   } catch {
     return null;
