@@ -29,6 +29,7 @@ export async function fetchAccountCapabilities(session: SupabaseSession): Promis
       accessUntil: subscription.accessUntil ?? null,
       plan: subscription.plan ?? "",
       cancelAtPeriodEnd: Boolean(subscription.cancelAtPeriodEnd),
+      ...(typeof subscription.reason === "string" ? { reason: subscription.reason } : {}),
     };
   }
   try {
