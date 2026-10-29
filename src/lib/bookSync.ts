@@ -159,7 +159,8 @@ async function syncBooksOnce(session: SupabaseSession): Promise<{ local: boolean
         await storage(session, `${BUCKET}/${encodePath(pathOf(session, id))}`, {
           method: "POST",
           headers: { "Content-Type": "application/gzip", "x-upsert": "true" },
-          body: new Blob([await pack(record)], { type: "application/gzip" }),
+          // O fflate devolve bytes sobre ArrayBuffer comum; o TS 6 exige isso explícito no Blob.
+          body: new Blob([(await pack(record)) as Uint8Array<ArrayBuffer>], { type: "application/gzip" }),
         });
         if (currentDataOwner() !== owner) break;
         updateLibrary(id, (e) => ({ ...(e ?? entry), uploadedAt: Date.now() }), owner);
