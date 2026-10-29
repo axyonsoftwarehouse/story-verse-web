@@ -55,14 +55,17 @@ export function PublicBookPage() {
     }
     let alive = true;
     setShelf("checking");
+    // Só vale enquanto ainda está verificando: se a pessoa adicionou antes da resposta chegar,
+    // o "não está" atrasado não pode devolver o botão para "Adicionar".
+    const settle = (next: ShelfState) => setShelf((current) => (current === "checking" ? next : current));
     fetchShelfEntry(session, book.book_key)
       .then(() => {
-        if (alive) setShelf("on");
+        if (alive) settle("on");
       })
       .catch((err: unknown) => {
         if (!alive) return;
-        if (err instanceof ApiHttpError && err.status === 404) setShelf("off");
-        else setShelf("unknown");
+        if (err instanceof ApiHttpError && err.status === 404) settle("off");
+        else settle("unknown");
       });
     return () => {
       alive = false;
