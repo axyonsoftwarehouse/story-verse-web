@@ -1,5 +1,6 @@
 import { strFromU8 } from "fflate";
 import { unzipBounded } from "./safeZip";
+import { epubDetails, pdfDetails, type BookDetails } from "./bookMetadata";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 /**
@@ -20,9 +21,18 @@ export type ImportedBook = {
    * "[[img:<id>]]" no lugar em que estava no arquivo.
    */
   images?: Record<string, Blob>;
+  /** Resumo, assuntos, série e ISBN, quando o arquivo traz (EPUB e PDF). */
+  details?: BookDetails;
 };
 
-type Parsed = { text: string; title?: string; author?: string; cover?: string; images?: Record<string, Blob> };
+type Parsed = {
+  text: string;
+  title?: string;
+  author?: string;
+  cover?: string;
+  images?: Record<string, Blob>;
+  details?: BookDetails;
+};
 
 /** Ilustração no meio do texto: largura máxima guardada (boa na tela do celular e do computador). */
 const IMAGE_MAX_WIDTH = 1000;
@@ -108,6 +118,7 @@ export async function importBookFile(file: File): Promise<ImportedBook> {
     language: detectLanguage(text.replace(/\[\[img:[\w-]+\]\]/g, "")),
     cover: result.cover,
     images: result.images && Object.keys(result.images).length > 0 ? result.images : undefined,
+    details: result.details,
   };
 }
 
@@ -347,6 +358,7 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
     author: meta("creator"),
     cover,
     images: illustrations,
+    details: epubDetails(opf),
   };
 }
 
@@ -540,7 +552,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
   }
 
   const meta = await doc.getMetadata().catch(() => null);
-  const info = (meta?.info ?? {}) as { Title?: string; Author?: string };
+  const info = (meta?.info ?? {}) as { Title?: string; Author?: string; Subject?: string; Keywords?: string };
   await task.destroy();
 
   // A mesma imagem em muitas páginas é logotipo ou vinheta, não ilustração.
@@ -556,6 +568,7 @@ async function parsePdf(buf: Uint8Array): Promise<Parsed> {
     author: info.Author,
     cover,
     images,
+    details: pdfDetails(info),
   };
 }
 

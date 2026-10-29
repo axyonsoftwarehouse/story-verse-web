@@ -6,12 +6,18 @@ import {
   uploadCatalogOriginal,
   type AdminCatalogBook,
 } from "../../lib/adminCatalog";
+import { lookupBookDetails } from "../../lib/bookMetadata";
 import { importBookFile } from "../../lib/importBook";
 import { CatalogBookForm } from "./CatalogBookForm";
 
 vi.mock("../../lib/importBook", () => ({
   importBookFile: vi.fn(),
 }));
+
+vi.mock("../../lib/bookMetadata", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/bookMetadata")>();
+  return { ...actual, lookupBookDetails: vi.fn() };
+});
 
 vi.mock("../../lib/adminCatalog", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/adminCatalog")>();
@@ -53,6 +59,7 @@ describe("CatalogBookForm", () => {
       contentType: "text/plain",
     });
     vi.mocked(createCatalogBook).mockResolvedValue(created);
+    vi.mocked(lookupBookDetails).mockResolvedValue({});
     vi.mocked(importBookFile).mockResolvedValue({
       text: "x".repeat(600),
       title: "Dom Casmurro",
@@ -77,6 +84,56 @@ describe("CatalogBookForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     await waitFor(() => expect(screen.getByLabelText(/T?tulo/)).toHaveValue("Dom Casmurro"));
     expect(screen.getByLabelText(/Autor/)).toHaveValue("Machado de Assis");
+  });
+
+  it("preenche resumo, gênero e série do arquivo e indica a origem", async () => {
+    vi.mocked(importBookFile).mockResolvedValue({
+      text: "x".repeat(600),
+      title: "Harry Potter e a Pedra Filosofal",
+      author: "J. K. Rowling",
+      language: "pt",
+      details: {
+        description: "Um garoto descobre que é bruxo.",
+        subjects: ["Fantasy fiction"],
+        series: "Harry Potter",
+        seriesIndex: 1,
+      },
+    });
+    renderForm();
+    pick(file("livro.epub"));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(screen.getByLabelText(/Resumo/)).toHaveValue("Um garoto descobre que é bruxo."));
+    expect(screen.getByLabelText(/Gênero/)).toHaveValue("Fantasia");
+    expect(screen.getByLabelText(/^\s*Série/)).toHaveValue("Harry Potter");
+    expect(screen.getByLabelText(/Volume na série/)).toHaveValue(1);
+    expect(screen.getByLabelText(/Resumo/).closest("label")).toHaveTextContent("do arquivo");
+    // Arquivo já trouxe resumo e gênero: não precisa buscar fora.
+    expect(lookupBookDetails).not.toHaveBeenCalled();
+  });
+
+  it("busca fora só o que faltou e não sobrescreve o que o admin digitou", async () => {
+    let resolveLookup: (value: Awaited<ReturnType<typeof lookupBookDetails>>) => void = () => {};
+    vi.mocked(lookupBookDetails).mockReturnValue(new Promise((resolve) => (resolveLookup = resolve)));
+    renderForm();
+    pick(file("livro.epub"));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(lookupBookDetails).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText(/Gênero/), { target: { value: "Clássico" } });
+
+    resolveLookup({
+      description: "Romance de Machado de Assis sobre Bentinho e Capitu.",
+      descriptionSource: "Wikipedia",
+      subjects: ["Fantasy fiction"],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Resumo/)).toHaveValue("Romance de Machado de Assis sobre Bentinho e Capitu."),
+    );
+    expect(screen.getByLabelText(/Resumo/).closest("label")).toHaveTextContent("da Wikipedia");
+    expect(screen.getByLabelText(/Gênero/)).toHaveValue("Clássico");
+    expect(lookupBookDetails).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Dom Casmurro", author: "Machado de Assis", language: "pt" }),
+    );
   });
 
   it("percorre as etapas e cria como rascunho", async () => {
