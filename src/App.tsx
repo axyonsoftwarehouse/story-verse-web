@@ -81,6 +81,7 @@ import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
 import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
 import { pushLayer, removeLayer } from "./lib/backStack";
+import { readerUrl, rememberOpenBook, takeReaderParam } from "./lib/readerUrl";
 import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
@@ -3453,16 +3454,18 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
  * Enquanto `open`, o botão voltar do celular fecha esta tela/janela (chama `close`) em vez de
  * sair do app. Fechada pelo próprio app, o passo sai do histórico sozinho.
  */
-function useBackClose(open: boolean, close: () => void) {
+function useBackClose(open: boolean, close: () => void, url?: string) {
   const closeRef = useRef(close);
   closeRef.current = close;
+  const urlRef = useRef(url);
+  urlRef.current = url;
   useEffect(() => {
     if (!open) return;
     let closedByBack = false;
     const id = pushLayer(() => {
       closedByBack = true;
       closeRef.current();
-    });
+    }, urlRef.current);
     return () => {
       if (!closedByBack) removeLayer(id);
     };
@@ -6692,6 +6695,23 @@ export function App() {
       });
   }, [authLoading, authUser, canRead, startBook]);
 
+  /**
+   * Recarregou com o livro aberto (`?ler=`): abre o mesmo livro quando a conta estiver pronta.
+   * Lido no primeiro desenho, antes de o efeito abaixo apagar a cópia guardada do livro.
+   */
+  const [reopen, setReopen] = useState(takeReaderParam);
+  useEffect(() => rememberOpenBook(book), [book]);
+  useEffect(() => {
+    if (!reopen || authLoading || !dataIsReady) return;
+    setReopen(null);
+    if (!canRead) return;
+    const found =
+      reopen.book ??
+      recentProgress().find((p) => p.book.id === reopen.id)?.book ??
+      [...featuredBooks, ...communityBooks].find((b) => b.id === reopen.id);
+    if (found) startBook(found);
+  }, [reopen, authLoading, dataIsReady, canRead, communityBooks, startBook]);
+
   const requestImport = useCallback(
     (hint: BookHint | Record<string, never> = {}) => {
       if (authLoading) return;
@@ -7582,7 +7602,7 @@ export function App() {
   }
 
   // Botão voltar do celular: fecha o que estiver aberto por cima, na ordem em que foi aberto.
-  useBackClose(Boolean(book), leaveBook);
+  useBackClose(Boolean(book), leaveBook, book ? readerUrl(book.id) : undefined);
   useBackClose(profileOpen, () => setProfileOpen(false));
   useBackClose(rankingOpen, () => setRankingOpen(false));
   useBackClose(libraryOpen, () => setLibraryOpen(false));

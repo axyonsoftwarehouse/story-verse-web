@@ -8,7 +8,8 @@
  * apagava o passo novo e, mais tarde, o app voltava um passo a mais e saía do site.
  */
 
-type Layer = { id: number; close: () => void; pushed: boolean };
+/** `url`: endereço que a barra mostra enquanto a camada está aberta (o livro, `?ler=…`). */
+type Layer = { id: number; close: () => void; pushed: boolean; url?: string };
 
 const stack: Layer[] = [];
 let seq = 0;
@@ -19,7 +20,7 @@ const queued: Layer[] = [];
 
 function push(layer: Layer) {
   layer.pushed = true;
-  history.pushState({ storyverseLayer: layer.id }, "");
+  history.pushState({ storyverseLayer: layer.id }, "", layer.url);
 }
 
 if (typeof window !== "undefined") {
@@ -33,8 +34,8 @@ if (typeof window !== "undefined") {
   });
 }
 
-export function pushLayer(close: () => void): number {
-  const layer: Layer = { id: ++seq, close, pushed: false };
+export function pushLayer(close: () => void, url?: string): number {
+  const layer: Layer = { id: ++seq, close, pushed: false, url };
   stack.push(layer);
   if (pendingBacks > 0) queued.push(layer);
   else push(layer);
