@@ -282,7 +282,10 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
     (coverMetaId ? manifest.get(coverMetaId) : undefined) ??
     images.find(([id, it]) => /cover|capa/i.test(id) || /cover|capa/i.test(it.href))?.[1];
   const coverBytes = coverItem ? files[resolvePath(base, decodeURIComponent(coverItem.href))] : undefined;
-  const cover = coverBytes ? await shrinkCover(new Blob([coverBytes], { type: coverItem!.type })) : undefined;
+  // Arquivos do EPUB (fflate) ficam sobre ArrayBuffer comum; o TS 6 exige isso explícito no Blob.
+  const cover = coverBytes
+    ? await shrinkCover(new Blob([coverBytes as Uint8Array<ArrayBuffer>], { type: coverItem!.type }))
+    : undefined;
 
   // Ilustrações: cada arquivo de imagem vira um id; a capa não se repete dentro do texto.
   const coverPath = coverItem ? resolvePath(base, decodeURIComponent(coverItem.href)) : null;
@@ -337,7 +340,7 @@ async function parseEpub(buf: Uint8Array): Promise<Parsed> {
   for (const [path, id] of imagePaths) {
     if (!usedText.includes(imageMarker(id))) continue;
     const type = [...manifest.values()].find((it) => resolvePath(base, decodeURIComponent(it.href)) === path)?.type;
-    const small = await shrinkImage(new Blob([files[path]], { type: type || "image/jpeg" }));
+    const small = await shrinkImage(new Blob([files[path] as Uint8Array<ArrayBuffer>], { type: type || "image/jpeg" }));
     if (small) illustrations[id] = small;
   }
 
