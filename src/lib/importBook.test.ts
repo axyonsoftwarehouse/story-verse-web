@@ -70,3 +70,41 @@ describe("pdfLinesToText", () => {
     expect(text).toContain("\n\nAgradecimentos\n\n");
   });
 });
+
+describe("importBookFile (EPUB)", () => {
+  it("traz resumo, assuntos, série e ISBN do OPF", async () => {
+    const { zipSync, strToU8 } = await import("fflate");
+    const { importBookFile } = await import("./importBook");
+    const chapter = `<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Capítulo 1</h1>${"<p>Era uma vez um menino que morava perto do rio e gostava de ler histórias antigas.</p>".repeat(20)}</body></html>`;
+    const zip = zipSync({
+      mimetype: strToU8("application/epub+zip"),
+      "META-INF/container.xml": strToU8(
+        `<container><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>`,
+      ),
+      "OEBPS/content.opf": strToU8(`<?xml version="1.0"?>
+        <package xmlns="http://www.idpf.org/2007/opf" xmlns:opf="http://www.idpf.org/2007/opf">
+          <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <dc:title>O Menino do Rio</dc:title>
+            <dc:creator>Fulano de Tal</dc:creator>
+            <dc:description>&lt;p&gt;Um menino, um rio e muitas histórias.&lt;/p&gt;</dc:description>
+            <dc:subject>Aventura</dc:subject>
+            <dc:identifier opf:scheme="ISBN">9788500000001</dc:identifier>
+            <meta name="calibre:series" content="Histórias do Rio"/>
+            <meta name="calibre:series_index" content="3"/>
+          </metadata>
+          <manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine><itemref idref="c1"/></spine>
+        </package>`),
+      "OEBPS/c1.xhtml": strToU8(chapter),
+    });
+    const book = await importBookFile(new File([zip], "livro.epub"));
+    expect(book.title).toBe("O Menino do Rio");
+    expect(book.details).toEqual({
+      description: "Um menino, um rio e muitas histórias.",
+      subjects: ["Aventura"],
+      series: "Histórias do Rio",
+      seriesIndex: 3,
+      isbn: "9788500000001",
+    });
+  });
+});

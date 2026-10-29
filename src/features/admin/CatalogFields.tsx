@@ -1,4 +1,5 @@
 import { CATALOG_GENRES, type CatalogRights } from "../../lib/adminCatalog";
+import type { DetailSource } from "../../lib/bookMetadata";
 import type {
   CatalogMetadataValue,
   CatalogRightsValue,
@@ -22,19 +23,35 @@ const RIGHTS_OPTIONS: { id: CatalogRights; label: string; hint: string }[] = [
   },
 ];
 
+const SOURCE_LABEL: Record<DetailSource, string> = {
+  arquivo: "do arquivo",
+  "Open Library": "da Open Library",
+  Wikipedia: "da Wikipedia",
+};
+
 export function CatalogMetadataFields({
   value,
   onChange,
+  sources = {},
   disabled,
 }: {
   value: CatalogMetadataValue;
   onChange: (patch: Partial<CatalogMetadataValue>) => void;
+  /** Campos preenchidos sozinhos: mostra de onde veio, para o admin revisar. */
+  sources?: Partial<Record<keyof CatalogMetadataValue, DetailSource>>;
   disabled?: boolean;
 }) {
+  const from = (field: keyof CatalogMetadataValue) => {
+    const source = sources[field];
+    return source ? <span className="catalog-field-source"> · {SOURCE_LABEL[source]}</span> : null;
+  };
   return (
     <div className="catalog-form-grid">
       <label className="catalog-field is-wide">
-        Título *
+        <span>
+          Título *
+          {from("title")}
+        </span>
         <input
           value={value.title}
           onChange={(event) => onChange({ title: event.target.value })}
@@ -46,7 +63,10 @@ export function CatalogMetadataFields({
       </label>
 
       <label className="catalog-field">
-        Autor
+        <span>
+          Autor
+          {from("author")}
+        </span>
         <input
           value={value.author}
           onChange={(event) => onChange({ author: event.target.value })}
@@ -57,7 +77,10 @@ export function CatalogMetadataFields({
       </label>
 
       <label className="catalog-field">
-        Gênero
+        <span>
+          Gênero
+          {from("genre")}
+        </span>
         <input
           value={value.genre}
           onChange={(event) => onChange({ genre: event.target.value })}
@@ -102,7 +125,10 @@ export function CatalogMetadataFields({
       </label>
 
       <label className="catalog-field">
-        Série
+        <span>
+          Série
+          {from("series")}
+        </span>
         <input
           value={value.series}
           onChange={(event) => onChange({ series: event.target.value })}
@@ -113,7 +139,10 @@ export function CatalogMetadataFields({
       </label>
 
       <label className="catalog-field">
-        Volume na série
+        <span>
+          Volume na série
+          {from("seriesIndex")}
+        </span>
         <input
           type="number"
           min={0}
@@ -126,7 +155,10 @@ export function CatalogMetadataFields({
       </label>
 
       <label className="catalog-field is-wide">
-        Resumo
+        <span>
+          Resumo
+          {from("description")}
+        </span>
         <textarea
           value={value.description}
           onChange={(event) => onChange({ description: event.target.value })}
