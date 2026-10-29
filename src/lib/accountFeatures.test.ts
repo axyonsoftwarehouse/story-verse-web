@@ -31,4 +31,23 @@ describe("account features", () => {
     expect(hasFeature(capabilities, "outra")).toBe(false);
     expect(hasFeature(null, "library")).toBe(false);
   });
+
+  it("guarda o motivo do acesso da assinatura", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            roles: [],
+            features: [],
+            subscription: { status: "none", active: true, reason: "pix", accessUntil: "2026-12-04T00:00:00Z", plan: "R$ 9,90" },
+          }),
+        ),
+      ),
+    );
+    const { fetchAccountCapabilities } = await import("./accountFeatures");
+    const capabilities = await fetchAccountCapabilities(session);
+    expect(capabilities.subscription?.reason).toBe("pix");
+    expect(capabilities.subscription?.accessUntil).toBe("2026-12-04T00:00:00Z");
+  });
 });
