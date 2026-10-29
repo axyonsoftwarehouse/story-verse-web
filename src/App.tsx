@@ -129,7 +129,8 @@ import {
   saveProgress,
   type ReadingProgress,
 } from "./lib/progress";
-import { missYouMessage } from "./lib/readingAmbient";
+import { missYouMessage, tidyAmbientMessages } from "./lib/readingAmbient";
+import { withOfflineCopy } from "./lib/offlineText";
 import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
 import { cachedPortrait, requestPortrait } from "./lib/portraits";
 import { excerptNearScrollRatio } from "./lib/readingContext";
@@ -6531,9 +6532,13 @@ export function App() {
     (isLocalBook(book)
       ? loadLocalBookText(book.gutenbergId)
       : book.source === "community" && book.communityPath
-        ? fetchCommunityText(authSessionRef.current, book.communityPath)
+        ? withOfflineCopy(`community:${book.communityPath}`, () =>
+            fetchCommunityText(authSessionRef.current, book.communityPath!),
+          )
         : book.source === "catalog" && book.catalogKey
-          ? fetchCatalogBookText(authSessionRef.current, book.catalogKey)
+          ? withOfflineCopy(`catalog:${book.catalogKey}`, () =>
+              fetchCatalogBookText(authSessionRef.current, book.catalogKey!),
+            )
           : fetchBookText(book.gutenbergId))
       .then((text) => {
         if (cancelled) return;
@@ -6585,7 +6590,8 @@ export function App() {
             const line = missYouMessage(awayChapter, awayDays);
             setThreads((prev) => ({
               ...prev,
-              [activeId]: [...(prev[activeId] ?? []), { id: uid(), role: "assistant", text: line }],
+              // Uma saudade só: se a anterior ficou sem resposta, a nova toma o lugar dela.
+              [activeId]: tidyAmbientMessages([...(prev[activeId] ?? []), { id: uid(), role: "assistant", text: line }]),
             }));
           }
         });
