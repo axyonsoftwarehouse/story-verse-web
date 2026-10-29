@@ -12,10 +12,11 @@ export type SubscriptionSnapshot = {
   accessUntil: string | null;
   plan: string;
   cancelAtPeriodEnd: boolean;
+  /** Por que tem acesso (pix, grant, staff, trial, active…); `status` é só o da assinatura no cartão. */
+  reason?: string;
 };
 
 export type SubscriptionStatus = SubscriptionSnapshot & {
-  reason?: string;
   priceId?: string;
   currency?: string;
   interval?: string;
