@@ -8052,6 +8052,21 @@ export function App() {
           />
         ) : null}
 
+        {/* A estante da pessoa logo depois do "Continue lendo": no celular ela ficava 6 telas abaixo. */}
+        {canRead ? (
+          <MyBooks
+            onOpen={startBook}
+            onRemoved={() => setHomeTick((n) => n + 1)}
+            session={authSession}
+            onSubmitted={() =>
+              setAuthNotice({ text: "Livro enviado para análise. Você acompanha em Perfil › Seus envios.", ok: true })
+            }
+            onRequest={() => requestImport()}
+            request={importRequest}
+            setRequest={setImportRequest}
+          />
+        ) : null}
+
         {canRead ? <DailyQuote books={featuredBooks} /> : null}
 
         {catalogNew.length > 0 ? (
@@ -8167,23 +8182,9 @@ export function App() {
         ) : null}
 
         {canRead ? (
-          <>
-            <MyBooks
-              onOpen={startBook}
-              onRemoved={() => setHomeTick((n) => n + 1)}
-              session={authSession}
-              onSubmitted={() =>
-                setAuthNotice({ text: "Livro enviado para análise. Você acompanha em Perfil › Seus envios.", ok: true })
-              }
-              onRequest={() => requestImport()}
-              request={importRequest}
-              setRequest={setImportRequest}
-            />
-
-            <div id="recursos">
-              <Explore onOpen={startBook} onImport={(hint) => requestImport(hint ?? {})} communityBooks={communityBooks} />
-            </div>
-          </>
+          <div id="recursos">
+            <Explore onOpen={startBook} onImport={(hint) => requestImport(hint ?? {})} communityBooks={communityBooks} />
+          </div>
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}

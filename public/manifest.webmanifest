@@ -12,7 +12,7 @@
   "categories": ["books", "education", "entertainment"],
   "id": "/",
   "related_applications": [
-    { "platform": "webapp", "url": "https://story-magic-mu.vercel.app/manifest.webmanifest" }
+    { "platform": "webapp", "url": "/manifest.webmanifest" }
   ],
   "icons": [
     { "src": "/icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
