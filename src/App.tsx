@@ -3668,20 +3668,30 @@ function welcomeCallLine(hasCharacter: boolean, pick: number, d = new Date()): s
  */
 function PlanCard({ status }: { status: SubscriptionSnapshot }) {
   const until = billingDate(status.accessUntil);
+  // O motivo vem antes do status: acesso grátis e Pix não têm assinatura no cartão por trás.
+  const reason = status.reason ?? status.status;
   const view =
-    status.status === "past_due"
+    reason === "past_due"
       ? { tone: "is-warning", icon: "⚠️", title: "Pagamento pendente", sub: "Atualize o cartão para não perder o acesso.", cta: "Resolver agora" }
-      : status.status === "trialing"
+      : reason === "trial" || reason === "trialing"
         ? { tone: "is-trial", icon: "✨", title: "Você está no teste grátis", sub: `Acesso liberado até ${until}.`, cta: "Ver assinatura" }
-        : status.status === "grant" || status.status === "staff"
-          ? { tone: "", icon: "🎁", title: billingStatusLabel(status.status), sub: "Seu acesso foi liberado pela equipe.", cta: "Ver detalhes" }
-          : {
-              tone: "",
-              icon: "👑",
-              title: `Assinante ${status.plan || "Storyverse"}`,
-              sub: status.cancelAtPeriodEnd ? `Cancelada: acesso até ${until}.` : `Renova em ${until}.`,
-              cta: "Minha assinatura",
-            };
+        : reason === "pix"
+          ? { tone: "", icon: "💠", title: "Pago com Pix", sub: `Acesso até ${until}. Não renova sozinho.`, cta: "Pagar mais dias" }
+          : reason === "grant" || reason === "staff"
+            ? {
+                tone: "",
+                icon: "🎁",
+                title: billingStatusLabel(reason),
+                sub: status.accessUntil ? `Liberado pela equipe até ${until}.` : "Seu acesso foi liberado pela equipe.",
+                cta: "Ver detalhes",
+              }
+            : {
+                tone: "",
+                icon: "👑",
+                title: `Assinante ${status.plan || "Storyverse"}`,
+                sub: status.cancelAtPeriodEnd ? `Cancelada: acesso até ${until}.` : `Renova em ${until}.`,
+                cta: "Minha assinatura",
+              };
   return (
     <Link className={`plan-card ${view.tone}`} to="/conta/assinatura">
       <span className="plan-card-icon" aria-hidden="true">
@@ -4765,6 +4775,17 @@ function ProfilePage({
             </form>
           ) : null}
           {pwState.ok ? <p className="auth-success" role="status">{pwState.ok}</p> : null}
+          {BILLING_UI_ENABLED ? (
+            <div className="profile-account-row">
+              <div>
+                <span className="profile-account-label">Assinatura</span>
+                <strong>Plano, pagamento e cancelamento</strong>
+              </div>
+              <Link className="btn" to="/conta/assinatura">
+                Minha assinatura
+              </Link>
+            </div>
+          ) : null}
           <div className="profile-account-row">
             <div>
               <span className="profile-account-label">Sessão</span>
