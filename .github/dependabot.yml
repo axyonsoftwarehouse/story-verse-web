@@ -5,6 +5,14 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # A voz natural (piper-tts-web) busca os .wasm do onnxruntime 1.18.0 no CDN, e a CSP do
+      # Caddy só libera essa pasta. Com outra versão do JS a voz falha (1.30 quebrou em 29/10/2026).
+      # Só sobe junto com o piper-tts-web e a CSP.
+      - dependency-name: onnxruntime-web
+      # O typescript-eslint só aceita TypeScript < 6.1 (o 7.0 quebrou o npm ci em 29/10/2026).
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
