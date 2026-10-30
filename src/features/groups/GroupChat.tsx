@@ -134,6 +134,7 @@ export function GroupChat() {
 
   const isMember = Boolean(group?.is_member);
   const hot = useMemo(() => hotAuthors(messages), [messages]);
+  const online = useMemo(() => new Set((group?.members ?? []).filter((m) => m.online && m.user_id !== me).map((m) => m.user_id)), [group?.members, me]);
   const chapter = myChapter(group?.book_key ?? null);
 
   const reloadGroup = useCallback(async () => {
@@ -193,6 +194,11 @@ export function GroupChat() {
           // A minha reação já foi aplicada na hora do clique.
           if (userId === me) return;
           setMessages((cur) => cur.map((m) => (m.id === messageId ? applyReaction(m, emoji, added, false) : m)));
+        } else if (event.type === "presence") {
+          const { userId, online: on } = event.data;
+          setGroup((g) =>
+            g?.members?.some((m) => m.user_id === userId) ? { ...g, members: g.members.map((m) => (m.user_id === userId ? { ...m, online: on } : m)) } : g,
+          );
         } else if (event.type === "typing" && event.data.groupId === id && event.data.userId !== me) {
           setTyping((cur) => ({ ...cur, [event.data.userId]: Date.now() + TYPING_SHOWN_MS }));
         } else if (event.type === "group" && event.data.groupId === id) {
@@ -325,6 +331,7 @@ export function GroupChat() {
       author_id: me,
       author_name: String(session.user.user_metadata?.name ?? "Você"),
       author_avatar: String(session.user.user_metadata?.avatar ?? ""),
+      author_photo: typeof session.user.user_metadata?.photo === "string" ? session.user.user_metadata.photo : null,
       body: text,
       spoiler_chapter: spoilerOn && spoiler ? Number(spoiler) : null,
       reply_to: replyTo?.id ?? null,
@@ -514,6 +521,7 @@ export function GroupChat() {
                 <small>
                   {group.book_title ? `${group.book_title} · ` : ""}
                   {members} {members === 1 ? "membro" : "membros"}
+                  {online.size > 0 ? <span className="group-online-count"> · {online.size} online</span> : null}
                 </small>
               )}
             </span>
@@ -624,7 +632,7 @@ export function GroupChat() {
                   const jumbo = !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
                   const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
-                    <Fragment key={m.pending || m.failed ? m.client_id : m.id}>
+                    <Fragment key={m.client_id ?? m.id}>
                       {newDay ? (
                         <div className="group-day">
                           <span>{dayLabel(m.created_at)}</span>
@@ -652,7 +660,15 @@ export function GroupChat() {
                         <span className="group-swipe-icon" aria-hidden="true">
                           {GIcon.reply}
                         </span>
-                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" hot={hot.has(m.author_id)} /> : null}
+                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace
+                              id={m.author_id}
+                              name={m.author_name}
+                              avatar={m.author_avatar}
+                              photo={m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo}
+                              size="sm"
+                              hot={hot.has(m.author_id)}
+                              online={online.has(m.author_id)}
+                            /> : null}
                         <div className="group-bubble-wrap">
                           <div
                             className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
@@ -739,8 +755,10 @@ export function GroupChat() {
                       id={typingIds[0]}
                       name={typingNames[0]}
                       avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
+                      photo={group.members?.find((m) => m.user_id === typingIds[0])?.photo}
                       size="sm"
                       hot={hot.has(typingIds[0])}
+                      online
                     />
                     <div className="group-bubble">
                       <span className="group-typing-dots" aria-hidden="true">

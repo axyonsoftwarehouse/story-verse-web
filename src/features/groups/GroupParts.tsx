@@ -1,32 +1,46 @@
 import { useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { AvatarArt, findAvatar } from "../../avatars";
+import { apiBaseUrl } from "../../lib/backend";
 import { GIcon } from "./groupIcons";
 import { hueOf } from "./groupHelpers";
 
 /**
- * Rosto de quem escreve: o avatar escolhido no perfil ou a inicial numa cor própria da pessoa.
- * `hot`: uma das pessoas que mais falam no grupo (ganha o 🔥).
+ * Rosto de quem escreve: a foto do perfil; sem foto (ou se não carregar), o avatar escolhido ou a
+ * inicial numa cor própria da pessoa. `hot`: uma das que mais falam (🔥); `online`: bolinha verde.
  */
 export function PersonFace({
   id,
   name,
   avatar,
+  photo,
   size = "md",
   hot = false,
+  online = false,
 }: {
   id: string;
   name: string;
   avatar?: string | null;
+  photo?: string | null;
   size?: "sm" | "md";
   hot?: boolean;
+  online?: boolean;
 }) {
+  const [broken, setBroken] = useState<string | null>(null);
   const def = findAvatar(avatar);
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
+  const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`)) && broken !== photo);
   return (
     <span className={`group-face group-face-${size} ${hot ? "is-hot" : ""}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
-      {def ? <AvatarArt avatar={def} /> : (name.trim().charAt(0) || "?").toUpperCase()}
+      {showPhoto ? (
+        <img src={photo!} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(photo!)} />
+      ) : def ? (
+        <AvatarArt avatar={def} />
+      ) : (
+        (name.trim().charAt(0) || "?").toUpperCase()
+      )}
       {hot ? <span className="group-hot">🔥</span> : null}
+      {online ? <span className="group-online" /> : null}
     </span>
   );
 }
