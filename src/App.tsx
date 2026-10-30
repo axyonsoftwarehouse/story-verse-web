@@ -187,6 +187,7 @@ import {
   type ReceivedGift,
 } from "./lib/gifts";
 import {
+  fetchAlltimeRanking,
   fetchRanking,
   fetchRankingProfile,
   PLACE_MEDALS,
@@ -3044,7 +3045,13 @@ function weekRangeLabel(offset: 0 | -1): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-/** Ranking semanal: pódio dos 3 que mais leram, a lista dos demais e a sua posição. */
+/** Aba do ranking: geral (sem data), esta semana (0) ou a passada (-1). */
+type RankingTab = "all" | 0 | -1;
+
+/**
+ * Ranking: pódio dos 3 que mais leram, a lista dos demais e a sua posição. Abre no geral, que soma
+ * toda a leitura e não zera na virada da semana; o semanal continua com o pódio que ganha diamantes.
+ */
 function RankingPage({
   session,
   onClose,
@@ -3054,8 +3061,8 @@ function RankingPage({
   onClose: () => void;
   onOpenShop: () => void;
 }) {
-  const [tab, setTab] = useState<0 | -1>(0);
-  const [lists, setLists] = useState<Partial<Record<0 | -1, RankEntry[]>>>({});
+  const [tab, setTab] = useState<RankingTab>("all");
+  const [lists, setLists] = useState<Partial<Record<RankingTab, RankEntry[]>>>({});
   const [profile, setProfile] = useState<RankingProfile | null>(null);
   const [error, setError] = useState("");
   const [savingHidden, setSavingHidden] = useState(false);
@@ -3082,7 +3089,8 @@ function RankingPage({
 
   useEffect(() => {
     let alive = true;
-    fetchWeeklyGiftCounts(session, tab)
+    // No geral, os presentes contados são os desta semana.
+    fetchWeeklyGiftCounts(session, tab === "all" ? 0 : tab)
       .then((counts) => {
         if (alive) setGiftCounts(counts);
       })
@@ -3103,9 +3111,11 @@ function RankingPage({
     let alive = true;
     setError("");
     // Envia os minutos de agora antes de buscar: a sua posição já sai atualizada.
-    const ready = tab === 0 ? reportReading(session).catch(() => {}) : Promise.resolve();
+    const ready = tab !== -1 ? reportReading(session).catch(() => {}) : Promise.resolve();
     void ready
-      .then(() => Promise.all([fetchRanking(session, tab), fetchRankingProfile(session)]))
+      .then(() =>
+        Promise.all([tab === "all" ? fetchAlltimeRanking(session) : fetchRanking(session, tab), fetchRankingProfile(session)]),
+      )
       .then(([list, p]) => {
         if (!alive) return;
         setLists((l) => ({ ...l, [tab]: list }));
@@ -3181,7 +3191,9 @@ function RankingPage({
   // O banco manda até 50 do topo; se você está mais abaixo, sua linha vem separada no fim.
   const rest = list?.filter((e) => e.place > 3 && e.place <= 50) ?? [];
   const meOutside = me && me.place > 50 ? me : null;
-  const current = tab === 0;
+  // "Atual": o geral e esta semana ainda mudam (dá para presentear); a semana passada já fechou.
+  const current = tab !== -1;
+  const alltime = tab === "all";
 
   return (
     <div className="home profile moderation ranking">
@@ -3197,15 +3209,22 @@ function RankingPage({
         ) : null}
       </nav>
       <header className="moderation-head">
-        <span className="eyebrow">Ranking semanal · {weekRangeLabel(tab)}</span>
-        <h1>{current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
-        <p>
-          Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham 50,
-          30 e 20 💎.
-        </p>
+        <span className="eyebrow">{tab === "all" ? "Ranking geral · desde o começo" : `Ranking semanal · ${weekRangeLabel(tab)}`}</span>
+        <h1>{alltime ? "Quem mais leu até hoje" : current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
+        {alltime ? (
+          <p>Soma todo o seu tempo de leitura e não zera na virada da semana: cada minuto lido fica com você.</p>
+        ) : (
+          <p>
+            Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham
+            50, 30 e 20 💎.
+          </p>
+        )}
       </header>
 
       <div className="segmented moderation-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={alltime} className={alltime ? "is-on" : ""} onClick={() => setTab("all")}>
+          Geral
+        </button>
         <button type="button" role="tab" aria-selected={tab === 0} className={tab === 0 ? "is-on" : ""} onClick={() => setTab(0)}>
           Esta semana
         </button>
@@ -3247,19 +3266,25 @@ function RankingPage({
               </>
             ) : (
               <span>
-                {current
-                  ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
-                  : "Você não entrou no ranking da semana passada."}
+                {alltime
+                  ? "Você ainda não entrou no ranking. Leia pelo menos 1 minuto para aparecer aqui!"
+                  : current
+                    ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
+                    : "Você não entrou no ranking da semana passada."}
               </span>
             )}
           </div>
 
           {list.length === 0 ? (
             <p className="profile-empty moderation-empty">
-              {current ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚" : "Ninguém leu na semana passada."}
+              {alltime
+                ? "Ninguém leu ainda. Que tal ser o primeiro? 📚"
+                : current
+                  ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚"
+                  : "Ninguém leu na semana passada."}
             </p>
           ) : (
-            <ol key={current ? "esta" : "passada"} className="podium" aria-label="Pódio">
+            <ol key={String(tab)} className="podium" aria-label="Pódio">
               {/* Ordem visual de pódio: prata, ouro, bronze. */}
               {[2, 1, 3].map((place) => {
                 const e = podium.find((p) => p.place === place);
@@ -3386,7 +3411,7 @@ function RankingPage({
           />
           <span>
             <strong>Aparecer no ranking</strong>
-            <small>Outros leitores veem só seu nome, avatar e minutos lidos na semana.</small>
+            <small>Outros leitores veem só seu nome, avatar e minutos lidos.</small>
           </span>
         </label>
       ) : null}
@@ -3431,7 +3456,7 @@ function RankingRow({
   );
 }
 
-/** Convite na tela inicial para abrir o ranking da semana. */
+/** Convite na tela inicial para abrir o ranking. */
 function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   return (
     <button type="button" className="ranking-teaser" onClick={onOpen}>
@@ -3439,8 +3464,8 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
         🏆
       </span>
       <span className="ranking-teaser-text">
-        <strong>Ranking da semana</strong>
-        <span>Veja quem mais leu desde segunda e em que lugar você está. O pódio ganha diamantes.</span>
+        <strong>Ranking de leitores</strong>
+        <span>Veja quem mais leu, no geral e na semana, e em que lugar você está. O pódio da semana ganha diamantes.</span>
       </span>
       <span className="ranking-teaser-go" aria-hidden="true">
         {Icon.next}

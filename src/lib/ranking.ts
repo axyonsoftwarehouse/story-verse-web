@@ -67,6 +67,11 @@ export async function fetchRanking(session: SupabaseSession, offset: 0 | -1, lim
   return (await call<RankEntry[]>(session, "weekly_ranking", { p_offset: offset, p_limit: limit })) ?? [];
 }
 
+/** Ranking geral: toda a leitura da conta, sem data. Não dá diamantes, só mostra. */
+export async function fetchAlltimeRanking(session: SupabaseSession, limit = 50): Promise<RankEntry[]> {
+  return (await call<RankEntry[]>(session, "alltime_ranking", { p_limit: limit })) ?? [];
+}
+
 export async function fetchRankingProfile(session: SupabaseSession): Promise<RankingProfile> {
   const rows = (await call<RankingProfile[]>(session, "my_ranking_profile")) ?? [];
   return rows[0] ?? { hidden: false, diamonds: 0 };
