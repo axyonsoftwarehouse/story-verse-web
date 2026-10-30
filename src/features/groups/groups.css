@@ -1028,7 +1028,7 @@
   padding: 0.45rem 0.75rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  background: var(--surface);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   overflow-wrap: anywhere;
 }
@@ -1040,7 +1040,7 @@
 .group-msg.is-mine .group-bubble {
   border-color: rgba(var(--accent-rgb), 0.35);
   border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.16));
+  background: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
 }
 
 .group-msg.is-mine.is-grouped .group-bubble {
@@ -1231,6 +1231,8 @@
   font-size: 0.95rem;
   line-height: 1.35;
   resize: none;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .group-composer textarea:focus {
@@ -1837,9 +1839,7 @@
 /* Bolha dos outros: um toque da cor de quem escreveu. */
 .group-msg:not(.is-mine) .group-bubble {
   border-color: hsl(var(--hue, 40) 50% 58% / 0.4);
-  background:
-    linear-gradient(160deg, hsl(var(--hue, 40) 50% 50% / 0.26), transparent 75%),
-    color-mix(in srgb, var(--surface) 94%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, hsl(var(--hue, 40) 50% 50%) 20%, var(--surface)), var(--surface) 80%);
 }
 
 .group-msg:not(.is-mine) > .group-face {
@@ -1848,7 +1848,7 @@
 }
 
 .group-msg.is-mine .group-bubble {
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
+  background: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
   box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.15);
 }
 
@@ -1875,7 +1875,7 @@
 .group-msg.is-mine .group-bubble.is-pending {
   background-image:
     linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%),
-    linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
+    linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
   background-size: 200% 100%, auto;
   animation: group-shimmer 1.2s linear infinite;
 }
@@ -2467,9 +2467,7 @@ button.group-info-desc.is-empty {
   padding: 0.5rem 0.8rem 0.4rem;
   border: 1px solid hsl(var(--hue, 40) 50% 58% / 0.4);
   border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
-  background:
-    linear-gradient(160deg, hsl(var(--hue, 40) 50% 50% / 0.26), transparent 75%),
-    var(--surface);
+  background: linear-gradient(160deg, color-mix(in srgb, hsl(var(--hue, 40) 50% 50%) 20%, var(--surface)), var(--surface) 80%);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   overflow-wrap: anywhere;
   animation: group-focus-lift 0.22s var(--ease-out, ease-out);
@@ -2478,7 +2476,7 @@ button.group-info-desc.is-empty {
 .group-focus-panel.is-mine .group-focus-bubble {
   border-color: rgba(var(--accent-rgb), 0.45);
   border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18)), var(--surface);
+  background: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
 }
 
 .group-focus-bubble .group-text {

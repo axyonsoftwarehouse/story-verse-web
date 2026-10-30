@@ -263,8 +263,11 @@ export function GroupChat() {
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    // scrollHeight não conta a borda (border-box): sem somá-la sobra a barra de rolagem.
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+    const full = el.scrollHeight + el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.min(full, 150)}px`;
+    el.style.overflowY = full > 150 ? "auto" : "hidden";
   }, [input]);
 
   function onScroll() {
