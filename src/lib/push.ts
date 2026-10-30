@@ -33,11 +33,39 @@ function sameKey(current: ArrayBuffer | null | undefined, key: Uint8Array): bool
   return a.length === key.length && a.every((b, i) => b === key[i]);
 }
 
-/** Service worker já registrado (em desenvolvimento não há: aí não espera para sempre). */
-async function registration(): Promise<ServiceWorkerRegistration | null> {
+/**
+ * Service worker pronto. Na primeira abertura o registro acontece depois do carregamento da
+ * página, então espera um pouco por ele (em desenvolvimento não há service worker: desiste).
+ */
+async function registration(timeoutMs = 15_000): Promise<ServiceWorkerRegistration | null> {
   if (!pushSupported()) return null;
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
+
+/** Este aparelho está inscrito para receber os avisos? */
+export async function pushSubscribed(): Promise<boolean> {
+  if (!pushSupported()) return false;
   const reg = await navigator.serviceWorker.getRegistration();
-  return reg ? navigator.serviceWorker.ready : null;
+  return Boolean(await reg?.pushManager.getSubscription());
+}
+
+/**
+ * "Testar": inscreve de novo (se precisar) e pede à API um aviso de teste para os aparelhos da
+ * conta. `accepted` é quantos o serviço de push aceitou entregar.
+ */
+export async function testPush(): Promise<{ subscribed: boolean; devices: number; accepted: number }> {
+  const subscribed = await syncPush();
+  if (!subscribed) return { subscribed, devices: 0, accepted: 0 };
+  const session = await refreshAuthSession();
+  const result = await apiRequest<{ devices: number; accepted: number }>("/api/v1/push/test", {
+    method: "POST",
+    accessToken: session.access_token,
+    timeoutMs: 30_000,
+  });
+  return { subscribed, ...result };
 }
 
 /** Pede permissão (depois de um toque) e inscreve este aparelho. */

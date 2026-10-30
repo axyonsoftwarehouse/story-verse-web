@@ -2756,3 +2756,48 @@ button.group-info-desc.is-empty {
 .group-online-count {
   color: #6fdc95;
 }
+
+/* Avisos no celular: estado neste aparelho e o botão de teste. */
+.groups-push-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.groups-push-status > span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.groups-push-status strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.groups-push-status svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.groups-push-status small {
+  flex-basis: 100%;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.groups-push-status.is-off {
+  display: block;
+  line-height: 1.5;
+}
