@@ -12,7 +12,6 @@ import { AuditSection } from "./AuditSection";
 import { BillingSection } from "./BillingSection";
 import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
-import { ForumModeration } from "./ForumModeration";
 import { GroupReports } from "./GroupReports";
 import { MetricsSection } from "./MetricsSection";
 import { OverviewSection } from "./OverviewSection";
@@ -104,7 +103,6 @@ export function AdminRoute() {
         if (!alive || !result.moderation) return;
         setPending({
           catalog: result.moderation.pendingSubmissions,
-          forum: result.moderation.openReports,
         });
       })
       .catch(() => undefined);
@@ -178,7 +176,7 @@ export function AdminRoute() {
     );
   }
 
-  const canModerateForum = canModerate(allowed);
+  const canModerateGroups = canModerate(allowed);
 
   return (
     <Page>
@@ -271,19 +269,12 @@ export function AdminRoute() {
               path="moderacao/acervo"
               element={<Navigate to="/admin/acervo/envios" replace />}
             />
-            <Route
-              path="moderacao/forum"
-              element={
-                <RequireSection id="forum" roles={allowed}>
-                  <ForumModeration session={session} canModerate={canModerateForum} />
-                </RequireSection>
-              }
-            />
+            <Route path="moderacao/forum" element={<Navigate to="/admin/moderacao/grupos" replace />} />
             <Route
               path="moderacao/grupos"
               element={
                 <RequireSection id="groups" roles={allowed}>
-                  <GroupReports canModerate={canModerateForum} />
+                  <GroupReports canModerate={canModerateGroups} />
                 </RequireSection>
               }
             />

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../../App.css";
 import "./groups.css";
 import { useStoredSession } from "../auth/useStoredSession";
 import {
-  createGroup,
   enableGroupNotifications,
   messageTime,
   myGroups,
@@ -13,10 +12,11 @@ import {
   openGroupStream,
   publicGroups,
   type Group,
-  type GroupFields,
 } from "../../lib/groups";
-import { GroupsBlocked } from "./GroupParts";
-import { bookOptions, useGroupsGate } from "./groupHelpers";
+import { GroupForm } from "./GroupForm";
+import { GroupAvatar, GroupsBlocked } from "./GroupParts";
+import { GIcon } from "./groupIcons";
+import { useGroupsGate } from "./groupHelpers";
 
 type Tab = "mine" | "explore";
 
@@ -30,8 +30,9 @@ export function GroupsHome() {
   const gate = useGroupsGate(session, sessionLoading);
   const navigate = useNavigate();
   const params = new URLSearchParams(window.location.search);
-  // "Criar clube deste livro" (página do livro) chega com o livro na URL.
+  // "Clubes deste livro" (página do livro) chega com o livro na URL.
   const presetBook = params.get("livro");
+  const presetTitle = params.get("titulo");
   const [tab, setTab] = useState<Tab>(presetBook ? "explore" : "mine");
   const [mine, setMine] = useState<Group[] | null>(null);
   const [explore, setExplore] = useState<Group[] | null>(null);
@@ -39,8 +40,8 @@ export function GroupsHome() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
-  const presetTitle = params.get("titulo");
   const [askNotify, setAskNotify] = useState(() => notificationsAvailable() && Notification.permission === "default");
+  const me = session?.user.id;
 
   useEffect(() => {
     if (!gate.ready) return;
@@ -59,7 +60,7 @@ export function GroupsHome() {
     const close = openGroupStream((event) => {
       if (event.type === "message") {
         const g = known.find((x) => x.id === event.data.group_id);
-        if (g && event.data.author_id !== session?.user.id) notifyGroupMessage(event.data, g.name, g.muted);
+        if (g && event.data.author_id !== me) notifyGroupMessage(event.data, g.name, g.muted);
       }
       if (event.type === "message" || event.type === "group" || event.type === "message_deleted") void load();
     }, load);
@@ -67,7 +68,7 @@ export function GroupsHome() {
       alive = false;
       close();
     };
-  }, [gate.ready, session?.user.id]);
+  }, [gate.ready, me]);
 
   useEffect(() => {
     if (!gate.ready || tab !== "explore") return;
@@ -84,6 +85,7 @@ export function GroupsHome() {
   if (!gate.ready) return <GroupsBlocked text={gate.blocked} />;
 
   const list = tab === "mine" ? mine : explore;
+  const unread = (mine ?? []).reduce((sum, g) => sum + (Number(g.unread) || 0), 0);
 
   return (
     <div className="home groups-page">
@@ -91,273 +93,184 @@ export function GroupsHome() {
         <Link className="btn" to="/">
           Voltar
         </Link>
-        <span className="wordmark">Grupos</span>
       </nav>
-      <section className="shelf">
-        <div className="shelf-head">
-          <h1>Grupos</h1>
+
+      <header className="groups-hero">
+        <span className="groups-hero-icon">{GIcon.chat}</span>
+        <div>
+          <span className="eyebrow">Comunidade</span>
+          <h1>Grupos de leitura</h1>
+          <p>Converse com outros leitores em tempo real. Monte um clube para ler um livro junto ou só bata papo.</p>
         </div>
-        <p className="forum-intro">
-          Converse com outros leitores. Um grupo pode ser só de conversa ou um clube de leitura de um livro, com meta e o
-          progresso de cada um.
-        </p>
-        <div className="groups-toolbar">
-          <div className="segmented" role="tablist">
-            <button type="button" role="tab" aria-selected={tab === "mine"} className={tab === "mine" ? "is-on" : ""} onClick={() => setTab("mine")}>
-              Meus grupos
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "explore"}
-              className={tab === "explore" ? "is-on" : ""}
-              onClick={() => setTab("explore")}
-            >
-              Explorar
-            </button>
-          </div>
-          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-            Criar grupo
+        <button type="button" className="btn btn-primary groups-create" onClick={() => setCreating(true)}>
+          {GIcon.plus} Criar grupo
+        </button>
+      </header>
+
+      <div className="groups-toolbar">
+        <div className="segmented groups-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "mine"} className={tab === "mine" ? "is-on" : ""} onClick={() => setTab("mine")}>
+            Meus grupos
+            {unread > 0 ? <span className="groups-tab-badge">{unread > 99 ? "99+" : unread}</span> : null}
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "explore"} className={tab === "explore" ? "is-on" : ""} onClick={() => setTab("explore")}>
+            Explorar
           </button>
         </div>
-        {presetBook && tab === "explore" ? (
-          <p className="group-card-sub">
-            Clubes de “{presetTitle ?? presetBook}”.{" "}
-            <Link className="link-btn" to="/grupos" onClick={() => setTab("mine")}>
-              Ver todos os grupos
-            </Link>
-          </p>
-        ) : null}
         {tab === "explore" ? (
           <form
-            className="forum-search"
+            className="groups-search"
+            role="search"
             onSubmit={(e) => {
               e.preventDefault();
               setQuery(search.trim());
             }}
           >
+            {GIcon.search}
             <input
+              type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome do grupo ou livro"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (!e.target.value) setQuery("");
+              }}
+              placeholder="Buscar grupo ou livro"
               aria-label="Buscar grupos"
               maxLength={80}
             />
-            <button type="submit" className="btn">
-              Buscar
-            </button>
           </form>
         ) : null}
-      </section>
+      </div>
+
+      {presetBook && tab === "explore" ? (
+        <p className="groups-filter">
+          {GIcon.book} Clubes de <strong>“{presetTitle ?? presetBook}”</strong>
+          <Link className="group-text-btn" to="/grupos" onClick={() => setTab("explore")}>
+            Ver todos
+          </Link>
+        </p>
+      ) : null}
+
+      {askNotify && tab === "mine" ? (
+        <div className="groups-notify" role="status">
+          <span className="groups-notify-icon">{GIcon.bell}</span>
+          <span>Receba um aviso quando chegar mensagem com o app aberto em outra aba.</span>
+          <button type="button" className="group-text-btn" onClick={() => void enableGroupNotifications().finally(() => setAskNotify(false))}>
+            Ativar
+          </button>
+          <button type="button" className="group-icon-btn" aria-label="Agora não" onClick={() => setAskNotify(false)}>
+            {GIcon.close}
+          </button>
+        </div>
+      ) : null}
 
       {error ? (
-        <p className="auth-error forum-error" role="alert">
+        <p className="auth-error groups-error" role="alert">
           {error}
         </p>
       ) : null}
 
-      {askNotify ? (
-        <div className="continue-undo groups-notify" role="status">
-          <span>Quer um aviso quando chegar mensagem com o app aberto em outra tela?</span>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void enableGroupNotifications().finally(() => setAskNotify(false))}
-          >
-            Ativar avisos
-          </button>
+      {list === null ? (
+        <ul className="group-list" aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="group-card is-skeleton" />
+          ))}
+        </ul>
+      ) : list.length === 0 ? (
+        <div className="groups-empty">
+          <span className="groups-empty-icon">{tab === "mine" ? GIcon.chat : GIcon.search}</span>
+          <strong>
+            {tab === "mine"
+              ? "Você ainda não está em nenhum grupo"
+              : query
+                ? "Nenhum grupo com essa busca"
+                : presetBook
+                  ? "Ainda não há clube deste livro"
+                  : "Ainda não há grupos públicos"}
+          </strong>
+          <p>{tab === "mine" ? "Entre num grupo público ou crie o seu e chame os amigos pelo link." : "Que tal criar o primeiro?"}</p>
+          <div className="groups-empty-actions">
+            {tab === "mine" ? (
+              <button type="button" className="btn" onClick={() => setTab("explore")}>
+                Explorar grupos
+              </button>
+            ) : null}
+            <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+              {GIcon.plus} Criar grupo
+            </button>
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <ul className="group-list">
+          {list.map((g) => (
+            <li key={g.id}>
+              <GroupCard group={g} explore={tab === "explore"} />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {creating ? (
-        <CreateGroupForm
+        <GroupForm
           presetBook={presetBook}
-          onCancel={() => setCreating(false)}
-          onCreated={(g) => navigate(`/grupos/${g.id}`)}
+          presetTitle={presetTitle}
+          onClose={() => setCreating(false)}
+          onSaved={(g) => navigate(`/grupos/${g.id}`)}
         />
       ) : null}
-
-      <section className="shelf">
-        {list === null ? (
-          <div className="page-status">
-            <span className="spinner" aria-hidden="true" />
-            Carregando…
-          </div>
-        ) : list.length === 0 ? (
-          <p className="profile-empty">
-            {tab === "mine"
-              ? "Você ainda não está em nenhum grupo. Explore os públicos ou crie o seu."
-              : query
-                ? "Nenhum grupo encontrado com essa busca."
-                : presetBook
-                  ? "Ainda não há clube deste livro. Crie o primeiro!"
-                  : "Ainda não há grupos públicos. Que tal criar o primeiro?"}
-          </p>
-        ) : (
-          <ul className="group-list">
-            {list.map((g) => (
-              <li key={g.id}>
-                <GroupCard group={g} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }
 
-function GroupCard({ group }: { group: Group }) {
+function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
+  const members = Number(group.member_count);
+  const preview =
+    group.is_member && group.last_message_id ? (
+      <>
+        <strong>{group.last_author_name}:</strong> {group.last_body ?? "🙈 mensagem com spoiler"}
+      </>
+    ) : (
+      group.description
+    );
   return (
     <Link className={`group-card ${group.unread > 0 ? "has-unread" : ""}`} to={`/grupos/${group.id}`}>
-      {group.book_cover ? (
-        <img className="group-card-cover" src={group.book_cover} alt="" loading="lazy" />
-      ) : (
-        <span className="group-card-cover is-empty" aria-hidden="true">
-          {group.name.charAt(0).toUpperCase()}
-        </span>
-      )}
+      <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="lg" />
       <span className="group-card-body">
         <span className="group-card-title">
           <strong>{group.name}</strong>
-          {group.visibility === "private" ? <small className="group-tag">Privado</small> : null}
+          {group.visibility === "private" ? (
+            <span className="group-card-lock" title="Grupo privado">
+              {GIcon.lock}
+            </span>
+          ) : null}
         </span>
         <span className="group-card-sub">
-          {group.book_title ? `📖 ${group.book_title} · ` : ""}
-          {group.member_count} {Number(group.member_count) === 1 ? "membro" : "membros"}
-        </span>
-        {group.is_member && group.last_message_id ? (
-          <span className="group-card-last">
-            {group.last_author_name}: {group.last_body ?? "🙈 mensagem com spoiler"}
+          {group.book_title ? (
+            <span className="group-card-book">
+              {GIcon.book}
+              {group.book_title}
+            </span>
+          ) : null}
+          <span>
+            {members} {members === 1 ? "membro" : "membros"}
           </span>
-        ) : group.description ? (
-          <span className="group-card-last">{group.description}</span>
-        ) : null}
+        </span>
+        {preview ? <span className="group-card-last">{preview}</span> : null}
       </span>
       <span className="group-card-side">
-        {group.last_message_at ? <small>{messageTime(group.last_message_at)}</small> : null}
-        {group.unread > 0 ? (
-          <span className="group-unread" aria-label={`${group.unread} mensagens não lidas`}>
-            {group.unread >= 100 ? "99+" : group.unread}
-          </span>
-        ) : null}
+        {explore && !group.is_member ? (
+          <span className="group-join-chip">Entrar</span>
+        ) : (
+          <>
+            {group.last_message_at ? <small>{messageTime(group.last_message_at)}</small> : null}
+            {group.unread > 0 ? (
+              <span className="group-unread" aria-label={`${group.unread} mensagens não lidas`}>
+                {group.unread >= 100 ? "99+" : group.unread}
+              </span>
+            ) : null}
+          </>
+        )}
       </span>
     </Link>
-  );
-}
-
-function CreateGroupForm({
-  presetBook,
-  onCancel,
-  onCreated,
-}: {
-  presetBook: string | null;
-  onCancel: () => void;
-  onCreated: (g: Group) => void;
-}) {
-  const books = useMemo(() => bookOptions(), []);
-  const presetTitle = new URLSearchParams(window.location.search).get("titulo");
-  const [name, setName] = useState(presetTitle ? `Clube: ${presetTitle}`.slice(0, 60) : "");
-  const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "private">("public");
-  const [bookKey, setBookKey] = useState(presetBook ?? "");
-  const [goalChapter, setGoalChapter] = useState("");
-  const [goalUntil, setGoalUntil] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const options = presetBook && !books.some((b) => b.key === presetBook)
-    ? [{ key: presetBook, title: presetTitle ?? presetBook }, ...books]
-    : books;
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    const book = options.find((b) => b.key === bookKey);
-    const fields: GroupFields = {
-      name: name.trim(),
-      description: description.trim() || null,
-      visibility,
-      bookKey: book?.key ?? null,
-      bookTitle: book?.title ?? null,
-      bookCover: book && "cover" in book ? (book.cover ?? null) : null,
-      goalChapter: book && goalChapter ? Number(goalChapter) : null,
-      goalUntil: book && goalUntil ? goalUntil : null,
-    };
-    try {
-      onCreated(await createGroup(fields));
-    } catch (err) {
-      setError(message(err));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="shelf">
-      <form className="profile-card forum-composer group-create" onSubmit={submit}>
-        <h2>Novo grupo</h2>
-        <label>
-          Nome
-          <input value={name} onChange={(e) => setName(e.target.value)} minLength={3} maxLength={60} required />
-        </label>
-        <label>
-          Descrição (opcional)
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} rows={2} />
-        </label>
-        <fieldset className="group-visibility">
-          <legend>Quem pode entrar</legend>
-          <label>
-            <input type="radio" checked={visibility === "public"} onChange={() => setVisibility("public")} />
-            <span>
-              <strong>Público</strong>
-              <small>Aparece em Explorar e qualquer leitor entra.</small>
-            </span>
-          </label>
-          <label>
-            <input type="radio" checked={visibility === "private"} onChange={() => setVisibility("private")} />
-            <span>
-              <strong>Privado</strong>
-              <small>Só entra quem recebe o link de convite.</small>
-            </span>
-          </label>
-        </fieldset>
-        <label>
-          Livro do clube (opcional)
-          <select value={bookKey} onChange={(e) => setBookKey(e.target.value)}>
-            <option value="">Sem livro: grupo de conversa</option>
-            {options.map((b) => (
-              <option key={b.key} value={b.key}>
-                {b.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        {bookKey ? (
-          <div className="group-goal">
-            <label>
-              Meta: até o capítulo
-              <input type="number" min={1} max={10000} value={goalChapter} onChange={(e) => setGoalChapter(e.target.value)} />
-            </label>
-            <label>
-              até o dia
-              <input type="date" value={goalUntil} onChange={(e) => setGoalUntil(e.target.value)} />
-            </label>
-          </div>
-        ) : null}
-        {error ? (
-          <p className="auth-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <div className="shelf-actions">
-          <button type="button" className="btn" onClick={onCancel}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? "Criando…" : "Criar grupo"}
-          </button>
-        </div>
-      </form>
-    </section>
   );
 }

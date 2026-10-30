@@ -37,6 +37,7 @@ export type Group = {
   id: string;
   name: string;
   description: string | null;
+  photo_url: string | null;
   visibility: "public" | "private";
   owner_id: string;
   book_key: string | null;
@@ -83,6 +84,7 @@ export type GroupMessage = {
 export type GroupFields = {
   name: string;
   description?: string | null;
+  photoUrl?: string | null;
   visibility: "public" | "private";
   bookKey?: string | null;
   bookTitle?: string | null;

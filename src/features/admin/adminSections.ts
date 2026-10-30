@@ -4,7 +4,6 @@ export type AdminSectionId =
   | "sanctions"
   | "features"
   | "catalog"
-  | "forum"
   | "groups"
   | "metrics"
   | "site"
@@ -23,7 +22,6 @@ const SECTIONS: AdminSection[] = [
   { id: "sanctions", path: "/admin/sancoes", label: "Sanções" },
   { id: "features", path: "/admin/features", label: "Recursos em teste" },
   { id: "catalog", path: "/admin/acervo", label: "Acervo" },
-  { id: "forum", path: "/admin/moderacao/forum", label: "Fórum" },
   { id: "groups", path: "/admin/moderacao/grupos", label: "Grupos" },
   { id: "metrics", path: "/admin/metricas", label: "Métricas" },
   { id: "site", path: "/admin/site", label: "Site" },

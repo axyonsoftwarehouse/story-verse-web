@@ -43,3 +43,21 @@ export function myChapter(bookKey: string | null): number {
   const p = recentProgress().find((x) => bookKeyOf(x.book) === bookKey);
   return p ? p.chapterIndex + 1 : 0;
 }
+
+/** Tom fixo (0–359) para cada grupo ou pessoa: a mesma cor sempre, sem guardar nada. */
+export function hueOf(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+/** "Hoje", "Ontem" ou "12 de outubro" para separar a conversa por dia. */
+export function dayLabel(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const key = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  if (key(d) === key(now)) return "Hoje";
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (key(d) === key(y)) return "Ontem";
+  return d.toLocaleDateString("pt-BR", d.getFullYear() === now.getFullYear() ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" });
+}

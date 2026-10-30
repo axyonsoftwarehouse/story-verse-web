@@ -1,16 +1,10 @@
 import { lazy } from "react";
 import { loadRoute } from "./lib/loadRoute";
 
-// Só a página inicial vem no arquivo principal: admin, fórum, assinatura e acervo público
+// Só a página inicial vem no arquivo principal: admin, grupos, assinatura e acervo público
 // carregam quando a rota abre, para a primeira tela desenhar mais cedo.
 export const AdminRoute = lazy(() =>
   loadRoute(() => import("./features/admin/AdminRoute")).then((m) => ({ default: m.AdminRoute })),
-);
-export const ForumHome = lazy(() =>
-  loadRoute(() => import("./features/forum/ForumHome")).then((m) => ({ default: m.ForumHome })),
-);
-export const TopicPage = lazy(() =>
-  loadRoute(() => import("./features/forum/TopicPage")).then((m) => ({ default: m.TopicPage })),
 );
 export const GroupsHome = lazy(() =>
   loadRoute(() => import("./features/groups/GroupsHome")).then((m) => ({ default: m.GroupsHome })),
