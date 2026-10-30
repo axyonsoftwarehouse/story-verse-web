@@ -11,12 +11,14 @@ const BUCKET = "profile-media";
 
 export type MediaKind = "avatar" | "cover";
 /** Capa de livro (retrato 2:3), enviada junto com o livro importado. */
-export type ImageKind = MediaKind | "book";
+export type ImageKind = MediaKind | "book" | "wallpaper";
 
 const SIZES: Record<ImageKind, { width: number; height: number }> = {
   avatar: { width: 256, height: 256 },
   cover: { width: 1500, height: 500 },
   book: { width: 400, height: 600 },
+  /** Fundo do chat de um grupo (retrato; no computador ele cobre a área esticando). */
+  wallpaper: { width: 1080, height: 1440 },
 };
 
 /** Fotos maiores que isso nem são abertas (evita travar o celular). */
@@ -161,6 +163,22 @@ export async function uploadBookCover(session: SupabaseSession, image: Blob): Pr
   if (apiEnabled) return `${apiBaseUrl}/api/v1/storage/public/${BUCKET}/${path}`;
   const { url } = supabaseConfig();
   return `${url}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
+/**
+ * Foto de um grupo: fica na pasta de quem envia (profile-media/<id>/grupos/<uuid>), o único
+ * lugar que a API aceita como foto de grupo. Arquivo novo a cada troca (sem cache velho).
+ */
+export async function uploadGroupPhoto(session: SupabaseSession, image: Blob): Promise<string> {
+  if (!apiEnabled) throw new Error("A foto do grupo precisa da API do Storyverse.");
+  const path = `${session.user.id}/grupos/${crypto.randomUUID()}`;
+  await storage(path, {
+    method: "POST",
+    session,
+    body: image,
+    headers: { "Content-Type": image.type, "cache-control": "max-age=31536000" },
+  });
+  return `${apiBaseUrl}/api/v1/storage/public/${BUCKET}/${path}`;
 }
 
 /** Endereço data: → Blob (capa que veio dentro do EPUB/PDF, para subir ao Storage). */

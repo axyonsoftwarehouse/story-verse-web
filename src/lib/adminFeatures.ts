@@ -15,6 +15,11 @@ export const FEATURE_DESCRIPTIONS: Record<string, { name: string; description: s
     description:
       "Salva a estante na conta e sincroniza entre aparelhos; libera “adicionar à estante” na página do livro.",
   },
+  groups: {
+    name: "Grupos com chat",
+    description:
+      "Libera o botão “Grupos” na tela inicial: criar e entrar em grupos, conversar em tempo real e clubes de leitura.",
+  },
 };
 
 export function featureName(feature: string): string {

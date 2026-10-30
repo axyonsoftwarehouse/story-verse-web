@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ReaderCount } from "../../components/ReaderCount";
 import { hasFeature } from "../../lib/accountFeatures";
+import { GROUPS_AVAILABLE } from "../../lib/groups";
 import { ApiHttpError } from "../../lib/backend";
 import {
   catalogBookToEbook,
@@ -22,6 +23,7 @@ export function PublicBookPage() {
   const { session } = useStoredSession();
   const { capabilities } = useAccountFeatures(session);
   const libraryEnabled = hasFeature(capabilities, "library");
+  const groupsEnabled = GROUPS_AVAILABLE && hasFeature(capabilities, "groups");
 
   const [book, setBook] = useState<CatalogBook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -213,6 +215,14 @@ export function PublicBookPage() {
                     {shelf === "busy" ? "Adicionando…" : "Adicionar à estante"}
                   </button>
                 )
+              ) : null}
+              {session && groupsEnabled ? (
+                <Link
+                  className="btn"
+                  to={`/grupos?${new URLSearchParams({ livro: book.book_key, titulo: book.title })}`}
+                >
+                  Clubes deste livro
+                </Link>
               ) : null}
             </div>
 

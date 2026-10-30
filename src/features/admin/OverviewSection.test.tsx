@@ -3,7 +3,6 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseSession } from "../../lib/auth";
 import { getBillingSeries, getBillingSummary, type BillingSummary } from "../../lib/adminBilling";
-import { getCommunitySeries } from "../../lib/adminCommunity";
 import { getHealth, type AdminHealth } from "../../lib/adminHealth";
 import {
   getMetricsOverview,
@@ -29,16 +28,6 @@ vi.mock("../../lib/adminBilling", async (importOriginal) => ({
 }));
 vi.mock("../../lib/adminHealth", () => ({ getHealth: vi.fn() }));
 vi.mock("../../lib/ranking", () => ({ fetchRanking: vi.fn() }));
-vi.mock("../../lib/adminCommunity", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../lib/adminCommunity")>()),
-  getCommunitySeries: vi.fn(),
-}));
-const forum = vi.hoisted(() => ({ visible: false }));
-vi.mock("../../lib/features", () => ({
-  get FORUM_VISIBLE() {
-    return forum.visible;
-  },
-}));
 
 const session = { access_token: "token", user: { id: "admin-1" } } as unknown as SupabaseSession;
 
@@ -118,7 +107,6 @@ function renderSection(roles: string[]) {
 
 describe("OverviewSection", () => {
   beforeEach(() => {
-    forum.visible = false;
     vi.mocked(getOverview).mockResolvedValue(overview);
     // O período atual termina hoje; o anterior termina antes. Números diferentes para ver a seta.
     const today = isoDate(new Date());
@@ -276,40 +264,6 @@ describe("OverviewSection", () => {
     expect(await screen.findByText(/Sentry não configurado\./)).toBeInTheDocument();
     expect(screen.getByText("backup · sem backup registrado")).toBeInTheDocument();
     expect(screen.queryByText("Atrasado")).toBeNull();
-  });
-
-  it("mostra a atividade do fórum só com o fórum ligado", async () => {
-    const today = isoDate(new Date());
-    const point = (bucket: string, topics: number, replies: number, reports: number) => ({
-      bucket,
-      topics,
-      replies,
-      reports,
-    });
-    // 7 dias: 3 tópicos contra 1 nos 7 anteriores; respostas sem base anterior.
-    vi.mocked(getCommunitySeries).mockResolvedValue([
-      point(shiftDays(today, -10), 1, 0, 0),
-      point(shiftDays(today, -2), 1, 6, 0),
-      point(today, 2, 5, 1),
-    ]);
-    const { unmount } = renderSection(["superadmin"]);
-    await screen.findByText("Ranking da semana");
-    expect(screen.queryByText("Comunidade")).toBeNull();
-    expect(getCommunitySeries).not.toHaveBeenCalled();
-    unmount();
-
-    forum.visible = true;
-    renderSection(["superadmin"]);
-    expect(await screen.findByText("Comunidade")).toBeInTheDocument();
-    expect(await screen.findByText("11")).toBeInTheDocument(); // 6 + 5 respostas
-    expect(screen.getByText("+200%")).toBeInTheDocument(); // tópicos: 3 contra 1
-    expect(getCommunitySeries).toHaveBeenCalledWith(
-      session,
-      { from: shiftDays(today, -59), to: today },
-      "day",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Denúncias" }));
-    expect(screen.getByLabelText("Denúncias: 1 no total")).toBeInTheDocument();
   });
 
   it("moderador vê só as ações, sem métricas de negócio", async () => {

@@ -54,7 +54,6 @@ import {
   getCatalogBook,
   searchCatalog,
 } from "./lib/catalog";
-import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
 import { isStaff } from "./features/admin/adminSections";
@@ -62,6 +61,8 @@ import { BookStatusControl } from "./features/library/BookStatusControl";
 import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
+import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
+import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { bookKeyOf, todayInBrazil } from "./lib/library";
 import {
   recordFinished,
@@ -131,6 +132,7 @@ import {
   type ReadingProgress,
 } from "./lib/progress";
 import { missYouMessage, tidyAmbientMessages } from "./lib/readingAmbient";
+import { dismissNudge, homeNudge, NUDGE_AFTER_DAYS, nudgeText, voiceFor, type HomeNudge } from "./lib/characterNudge";
 import { withOfflineCopy } from "./lib/offlineText";
 import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
 import { cachedPortrait, requestPortrait } from "./lib/portraits";
@@ -187,6 +189,7 @@ import {
   type ReceivedGift,
 } from "./lib/gifts";
 import {
+  fetchAlltimeRanking,
   fetchRanking,
   fetchRankingProfile,
   PLACE_MEDALS,
@@ -669,6 +672,11 @@ function LangBadge({ book }: { book: Ebook }) {
 }
 
 const Icon = {
+  chat: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" />
+    </svg>
+  ),
   back: (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M15 18l-6-6 6-6" />
@@ -3044,7 +3052,13 @@ function weekRangeLabel(offset: 0 | -1): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-/** Ranking semanal: pódio dos 3 que mais leram, a lista dos demais e a sua posição. */
+/** Aba do ranking: geral (sem data), esta semana (0) ou a passada (-1). */
+type RankingTab = "all" | 0 | -1;
+
+/**
+ * Ranking: pódio dos 3 que mais leram, a lista dos demais e a sua posição. Abre no geral, que soma
+ * toda a leitura e não zera na virada da semana; o semanal continua com o pódio que ganha diamantes.
+ */
 function RankingPage({
   session,
   onClose,
@@ -3054,8 +3068,8 @@ function RankingPage({
   onClose: () => void;
   onOpenShop: () => void;
 }) {
-  const [tab, setTab] = useState<0 | -1>(0);
-  const [lists, setLists] = useState<Partial<Record<0 | -1, RankEntry[]>>>({});
+  const [tab, setTab] = useState<RankingTab>("all");
+  const [lists, setLists] = useState<Partial<Record<RankingTab, RankEntry[]>>>({});
   const [profile, setProfile] = useState<RankingProfile | null>(null);
   const [error, setError] = useState("");
   const [savingHidden, setSavingHidden] = useState(false);
@@ -3082,7 +3096,8 @@ function RankingPage({
 
   useEffect(() => {
     let alive = true;
-    fetchWeeklyGiftCounts(session, tab)
+    // No geral, os presentes contados são os desta semana.
+    fetchWeeklyGiftCounts(session, tab === "all" ? 0 : tab)
       .then((counts) => {
         if (alive) setGiftCounts(counts);
       })
@@ -3103,9 +3118,11 @@ function RankingPage({
     let alive = true;
     setError("");
     // Envia os minutos de agora antes de buscar: a sua posição já sai atualizada.
-    const ready = tab === 0 ? reportReading(session).catch(() => {}) : Promise.resolve();
+    const ready = tab !== -1 ? reportReading(session).catch(() => {}) : Promise.resolve();
     void ready
-      .then(() => Promise.all([fetchRanking(session, tab), fetchRankingProfile(session)]))
+      .then(() =>
+        Promise.all([tab === "all" ? fetchAlltimeRanking(session) : fetchRanking(session, tab), fetchRankingProfile(session)]),
+      )
       .then(([list, p]) => {
         if (!alive) return;
         setLists((l) => ({ ...l, [tab]: list }));
@@ -3181,7 +3198,9 @@ function RankingPage({
   // O banco manda até 50 do topo; se você está mais abaixo, sua linha vem separada no fim.
   const rest = list?.filter((e) => e.place > 3 && e.place <= 50) ?? [];
   const meOutside = me && me.place > 50 ? me : null;
-  const current = tab === 0;
+  // "Atual": o geral e esta semana ainda mudam (dá para presentear); a semana passada já fechou.
+  const current = tab !== -1;
+  const alltime = tab === "all";
 
   return (
     <div className="home profile moderation ranking">
@@ -3197,15 +3216,22 @@ function RankingPage({
         ) : null}
       </nav>
       <header className="moderation-head">
-        <span className="eyebrow">Ranking semanal · {weekRangeLabel(tab)}</span>
-        <h1>{current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
-        <p>
-          Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham 50,
-          30 e 20 💎.
-        </p>
+        <span className="eyebrow">{tab === "all" ? "Ranking geral · desde o começo" : `Ranking semanal · ${weekRangeLabel(tab)}`}</span>
+        <h1>{alltime ? "Quem mais leu até hoje" : current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
+        {alltime ? (
+          <p>Soma todo o seu tempo de leitura e não zera na virada da semana: cada minuto lido fica com você.</p>
+        ) : (
+          <p>
+            Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham
+            50, 30 e 20 💎.
+          </p>
+        )}
       </header>
 
       <div className="segmented moderation-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={alltime} className={alltime ? "is-on" : ""} onClick={() => setTab("all")}>
+          Geral
+        </button>
         <button type="button" role="tab" aria-selected={tab === 0} className={tab === 0 ? "is-on" : ""} onClick={() => setTab(0)}>
           Esta semana
         </button>
@@ -3247,19 +3273,25 @@ function RankingPage({
               </>
             ) : (
               <span>
-                {current
-                  ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
-                  : "Você não entrou no ranking da semana passada."}
+                {alltime
+                  ? "Você ainda não entrou no ranking. Leia pelo menos 1 minuto para aparecer aqui!"
+                  : current
+                    ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
+                    : "Você não entrou no ranking da semana passada."}
               </span>
             )}
           </div>
 
           {list.length === 0 ? (
             <p className="profile-empty moderation-empty">
-              {current ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚" : "Ninguém leu na semana passada."}
+              {alltime
+                ? "Ninguém leu ainda. Que tal ser o primeiro? 📚"
+                : current
+                  ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚"
+                  : "Ninguém leu na semana passada."}
             </p>
           ) : (
-            <ol key={current ? "esta" : "passada"} className="podium" aria-label="Pódio">
+            <ol key={String(tab)} className="podium" aria-label="Pódio">
               {/* Ordem visual de pódio: prata, ouro, bronze. */}
               {[2, 1, 3].map((place) => {
                 const e = podium.find((p) => p.place === place);
@@ -3386,7 +3418,7 @@ function RankingPage({
           />
           <span>
             <strong>Aparecer no ranking</strong>
-            <small>Outros leitores veem só seu nome, avatar e minutos lidos na semana.</small>
+            <small>Outros leitores veem só seu nome, avatar e minutos lidos.</small>
           </span>
         </label>
       ) : null}
@@ -3431,7 +3463,7 @@ function RankingRow({
   );
 }
 
-/** Convite na tela inicial para abrir o ranking da semana. */
+/** Convite na tela inicial para abrir o ranking. */
 function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   return (
     <button type="button" className="ranking-teaser" onClick={onOpen}>
@@ -3439,8 +3471,8 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
         🏆
       </span>
       <span className="ranking-teaser-text">
-        <strong>Ranking da semana</strong>
-        <span>Veja quem mais leu desde segunda e em que lugar você está. O pódio ganha diamantes.</span>
+        <strong>Ranking de leitores</strong>
+        <span>Veja quem mais leu, no geral e na semana, e em que lugar você está. O pódio da semana ganha diamantes.</span>
       </span>
       <span className="ranking-teaser-go" aria-hidden="true">
         {Icon.next}
@@ -3610,6 +3642,48 @@ function MonthRecap({ favorite }: { favorite?: { name: string; book: string } })
         {Icon.share} {busy ? "Gerando…" : "Compartilhar"}
       </button>
       <button type="button" className="icon-btn month-recap-close" onClick={dismiss} aria-label="Fechar a retrospectiva">
+        {Icon.close}
+      </button>
+    </section>
+  );
+}
+
+/**
+ * Recado do personagem na tela inicial: o leitor sumiu do livro há alguns dias e quem estava
+ * conversando com ele manda uma mensagem na própria voz. Responder abre o livro já na conversa.
+ */
+function CharacterNudgeCard({
+  nudge,
+  onContinue,
+  onReply,
+  onDismiss,
+}: {
+  nudge: HomeNudge;
+  onContinue: () => void;
+  onReply: () => void;
+  onDismiss: () => void;
+}) {
+  const { progress, character, text } = nudge;
+  const avatar: StoryCharacter = { id: character.id ?? character.name, name: character.name, role: "", color: character.color, systemHint: "" };
+  return (
+    <section className="character-nudge" aria-label={`Mensagem de ${character.name}`}>
+      <Avatar character={avatar} bookTitle={progress.book.title} />
+      <div className="character-nudge-body">
+        <span className="eyebrow">
+          {character.name} · {progress.book.title}
+        </span>
+        <p className="character-nudge-text">“{text}”</p>
+        <span className="character-nudge-where">Você parou em {progress.chapterLabel}</span>
+        <div className="character-nudge-actions">
+          <button type="button" className="btn btn-primary btn-sm" onClick={onReply}>
+            {Icon.chat} Responder
+          </button>
+          <button type="button" className="link-btn" onClick={onContinue}>
+            Continuar lendo
+          </button>
+        </div>
+      </div>
+      <button type="button" className="icon-btn character-nudge-close" onClick={onDismiss} aria-label={`Fechar a mensagem de ${character.name}`}>
         {Icon.close}
       </button>
     </section>
@@ -5912,6 +5986,18 @@ export function App() {
     (role) => role === "superadmin" || role === "moderator",
   );
   const staffOn = isStaff(capabilities?.roles ?? []);
+  const groupsOn = GROUPS_AVAILABLE && hasFeature(capabilities, "groups");
+  const groupsUnread = useGroupsUnread(groupsOn && authUser ? authUser.id : "");
+  /** Abriu um convite de grupo sem conta: depois de entrar, volta para ele. */
+  useEffect(() => {
+    if (!authUser) return;
+    try {
+      const code = localStorage.getItem(PENDING_INVITE_KEY);
+      if (code && /^[A-Za-z0-9_-]{16,64}$/.test(code)) window.location.assign(`/g/${code}`);
+    } catch {
+      // Sem armazenamento.
+    }
+  }, [authUser]);
   // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
   useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
@@ -6487,11 +6573,18 @@ export function App() {
   useEffect(() => {
     if (book) return;
     const recent = recentProgress().find((p) => isAvailable(p.book));
+    // O recado sai na voz do personagem; quem decide se já é hora de avisar é o service worker.
+    const voice = recent ? voiceFor(recent.book) : undefined;
     void syncEngagementState({
       streak: readingSummary().streak,
       lastReadDay: lastReadDay(),
       book: recent
-        ? { title: recent.book.title, chapterLabel: recent.chapterLabel, character: lastCharacter(recent.book.id) }
+        ? {
+            title: recent.book.title,
+            chapterLabel: recent.chapterLabel,
+            character: voice?.name ?? lastCharacter(recent.book.id),
+            nudge: voice ? nudgeText(recent.book, voice, recent.chapterLabel, NUDGE_AFTER_DAYS) : undefined,
+          }
         : undefined,
     });
   }, [book, isAvailable]);
@@ -6589,12 +6682,15 @@ export function App() {
           const savedActive = saved?.activeCharId && list.some((c) => c.id === saved.activeCharId);
           const activeId = savedActive ? saved!.activeCharId : list[0]?.id;
           setActiveCharId((id) => id || activeId || "");
-          if (awayDays >= 2 && awayChapter && activeId) {
-            const line = missYouMessage(awayChapter, awayDays);
+          if (awayDays >= NUDGE_AFTER_DAYS && awayChapter && activeId) {
+            // O mesmo recado da tela inicial, de quem o mandou (sem ele, a saudade genérica).
+            const voice = voiceFor(book);
+            const from = list.find((c) => c.id === voice?.id || c.name === voice?.name)?.id ?? activeId;
+            const line = voice ? nudgeText(book, voice, awayChapter, awayDays) : missYouMessage(awayChapter, awayDays);
             setThreads((prev) => ({
               ...prev,
               // Uma saudade só: se a anterior ficou sem resposta, a nova toma o lugar dela.
-              [activeId]: tidyAmbientMessages([...(prev[activeId] ?? []), { id: uid(), role: "assistant", text: line }]),
+              [from]: tidyAmbientMessages([...(prev[from] ?? []), { id: uid(), role: "assistant", text: line }]),
             }));
           }
         });
@@ -6639,7 +6735,8 @@ export function App() {
     setVisibleChunk((v) => (v?.key === key && v.chunk === chunk ? v : { key, chunk }));
   }, []);
 
-  const startBook = useCallback((b: Ebook) => {
+  /** Abre o livro; `opts` abre direto a conversa com um personagem (ex.: responder o recado dele). */
+  const startBook = useCallback((b: Ebook, opts?: { characterId?: string; chat?: boolean }) => {
     if (authLoading) return;
     if (!canRead) {
       setAuthModal("login");
@@ -6656,11 +6753,11 @@ export function App() {
       setBook(b);
       setLoading(false);
       setCast(null);
-      setActiveCharId("");
+      setActiveCharId(opts?.characterId ?? "");
       setThreads({});
       setError(null);
       setInput("");
-      setChatOpen(false);
+      setChatOpen(opts?.chat ?? false);
       window.scrollTo({ top: 0 });
     });
   }, [authLoading, authUser, canRead]);
@@ -7647,6 +7744,8 @@ export function App() {
           character: lastCharacter(recent[0].book.id),
         }
       : undefined;
+    // Sumiu do livro há alguns dias: o personagem manda um recado (ver characterNudge.ts).
+    const nudge = homeNudge(recent);
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
     const favoriteTalk = (() => {
       const top = characterTalks()[0];
@@ -7792,10 +7891,19 @@ export function App() {
               <span className="nav-library-long">Biblioteca</span>
               <span className="nav-library-short">Livros</span>
             </Link>
-            {FORUM_VISIBLE ? (
-              <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
-                <span className="nav-community-long">Comunidade</span>
-                <span className="nav-community-short">Fórum</span>
+            {groupsOn ? (
+              <Link
+                className="btn nav-groups"
+                to="/grupos"
+                aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
+              >
+                {Icon.chat}
+                <span className="nav-groups-label">Grupos</span>
+                {groupsUnread > 0 ? (
+                  <span className="nav-groups-badge" aria-hidden="true">
+                    {groupsUnread > 99 ? "99+" : groupsUnread}
+                  </span>
+                ) : null}
               </Link>
             ) : null}
             {staffOn ? (
@@ -8053,6 +8161,18 @@ export function App() {
         </section>
         </>
         )}
+
+        {canRead && nudge ? (
+          <CharacterNudgeCard
+            nudge={nudge}
+            onContinue={() => startBook(nudge.progress.book)}
+            onReply={() => startBook(nudge.progress.book, { characterId: nudge.character.id, chat: true })}
+            onDismiss={() => {
+              dismissNudge(nudge.progress);
+              setHomeTick((n) => n + 1);
+            }}
+          />
+        ) : null}
 
         {canRead ? <MonthRecap favorite={favoriteTalk} /> : null}
 

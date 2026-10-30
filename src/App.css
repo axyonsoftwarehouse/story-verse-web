@@ -3642,6 +3642,51 @@
   display: none;
 }
 
+/* Grupos: ícone de conversa com o rótulo (some nas telas menores) e o selo de não lidas. */
+.nav-groups {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.nav-groups svg {
+  width: 17px;
+  height: 17px;
+}
+
+.nav-groups-badge {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border: 2px solid var(--bg);
+  border-radius: var(--radius-pill);
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 0.85rem;
+  text-align: center;
+  color: var(--on-accent);
+  background: var(--accent);
+  box-sizing: content-box;
+}
+
+@media (max-width: 820px) {
+  .nav-groups {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .nav-groups-label {
+    display: none;
+  }
+}
+
 .nav-library {
   flex-shrink: 0;
   padding: 0.5rem 0.95rem;
@@ -4913,12 +4958,13 @@
 }
 
 .profile-logout {
-  border-color: rgba(232, 168, 168, 0.3);
-  color: var(--danger);
+  color: var(--text);
 }
 
+/* Vermelho só ao passar o mouse: o texto rosado parado parecia erro. */
 .profile-logout:hover:not(:disabled) {
   border-color: rgba(232, 168, 168, 0.55);
+  color: var(--danger);
 }
 
 @media (max-width: 560px) {
@@ -8185,6 +8231,67 @@ button.identity-card:hover {
     order: -1;
     margin-left: auto;
   }
+}
+
+/* Recado do personagem: quem o leitor deixou esperando manda uma mensagem na voz dele. */
+.character-nudge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  margin: 0 0 1.4rem;
+  padding: 0.95rem 0.9rem 0.95rem 1.1rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 60%),
+    var(--surface);
+  animation: rise 0.5s var(--ease-out) both;
+}
+
+.character-nudge-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.character-nudge-text {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 1.05rem;
+  color: var(--text-read, var(--text));
+}
+
+.character-nudge-where {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.character-nudge-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-top: 0.55rem;
+}
+
+.character-nudge-actions .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0.42rem 0.95rem;
+  font-size: 0.82rem;
+}
+
+.character-nudge-actions .btn-sm svg {
+  width: 15px;
+  height: 15px;
+}
+
+.character-nudge-actions .link-btn {
+  font-size: 0.82rem;
 }
 
 /* Frase do dia: citação em letra de livro; tocar revela de qual livro é. */

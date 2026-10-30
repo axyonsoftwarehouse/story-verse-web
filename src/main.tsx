@@ -10,16 +10,16 @@ import { OfflineNotice } from "./components/OfflineNotice";
 import { ScrollToTop } from "./components/ScrollToTop";
 import {
   AdminRoute,
-  ForumHome,
+  GroupChat,
+  GroupInvite,
+  GroupsHome,
   LegalPage,
   PublicBookPage,
   PublicLibraryPage,
   RouteLoading,
   SubscribePage,
   SubscriptionPage,
-  TopicPage,
 } from "./lazyRoutes";
-import { FORUM_VISIBLE } from "./lib/features";
 import { installTelemetry } from "./lib/telemetry";
 import { installAnalytics } from "./lib/analytics";
 import { registerServiceWorker } from "./lib/pwa";
@@ -48,14 +48,11 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/" element={<App />} />
             <Route path="/confirmar-email" element={<App />} />
             <Route path="/redefinir-senha" element={<App />} />
-            <Route
-              path="/comunidade"
-              element={FORUM_VISIBLE ? <ForumHome /> : <Navigate to="/" replace />}
-            />
-            <Route
-              path="/comunidade/t/:id"
-              element={FORUM_VISIBLE ? <TopicPage /> : <Navigate to="/" replace />}
-            />
+            {/* O fórum saiu do app: links antigos levam aos grupos. */}
+            <Route path="/comunidade/*" element={<Navigate to="/grupos" replace />} />
+            <Route path="/grupos" element={<GroupsHome />} />
+            <Route path="/grupos/:id" element={<GroupChat />} />
+            <Route path="/g/:code" element={<GroupInvite />} />
             <Route path="/admin/*" element={<AdminRoute />} />
             <Route path="/assinar" element={<SubscribePage />} />
             <Route path="/conta/assinatura" element={<SubscriptionPage />} />
