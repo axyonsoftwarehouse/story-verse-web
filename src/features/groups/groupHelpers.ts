@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { featuredBooks } from "../../data/ebooks";
 import { hasFeature } from "../../lib/accountFeatures";
 import type { SupabaseSession } from "../../lib/auth";
@@ -60,4 +61,24 @@ export function dayLabel(iso: string, now = new Date()): string {
   y.setDate(now.getDate() - 1);
   if (key(d) === key(y)) return "Ontem";
   return d.toLocaleDateString("pt-BR", d.getFullYear() === now.getFullYear() ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" });
+}
+
+/** Temas prontos de fundo da conversa (o mesmo conjunto que a API aceita). */
+export const CHAT_BACKGROUNDS = [
+  { id: "noite", label: "Noite" },
+  { id: "biblioteca", label: "Biblioteca" },
+  { id: "floresta", label: "Floresta" },
+  { id: "oceano", label: "Oceano" },
+  { id: "por-do-sol", label: "Pôr do sol" },
+  { id: "papel", label: "Papel antigo" },
+] as const;
+
+/** Classe e estilo do fundo da conversa a partir do valor salvo no grupo. */
+export function chatBackground(value: string | null | undefined): { className: string; style?: CSSProperties } {
+  if (!value) return { className: "" };
+  if (value.startsWith("preset:")) {
+    const id = value.slice(7);
+    return CHAT_BACKGROUNDS.some((b) => b.id === id) ? { className: `chat-bg-${id}` } : { className: "" };
+  }
+  return { className: "chat-bg-image", style: { "--chat-image": `url("${value.replace(/"/g, "%22")}")` } as CSSProperties };
 }

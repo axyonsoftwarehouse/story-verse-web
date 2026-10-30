@@ -11,12 +11,14 @@ const BUCKET = "profile-media";
 
 export type MediaKind = "avatar" | "cover";
 /** Capa de livro (retrato 2:3), enviada junto com o livro importado. */
-export type ImageKind = MediaKind | "book";
+export type ImageKind = MediaKind | "book" | "wallpaper";
 
 const SIZES: Record<ImageKind, { width: number; height: number }> = {
   avatar: { width: 256, height: 256 },
   cover: { width: 1500, height: 500 },
   book: { width: 400, height: 600 },
+  /** Fundo do chat de um grupo (retrato; no computador ele cobre a área esticando). */
+  wallpaper: { width: 1080, height: 1440 },
 };
 
 /** Fotos maiores que isso nem são abertas (evita travar o celular). */

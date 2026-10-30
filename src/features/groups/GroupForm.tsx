@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { refreshAuthSession } from "../../lib/auth";
 import { createGroup, updateGroup, type Group, type GroupFields } from "../../lib/groups";
 import { prepareImage, uploadGroupPhoto } from "../../lib/profileMedia";
-import { bookOptions } from "./groupHelpers";
+import { bookOptions, CHAT_BACKGROUNDS, chatBackground } from "./groupHelpers";
 import { GroupAvatar } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 
@@ -42,7 +42,11 @@ export function GroupForm({
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [background, setBackground] = useState<string | null>(group?.background ?? null);
+  const [bgPreview, setBgPreview] = useState<string | null>(null);
+  const [bgBlob, setBgBlob] = useState<Blob | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const bgFileRef = useRef<HTMLInputElement>(null);
 
   const options = useMemo(() => {
     const list = [...books];
@@ -62,6 +66,28 @@ export function GroupForm({
   useEffect(() => () => {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
   }, [photoPreview]);
+
+  useEffect(() => () => {
+    if (bgPreview) URL.revokeObjectURL(bgPreview);
+  }, [bgPreview]);
+
+  async function pickBackground(file: File | undefined) {
+    if (!file) return;
+    setError("");
+    try {
+      const blob = await prepareImage(file, "wallpaper");
+      setBgBlob(blob);
+      setBgPreview(URL.createObjectURL(blob));
+    } catch (err) {
+      setError(message(err));
+    }
+  }
+
+  function choosePreset(value: string | null) {
+    setBgBlob(null);
+    setBgPreview(null);
+    setBackground(value);
+  }
 
   async function pickPhoto(file: File | undefined) {
     if (!file) return;
@@ -88,11 +114,14 @@ export function GroupForm({
     try {
       let photoUrl = photo;
       if (photoBlob) photoUrl = await uploadGroupPhoto(await refreshAuthSession(), photoBlob);
+      let backgroundValue = background;
+      if (bgBlob) backgroundValue = await uploadGroupPhoto(await refreshAuthSession(), bgBlob);
       const book = options.find((b) => b.key === bookKey);
       const fields: GroupFields = {
         name: name.trim(),
         description: description.trim() || null,
         photoUrl,
+        background: backgroundValue,
         visibility,
         bookKey: book?.key ?? null,
         bookTitle: book?.title ?? null,
@@ -108,6 +137,8 @@ export function GroupForm({
   }
 
   const shownPhoto = photoPreview ?? photo;
+  const ownImage = bgPreview ?? (background && !background.startsWith("preset:") ? background : null);
+  const ownImageOn = Boolean(bgPreview) || Boolean(ownImage && ownImage === background);
 
   return createPortal(
     <div className="about-backdrop group-sheet-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
@@ -153,6 +184,45 @@ export function GroupForm({
             placeholder="Sobre o que o grupo conversa, o ritmo de leitura, as regras…"
           />
         </label>
+
+        <fieldset className="group-field">
+          <legend>Fundo da conversa</legend>
+          <div className="group-bg-picker">
+            <button type="button" className={`group-bg-option ${!background && !bgPreview ? "is-on" : ""}`} onClick={() => choosePreset(null)} aria-pressed={!background && !bgPreview}>
+              <span className="group-bg-swatch is-default" />
+              <small>Padrão</small>
+            </button>
+            {CHAT_BACKGROUNDS.map((b) => {
+              const value = `preset:${b.id}`;
+              const on = background === value && !bgPreview;
+              return (
+                <button key={b.id} type="button" className={`group-bg-option ${on ? "is-on" : ""}`} onClick={() => choosePreset(value)} aria-pressed={on}>
+                  <span className={`group-bg-swatch ${chatBackground(value).className}`} />
+                  <small>{b.label}</small>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={`group-bg-option ${ownImageOn ? "is-on" : ""}`}
+              onClick={() => (ownImage && !ownImageOn ? choosePreset(ownImage) : bgFileRef.current?.click())}
+              aria-pressed={ownImageOn}
+            >
+              {ownImage ? (
+                <span className="group-bg-swatch chat-bg-image" style={chatBackground(ownImage).style} />
+              ) : (
+                <span className="group-bg-swatch group-bg-upload">{GIcon.camera}</span>
+              )}
+              <small>Sua imagem</small>
+            </button>
+          </div>
+          {ownImage ? (
+            <button type="button" className="group-text-btn group-bg-change" onClick={() => bgFileRef.current?.click()}>
+              Trocar a imagem do fundo
+            </button>
+          ) : null}
+          <input ref={bgFileRef} type="file" accept="image/*" hidden onChange={(e) => void pickBackground(e.target.files?.[0])} />
+        </fieldset>
 
         <fieldset className="group-field group-choice">
           <legend>Quem pode entrar</legend>
