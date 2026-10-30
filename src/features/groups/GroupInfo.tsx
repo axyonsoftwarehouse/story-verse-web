@@ -137,7 +137,13 @@ export function GroupInfo({
             {group.visibility === "public" ? GIcon.users : GIcon.lock}
             {group.visibility === "public" ? "Grupo público" : "Grupo privado"} · {count} {count === 1 ? "membro" : "membros"}
           </p>
-          {group.description ? <p className="group-info-desc">{group.description}</p> : owner ? <p className="group-info-desc is-empty">Sem descrição ainda.</p> : null}
+          {group.description ? (
+            <p className="group-info-desc">{group.description}</p>
+          ) : owner ? (
+            <button type="button" className="group-info-desc is-empty" onClick={() => setEditing(true)}>
+              + Adicionar uma descrição
+            </button>
+          ) : null}
           {owner ? (
             <button type="button" className="btn group-edit-btn" onClick={() => setEditing(true)}>
               {GIcon.pencil} Editar grupo

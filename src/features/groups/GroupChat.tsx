@@ -33,7 +33,7 @@ import {
 import { GroupInfo } from "./GroupInfo";
 import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
-import { dayLabel, hueOf, myChapter, useGroupsGate } from "./groupHelpers";
+import { chatBackground, dayLabel, hueOf, myChapter, useGroupsGate } from "./groupHelpers";
 
 const PAGE = 50;
 
@@ -327,6 +327,7 @@ export function GroupChat() {
   const typingIds = Object.keys(typing);
   const typingNames = typingIds.map((uid) => group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém");
   const typingText = typingLabel(typingNames);
+  const wallpaper = chatBackground(group?.background);
 
   return (
     <div className="group-chat-page" style={{ "--group-hue": hueOf(id) } as CSSProperties}>
@@ -424,7 +425,7 @@ export function GroupChat() {
         </div>
       ) : (
         <>
-          <div className="group-chat-body" ref={listRef} onScroll={onScroll}>
+          <div className={`group-chat-body ${wallpaper.className}`} style={wallpaper.style} ref={listRef} onScroll={onScroll}>
             <div className="group-messages" aria-live="polite">
               {hasMore ? (
                 <button type="button" className="group-older" onClick={() => void loadOlder()} disabled={loadingOlder}>
@@ -435,6 +436,11 @@ export function GroupChat() {
                   <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="lg" />
                   <strong>{group.name}</strong>
                   <span>{group.description ?? "Este é o começo da conversa."}</span>
+                  {group.my_role === "owner" && (!group.description || !group.background) ? (
+                    <button type="button" className="group-start-edit" onClick={() => setInfoOpen(true)}>
+                      {GIcon.pencil} {group.description ? "Escolher o fundo da conversa" : "Adicionar descrição e fundo"}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {messages.map((m, i) => {

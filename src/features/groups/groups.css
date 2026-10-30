@@ -2096,3 +2096,198 @@
     transition: none !important;
   }
 }
+
+/* ------------------------------ Fundo da conversa ------------------------------ */
+/* Escolhido pelo dono do grupo: temas prontos (.chat-bg-<nome>) ou uma imagem (--chat-image).
+   Ficam depois das regras do chat para valer sobre o fundo padrão. */
+
+.chat-bg-noite,
+.chat-bg-biblioteca,
+.chat-bg-floresta,
+.chat-bg-oceano,
+.chat-bg-por-do-sol,
+.chat-bg-papel,
+.chat-bg-image {
+  background-attachment: scroll;
+}
+
+.chat-bg-noite {
+  background:
+    radial-gradient(1.2px 1.2px at 22px 34px, rgba(255, 255, 255, 0.8), transparent 60%),
+    radial-gradient(1px 1px at 96px 128px, rgba(255, 255, 255, 0.6), transparent 60%),
+    radial-gradient(1.4px 1.4px at 150px 60px, rgba(255, 240, 200, 0.75), transparent 60%),
+    radial-gradient(1px 1px at 60px 170px, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(70% 50% at 80% 0%, rgba(120, 110, 255, 0.22), transparent 70%),
+    linear-gradient(180deg, #0b1232, #151036 55%, #0a0a1c);
+  background-size: 190px 190px, 190px 190px, 190px 190px, 190px 190px, auto, auto;
+}
+
+.chat-bg-biblioteca {
+  background:
+    url("/images/chat-pattern.svg") 0 0 / 240px 240px,
+    radial-gradient(60% 45% at 50% 0%, rgba(255, 190, 110, 0.18), transparent 70%),
+    linear-gradient(165deg, #2c1b10, #160d07 70%);
+}
+
+.chat-bg-floresta {
+  background:
+    radial-gradient(55% 40% at 10% 0%, rgba(140, 220, 150, 0.2), transparent 70%),
+    radial-gradient(50% 35% at 100% 100%, rgba(60, 160, 110, 0.22), transparent 70%),
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 22px),
+    linear-gradient(175deg, #10301f, #08170f 75%);
+}
+
+.chat-bg-oceano {
+  background:
+    radial-gradient(70% 45% at 50% 0%, rgba(110, 220, 255, 0.22), transparent 70%),
+    repeating-radial-gradient(circle at 50% 120%, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 26px),
+    linear-gradient(180deg, #0b3044, #06192a 60%, #040f1a);
+}
+
+.chat-bg-por-do-sol {
+  background:
+    radial-gradient(45% 30% at 50% 100%, rgba(255, 170, 90, 0.38), transparent 70%),
+    radial-gradient(60% 40% at 0% 0%, rgba(255, 110, 150, 0.2), transparent 70%),
+    linear-gradient(180deg, #2a1236, #4f1d34 50%, #2b1420);
+}
+
+.chat-bg-papel {
+  background:
+    radial-gradient(80% 60% at 50% 40%, transparent 50%, rgba(0, 0, 0, 0.35)),
+    repeating-linear-gradient(0deg, rgba(255, 235, 190, 0.05) 0 1px, transparent 1px 30px),
+    linear-gradient(170deg, #3d3326, #2a2219);
+}
+
+/* Imagem enviada: escurecida para as bolhas continuarem legíveis. */
+.chat-bg-image {
+  background:
+    linear-gradient(180deg, rgba(8, 6, 4, 0.35), rgba(8, 6, 4, 0.6)),
+    var(--chat-image) center / cover no-repeat,
+    var(--bg);
+}
+
+/* Escolha do fundo no formulário. */
+.group-bg-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
+  gap: 0.55rem;
+}
+
+.group-bg-option {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.group-bg-option small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.group-bg-swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border: 2px solid var(--border);
+  border-radius: 0.8rem;
+  color: var(--muted);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.group-bg-swatch.is-default {
+  background: url("/images/chat-pattern.svg") 0 0 / 120px 120px, var(--bg);
+}
+
+.group-bg-upload {
+  border-style: dashed;
+  background: var(--bg);
+}
+
+.group-bg-option:hover .group-bg-swatch {
+  transform: translateY(-2px);
+}
+
+.group-bg-option.is-on .group-bg-swatch {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.25);
+}
+
+.group-bg-option.is-on small {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.group-bg-option.is-on .group-bg-swatch::after {
+  content: "✓";
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.group-bg-option:focus-visible {
+  outline: 0;
+}
+
+.group-bg-option:focus-visible .group-bg-swatch {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.group-bg-change {
+  justify-self: start;
+  margin-top: 0.5rem;
+}
+
+/* Atalhos do dono para preencher descrição e fundo. */
+button.group-info-desc.is-empty {
+  padding: 0.35rem 0.8rem;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.group-start-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.group-start-edit svg {
+  width: 14px;
+  height: 14px;
+}

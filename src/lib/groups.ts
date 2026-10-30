@@ -38,6 +38,8 @@ export type Group = {
   name: string;
   description: string | null;
   photo_url: string | null;
+  /** Fundo da conversa: null = padrão, 'preset:<nome>' ou o endereço de uma imagem enviada. */
+  background: string | null;
   visibility: "public" | "private";
   owner_id: string;
   book_key: string | null;
@@ -85,6 +87,7 @@ export type GroupFields = {
   name: string;
   description?: string | null;
   photoUrl?: string | null;
+  background?: string | null;
   visibility: "public" | "private";
   bookKey?: string | null;
   bookTitle?: string | null;
