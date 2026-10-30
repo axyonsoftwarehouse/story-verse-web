@@ -163,6 +163,22 @@ export async function uploadBookCover(session: SupabaseSession, image: Blob): Pr
   return `${url}/storage/v1/object/public/${BUCKET}/${path}`;
 }
 
+/**
+ * Foto de um grupo: fica na pasta de quem envia (profile-media/<id>/grupos/<uuid>), o único
+ * lugar que a API aceita como foto de grupo. Arquivo novo a cada troca (sem cache velho).
+ */
+export async function uploadGroupPhoto(session: SupabaseSession, image: Blob): Promise<string> {
+  if (!apiEnabled) throw new Error("A foto do grupo precisa da API do Storyverse.");
+  const path = `${session.user.id}/grupos/${crypto.randomUUID()}`;
+  await storage(path, {
+    method: "POST",
+    session,
+    body: image,
+    headers: { "Content-Type": image.type, "cache-control": "max-age=31536000" },
+  });
+  return `${apiBaseUrl}/api/v1/storage/public/${BUCKET}/${path}`;
+}
+
 /** Endereço data: → Blob (capa que veio dentro do EPUB/PDF, para subir ao Storage). */
 export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return (await fetch(dataUrl)).blob();

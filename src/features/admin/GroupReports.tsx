@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import "../forum/forum.css";
 import "../groups/groups.css";
-import { forumDate } from "../../lib/forum";
-import { adminGroupReports, REPORT_REASONS, resolveGroupReport, type GroupReport } from "../../lib/groups";
+import { adminGroupReports, messageTime, REPORT_REASONS, resolveGroupReport, type GroupReport } from "../../lib/groups";
 
 const FILTERS = [
   { value: "pending", label: "Pendentes" },
@@ -54,14 +52,14 @@ export function GroupReports({ canModerate }: { canModerate: boolean }) {
   }
 
   return (
-    <section className="shelf forum-admin">
+    <section className="shelf group-reports">
       <div className="shelf-head">
         <h2>Denúncias nos grupos</h2>
       </div>
-      <p className="forum-intro">
+      <p className="group-reports-intro">
         Com 3 denúncias pendentes de pessoas diferentes, a mensagem some para os outros membros até alguém revisar.
       </p>
-      <div className="forum-admin-filter">
+      <div className="group-reports-filter">
         <label>
           Mostrar
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -80,7 +78,7 @@ export function GroupReports({ canModerate }: { canModerate: boolean }) {
         </p>
       ) : null}
       {error ? (
-        <p className="auth-error forum-error" role="alert">
+        <p className="auth-error" role="alert">
           {error}
         </p>
       ) : null}
@@ -92,27 +90,27 @@ export function GroupReports({ canModerate }: { canModerate: boolean }) {
       ) : reports.length === 0 ? (
         <p className="profile-empty">Nada nesta fila.</p>
       ) : (
-        <div className="forum-admin-list">
+        <div className="group-reports-list">
           {reports.map((r) => (
-            <article className="profile-card forum-admin-item" key={r.id}>
-              <div className="forum-meta">
-                <span className="status-chip is-pending">{reasonLabel(r.reason_code)}</span>
+            <article className="group-report" key={r.id}>
+              <div className="group-report-meta">
+                <span className="group-role">{reasonLabel(r.reason_code)}</span>
                 <span>
                   Grupo <strong>{r.group_name}</strong>
                 </span>
-                <span>{forumDate(r.created_at)}</span>
+                <span>{messageTime(r.created_at)}</span>
                 {Number(r.pending_reports) > 1 ? <span>{r.pending_reports} denúncias pendentes</span> : null}
               </div>
-              <p className="forum-excerpt">
+              <p className="group-report-body">
                 <strong>{r.author_name}:</strong> {r.body}
                 {r.message_deleted_at ? <em> (já apagada)</em> : null}
               </p>
-              <p className="group-card-sub">
+              <p className="group-report-sub">
                 Denunciada por {r.reporter_name}
                 {r.details ? `: “${r.details}”` : ""}
               </p>
               {canModerate && r.status === "pending" ? (
-                <div className="forum-actions">
+                <div className="group-report-actions">
                   {!r.message_deleted_at ? (
                     <button type="button" className="btn btn-primary" onClick={() => void resolve(r, "actioned", true)}>
                       Apagar mensagem
@@ -126,7 +124,7 @@ export function GroupReports({ canModerate }: { canModerate: boolean }) {
                   </button>
                 </div>
               ) : (
-                <p className="group-card-sub">Situação: {r.status === "actioned" ? "resolvida" : r.status === "dismissed" ? "ignorada" : "pendente"}</p>
+                <p className="group-report-sub">Situação: {r.status === "actioned" ? "resolvida" : r.status === "dismissed" ? "ignorada" : "pendente"}</p>
               )}
             </article>
           ))}

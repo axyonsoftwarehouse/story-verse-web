@@ -54,7 +54,6 @@ import {
   getCatalogBook,
   searchCatalog,
 } from "./lib/catalog";
-import { FORUM_VISIBLE } from "./lib/features";
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
 import { isStaff } from "./features/admin/adminSections";
@@ -673,6 +672,11 @@ function LangBadge({ book }: { book: Ebook }) {
 }
 
 const Icon = {
+  chat: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" />
+    </svg>
+  ),
   back: (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M15 18l-6-6 6-6" />
@@ -3671,11 +3675,11 @@ function CharacterNudgeCard({
         <p className="character-nudge-text">“{text}”</p>
         <span className="character-nudge-where">Você parou em {progress.chapterLabel}</span>
         <div className="character-nudge-actions">
-          <button type="button" className="btn btn-primary" onClick={onContinue}>
-            Continuar lendo
+          <button type="button" className="btn btn-primary btn-sm" onClick={onReply}>
+            {Icon.chat} Responder
           </button>
-          <button type="button" className="btn" onClick={onReply}>
-            Responder
+          <button type="button" className="link-btn" onClick={onContinue}>
+            Continuar lendo
           </button>
         </div>
       </div>
@@ -7887,19 +7891,14 @@ export function App() {
               <span className="nav-library-long">Biblioteca</span>
               <span className="nav-library-short">Livros</span>
             </Link>
-            {FORUM_VISIBLE ? (
-              <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
-                <span className="nav-community-long">Comunidade</span>
-                <span className="nav-community-short">Fórum</span>
-              </Link>
-            ) : null}
             {groupsOn ? (
               <Link
                 className="btn nav-groups"
                 to="/grupos"
                 aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
               >
-                Grupos
+                {Icon.chat}
+                <span className="nav-groups-label">Grupos</span>
                 {groupsUnread > 0 ? (
                   <span className="nav-groups-badge" aria-hidden="true">
                     {groupsUnread > 99 ? "99+" : groupsUnread}

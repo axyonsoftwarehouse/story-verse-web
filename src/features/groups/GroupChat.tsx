@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import "../../App.css";
 import "./groups.css";
@@ -26,14 +27,17 @@ import {
   type GroupMessage,
 } from "../../lib/groups";
 import { GroupInfo } from "./GroupInfo";
-import { GroupsBlocked, PersonFace } from "./GroupParts";
-import { myChapter, useGroupsGate } from "./groupHelpers";
+import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
+import { GIcon } from "./groupIcons";
+import { dayLabel, hueOf, myChapter, useGroupsGate } from "./groupHelpers";
 
 const PAGE = 50;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Algo deu errado. Tente de novo.";
 }
+
+const shortDate = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(" de ", " ").replace(".", "");
 
 /** Conversa de um grupo: histórico, envio, reações, respostas, spoiler e denúncia. */
 export function GroupChat() {
@@ -46,18 +50,21 @@ export function GroupChat() {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
+  const [spoilerOn, setSpoilerOn] = useState(false);
   const [spoiler, setSpoiler] = useState("");
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
-  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [menuFor, setMenuFor] = useState<GroupMessage | null>(null);
   const [reporting, setReporting] = useState<GroupMessage | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
   const lastReadSent = useRef(0);
   const messagesRef = useRef<GroupMessage[]>([]);
@@ -89,6 +96,7 @@ export function GroupChat() {
     if (!gate.ready) return;
     setGroup(null);
     setMessages([]);
+    setLoaded(false);
     setError("");
     void reloadGroup();
   }, [gate.ready, reloadGroup]);
@@ -102,6 +110,7 @@ export function GroupChat() {
         if (!alive) return;
         setMessages(list);
         setHasMore(list.length === PAGE);
+        setLoaded(true);
       })
       .catch((err: unknown) => alive && setError(message(err)));
 
@@ -147,6 +156,14 @@ export function GroupChat() {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
     sendRead();
   }, [messages, sendRead]);
+
+  // A caixa de texto cresce com a mensagem (até umas 6 linhas).
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+  }, [input]);
 
   function onScroll() {
     const el = listRef.current;
@@ -202,7 +219,7 @@ export function GroupChat() {
       author_name: String(session.user.user_metadata?.name ?? "Você"),
       author_avatar: String(session.user.user_metadata?.avatar ?? ""),
       body: text,
-      spoiler_chapter: spoiler ? Number(spoiler) : null,
+      spoiler_chapter: spoilerOn && spoiler ? Number(spoiler) : null,
       reply_to: replyTo?.id ?? null,
       client_id: newClientId(),
       created_at: new Date().toISOString(),
@@ -215,9 +232,11 @@ export function GroupChat() {
     setMessages((cur) => [...cur, draft]);
     setInput("");
     setSpoiler("");
+    setSpoilerOn(false);
     setReplyTo(null);
     setError("");
     void deliver(draft);
+    inputRef.current?.focus();
   }
 
   function retry(m: GroupMessage) {
@@ -270,239 +289,291 @@ export function GroupChat() {
 
   const manager = group?.my_role === "owner" || group?.my_role === "moderator";
   const byId = new Map(messages.map((m) => [m.id, m]));
+  const members = Number(group?.member_count ?? 0);
 
   return (
-    <div className="home groups-page group-chat-page">
-      <nav className="home-nav profile-nav group-chat-nav">
-        <Link className="btn" to="/grupos">
-          Voltar
+    <div className="group-chat-page">
+      <header className="group-chat-header">
+        <Link className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">
+          {GIcon.back}
         </Link>
         {group ? (
           <button type="button" className="group-chat-title" onClick={() => setInfoOpen(true)} aria-label={`Ver detalhes de ${group.name}`}>
-            <strong>{group.name}</strong>
-            <small>
-              {group.book_title ? `📖 ${group.book_title} · ` : ""}
-              {group.member_count} {Number(group.member_count) === 1 ? "membro" : "membros"}
-            </small>
+            <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="sm" />
+            <span className="group-chat-title-text">
+              <strong>{group.name}</strong>
+              <small>
+                {group.book_title ? `${group.book_title} · ` : ""}
+                {members} {members === 1 ? "membro" : "membros"}
+              </small>
+            </span>
           </button>
         ) : (
-          <span className="wordmark">Grupo</span>
+          <span className="group-chat-title" />
         )}
         {group ? (
-          <button type="button" className="btn" onClick={() => setInfoOpen(true)}>
-            Detalhes
+          <button type="button" className="group-icon-btn" onClick={() => setInfoOpen(true)} aria-label="Detalhes do grupo">
+            {GIcon.info}
           </button>
         ) : null}
-      </nav>
+      </header>
 
-      {error ? (
-        <p className="auth-error forum-error" role="alert">
-          {error}
-        </p>
+      {group?.is_member && group.book_title && group.goal_chapter ? (
+        <div className="group-goal-strip">
+          <span>
+            🎯 Meta: capítulo {group.goal_chapter}
+            {group.goal_until ? ` até ${shortDate(group.goal_until)}` : ""}
+          </span>
+          {chapter ? (
+            <span className={`group-goal-me ${chapter >= group.goal_chapter ? "is-done" : ""}`}>
+              {chapter >= group.goal_chapter ? "✓ você chegou lá" : `você está no cap. ${chapter}`}
+            </span>
+          ) : null}
+        </div>
       ) : null}
-      {notice ? (
-        <p className="auth-global-notice" role="status">
-          {notice}
-        </p>
+
+      {error || notice ? (
+        <div className="group-chat-alerts">
+          {error ? (
+            <p className="group-toast is-error" role="alert">
+              {error}
+              <button type="button" className="group-icon-btn" aria-label="Fechar aviso" onClick={() => setError("")}>
+                {GIcon.close}
+              </button>
+            </p>
+          ) : null}
+          {notice ? (
+            <p className="group-toast" role="status">
+              {notice}
+              <button type="button" className="group-icon-btn" aria-label="Fechar aviso" onClick={() => setNotice("")}>
+                {GIcon.close}
+              </button>
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {!group ? (
-        error ? null : (
-          <div className="page-status">
-            <span className="spinner" aria-hidden="true" />
-            Carregando…
-          </div>
-        )
+        <div className="group-chat-body">
+          {error ? null : (
+            <div className="page-status">
+              <span className="spinner" aria-hidden="true" />
+              Carregando…
+            </div>
+          )}
+        </div>
       ) : !isMember ? (
-        <section className="shelf group-preview">
-          <h1>{group.name}</h1>
-          {group.description ? <p className="forum-intro">{group.description}</p> : null}
-          {group.book_title ? <p>📖 Clube de leitura de “{group.book_title}”</p> : null}
-          <p className="group-card-sub">
-            {group.member_count} {Number(group.member_count) === 1 ? "membro" : "membros"}
-          </p>
-          <button type="button" className="btn btn-primary" onClick={() => void join()}>
-            Entrar no grupo
-          </button>
-        </section>
+        <div className="group-chat-body">
+          <section className="group-preview">
+            <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="xl" />
+            <h1>{group.name}</h1>
+            <p className="group-preview-meta">
+              {group.visibility === "public" ? "Grupo público" : "Grupo privado"} · {members} {members === 1 ? "membro" : "membros"}
+            </p>
+            {group.description ? <p className="group-preview-desc">{group.description}</p> : null}
+            {group.book_title ? (
+              <p className="group-preview-book">
+                {GIcon.book} Clube de leitura de “{group.book_title}”
+              </p>
+            ) : null}
+            <button type="button" className="btn btn-primary" onClick={() => void join()}>
+              Entrar no grupo
+            </button>
+          </section>
+        </div>
       ) : (
         <>
-          {group.book_title && group.goal_chapter ? (
-            <p className="group-goal-banner">
-              🎯 Meta: até o capítulo {group.goal_chapter}
-              {group.goal_until ? ` até ${new Date(`${group.goal_until}T12:00:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}` : ""}
-              {chapter ? ` · você está no capítulo ${chapter}` : ""}
-            </p>
-          ) : null}
-          <div className="group-messages" ref={listRef} onScroll={onScroll} aria-live="polite">
-            {hasMore ? (
-              <button type="button" className="btn group-older" onClick={() => void loadOlder()} disabled={loadingOlder}>
-                {loadingOlder ? "Carregando…" : "Carregar mensagens anteriores"}
-              </button>
-            ) : messages.length === 0 ? (
-              <p className="profile-empty">Nenhuma mensagem ainda. Diga oi! 👋</p>
-            ) : null}
-            {messages.map((m, i) => {
-              const mine = m.author_id === me;
-              const prev = messages[i - 1];
-              const grouped = prev && prev.author_id === m.author_id && !prev.deleted;
-              const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
-              const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
-              return (
-                <div key={m.pending || m.failed ? m.client_id : m.id} className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""}`}>
-                  {!mine && !grouped ? <PersonFace name={m.author_name} avatar={m.author_avatar} size="sm" /> : <span className="group-face-gap" />}
-                  <div className="group-bubble-wrap">
-                    {!mine && !grouped ? <span className="group-author">{m.author_name}</span> : null}
-                    <div className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""}`}>
-                      {parent ? (
-                        <span className="group-quote">
-                          <strong>{parent.author_name}</strong> {parent.deleted ? "mensagem apagada" : parent.spoiler_chapter ? "🙈 spoiler" : parent.body?.slice(0, 80)}
-                        </span>
-                      ) : null}
-                      {m.deleted ? (
-                        <em>Mensagem apagada</em>
-                      ) : m.hidden ? (
-                        <em>Mensagem oculta por denúncias, aguardando a moderação.</em>
-                      ) : spoilerHidden ? (
-                        <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
-                          🙈 Spoiler até o capítulo {m.spoiler_chapter}. Toque para ver.
-                        </button>
-                      ) : (
-                        <>
-                          {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
-                          <span className="group-text">{m.body}</span>
-                        </>
-                      )}
-                      <span className="group-meta">
-                        {m.failed ? (
-                          <button type="button" className="link-btn" onClick={() => retry(m)}>
-                            Não enviada. Tentar de novo
-                          </button>
-                        ) : m.pending ? (
-                          "enviando…"
-                        ) : (
-                          messageTime(m.created_at)
-                        )}
-                      </span>
-                    </div>
-                    {m.reactions.length > 0 ? (
-                      <span className="group-reactions">
-                        {m.reactions.map((r) => (
-                          <button
-                            key={r.emoji}
-                            type="button"
-                            className={`group-reaction ${r.mine ? "is-mine" : ""}`}
-                            onClick={() => void toggleReaction(m, r.emoji)}
-                            aria-label={`${r.emoji} ${r.count}${r.mine ? ", você reagiu" : ""}`}
-                          >
-                            {r.emoji} {r.count}
-                          </button>
-                        ))}
-                      </span>
+          <div className="group-chat-body" ref={listRef} onScroll={onScroll}>
+            <div className="group-messages" aria-live="polite">
+              {hasMore ? (
+                <button type="button" className="group-older" onClick={() => void loadOlder()} disabled={loadingOlder}>
+                  {loadingOlder ? "Carregando…" : "Mensagens anteriores"}
+                </button>
+              ) : loaded ? (
+                <div className="group-chat-start">
+                  <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="lg" />
+                  <strong>{group.name}</strong>
+                  <span>{group.description ?? "Este é o começo da conversa."}</span>
+                </div>
+              ) : null}
+              {messages.map((m, i) => {
+                const mine = m.author_id === me;
+                const prev = messages[i - 1];
+                const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
+                const grouped = !newDay && prev && prev.author_id === m.author_id && !prev.deleted;
+                const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
+                const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
+                const canAct = !m.pending && !m.failed && !m.deleted;
+                return (
+                  <div key={m.pending || m.failed ? m.client_id : m.id}>
+                    {newDay ? (
+                      <div className="group-day">
+                        <span>{dayLabel(m.created_at)}</span>
+                      </div>
                     ) : null}
-                  </div>
-                  {!m.pending && !m.failed && !m.deleted ? (
-                    <div className="group-msg-actions">
-                      <button
-                        type="button"
-                        className="icon-btn group-more"
-                        aria-label="Ações da mensagem"
-                        aria-expanded={menuFor === m.id}
-                        onClick={() => setMenuFor(menuFor === m.id ? null : m.id)}
-                      >
-                        ⋯
-                      </button>
-                      {menuFor === m.id ? (
-                        <div className="group-menu-backdrop" onClick={() => setMenuFor(null)} aria-hidden="true" />
-                      ) : null}
-                      {menuFor === m.id ? (
-                        <div className="group-menu" role="menu" aria-label={`Ações da mensagem de ${m.author_name}`}>
-                          <div className="group-menu-emojis">
-                            {GROUP_EMOJIS.map((emoji) => (
-                              <button key={emoji} type="button" role="menuitem" onClick={() => void toggleReaction(m, emoji)} aria-label={`Reagir com ${emoji}`}>
-                                {emoji}
+                    <div className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""}`}>
+                      {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" /> : null}
+                      <div className="group-bubble-wrap">
+                        <div
+                          className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""}`}
+                          onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
+                        >
+                          {!mine && !grouped ? (
+                            <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>
+                              {m.author_name}
+                            </span>
+                          ) : null}
+                          {parent ? (
+                            <span className="group-quote">
+                              <strong>{parent.author_name}</strong>
+                              <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : parent.body?.slice(0, 90)}</span>
+                            </span>
+                          ) : null}
+                          {m.deleted ? (
+                            <em className="group-text">Mensagem apagada</em>
+                          ) : m.hidden ? (
+                            <em className="group-text">Mensagem oculta por denúncias, aguardando a moderação.</em>
+                          ) : spoilerHidden ? (
+                            <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
+                              <span className="group-spoiler-blur" aria-hidden="true">
+                                {m.body}
+                              </span>
+                              <span className="group-spoiler-label">
+                                {GIcon.eyeOff} Spoiler até o cap. {m.spoiler_chapter} · tocar para ver
+                              </span>
+                            </button>
+                          ) : (
+                            <>
+                              {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
+                              <span className="group-text">{m.body}</span>
+                            </>
+                          )}
+                          <span className="group-meta">
+                            {m.failed ? (
+                              <button type="button" className="group-retry" onClick={() => retry(m)}>
+                                Não enviada · tentar de novo
+                              </button>
+                            ) : m.pending ? (
+                              "enviando…"
+                            ) : (
+                              messageTime(m.created_at)
+                            )}
+                          </span>
+                        </div>
+                        {m.reactions.length > 0 ? (
+                          <span className="group-reactions">
+                            {m.reactions.map((r) => (
+                              <button
+                                key={r.emoji}
+                                type="button"
+                                className={`group-reaction ${r.mine ? "is-mine" : ""}`}
+                                onClick={() => void toggleReaction(m, r.emoji)}
+                                aria-label={`${r.emoji} ${r.count}${r.mine ? ", você reagiu" : ""}`}
+                              >
+                                {r.emoji} <span>{r.count}</span>
                               </button>
                             ))}
-                          </div>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setReplyTo(m);
-                              setMenuFor(null);
-                            }}
-                          >
-                            Responder
-                          </button>
-                          {mine || manager ? (
-                            <button type="button" role="menuitem" className="is-danger" onClick={() => void remove(m)}>
-                              Apagar
-                            </button>
-                          ) : null}
-                          {!mine ? (
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => {
-                                setReporting(m);
-                                setMenuFor(null);
-                              }}
-                            >
-                              Denunciar
-                            </button>
-                          ) : null}
-                        </div>
+                          </span>
+                        ) : null}
+                      </div>
+                      {canAct ? (
+                        <button type="button" className="group-more" aria-label="Ações da mensagem" onClick={() => setMenuFor(m)}>
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                            <circle cx="5" cy="12" r="1.8" />
+                            <circle cx="12" cy="12" r="1.8" />
+                            <circle cx="19" cy="12" r="1.8" />
+                          </svg>
+                        </button>
                       ) : null}
                     </div>
-                  ) : null}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <form className="group-composer" onSubmit={submit}>
-            {replyTo ? (
-              <div className="group-replying">
-                <span>
-                  Respondendo a <strong>{replyTo.author_name}</strong>: {replyTo.spoiler_chapter ? "🙈 spoiler" : replyTo.body?.slice(0, 60)}
-                </span>
-                <button type="button" className="link-btn" onClick={() => setReplyTo(null)}>
-                  Cancelar
+            <div className="group-composer-inner">
+              {replyTo ? (
+                <div className="group-replying">
+                  {GIcon.reply}
+                  <span>
+                    <strong>{replyTo.author_name}</strong> {replyTo.spoiler_chapter ? "🙈 Spoiler" : replyTo.body?.slice(0, 70)}
+                  </span>
+                  <button type="button" className="group-icon-btn" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}>
+                    {GIcon.close}
+                  </button>
+                </div>
+              ) : null}
+              {spoilerOn ? (
+                <div className="group-spoiler-row">
+                  {GIcon.eyeOff}
+                  <label>
+                    Spoiler até o capítulo
+                    <input
+                      type="number"
+                      min={1}
+                      max={10000}
+                      value={spoiler}
+                      onChange={(e) => setSpoiler(e.target.value)}
+                      placeholder="nº"
+                      autoFocus
+                    />
+                  </label>
+                  <small>Fica borrada para quem ainda não passou desse capítulo.</small>
+                </div>
+              ) : null}
+              <div className="group-composer-row">
+                {group.book_key ? (
+                  <button
+                    type="button"
+                    className={`group-icon-btn group-spoiler-toggle ${spoilerOn ? "is-on" : ""}`}
+                    onClick={() => setSpoilerOn((v) => !v)}
+                    aria-pressed={spoilerOn}
+                    aria-label="Marcar como spoiler"
+                    title="Marcar como spoiler"
+                  >
+                    {GIcon.eyeOff}
+                  </button>
+                ) : null}
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Mensagem"
+                  aria-label="Mensagem"
+                  maxLength={MESSAGE_MAX}
+                  rows={1}
+                />
+                <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
+                  {GIcon.send}
                 </button>
               </div>
-            ) : null}
-            <div className="group-composer-row">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Escreva uma mensagem"
-                aria-label="Mensagem"
-                maxLength={MESSAGE_MAX}
-                rows={1}
-              />
-              <button type="submit" className="btn btn-primary" disabled={!input.trim()}>
-                Enviar
-              </button>
             </div>
-            {group.book_key ? (
-              <label className="group-spoiler-pick">
-                Spoiler até o capítulo
-                <input
-                  type="number"
-                  min={1}
-                  max={10000}
-                  value={spoiler}
-                  onChange={(e) => setSpoiler(e.target.value)}
-                  placeholder="—"
-                  aria-describedby="spoiler-help"
-                />
-                <small id="spoiler-help">Quem ainda não passou desse capítulo vê a mensagem borrada.</small>
-              </label>
-            ) : null}
           </form>
         </>
       )}
+
+      {menuFor ? (
+        <MessageSheet
+          message={menuFor}
+          mine={menuFor.author_id === me}
+          canDelete={menuFor.author_id === me || manager}
+          onClose={() => setMenuFor(null)}
+          onReact={(emoji) => void toggleReaction(menuFor, emoji)}
+          onReply={() => {
+            setReplyTo(menuFor);
+            setMenuFor(null);
+            inputRef.current?.focus();
+          }}
+          onDelete={() => void remove(menuFor)}
+          onReport={() => {
+            setReporting(menuFor);
+            setMenuFor(null);
+          }}
+        />
+      ) : null}
 
       {reporting ? (
         <ReportDialog
@@ -530,6 +601,70 @@ export function GroupChat() {
   );
 }
 
+/** Ações de uma mensagem numa folha embaixo da tela: reagir, responder, apagar, denunciar. */
+function MessageSheet({
+  message: m,
+  mine,
+  canDelete,
+  onClose,
+  onReact,
+  onReply,
+  onDelete,
+  onReport,
+}: {
+  message: GroupMessage;
+  mine: boolean;
+  canDelete: boolean;
+  onClose: () => void;
+  onReact: (emoji: string) => void;
+  onReply: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div className="group-sheet-backdrop is-bottom" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="group-action-sheet" role="menu" aria-label={`Ações da mensagem de ${m.author_name}`}>
+        <div className="group-action-emojis">
+          {GROUP_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              role="menuitem"
+              className={m.reactions.some((r) => r.emoji === emoji && r.mine) ? "is-mine" : ""}
+              onClick={() => onReact(emoji)}
+              aria-label={`Reagir com ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+        <button type="button" role="menuitem" onClick={onReply}>
+          {GIcon.reply} Responder
+        </button>
+        {canDelete ? (
+          <button type="button" role="menuitem" className="is-danger" onClick={onDelete}>
+            {GIcon.trash} Apagar para todos
+          </button>
+        ) : null}
+        {!mine ? (
+          <button type="button" role="menuitem" onClick={onReport}>
+            {GIcon.flag} Denunciar
+          </button>
+        ) : null}
+        <button type="button" role="menuitem" className="group-action-cancel" onClick={onClose}>
+          Cancelar
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function ReportDialog({ message: target, onClose, onSent }: { message: GroupMessage; onClose: () => void; onSent: () => void }) {
   const [reason, setReason] = useState<string>(REPORT_REASONS[0].value);
   const [details, setDetails] = useState("");
@@ -549,25 +684,27 @@ function ReportDialog({ message: target, onClose, onSent }: { message: GroupMess
     }
   }
 
-  return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="auth-card shelf-dialog" role="dialog" aria-modal="true" aria-labelledby="report-title" onSubmit={send}>
-        <h2 id="report-title">Denunciar mensagem</h2>
-        <p className="group-card-sub">
-          De {target.author_name}. A equipe de moderação vai analisar.
-        </p>
-        <label>
-          Motivo
-          <select value={reason} onChange={(e) => setReason(e.target.value)}>
-            {REPORT_REASONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Detalhes (opcional)
+  return createPortal(
+    <div className="about-backdrop group-sheet-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <form className="group-sheet" role="dialog" aria-modal="true" aria-labelledby="report-title" onSubmit={send}>
+        <header className="group-sheet-head">
+          <h2 id="report-title">Denunciar mensagem</h2>
+          <button type="button" className="group-icon-btn" onClick={onClose} aria-label="Fechar">
+            {GIcon.close}
+          </button>
+        </header>
+        <p className="group-sheet-sub">Mensagem de {target.author_name}. A equipe de moderação vai analisar.</p>
+        <fieldset className="group-field group-reasons">
+          <legend>Motivo</legend>
+          {REPORT_REASONS.map((r) => (
+            <label key={r.value} className={reason === r.value ? "is-on" : ""}>
+              <input type="radio" name="reason" checked={reason === r.value} onChange={() => setReason(r.value)} />
+              {r.label}
+            </label>
+          ))}
+        </fieldset>
+        <label className="group-field">
+          <span>Detalhes (opcional)</span>
           <textarea value={details} onChange={(e) => setDetails(e.target.value)} maxLength={1000} rows={3} />
         </label>
         {error ? (
@@ -575,15 +712,16 @@ function ReportDialog({ message: target, onClose, onSent }: { message: GroupMess
             {error}
           </p>
         ) : null}
-        <div className="shelf-actions">
+        <footer className="group-sheet-actions">
           <button type="button" className="btn" onClick={onClose}>
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
             Enviar denúncia
           </button>
-        </div>
+        </footer>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
