@@ -1,3 +1,5 @@
+import { CHARACTER_LINES } from "../data/characterLines";
+
 const MISS_YOU = [
   (ch: string) => `Você sumiu… fiquei pensando no que aconteceu em “${ch}”. Vamos continuar de onde paramos?`,
   (ch: string) => `Que bom que você voltou! Paramos em “${ch}” — ainda tem muita coisa pela frente.`,
@@ -30,9 +32,12 @@ const RETIRED_PATTERNS = [
   /^Você já passou da metade deste capítulo\. Alguma coisa te chamou a atenção até aqui\?$/,
 ];
 
+/** Recados de saudade escritos à mão para cada personagem (ver characterNudge.ts). */
+const NUDGE_LINES = new Set(Object.values(CHARACTER_LINES).map((l) => l.nudge));
+
 /** Mensagem automática do personagem (não é resposta a nada que o leitor disse). */
 export function isAmbientMessage(text: string): boolean {
-  return [...MISS_YOU_PATTERNS, ...RETIRED_PATTERNS].some((re) => re.test(text));
+  return NUDGE_LINES.has(text) || [...MISS_YOU_PATTERNS, ...RETIRED_PATTERNS].some((re) => re.test(text));
 }
 
 /**

@@ -131,6 +131,7 @@ import {
   type ReadingProgress,
 } from "./lib/progress";
 import { missYouMessage, tidyAmbientMessages } from "./lib/readingAmbient";
+import { dismissNudge, homeNudge, NUDGE_AFTER_DAYS, nudgeText, voiceFor, type HomeNudge } from "./lib/characterNudge";
 import { withOfflineCopy } from "./lib/offlineText";
 import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
 import { cachedPortrait, requestPortrait } from "./lib/portraits";
@@ -3641,6 +3642,48 @@ function MonthRecap({ favorite }: { favorite?: { name: string; book: string } })
   );
 }
 
+/**
+ * Recado do personagem na tela inicial: o leitor sumiu do livro há alguns dias e quem estava
+ * conversando com ele manda uma mensagem na própria voz. Responder abre o livro já na conversa.
+ */
+function CharacterNudgeCard({
+  nudge,
+  onContinue,
+  onReply,
+  onDismiss,
+}: {
+  nudge: HomeNudge;
+  onContinue: () => void;
+  onReply: () => void;
+  onDismiss: () => void;
+}) {
+  const { progress, character, text } = nudge;
+  const avatar: StoryCharacter = { id: character.id ?? character.name, name: character.name, role: "", color: character.color, systemHint: "" };
+  return (
+    <section className="character-nudge" aria-label={`Mensagem de ${character.name}`}>
+      <Avatar character={avatar} bookTitle={progress.book.title} />
+      <div className="character-nudge-body">
+        <span className="eyebrow">
+          {character.name} · {progress.book.title}
+        </span>
+        <p className="character-nudge-text">“{text}”</p>
+        <span className="character-nudge-where">Você parou em {progress.chapterLabel}</span>
+        <div className="character-nudge-actions">
+          <button type="button" className="btn btn-primary" onClick={onContinue}>
+            Continuar lendo
+          </button>
+          <button type="button" className="btn" onClick={onReply}>
+            Responder
+          </button>
+        </div>
+      </div>
+      <button type="button" className="icon-btn character-nudge-close" onClick={onDismiss} aria-label={`Fechar a mensagem de ${character.name}`}>
+        {Icon.close}
+      </button>
+    </section>
+  );
+}
+
 /** Frase do dia: um trecho conhecido; tocar revela de qual livro é. */
 function DailyQuote({ books }: { books: Ebook[] }) {
   const quote = useMemo(() => quoteOfTheDay(), []);
@@ -6512,11 +6555,18 @@ export function App() {
   useEffect(() => {
     if (book) return;
     const recent = recentProgress().find((p) => isAvailable(p.book));
+    // O recado sai na voz do personagem; quem decide se já é hora de avisar é o service worker.
+    const voice = recent ? voiceFor(recent.book) : undefined;
     void syncEngagementState({
       streak: readingSummary().streak,
       lastReadDay: lastReadDay(),
       book: recent
-        ? { title: recent.book.title, chapterLabel: recent.chapterLabel, character: lastCharacter(recent.book.id) }
+        ? {
+            title: recent.book.title,
+            chapterLabel: recent.chapterLabel,
+            character: voice?.name ?? lastCharacter(recent.book.id),
+            nudge: voice ? nudgeText(recent.book, voice, recent.chapterLabel, NUDGE_AFTER_DAYS) : undefined,
+          }
         : undefined,
     });
   }, [book, isAvailable]);
@@ -6614,12 +6664,15 @@ export function App() {
           const savedActive = saved?.activeCharId && list.some((c) => c.id === saved.activeCharId);
           const activeId = savedActive ? saved!.activeCharId : list[0]?.id;
           setActiveCharId((id) => id || activeId || "");
-          if (awayDays >= 2 && awayChapter && activeId) {
-            const line = missYouMessage(awayChapter, awayDays);
+          if (awayDays >= NUDGE_AFTER_DAYS && awayChapter && activeId) {
+            // O mesmo recado da tela inicial, de quem o mandou (sem ele, a saudade genérica).
+            const voice = voiceFor(book);
+            const from = list.find((c) => c.id === voice?.id || c.name === voice?.name)?.id ?? activeId;
+            const line = voice ? nudgeText(book, voice, awayChapter, awayDays) : missYouMessage(awayChapter, awayDays);
             setThreads((prev) => ({
               ...prev,
               // Uma saudade só: se a anterior ficou sem resposta, a nova toma o lugar dela.
-              [activeId]: tidyAmbientMessages([...(prev[activeId] ?? []), { id: uid(), role: "assistant", text: line }]),
+              [from]: tidyAmbientMessages([...(prev[from] ?? []), { id: uid(), role: "assistant", text: line }]),
             }));
           }
         });
@@ -6664,7 +6717,8 @@ export function App() {
     setVisibleChunk((v) => (v?.key === key && v.chunk === chunk ? v : { key, chunk }));
   }, []);
 
-  const startBook = useCallback((b: Ebook) => {
+  /** Abre o livro; `opts` abre direto a conversa com um personagem (ex.: responder o recado dele). */
+  const startBook = useCallback((b: Ebook, opts?: { characterId?: string; chat?: boolean }) => {
     if (authLoading) return;
     if (!canRead) {
       setAuthModal("login");
@@ -6681,11 +6735,11 @@ export function App() {
       setBook(b);
       setLoading(false);
       setCast(null);
-      setActiveCharId("");
+      setActiveCharId(opts?.characterId ?? "");
       setThreads({});
       setError(null);
       setInput("");
-      setChatOpen(false);
+      setChatOpen(opts?.chat ?? false);
       window.scrollTo({ top: 0 });
     });
   }, [authLoading, authUser, canRead]);
@@ -7672,6 +7726,8 @@ export function App() {
           character: lastCharacter(recent[0].book.id),
         }
       : undefined;
+    // Sumiu do livro há alguns dias: o personagem manda um recado (ver characterNudge.ts).
+    const nudge = homeNudge(recent);
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
     const favoriteTalk = (() => {
       const top = characterTalks()[0];
@@ -8078,6 +8134,18 @@ export function App() {
         </section>
         </>
         )}
+
+        {canRead && nudge ? (
+          <CharacterNudgeCard
+            nudge={nudge}
+            onContinue={() => startBook(nudge.progress.book)}
+            onReply={() => startBook(nudge.progress.book, { characterId: nudge.character.id, chat: true })}
+            onDismiss={() => {
+              dismissNudge(nudge.progress);
+              setHomeTick((n) => n + 1);
+            }}
+          />
+        ) : null}
 
         {canRead ? <MonthRecap favorite={favoriteTalk} /> : null}
 

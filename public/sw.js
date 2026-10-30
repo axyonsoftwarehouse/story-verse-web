@@ -177,6 +177,10 @@ async function maybeNotify(force) {
     body = book
       ? `${who ? `${who} está te esperando` : "Sua história continua"} em “${book.title}”. Bastam uns minutinhos.`
       : "Bastam uns minutinhos de leitura para manter a sequência.";
+  } else if (book && who && book.nudge) {
+    // Recado do personagem na voz dele.
+    title = `💬 ${who} mandou uma mensagem`;
+    body = book.nudge;
   } else if (book) {
     title = who ? `${who} sente sua falta 💛` : "📖 Sua história está te esperando";
     body = `Que tal continuar “${book.title}”${book.chapterLabel ? ` de onde parou (${book.chapterLabel})` : ""}?`;

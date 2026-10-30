@@ -17,7 +17,8 @@ Leitores criam grupos e conversam por mensagens em tempo real. Um grupo pode ser
 | Entrada | Grupos **públicos** (aparecem numa lista, qualquer um entra) e **privados** (só por link de convite). Qualquer conta cria. |
 | Livro | **Opcional.** Com livro, o grupo ganha meta de leitura e o progresso dos membros. |
 | Spoiler | Quem escreve pode **marcar o capítulo**; a mensagem aparece borrada para quem ainda não chegou lá. |
-| v1 inclui | Texto, denúncia e moderação, contador de não lidas, reações com emoji e notificação push. |
+| v1 inclui | Texto, denúncia e moderação, contador de não lidas e reações com emoji. |
+| Push | **Não usar Web Push** (exigiria chaves VAPID fora dos repositórios). O aviso de mensagem nova é o selo de não lidas e, com o app aberto em outra tela, uma notificação do navegador. |
 
 ## 3. Fora de escopo (v1)
 
@@ -25,6 +26,7 @@ Leitores criam grupos e conversam por mensagens em tempo real. Um grupo pode ser
 - Mensagem direta entre duas pessoas (DM). Dá para fazer depois como grupo privado de 2.
 - Editar mensagem (apagar a própria pode).
 - Chamada de voz/vídeo.
+- Web Push com o app fechado (ver seção 2).
 - Busca dentro do histórico.
 
 ## 4. Modelo de dados (story-verse-api, migration nova)
@@ -55,7 +57,7 @@ create table public.chat_members (
   user_id uuid not null references auth.users (id) on delete cascade,
   role text not null default 'member' check (role in ('owner', 'moderator', 'member')),
   last_read_id bigint not null default 0,     -- contador de não lidas
-  muted boolean not null default false,       -- sem push deste grupo
+  muted boolean not null default false,       -- sem aviso deste grupo
   banned_at timestamptz,                      -- removido pelo dono: não volta pelo link
   joined_at timestamptz not null default now(),
   primary key (group_id, user_id)
@@ -96,14 +98,6 @@ create table public.chat_reports (
   unique (reporter_id, message_id)
 );
 
-create table public.push_subscriptions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users (id) on delete cascade,
-  endpoint text not null unique,
-  p256dh text not null,
-  auth text not null,
-  created_at timestamptz not null default now()
-);
 ```
 
 RLS em todas, no padrão do fórum (V7): só membros não banidos leem as mensagens e os membros do grupo; grupos públicos aparecem na lista para qualquer conta; escrever exige ser membro. As mesmas sanções de conta do fórum (V18) bloqueiam enviar mensagem e criar grupo.
@@ -131,7 +125,6 @@ O progresso dos membros no clube vem de `library_entries` (`progress_percent`) e
 | `POST` | `/api/v1/groups/{id}/read` | Marca como lido até `lastId` |
 | `POST` | `/api/v1/groups/messages/{msgId}/report` | Denuncia mensagem |
 | `GET` | `/api/v1/groups/stream` | **SSE único por conta** com os eventos de todos os grupos dela |
-| `POST`/`DELETE` | `/api/v1/push/subscription` | Registra/remove a inscrição de push do aparelho |
 | `GET`/`POST` | `/api/v1/admin/groups/reports…` | Fila de denúncias no painel, no molde de `ForumAdminController` |
 
 ### 5.1 Tempo real
@@ -140,15 +133,12 @@ O progresso dos membros no clube vem de `library_entries` (`progress_percent`) e
 - O envio é `POST` comum. O servidor grava e só depois publica no stream (o banco é a fonte da verdade). Ao reconectar, o cliente pede `messages?after=<último id>` para cobrir o buraco.
 - Hoje é uma instância só da API na VPS, então um mapa em memória basta (como no presence). Com mais de uma instância, trocar por `LISTEN/NOTIFY` do Postgres. Fica anotado, não entra na v1.
 
-### 5.2 Push
+### 5.2 Avisos sem push
 
-Hoje não existe push de verdade: [reminders.ts](../src/lib/reminders.ts) usa o "periodic background sync" do Chrome. Para mensagens é preciso **Web Push** (VAPID):
+Sem Web Push, os avisos dependem do app aberto:
 
-- chaves VAPID no `.env` da API (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`);
-- biblioteca `nl.martijndwars:web-push` (ou equivalente) na API;
-- service worker trata o evento `push` e abre o grupo no clique;
-- envia só para membros **sem SSE aberto** e sem `muted`, e agrupa: no máximo 1 push por grupo a cada 5 minutos por pessoa ("3 mensagens novas em Clube Dom Casmurro").
-- No iPhone, push só funciona com o app instalado na tela inicial (iOS 16.4+). A tela explica isso.
+- selo de não lidas em "Grupos" na navegação e em cada grupo (vem de `last_read_id`);
+- com o app aberto em outra tela e permissão do navegador, `Notification` local ao chegar evento do stream (no máximo 1 por grupo a cada 5 minutos, nunca para grupo silenciado nem para o grupo aberto na tela).
 
 ### 5.3 Limites e abuso
 
@@ -167,7 +157,6 @@ Hoje não existe push de verdade: [reminders.ts](../src/lib/reminders.ts) usa o 
 | `src/features/groups/GroupInfo.tsx` | Membros, progresso no livro, meta, convite, sair, moderação do dono |
 | `src/features/groups/CreateGroupDialog.tsx` | Nome, descrição, público/privado, livro opcional e meta |
 | `src/features/admin/GroupReports.tsx` | Aba de denúncias no painel |
-| `public/sw.js` | Evento `push` e `notificationclick` |
 
 - Entrada pela navegação principal ("Grupos"), com selo de não lidas.
 - Link de convite: `/g/<inviteCode>`. Sem conta, pede login e volta para o convite.
@@ -178,11 +167,10 @@ Hoje não existe push de verdade: [reminders.ts](../src/lib/reminders.ts) usa o 
 
 1. **API — base:** migration, grupos, membros, mensagens, histórico, RLS e testes de integração.
 2. **API — tempo real e social:** SSE, reações, não lidas, denúncias e fila no admin.
-3. **Web — chat:** lista, conversa, criar, convite, spoiler, reações, denúncia, não lidas, aba no admin.
-4. **Push:** VAPID, inscrição, service worker, envio agrupado.
-5. **Clube do livro:** livro e meta no grupo, progresso dos membros, atalhos na página do livro.
+3. **Web — chat:** lista, conversa, criar, convite, spoiler, reações, denúncia, não lidas, avisos com o app aberto, aba no admin.
+4. **Clube do livro:** livro e meta no grupo, progresso dos membros, atalhos na página do livro.
 
-Cada entrega vira um PR por repositório. Liberar primeiro para contas de teste pelo feature-gate.
+Tudo vai numa branch só por repositório (`feat/grupos-e-engajamento`). Liberar primeiro para contas de teste pelo feature-gate.
 
 ## 8. Métricas
 
