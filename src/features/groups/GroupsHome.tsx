@@ -16,6 +16,7 @@ import {
   type Group,
 } from "../../lib/groups";
 import { GroupForm } from "./GroupForm";
+import { PushStatus } from "./PushStatus";
 import { GroupAvatar, GroupsBlocked } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { useGroupsGate } from "./groupHelpers";
@@ -184,6 +185,8 @@ export function GroupsHome() {
           </button>
         </div>
       ) : null}
+
+      {!askNotify && tab === "mine" ? <PushStatus /> : null}
 
       {error ? (
         <p className="auth-error groups-error" role="alert">
