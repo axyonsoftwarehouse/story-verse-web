@@ -37,6 +37,31 @@ import { chatBackground, dayLabel, hueOf, myChapter, useGroupsGate } from "./gro
 
 const PAGE = 50;
 
+/**
+ * Altura e topo da área que sobra na tela com o teclado aberto. No celular o teclado não encolhe
+ * a página (iOS) ou encolhe de um jeito diferente (Android): a conversa acompanha a área visível,
+ * como no WhatsApp, e o topo nunca sai da tela. Trava a rolagem da página por baixo.
+ */
+function useVisibleArea() {
+  const [area, setArea] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    const html = document.documentElement;
+    const previous = html.style.overflow;
+    html.style.overflow = "hidden";
+    const vv = window.visualViewport;
+    const update = () => vv && setArea({ height: Math.round(vv.height), top: Math.round(vv.offsetTop) });
+    update();
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
+    return () => {
+      html.style.overflow = previous;
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
+    };
+  }, []);
+  return area;
+}
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Algo deu errado. Tente de novo.";
 }
@@ -75,6 +100,9 @@ export function GroupChat() {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
+  const [newBelow, setNewBelow] = useState(0);
+  const area = useVisibleArea();
   const lastReadSent = useRef(0);
   const messagesRef = useRef<GroupMessage[]>([]);
   messagesRef.current = messages;
@@ -130,7 +158,10 @@ export function GroupChat() {
           setMessages((cur) => mergeMessages(cur, [event.data]));
           setTyping(({ [event.data.author_id]: _sent, ...rest }) => rest);
           const g = groupRef.current;
-          if (g && event.data.author_id !== me) notifyGroupMessage(event.data, g.name, g.muted);
+          if (event.data.author_id !== me) {
+            if (!stickToBottom.current && !messagesRef.current.some((m) => m.id === event.data.id)) setNewBelow((n) => n + 1);
+            if (g) notifyGroupMessage(event.data, g.name, g.muted);
+          }
         } else if (event.type === "message_deleted" && event.data.groupId === id) {
           setMessages((cur) => cur.map((m) => (m.id === event.data.id ? { ...m, deleted: true, body: null } : m)));
         } else if (event.type === "reaction" && event.data.groupId === id) {
@@ -190,6 +221,20 @@ export function GroupChat() {
     sendRead();
   }, [messages, typing, sendRead]);
 
+  // Teclado abriu ou fechou: quem estava no fim continua vendo a última mensagem.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
+  }, [area?.height]);
+
+  function scrollToEnd() {
+    const el = listRef.current;
+    if (!el) return;
+    stickToBottom.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setNewBelow(0);
+  }
+
   // A caixa de texto cresce com a mensagem (até umas 6 linhas).
   useLayoutEffect(() => {
     const el = inputRef.current;
@@ -202,6 +247,8 @@ export function GroupChat() {
     const el = listRef.current;
     if (!el) return;
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAtBottom(stickToBottom.current);
+    if (stickToBottom.current) setNewBelow(0);
   }
 
   async function loadOlder() {
@@ -330,7 +377,10 @@ export function GroupChat() {
   const wallpaper = chatBackground(group?.background);
 
   return (
-    <div className="group-chat-page" style={{ "--group-hue": hueOf(id) } as CSSProperties}>
+    <div
+      className="group-chat-page"
+      style={{ "--group-hue": hueOf(id), ...(area ? { top: area.top, height: area.height, bottom: "auto" } : {}) } as CSSProperties}
+    >
       <header className="group-chat-header">
         <Link className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">
           {GIcon.back}
@@ -425,139 +475,149 @@ export function GroupChat() {
         </div>
       ) : (
         <>
-          <div className={`group-chat-body ${wallpaper.className}`} style={wallpaper.style} ref={listRef} onScroll={onScroll}>
-            <div className="group-messages" aria-live="polite">
-              {hasMore ? (
-                <button type="button" className="group-older" onClick={() => void loadOlder()} disabled={loadingOlder}>
-                  {loadingOlder ? "Carregando…" : "Mensagens anteriores"}
-                </button>
-              ) : loaded ? (
-                <div className="group-chat-start">
-                  <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="lg" />
-                  <strong>{group.name}</strong>
-                  <span>{group.description ?? "Este é o começo da conversa."}</span>
-                  {group.my_role === "owner" && (!group.description || !group.background) ? (
-                    <button type="button" className="group-start-edit" onClick={() => setInfoOpen(true)}>
-                      {GIcon.pencil} {group.description ? "Escolher o fundo da conversa" : "Adicionar descrição e fundo"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-              {messages.map((m, i) => {
-                const mine = m.author_id === me;
-                const prev = messages[i - 1];
-                const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
-                const grouped = !newDay && prev && prev.author_id === m.author_id && !prev.deleted;
-                const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
-                const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
-                const canAct = !m.pending && !m.failed && !m.deleted;
-                const fresh = m.pending || !initialIds.current.has(m.id);
-                return (
-                  <div key={m.pending || m.failed ? m.client_id : m.id}>
-                    {newDay ? (
-                      <div className="group-day">
-                        <span>{dayLabel(m.created_at)}</span>
-                      </div>
+          <div className="group-chat-main">
+            <div className={`group-chat-body ${wallpaper.className}`} style={wallpaper.style} ref={listRef} onScroll={onScroll}>
+              <div className="group-messages" aria-live="polite">
+                {hasMore ? (
+                  <button type="button" className="group-older" onClick={() => void loadOlder()} disabled={loadingOlder}>
+                    {loadingOlder ? "Carregando…" : "Mensagens anteriores"}
+                  </button>
+                ) : loaded ? (
+                  <div className="group-chat-start">
+                    <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="md" />
+                    <strong>{group.name}</strong>
+                    <span className="group-chat-start-desc">{group.description ?? "Este é o começo da conversa."}</span>
+                    {group.my_role === "owner" && (!group.description || !group.background) ? (
+                      <button type="button" className="group-start-edit" onClick={() => setInfoOpen(true)}>
+                        {GIcon.pencil} {group.description ? "Escolher o fundo da conversa" : "Adicionar descrição e fundo"}
+                      </button>
                     ) : null}
-                    <div
-                      className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`}
-                      style={{ "--hue": hueOf(m.author_id) } as CSSProperties}
-                    >
-                      {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" /> : null}
-                      <div className="group-bubble-wrap">
-                        <div
-                          className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""}`}
-                          onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
-                        >
-                          {!mine && !grouped ? (
-                            <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>
-                              {m.author_name}
-                            </span>
-                          ) : null}
-                          {parent ? (
-                            <span className="group-quote">
-                              <strong>{parent.author_name}</strong>
-                              <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : parent.body?.slice(0, 90)}</span>
-                            </span>
-                          ) : null}
-                          {m.deleted ? (
-                            <em className="group-text">Mensagem apagada</em>
-                          ) : m.hidden ? (
-                            <em className="group-text">Mensagem oculta por denúncias, aguardando a moderação.</em>
-                          ) : spoilerHidden ? (
-                            <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
-                              <span className="group-spoiler-blur" aria-hidden="true">
-                                {m.body}
-                              </span>
-                              <span className="group-spoiler-label">
-                                {GIcon.eyeOff} Spoiler até o cap. {m.spoiler_chapter} · tocar para ver
-                              </span>
-                            </button>
-                          ) : (
-                            <>
-                              {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
-                              <span className="group-text">{m.body}</span>
-                            </>
-                          )}
-                          <span className="group-meta">
-                            {m.failed ? (
-                              <button type="button" className="group-retry" onClick={() => retry(m)}>
-                                Não enviada · tentar de novo
-                              </button>
-                            ) : m.pending ? (
-                              "enviando…"
-                            ) : (
-                              messageTime(m.created_at)
-                            )}
-                          </span>
+                  </div>
+                ) : null}
+                {messages.map((m, i) => {
+                  const mine = m.author_id === me;
+                  const prev = messages[i - 1];
+                  const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
+                  const grouped = !newDay && prev && prev.author_id === m.author_id && !prev.deleted;
+                  const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
+                  const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
+                  const canAct = !m.pending && !m.failed && !m.deleted;
+                  const fresh = m.pending || !initialIds.current.has(m.id);
+                  return (
+                    <div key={m.pending || m.failed ? m.client_id : m.id}>
+                      {newDay ? (
+                        <div className="group-day">
+                          <span>{dayLabel(m.created_at)}</span>
                         </div>
-                        {m.reactions.length > 0 ? (
-                          <span className="group-reactions">
-                            {m.reactions.map((r) => (
-                              <button
-                                key={r.emoji}
-                                type="button"
-                                className={`group-reaction ${r.mine ? "is-mine" : ""}`}
-                                onClick={() => void toggleReaction(m, r.emoji)}
-                                aria-label={`${r.emoji} ${r.count}${r.mine ? ", você reagiu" : ""}`}
-                              >
-                                {r.emoji} <span>{r.count}</span>
+                      ) : null}
+                      <div
+                        className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`}
+                        style={{ "--hue": hueOf(m.author_id) } as CSSProperties}
+                      >
+                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" /> : null}
+                        <div className="group-bubble-wrap">
+                          <div
+                            className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""}`}
+                            onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
+                          >
+                            {!mine && !grouped ? (
+                              <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>
+                                {m.author_name}
+                              </span>
+                            ) : null}
+                            {parent ? (
+                              <span className="group-quote">
+                                <strong>{parent.author_name}</strong>
+                                <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : parent.body?.slice(0, 90)}</span>
+                              </span>
+                            ) : null}
+                            {m.deleted ? (
+                              <em className="group-text">Mensagem apagada</em>
+                            ) : m.hidden ? (
+                              <em className="group-text">Mensagem oculta por denúncias, aguardando a moderação.</em>
+                            ) : spoilerHidden ? (
+                              <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
+                                <span className="group-spoiler-blur" aria-hidden="true">
+                                  {m.body}
+                                </span>
+                                <span className="group-spoiler-label">
+                                  {GIcon.eyeOff} Spoiler até o cap. {m.spoiler_chapter} · tocar para ver
+                                </span>
                               </button>
-                            ))}
-                          </span>
+                            ) : (
+                              <>
+                                {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
+                                <span className="group-text">{m.body}</span>
+                              </>
+                            )}
+                            <span className="group-meta">
+                              {m.failed ? (
+                                <button type="button" className="group-retry" onClick={() => retry(m)}>
+                                  Não enviada · tentar de novo
+                                </button>
+                              ) : m.pending ? (
+                                "enviando…"
+                              ) : (
+                                messageTime(m.created_at)
+                              )}
+                            </span>
+                          </div>
+                          {m.reactions.length > 0 ? (
+                            <span className="group-reactions">
+                              {m.reactions.map((r) => (
+                                <button
+                                  key={r.emoji}
+                                  type="button"
+                                  className={`group-reaction ${r.mine ? "is-mine" : ""}`}
+                                  onClick={() => void toggleReaction(m, r.emoji)}
+                                  aria-label={`${r.emoji} ${r.count}${r.mine ? ", você reagiu" : ""}`}
+                                >
+                                  {r.emoji} <span>{r.count}</span>
+                                </button>
+                              ))}
+                            </span>
+                          ) : null}
+                        </div>
+                        {canAct ? (
+                          <button type="button" className="group-more" aria-label="Ações da mensagem" onClick={() => setMenuFor(m)}>
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                              <circle cx="5" cy="12" r="1.8" />
+                              <circle cx="12" cy="12" r="1.8" />
+                              <circle cx="19" cy="12" r="1.8" />
+                            </svg>
+                          </button>
                         ) : null}
                       </div>
-                      {canAct ? (
-                        <button type="button" className="group-more" aria-label="Ações da mensagem" onClick={() => setMenuFor(m)}>
-                          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                            <circle cx="5" cy="12" r="1.8" />
-                            <circle cx="12" cy="12" r="1.8" />
-                            <circle cx="19" cy="12" r="1.8" />
-                          </svg>
-                        </button>
-                      ) : null}
+                    </div>
+                  );
+                })}
+                {typingIds.length > 0 ? (
+                  <div className="group-msg group-typing" aria-label={typingText} style={{ "--hue": hueOf(typingIds[0]) } as CSSProperties}>
+                    <PersonFace
+                      id={typingIds[0]}
+                      name={typingNames[0]}
+                      avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
+                      size="sm"
+                    />
+                    <div className="group-bubble">
+                      <span className="group-typing-dots" aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-              {typingIds.length > 0 ? (
-                <div className="group-msg group-typing" aria-label={typingText} style={{ "--hue": hueOf(typingIds[0]) } as CSSProperties}>
-                  <PersonFace
-                    id={typingIds[0]}
-                    name={typingNames[0]}
-                    avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
-                    size="sm"
-                  />
-                  <div className="group-bubble">
-                    <span className="group-typing-dots" aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
+            {!atBottom ? (
+              <button type="button" className="group-to-end" onClick={scrollToEnd} aria-label={newBelow ? `${newBelow} mensagens novas, ir para o fim` : "Ir para a última mensagem"}>
+                {newBelow ? <span className="group-to-end-count">{newBelow > 99 ? "99+" : newBelow}</span> : null}
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            ) : null}
           </div>
 
           <form className="group-composer" onSubmit={submit}>

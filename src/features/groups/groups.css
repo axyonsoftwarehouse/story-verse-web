@@ -773,10 +773,22 @@
 /* ------------------------------ Conversa ------------------------------ */
 
 .group-chat-page {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   background: var(--bg);
+}
+
+/* Área entre o topo e a caixa de texto: a lista rola dentro dela e o botão "descer" flutua. */
+.group-chat-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .group-chat-header {
@@ -913,29 +925,32 @@
   padding: 0.75rem 0.75rem 1rem;
 }
 
-/* As mensagens ficam junto da caixa de texto, como em qualquer chat. */
-.group-messages > :first-child {
-  margin-top: auto;
-}
 
+/* Cartão discreto no começo da conversa (como o aviso do topo no WhatsApp). */
 .group-chat-start {
   display: grid;
   justify-items: center;
-  gap: 0.35rem;
-  max-width: 24rem;
-  margin: 1rem auto 1.4rem;
+  gap: 0.3rem;
+  max-width: 20rem;
+  margin: 0.4rem auto 0.6rem;
+  padding: 0.85rem 1rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(8px);
   text-align: center;
 }
 
 .group-chat-start strong {
   font-family: var(--font-read);
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 500;
 }
 
-.group-chat-start span:last-child {
+.group-chat-start-desc {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .group-older {
@@ -1921,8 +1936,7 @@
   box-shadow:
     0 0 0 4px var(--bg),
     0 0 0 6px color-mix(in srgb, var(--group-tint) 60%, transparent),
-    0 10px 40px color-mix(in srgb, var(--group-tint) 35%, transparent);
-  animation: group-float 4s ease-in-out infinite;
+    0 6px 20px color-mix(in srgb, var(--group-tint) 30%, transparent);
 }
 
 /* Bolha dos outros: um toque da cor de quem escreveu. */
@@ -2290,4 +2304,40 @@ button.group-info-desc.is-empty {
 .group-start-edit svg {
   width: 14px;
   height: 14px;
+}
+
+/* Botão "descer" com as mensagens novas que chegaram enquanto a pessoa lia lá em cima. */
+.group-to-end {
+  position: absolute;
+  z-index: 3;
+  right: 0.9rem;
+  bottom: 0.8rem;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  animation: group-pop 0.2s ease-out;
+}
+
+.group-to-end-count {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.2rem;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
 }
