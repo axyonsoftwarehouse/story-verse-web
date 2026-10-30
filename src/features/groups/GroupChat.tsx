@@ -33,9 +33,10 @@ import {
   react,
   REPORT_REASONS,
   reportMessage,
+  messagePreview,
+  sendMediaMessage,
   sendMessage,
   sendTyping,
-  stripFormatting,
   TYPING_SEND_MS,
   TYPING_SHOWN_MS,
   typingLabel,
@@ -47,6 +48,8 @@ import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatMessage } from "./messageFormat";
+import { ChatAudio, ChatImage } from "./MediaParts";
+import { clock, keepMedia, prepareChatImage, recordingMime } from "../../lib/chatMedia";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
 const PAGE = 50;
@@ -54,6 +57,8 @@ const PAGE = 50;
 const LONG_PRESS_MS = 420;
 /** Arrastar a mensagem para a direita além disto responde a ela. */
 const SWIPE_REPLY_PX = 56;
+/** Áudio de no máximo 2 minutos (para sozinho e envia). */
+const MAX_AUDIO_MS = 120_000;
 
 type Gesture = { id: number; x: number; y: number; timer: number; swipe: number; swiping: boolean; armed: boolean; el: HTMLElement };
 
@@ -105,6 +110,11 @@ export function GroupChat() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
+  const [recordingMs, setRecordingMs] = useState<number | null>(null);
+  const recorder = useRef<{ rec: MediaRecorder; stream: MediaStream; chunks: Blob[]; start: number; timer: number; send: boolean } | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
+  const mediaFiles = useRef(new Map<string, { blob: Blob; durationMs?: number; width?: number; height?: number }>());
   const [spoilerOn, setSpoilerOn] = useState(false);
   const [spoiler, setSpoiler] = useState("");
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
@@ -308,18 +318,142 @@ export function GroupChat() {
 
   async function deliver(draft: GroupMessage) {
     try {
-      const saved = await sendMessage(id, {
-        body: draft.body ?? "",
-        clientId: draft.client_id!,
-        spoilerChapter: draft.spoiler_chapter,
-        replyTo: draft.reply_to,
-      });
+      const file = draft.media_kind ? mediaFiles.current.get(draft.client_id!) : undefined;
+      const saved = file
+        ? await sendMediaMessage(id, file.blob, {
+            kind: draft.media_kind!,
+            clientId: draft.client_id!,
+            durationMs: file.durationMs,
+            width: file.width,
+            height: file.height,
+            caption: draft.body,
+            spoilerChapter: draft.spoiler_chapter,
+            replyTo: draft.reply_to,
+          })
+        : await sendMessage(id, {
+            body: draft.body ?? "",
+            clientId: draft.client_id!,
+            spoilerChapter: draft.spoiler_chapter,
+            replyTo: draft.reply_to,
+          });
+      if (file) {
+        // A cópia local fica no aparelho: a própria foto/áudio não é baixada de volta.
+        await keepMedia(saved.id, file.blob);
+        mediaFiles.current.delete(draft.client_id!);
+      }
       setMessages((cur) => mergeMessages(cur, [saved]));
     } catch (err) {
       setMessages((cur) => cur.map((m) => (m.client_id === draft.client_id && m.pending ? { ...m, pending: false, failed: true } : m)));
       setError(message(err));
     }
   }
+
+  /** Mensagem provisória (aparece na hora; a confirmada do servidor entra no lugar). */
+  function newDraft(fields: Partial<GroupMessage>): GroupMessage | null {
+    if (!session) return null;
+    return {
+      id: Number.MAX_SAFE_INTEGER,
+      group_id: id,
+      author_id: me,
+      author_name: String(session.user.user_metadata?.name ?? "Você"),
+      author_avatar: String(session.user.user_metadata?.avatar ?? ""),
+      author_photo: typeof session.user.user_metadata?.photo === "string" ? session.user.user_metadata.photo : null,
+      body: null,
+      spoiler_chapter: spoilerOn && spoiler ? Number(spoiler) : null,
+      reply_to: replyTo?.id ?? null,
+      client_id: newClientId(),
+      created_at: new Date().toISOString(),
+      deleted: false,
+      hidden: false,
+      reactions: [],
+      pending: true,
+      ...fields,
+    };
+  }
+
+  function queue(draft: GroupMessage) {
+    stickToBottom.current = true;
+    setMessages((cur) => [...cur, draft]);
+    setSpoiler("");
+    setSpoilerOn(false);
+    setReplyTo(null);
+    setError("");
+    void deliver(draft);
+  }
+
+  /** Foto ou áudio: aparece na hora com o arquivo local e sobe em seguida. */
+  function sendFile(kind: "image" | "audio", blob: Blob, meta: { durationMs?: number; width?: number; height?: number }) {
+    const caption = kind === "image" ? input.trim() || null : null;
+    const draft = newDraft({
+      body: caption,
+      media_kind: kind,
+      media_mime: blob.type,
+      media_duration_ms: meta.durationMs ?? null,
+      media_width: meta.width ?? null,
+      media_height: meta.height ?? null,
+      media_available: true,
+      media_local: URL.createObjectURL(blob),
+    });
+    if (!draft) return;
+    mediaFiles.current.set(draft.client_id!, { blob, ...meta });
+    if (caption) setInput("");
+    queue(draft);
+  }
+
+  async function pickPhoto(file: File | undefined) {
+    if (!file) return;
+    try {
+      const { blob, width, height } = await prepareChatImage(file);
+      sendFile("image", blob, { width, height });
+    } catch (err) {
+      setError(message(err));
+    }
+  }
+
+  async function startRecording() {
+    const mime = recordingMime();
+    if (!mime || !navigator.mediaDevices?.getUserMedia) {
+      setError("Este navegador não grava áudio.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      // 24 kbps: bom para voz e leve (1 minuto ≈ 180 KB).
+      const rec = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 24_000 });
+      const state = { rec, stream, chunks: [] as Blob[], start: Date.now(), timer: 0, send: false };
+      rec.ondataavailable = (e) => e.data.size > 0 && state.chunks.push(e.data);
+      rec.onstop = () => {
+        window.clearInterval(state.timer);
+        stream.getTracks().forEach((t) => t.stop());
+        const durationMs = Date.now() - state.start;
+        recorder.current = null;
+        setRecordingMs(null);
+        if (!state.send || durationMs < 700) return;
+        sendFile("audio", new Blob(state.chunks, { type: mime.split(";")[0] }), { durationMs: Math.min(durationMs, MAX_AUDIO_MS) });
+      };
+      state.timer = window.setInterval(() => {
+        const elapsed = Date.now() - state.start;
+        setRecordingMs(elapsed);
+        if (elapsed >= MAX_AUDIO_MS) stopRecording(true);
+      }, 200);
+      recorder.current = state;
+      setRecordingMs(0);
+      rec.start(1000);
+      navigator.vibrate?.(15);
+    } catch {
+      setError("Libere o microfone nas permissões do navegador para gravar áudio.");
+    }
+  }
+
+  function stopRecording(send: boolean) {
+    const state = recorder.current;
+    if (!state) return;
+    state.send = send;
+    if (state.rec.state !== "inactive") state.rec.stop();
+  }
+
+  // Saiu da conversa no meio da gravação: descarta.
+  useEffect(() => () => stopRecording(false), []);
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
@@ -521,7 +655,6 @@ export function GroupChat() {
                 <small>
                   {group.book_title ? `${group.book_title} · ` : ""}
                   {members} {members === 1 ? "membro" : "membros"}
-                  {online.size > 0 ? <span className="group-online-count"> · {online.size} online</span> : null}
                 </small>
               )}
             </span>
@@ -629,7 +762,7 @@ export function GroupChat() {
                   const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
                   const canAct = !m.pending && !m.failed && !m.deleted;
                   const fresh = m.pending || !initialIds.current.has(m.id);
-                  const jumbo = !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
+                  const jumbo = !m.media_kind && !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
                   const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
                     <Fragment key={m.client_id ?? m.id}>
@@ -682,7 +815,7 @@ export function GroupChat() {
                             {parent ? (
                               <button type="button" className="group-quote" onClick={() => jumpTo(parent.id)} aria-label={`Ir para a mensagem de ${parent.author_name}`}>
                                 <strong>{parent.author_name}</strong>
-                                <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : stripFormatting(parent.body ?? "").slice(0, 90)}</span>
+                                <span>{parent.deleted ? "Mensagem apagada" : messagePreview(parent)}</span>
                               </button>
                             ) : null}
                             {m.deleted ? (
@@ -692,7 +825,7 @@ export function GroupChat() {
                             ) : spoilerHidden ? (
                               <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
                                 <span className="group-spoiler-blur" aria-hidden="true">
-                                  {m.body}
+                                  {m.body || messagePreview({ ...m, spoiler_chapter: null })}
                                 </span>
                                 <span className="group-spoiler-label">
                                   {GIcon.eyeOff} Spoiler até o cap. {m.spoiler_chapter} · tocar para ver
@@ -701,7 +834,8 @@ export function GroupChat() {
                             ) : (
                               <>
                                 {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
-                                <span className="group-text">{formatMessage(m.body ?? "")}</span>
+                                {m.media_kind === "image" ? <ChatImage message={m} /> : m.media_kind === "audio" ? <ChatAudio message={m} /> : null}
+                                {m.body ? <span className="group-text">{formatMessage(m.body)}</span> : null}
                               </>
                             )}
                             <span className="group-meta">
@@ -787,7 +921,7 @@ export function GroupChat() {
                 <div className="group-replying">
                   {GIcon.reply}
                   <span>
-                    <strong>{replyTo.author_name}</strong> {replyTo.spoiler_chapter ? "🙈 Spoiler" : stripFormatting(replyTo.body ?? "").slice(0, 70)}
+                    <strong>{replyTo.author_name}</strong> {messagePreview(replyTo, 70)}
                   </span>
                   <button type="button" className="group-icon-btn" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}>
                     {GIcon.close}
@@ -812,7 +946,33 @@ export function GroupChat() {
                   <small>Fica borrada para quem ainda não passou desse capítulo.</small>
                 </div>
               ) : null}
+              {recordingMs !== null ? (
+                <div className="group-composer-row group-recording" role="status">
+                  <button type="button" className="group-icon-btn" onClick={() => stopRecording(false)} aria-label="Descartar o áudio">
+                    {GIcon.trash}
+                  </button>
+                  <span className="group-recording-time">
+                    <i aria-hidden="true" /> {clock(recordingMs)} <small>gravando · até {clock(MAX_AUDIO_MS)}</small>
+                  </span>
+                  <button type="button" className="group-send" onClick={() => stopRecording(true)} aria-label="Enviar o áudio">
+                    {GIcon.send}
+                  </button>
+                </div>
+              ) : (
               <div className="group-composer-row">
+                <button type="button" className="group-icon-btn group-attach" onClick={() => photoRef.current?.click()} aria-label="Enviar foto" title="Enviar foto">
+                  {GIcon.image}
+                </button>
+                <input
+                  ref={photoRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    void pickPhoto(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
                 {group.book_key ? (
                   <button
                     type="button"
@@ -835,10 +995,17 @@ export function GroupChat() {
                   maxLength={MESSAGE_MAX}
                   rows={1}
                 />
-                <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
-                  {GIcon.send}
-                </button>
+                {input.trim() ? (
+                  <button type="submit" className="group-send" disabled={spoilerOn && !spoiler} aria-label="Enviar">
+                    {GIcon.send}
+                  </button>
+                ) : (
+                  <button type="button" className="group-send is-mic" onClick={() => void startRecording()} aria-label="Gravar áudio" title="Gravar áudio">
+                    {GIcon.mic}
+                  </button>
+                )}
               </div>
+              )}
             </div>
           </form>
         </>

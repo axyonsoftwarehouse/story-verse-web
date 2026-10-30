@@ -93,7 +93,7 @@ export function MessageFocus({
 
         <div className="group-focus-bubble" style={{ "--hue": hueOf(m.author_id) } as CSSProperties}>
           {!mine ? <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>{m.author_name}</span> : null}
-          <span className="group-text">{hideText ? "🙈 Spoiler" : formatMessage(m.body ?? "")}</span>
+          <span className="group-text">{hideText ? "🙈 Spoiler" : m.body ? formatMessage(m.body) : m.media_kind === "image" ? "📷 Foto" : "🎤 Áudio"}</span>
           <span className="group-meta">{messageTime(m.created_at)}</span>
         </div>
 

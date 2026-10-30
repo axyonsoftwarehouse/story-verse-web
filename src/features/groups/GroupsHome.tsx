@@ -251,7 +251,13 @@ function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
   const preview =
     group.is_member && group.last_message_id ? (
       <>
-        <strong>{group.last_author_name}:</strong> {group.last_body ? stripFormatting(group.last_body) : "🙈 mensagem com spoiler"}
+        <strong>{group.last_author_name}:</strong> {group.last_body
+          ? `${group.last_media_kind === "image" ? "📷 " : group.last_media_kind === "audio" ? "🎤 " : ""}${stripFormatting(group.last_body)}`
+          : group.last_media_kind === "image"
+            ? "📷 Foto"
+            : group.last_media_kind === "audio"
+              ? "🎤 Áudio"
+              : "🙈 mensagem com spoiler"}
       </>
     ) : (
       group.description

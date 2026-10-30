@@ -62,5 +62,29 @@ export const GIcon = {
       <path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01" />
     </>,
   ),
+  image: svg(
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <circle cx="9" cy="10" r="1.7" />
+      <path d="M4 17l4.5-4.5 3.5 3.5 2.5-2.5L20 18" />
+    </>,
+  ),
+  mic: svg(
+    <>
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+    </>,
+  ),
+  play: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+      <path d="M8 5.5v13l10.5-6.5z" />
+    </svg>
+  ),
+  pause: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+      <rect x="6.5" y="5" width="4" height="14" rx="1" />
+      <rect x="13.5" y="5" width="4" height="14" rx="1" />
+    </svg>
+  ),
   chat: svg(<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" />),
 };
