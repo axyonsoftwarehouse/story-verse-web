@@ -540,10 +540,16 @@
 .group-sheet {
   position: relative;
   display: grid;
+  /* Coluna presa à largura da janela: select com título longo ou campo de data não alargam
+     o formulário (era isso que deixava arrastar a tela para os lados). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   width: min(100%, 480px);
   max-height: calc(100dvh - 2rem);
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 1.3rem 1.3rem 1.2rem;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) + 6px);
@@ -617,7 +623,10 @@
 .group-field input,
 .group-field textarea,
 .group-field select {
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -632,6 +641,13 @@
   resize: vertical;
 }
 
+/* iOS dá ao campo de data uma largura própria que ignora o width. */
+.group-field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 2.75rem;
+}
+
 .group-field input:focus,
 .group-field textarea:focus,
 .group-field select:focus {
@@ -642,7 +658,7 @@
 
 .group-field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
 }
 
@@ -744,6 +760,7 @@
 
 .group-form-photo-text {
   display: grid;
+  min-width: 0;
   justify-items: start;
   gap: 0.15rem;
   font-size: 0.85rem;
@@ -1863,6 +1880,219 @@
   }
 
   .group-field-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------ Vida no chat ------------------------------ */
+/* Cada grupo tem um tom (--group-hue) e cada pessoa uma cor (--hue), do mesmo hash dos avatares. */
+
+.group-chat-page {
+  --group-tint: hsl(var(--group-hue, 40) 60% 55%);
+}
+
+.group-chat-header {
+  border-bottom-color: color-mix(in srgb, var(--group-tint) 25%, var(--border));
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--group-tint) 26%, transparent), transparent 70%),
+    color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.group-chat-header .group-avatar {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--group-tint) 55%, transparent);
+}
+
+.group-chat-title-text small.is-typing {
+  color: var(--accent);
+  font-weight: 600;
+  animation: group-breathe 1.4s ease-in-out infinite;
+}
+
+.group-chat-body {
+  background-image:
+    radial-gradient(75% 50% at 15% 0%, color-mix(in srgb, var(--group-tint) 20%, transparent), transparent 70%),
+    radial-gradient(60% 40% at 100% 100%, rgba(var(--accent-rgb), 0.08), transparent 70%),
+    url("/images/chat-pattern.svg");
+  background-size: auto, auto, 280px 280px;
+  background-attachment: local, local, local;
+}
+
+.group-chat-start .group-avatar {
+  box-shadow:
+    0 0 0 4px var(--bg),
+    0 0 0 6px color-mix(in srgb, var(--group-tint) 60%, transparent),
+    0 10px 40px color-mix(in srgb, var(--group-tint) 35%, transparent);
+  animation: group-float 4s ease-in-out infinite;
+}
+
+/* Bolha dos outros: um toque da cor de quem escreveu. */
+.group-msg:not(.is-mine) .group-bubble {
+  border-color: hsl(var(--hue, 40) 50% 58% / 0.4);
+  background:
+    linear-gradient(160deg, hsl(var(--hue, 40) 50% 50% / 0.26), transparent 75%),
+    color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.group-msg:not(.is-mine) > :first-child:not(.group-face-gap) {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px hsl(var(--hue, 40) 55% 60% / 0.55);
+}
+
+.group-msg.is-mine .group-bubble {
+  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
+  box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.15);
+}
+
+.group-bubble {
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+@media (hover: hover) {
+  .group-msg:hover .group-bubble {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Mensagem nova entra deslizando do lado de quem mandou. */
+.group-msg.is-new {
+  animation: group-msg-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+.group-msg.is-new.is-mine {
+  animation-name: group-msg-in-mine;
+}
+
+.group-msg.is-mine .group-bubble.is-pending {
+  background-image:
+    linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%),
+    linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
+  background-size: 200% 100%, auto;
+  animation: group-shimmer 1.2s linear infinite;
+}
+
+.group-reaction {
+  animation: group-pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.5) both;
+  transition: transform 0.12s;
+}
+
+.group-reaction:active {
+  transform: scale(0.88);
+}
+
+.group-send:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(var(--accent-rgb), 0.4);
+  animation: group-pop 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.5);
+}
+
+.group-send:not(:disabled):active {
+  transform: scale(0.9) rotate(-12deg);
+}
+
+.group-composer textarea:focus {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+
+.group-day span {
+  border: 1px solid color-mix(in srgb, var(--group-tint) 25%, transparent);
+}
+
+.group-goal-strip {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--group-tint) 14%, transparent),
+    rgba(var(--accent-rgb), 0.1),
+    color-mix(in srgb, var(--group-tint) 14%, transparent)
+  );
+}
+
+/* "Digitando": três pontinhos pulando na cor da pessoa. */
+.group-typing {
+  animation: group-msg-in 0.25s ease-out both;
+}
+
+.group-typing .group-bubble {
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+}
+
+.group-typing-dots {
+  display: flex;
+  gap: 0.28rem;
+}
+
+.group-typing-dots i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: hsl(var(--hue, 40) 55% 68%);
+  animation: group-dot 1.2s ease-in-out infinite;
+}
+
+.group-typing-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.group-typing-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes group-msg-in {
+  from {
+    opacity: 0;
+    transform: translate(-14px, 8px) scale(0.96);
+  }
+}
+
+@keyframes group-msg-in-mine {
+  from {
+    opacity: 0;
+    transform: translate(14px, 8px) scale(0.96);
+  }
+}
+
+@keyframes group-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes group-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes group-shimmer {
+  to {
+    background-position: -200% 0, 0 0;
+  }
+}
+
+@keyframes group-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes group-float {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-chat-page *,
+  .group-sheet * {
+    animation: none !important;
+    transition: none !important;
   }
 }

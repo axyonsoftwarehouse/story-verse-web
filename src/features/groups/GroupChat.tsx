@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import "../../App.css";
@@ -23,6 +23,10 @@ import {
   REPORT_REASONS,
   reportMessage,
   sendMessage,
+  sendTyping,
+  TYPING_SEND_MS,
+  TYPING_SHOWN_MS,
+  typingLabel,
   type Group,
   type GroupMessage,
 } from "../../lib/groups";
@@ -63,6 +67,11 @@ export function GroupChat() {
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
   const [menuFor, setMenuFor] = useState<GroupMessage | null>(null);
   const [reporting, setReporting] = useState<GroupMessage | null>(null);
+  /** Quem está digitando agora: conta → até quando mostrar. */
+  const [typing, setTyping] = useState<Record<string, number>>({});
+  const lastTypingSent = useRef(0);
+  /** Mensagens que já estavam lá ao abrir: só as que chegam depois entram com animação. */
+  const initialIds = useRef<Set<number>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
@@ -108,6 +117,7 @@ export function GroupChat() {
     listMessages(id, { limit: PAGE })
       .then((list) => {
         if (!alive) return;
+        initialIds.current = new Set(list.map((m) => m.id));
         setMessages(list);
         setHasMore(list.length === PAGE);
         setLoaded(true);
@@ -118,6 +128,7 @@ export function GroupChat() {
       (event) => {
         if (event.type === "message" && event.data.group_id === id) {
           setMessages((cur) => mergeMessages(cur, [event.data]));
+          setTyping(({ [event.data.author_id]: _sent, ...rest }) => rest);
           const g = groupRef.current;
           if (g && event.data.author_id !== me) notifyGroupMessage(event.data, g.name, g.muted);
         } else if (event.type === "message_deleted" && event.data.groupId === id) {
@@ -127,6 +138,8 @@ export function GroupChat() {
           // A minha reação já foi aplicada na hora do clique.
           if (userId === me) return;
           setMessages((cur) => cur.map((m) => (m.id === messageId ? applyReaction(m, emoji, added, false) : m)));
+        } else if (event.type === "typing" && event.data.groupId === id && event.data.userId !== me) {
+          setTyping((cur) => ({ ...cur, [event.data.userId]: Date.now() + TYPING_SHOWN_MS }));
         } else if (event.type === "group" && event.data.groupId === id) {
           if (event.data.type === "deleted") {
             navigate("/grupos", { replace: true });
@@ -150,12 +163,32 @@ export function GroupChat() {
     };
   }, [gate.ready, isMember, id, me, navigate, reloadGroup, sendRead]);
 
+  // O "digitando" some sozinho quando para de chegar aviso.
+  useEffect(() => {
+    const until = Object.values(typing);
+    if (until.length === 0) return;
+    const timer = window.setTimeout(() => {
+      const now = Date.now();
+      setTyping((cur) => Object.fromEntries(Object.entries(cur).filter(([, at]) => at > now)));
+    }, Math.max(100, Math.min(...until) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [typing]);
+
+  function onInput(value: string) {
+    setInput(value);
+    const now = Date.now();
+    if (value.trim() && now - lastTypingSent.current > TYPING_SEND_MS) {
+      lastTypingSent.current = now;
+      void sendTyping(id).catch(() => {});
+    }
+  }
+
   // Mensagem nova: desce até ela se a pessoa já estava no fim da conversa.
   useLayoutEffect(() => {
     const el = listRef.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
     sendRead();
-  }, [messages, sendRead]);
+  }, [messages, typing, sendRead]);
 
   // A caixa de texto cresce com a mensagem (até umas 6 linhas).
   useLayoutEffect(() => {
@@ -231,6 +264,7 @@ export function GroupChat() {
     stickToBottom.current = true;
     setMessages((cur) => [...cur, draft]);
     setInput("");
+    lastTypingSent.current = 0;
     setSpoiler("");
     setSpoilerOn(false);
     setReplyTo(null);
@@ -290,9 +324,12 @@ export function GroupChat() {
   const manager = group?.my_role === "owner" || group?.my_role === "moderator";
   const byId = new Map(messages.map((m) => [m.id, m]));
   const members = Number(group?.member_count ?? 0);
+  const typingIds = Object.keys(typing);
+  const typingNames = typingIds.map((uid) => group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém");
+  const typingText = typingLabel(typingNames);
 
   return (
-    <div className="group-chat-page">
+    <div className="group-chat-page" style={{ "--group-hue": hueOf(id) } as CSSProperties}>
       <header className="group-chat-header">
         <Link className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">
           {GIcon.back}
@@ -302,10 +339,14 @@ export function GroupChat() {
             <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="sm" />
             <span className="group-chat-title-text">
               <strong>{group.name}</strong>
-              <small>
-                {group.book_title ? `${group.book_title} · ` : ""}
-                {members} {members === 1 ? "membro" : "membros"}
-              </small>
+              {typingText ? (
+                <small className="is-typing">{typingText}</small>
+              ) : (
+                <small>
+                  {group.book_title ? `${group.book_title} · ` : ""}
+                  {members} {members === 1 ? "membro" : "membros"}
+                </small>
+              )}
             </span>
           </button>
         ) : (
@@ -404,6 +445,7 @@ export function GroupChat() {
                 const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
                 const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
                 const canAct = !m.pending && !m.failed && !m.deleted;
+                const fresh = m.pending || !initialIds.current.has(m.id);
                 return (
                   <div key={m.pending || m.failed ? m.client_id : m.id}>
                     {newDay ? (
@@ -411,7 +453,10 @@ export function GroupChat() {
                         <span>{dayLabel(m.created_at)}</span>
                       </div>
                     ) : null}
-                    <div className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""}`}>
+                    <div
+                      className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`}
+                      style={{ "--hue": hueOf(m.author_id) } as CSSProperties}
+                    >
                       {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" /> : null}
                       <div className="group-bubble-wrap">
                         <div
@@ -489,6 +534,23 @@ export function GroupChat() {
                   </div>
                 );
               })}
+              {typingIds.length > 0 ? (
+                <div className="group-msg group-typing" aria-label={typingText} style={{ "--hue": hueOf(typingIds[0]) } as CSSProperties}>
+                  <PersonFace
+                    id={typingIds[0]}
+                    name={typingNames[0]}
+                    avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
+                    size="sm"
+                  />
+                  <div className="group-bubble">
+                    <span className="group-typing-dots" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -539,7 +601,7 @@ export function GroupChat() {
                 <textarea
                   ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => onInput(e.target.value)}
                   onKeyDown={onKeyDown}
                   placeholder="Mensagem"
                   aria-label="Mensagem"

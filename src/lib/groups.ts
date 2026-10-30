@@ -147,6 +147,8 @@ export const setMuted = (id: string, muted: boolean) =>
   call<Group>(`/api/v1/groups/${id}/mute`, { method: "POST", body: { muted } });
 export const markRead = (id: string, lastId: number) =>
   call<void>(`/api/v1/groups/${id}/read`, { method: "POST", body: { lastId } });
+/** Avisa os outros membros que a conta está digitando (vale uns segundos; a API ignora repetições). */
+export const sendTyping = (id: string) => call<void>(`/api/v1/groups/${id}/typing`, { method: "POST" });
 export const removeMember = (id: string, userId: string) =>
   call<void>(`/api/v1/groups/${id}/members/${userId}`, { method: "DELETE" });
 export const setMemberRole = (id: string, userId: string, role: GroupRole) =>
@@ -187,7 +189,21 @@ export type StreamEvent =
   | { type: "message"; data: GroupMessage }
   | { type: "message_deleted"; data: { groupId: string; id: number } }
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
-  | { type: "group"; data: { groupId: string; type: string; userId?: string } };
+  | { type: "group"; data: { groupId: string; type: string; userId?: string } }
+  | { type: "typing"; data: { groupId: string; userId: string } };
+
+/** Quanto tempo o "digitando" fica na tela sem um aviso novo. */
+export const TYPING_SHOWN_MS = 6000;
+/** Intervalo mínimo entre dois avisos de "digitando" desta conta. */
+export const TYPING_SEND_MS = 3000;
+
+/** "Ana está digitando…", "Ana e Bia estão digitando…", "Ana e mais 2 estão digitando…". */
+export function typingLabel(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} está digitando…`;
+  if (names.length === 2) return `${names[0]} e ${names[1]} estão digitando…`;
+  return `${names[0]} e mais ${names.length - 1} estão digitando…`;
+}
 
 /** Lê um corpo SSE (text/event-stream) e chama `onEvent` a cada evento completo. */
 export function parseSse(buffer: string, onEvent: (name: string, data: string) => void): string {

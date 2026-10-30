@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyReaction, mergeMessages, messageTime, parseSse, type GroupMessage } from "./groups";
+import { applyReaction, mergeMessages, messageTime, parseSse, typingLabel, type GroupMessage } from "./groups";
 
 function msg(id: number, extra: Partial<GroupMessage> = {}): GroupMessage {
   return {
@@ -74,5 +74,14 @@ describe("messageTime", () => {
     expect(messageTime(new Date(2026, 9, 30, 9, 5).toISOString(), now)).toBe("09:05");
     expect(messageTime(new Date(2026, 9, 29, 22, 10).toISOString(), now)).toBe("ontem 22:10");
     expect(messageTime(new Date(2026, 9, 12, 8, 0).toISOString(), now)).toMatch(/^12 out 08:00$/);
+  });
+});
+
+describe("typingLabel", () => {
+  it("junta os nomes de quem está digitando", () => {
+    expect(typingLabel([])).toBe("");
+    expect(typingLabel(["Ana"])).toBe("Ana está digitando…");
+    expect(typingLabel(["Ana", "Bia"])).toBe("Ana e Bia estão digitando…");
+    expect(typingLabel(["Ana", "Bia", "Caio"])).toBe("Ana e mais 2 estão digitando…");
   });
 });
