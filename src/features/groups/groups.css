@@ -2950,44 +2950,41 @@ button.group-info-desc.is-empty {
   opacity: 0.8;
 }
 
-/* Caixa de envio: foto, microfone e o modo gravando. */
-.group-attach {
-  width: 2.75rem;
-  height: 2.75rem;
-  flex-shrink: 0;
-  color: var(--muted);
-}
-
-.group-send.is-mic {
-  animation: none;
-}
-
-.group-recording {
-  align-items: center;
-}
-
-.group-recording-time {
+/* Caixa de envio: o botão de foto fica dentro do campo, à direita (como no WhatsApp). */
+.group-input-wrap {
+  position: relative;
   display: flex;
   flex: 1;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0 1rem;
-  border: 1px solid rgba(240, 100, 100, 0.35);
-  border-radius: 1.4rem;
-  background: var(--bg);
-  font-variant-numeric: tabular-nums;
+  min-width: 0;
 }
 
-.group-recording-time i {
-  width: 0.6rem;
-  height: 0.6rem;
+.group-input-wrap textarea {
+  padding-right: 2.9rem;
+}
+
+.group-attach {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  display: grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
-  background: #ef4444;
-  animation: group-breathe 1s ease-in-out infinite;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
 }
 
-.group-recording-time small {
-  color: var(--muted);
-  font-size: 0.75rem;
+.group-attach:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.group-attach svg {
+  width: 20px;
+  height: 20px;
 }

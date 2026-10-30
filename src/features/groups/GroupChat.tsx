@@ -49,7 +49,7 @@ import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
-import { clock, keepMedia, prepareChatImage, recordingMime } from "../../lib/chatMedia";
+import { keepMedia, prepareChatImage } from "../../lib/chatMedia";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
 const PAGE = 50;
@@ -57,8 +57,6 @@ const PAGE = 50;
 const LONG_PRESS_MS = 420;
 /** Arrastar a mensagem para a direita além disto responde a ela. */
 const SWIPE_REPLY_PX = 56;
-/** Áudio de no máximo 2 minutos (para sozinho e envia). */
-const MAX_AUDIO_MS = 120_000;
 
 type Gesture = { id: number; x: number; y: number; timer: number; swipe: number; swiping: boolean; armed: boolean; el: HTMLElement };
 
@@ -110,8 +108,6 @@ export function GroupChat() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
-  const [recordingMs, setRecordingMs] = useState<number | null>(null);
-  const recorder = useRef<{ rec: MediaRecorder; stream: MediaStream; chunks: Blob[]; start: number; timer: number; send: boolean } | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
   const mediaFiles = useRef(new Map<string, { blob: Blob; durationMs?: number; width?: number; height?: number }>());
@@ -410,50 +406,6 @@ export function GroupChat() {
     }
   }
 
-  async function startRecording() {
-    const mime = recordingMime();
-    if (!mime || !navigator.mediaDevices?.getUserMedia) {
-      setError("Este navegador não grava áudio.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      // 24 kbps: bom para voz e leve (1 minuto ≈ 180 KB).
-      const rec = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 24_000 });
-      const state = { rec, stream, chunks: [] as Blob[], start: Date.now(), timer: 0, send: false };
-      rec.ondataavailable = (e) => e.data.size > 0 && state.chunks.push(e.data);
-      rec.onstop = () => {
-        window.clearInterval(state.timer);
-        stream.getTracks().forEach((t) => t.stop());
-        const durationMs = Date.now() - state.start;
-        recorder.current = null;
-        setRecordingMs(null);
-        if (!state.send || durationMs < 700) return;
-        sendFile("audio", new Blob(state.chunks, { type: mime.split(";")[0] }), { durationMs: Math.min(durationMs, MAX_AUDIO_MS) });
-      };
-      state.timer = window.setInterval(() => {
-        const elapsed = Date.now() - state.start;
-        setRecordingMs(elapsed);
-        if (elapsed >= MAX_AUDIO_MS) stopRecording(true);
-      }, 200);
-      recorder.current = state;
-      setRecordingMs(0);
-      rec.start(1000);
-      navigator.vibrate?.(15);
-    } catch {
-      setError("Libere o microfone nas permissões do navegador para gravar áudio.");
-    }
-  }
-
-  function stopRecording(send: boolean) {
-    const state = recorder.current;
-    if (!state) return;
-    state.send = send;
-    if (state.rec.state !== "inactive") state.rec.stop();
-  }
-
-  // Saiu da conversa no meio da gravação: descarta.
-  useEffect(() => () => stopRecording(false), []);
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
@@ -946,23 +898,7 @@ export function GroupChat() {
                   <small>Fica borrada para quem ainda não passou desse capítulo.</small>
                 </div>
               ) : null}
-              {recordingMs !== null ? (
-                <div className="group-composer-row group-recording" role="status">
-                  <button type="button" className="group-icon-btn" onClick={() => stopRecording(false)} aria-label="Descartar o áudio">
-                    {GIcon.trash}
-                  </button>
-                  <span className="group-recording-time">
-                    <i aria-hidden="true" /> {clock(recordingMs)} <small>gravando · até {clock(MAX_AUDIO_MS)}</small>
-                  </span>
-                  <button type="button" className="group-send" onClick={() => stopRecording(true)} aria-label="Enviar o áudio">
-                    {GIcon.send}
-                  </button>
-                </div>
-              ) : (
               <div className="group-composer-row">
-                <button type="button" className="group-icon-btn group-attach" onClick={() => photoRef.current?.click()} aria-label="Enviar foto" title="Enviar foto">
-                  {GIcon.image}
-                </button>
                 <input
                   ref={photoRef}
                   type="file"
@@ -985,27 +921,25 @@ export function GroupChat() {
                     {GIcon.eyeOff}
                   </button>
                 ) : null}
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => onInput(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder="Mensagem"
-                  aria-label="Mensagem"
-                  maxLength={MESSAGE_MAX}
-                  rows={1}
-                />
-                {input.trim() ? (
-                  <button type="submit" className="group-send" disabled={spoilerOn && !spoiler} aria-label="Enviar">
-                    {GIcon.send}
+                <div className="group-input-wrap">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => onInput(e.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder="Mensagem"
+                    aria-label="Mensagem"
+                    maxLength={MESSAGE_MAX}
+                    rows={1}
+                  />
+                  <button type="button" className="group-attach" onClick={() => photoRef.current?.click()} aria-label="Enviar foto" title="Enviar foto">
+                    {GIcon.image}
                   </button>
-                ) : (
-                  <button type="button" className="group-send is-mic" onClick={() => void startRecording()} aria-label="Gravar áudio" title="Gravar áudio">
-                    {GIcon.mic}
-                  </button>
-                )}
+                </div>
+                <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
+                  {GIcon.send}
+                </button>
               </div>
-              )}
             </div>
           </form>
         </>
