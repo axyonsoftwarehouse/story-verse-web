@@ -1028,7 +1028,7 @@
   padding: 0.45rem 0.75rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  background: var(--bubble-other);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   overflow-wrap: anywhere;
 }
@@ -1040,7 +1040,7 @@
 .group-msg.is-mine .group-bubble {
   border-color: rgba(var(--accent-rgb), 0.35);
   border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.16));
+  background: var(--bubble-mine);
 }
 
 .group-msg.is-mine.is-grouped .group-bubble {
@@ -1231,6 +1231,8 @@
   font-size: 0.95rem;
   line-height: 1.35;
   resize: none;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .group-composer textarea:focus {
@@ -1795,10 +1797,11 @@
 }
 
 /* ------------------------------ Vida no chat ------------------------------ */
-/* Cada grupo tem um tom (--group-hue) e cada pessoa uma cor (--hue), do mesmo hash dos avatares. */
+/* Cada pessoa tem uma cor (--hue), do mesmo hash dos avatares; o resto segue o dourado do app. */
 
 .group-chat-page {
-  --group-tint: hsl(var(--group-hue, 40) 60% 55%);
+  /* O tom do topo, do brilho do fundo e dos detalhes segue o dourado do app. */
+  --group-tint: rgb(var(--accent-rgb));
 }
 
 .group-chat-header {
@@ -1836,10 +1839,8 @@
 
 /* Bolha dos outros: um toque da cor de quem escreveu. */
 .group-msg:not(.is-mine) .group-bubble {
-  border-color: hsl(var(--hue, 40) 50% 58% / 0.4);
-  background:
-    linear-gradient(160deg, hsl(var(--hue, 40) 50% 50% / 0.26), transparent 75%),
-    color-mix(in srgb, var(--surface) 94%, transparent);
+  border-color: var(--border);
+  background: var(--bubble-other);
 }
 
 .group-msg:not(.is-mine) > .group-face {
@@ -1848,7 +1849,7 @@
 }
 
 .group-msg.is-mine .group-bubble {
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
+  background: var(--bubble-mine);
   box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.15);
 }
 
@@ -1875,7 +1876,8 @@
 .group-msg.is-mine .group-bubble.is-pending {
   background-image:
     linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%),
-    linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
+    linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
+  background-color: var(--bg);
   background-size: 200% 100%, auto;
   animation: group-shimmer 1.2s linear infinite;
 }
@@ -2465,11 +2467,9 @@ button.group-info-desc.is-empty {
   gap: 0.15rem;
   max-width: 100%;
   padding: 0.5rem 0.8rem 0.4rem;
-  border: 1px solid hsl(var(--hue, 40) 50% 58% / 0.4);
+  border: 1px solid var(--border);
   border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
-  background:
-    linear-gradient(160deg, hsl(var(--hue, 40) 50% 50% / 0.26), transparent 75%),
-    var(--surface);
+  background: var(--bubble-other);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   overflow-wrap: anywhere;
   animation: group-focus-lift 0.22s var(--ease-out, ease-out);
@@ -2478,7 +2478,7 @@ button.group-info-desc.is-empty {
 .group-focus-panel.is-mine .group-focus-bubble {
   border-color: rgba(var(--accent-rgb), 0.45);
   border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18)), var(--surface);
+  background: var(--bubble-mine);
 }
 
 .group-focus-bubble .group-text {
@@ -2716,4 +2716,275 @@ button.group-info-desc.is-empty {
 
 .group-text s {
   opacity: 0.75;
+}
+
+/* Bolhas sólidas: a superfície do tema é levemente transparente, então vai o fundo por baixo
+   (o desenho do chat não aparece através do texto). */
+.group-chat-page,
+.group-focus {
+  --bubble-other: linear-gradient(var(--surface), var(--surface)), var(--bg);
+  --bubble-mine: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface))), var(--bg);
+}
+
+/* Foto do perfil no rosto da pessoa. */
+.group-face img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Bolinha verde: com o app aberto agora. O 🔥 sobe para o alto quando as duas aparecem. */
+.group-online {
+  position: absolute;
+  right: -0.05rem;
+  bottom: -0.05rem;
+  width: 0.62rem;
+  height: 0.62rem;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: #3ecf6e;
+  box-shadow: 0 0 6px rgba(62, 207, 110, 0.6);
+}
+
+.group-face.is-hot .group-hot {
+  top: -0.45rem;
+  right: -0.45rem;
+  bottom: auto;
+}
+
+/* Avisos no celular: estado neste aparelho e o botão de teste. */
+.groups-push-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.groups-push-status > span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.groups-push-status strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.groups-push-status svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.groups-push-status small {
+  flex-basis: 100%;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.groups-push-status.is-off {
+  display: block;
+  line-height: 1.5;
+}
+
+/* ------------------------------ Foto e áudio ------------------------------ */
+
+.group-media-image {
+  display: block;
+  width: min(15rem, 62vw);
+  aspect-ratio: var(--ratio, 1.333);
+  max-height: 20rem;
+  margin: 0.1rem 0 0.2rem;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.25);
+  cursor: zoom-in;
+}
+
+.group-media-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: group-fade 0.25s ease-out;
+}
+
+.group-media-image.is-loading {
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 70%);
+  background-size: 200% 100%;
+  animation: group-shimmer 1.2s linear infinite;
+}
+
+.group-lightbox {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.92);
+  animation: group-fade 0.15s ease-out;
+}
+
+.group-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0.5rem;
+  object-fit: contain;
+}
+
+.group-lightbox-close {
+  position: absolute;
+  top: calc(0.8rem + env(safe-area-inset-top));
+  right: 0.8rem;
+  color: #fff;
+}
+
+.group-audio {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(15rem, 62vw);
+  padding: 0.15rem 0;
+}
+
+.group-audio-play {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.3rem;
+  height: 2.3rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+
+.group-audio-play:active {
+  transform: scale(0.9);
+}
+
+.group-audio-play:disabled {
+  opacity: 0.5;
+}
+
+.group-audio-track {
+  position: relative;
+  flex: 1;
+  height: 1.4rem;
+  cursor: pointer;
+}
+
+.group-audio-track::before,
+.group-audio-track > span {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 0.22rem;
+  border-radius: 1rem;
+  transform: translateY(-50%);
+}
+
+.group-audio-track::before {
+  right: 0;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.group-audio-track > span {
+  background: var(--accent);
+}
+
+.group-audio-track > i {
+  position: absolute;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+}
+
+.group-audio-time {
+  min-width: 2.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.group-media-expired {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0 0.45rem;
+  padding: 0.35rem 0.1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.group-media-expired svg {
+  grid-row: span 2;
+  width: 18px;
+  height: 18px;
+}
+
+.group-media-expired small {
+  font-size: 0.7rem;
+  font-style: normal;
+  opacity: 0.8;
+}
+
+/* Caixa de envio: o botão de foto fica dentro do campo, à direita (como no WhatsApp). */
+.group-input-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.group-input-wrap textarea {
+  padding-right: 2.9rem;
+}
+
+.group-attach {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  display: grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.group-attach:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.group-attach svg {
+  width: 20px;
+  height: 20px;
 }

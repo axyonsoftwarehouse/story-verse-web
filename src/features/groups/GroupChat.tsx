@@ -33,9 +33,10 @@ import {
   react,
   REPORT_REASONS,
   reportMessage,
+  messagePreview,
+  sendMediaMessage,
   sendMessage,
   sendTyping,
-  stripFormatting,
   TYPING_SEND_MS,
   TYPING_SHOWN_MS,
   typingLabel,
@@ -47,6 +48,8 @@ import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatMessage } from "./messageFormat";
+import { ChatAudio, ChatImage } from "./MediaParts";
+import { keepMedia, prepareChatImage } from "../../lib/chatMedia";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
 const PAGE = 50;
@@ -105,6 +108,9 @@ export function GroupChat() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
+  const photoRef = useRef<HTMLInputElement>(null);
+  /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
+  const mediaFiles = useRef(new Map<string, { blob: Blob; durationMs?: number; width?: number; height?: number }>());
   const [spoilerOn, setSpoilerOn] = useState(false);
   const [spoiler, setSpoiler] = useState("");
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
@@ -134,6 +140,7 @@ export function GroupChat() {
 
   const isMember = Boolean(group?.is_member);
   const hot = useMemo(() => hotAuthors(messages), [messages]);
+  const online = useMemo(() => new Set((group?.members ?? []).filter((m) => m.online && m.user_id !== me).map((m) => m.user_id)), [group?.members, me]);
   const chapter = myChapter(group?.book_key ?? null);
 
   const reloadGroup = useCallback(async () => {
@@ -193,6 +200,11 @@ export function GroupChat() {
           // A minha reação já foi aplicada na hora do clique.
           if (userId === me) return;
           setMessages((cur) => cur.map((m) => (m.id === messageId ? applyReaction(m, emoji, added, false) : m)));
+        } else if (event.type === "presence") {
+          const { userId, online: on } = event.data;
+          setGroup((g) =>
+            g?.members?.some((m) => m.user_id === userId) ? { ...g, members: g.members.map((m) => (m.user_id === userId ? { ...m, online: on } : m)) } : g,
+          );
         } else if (event.type === "typing" && event.data.groupId === id && event.data.userId !== me) {
           setTyping((cur) => ({ ...cur, [event.data.userId]: Date.now() + TYPING_SHOWN_MS }));
         } else if (event.type === "group" && event.data.groupId === id) {
@@ -263,8 +275,11 @@ export function GroupChat() {
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    // scrollHeight não conta a borda (border-box): sem somá-la sobra a barra de rolagem.
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+    const full = el.scrollHeight + el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.min(full, 150)}px`;
+    el.style.overflowY = full > 150 ? "auto" : "hidden";
   }, [input]);
 
   function onScroll() {
@@ -299,18 +314,98 @@ export function GroupChat() {
 
   async function deliver(draft: GroupMessage) {
     try {
-      const saved = await sendMessage(id, {
-        body: draft.body ?? "",
-        clientId: draft.client_id!,
-        spoilerChapter: draft.spoiler_chapter,
-        replyTo: draft.reply_to,
-      });
+      const file = draft.media_kind ? mediaFiles.current.get(draft.client_id!) : undefined;
+      const saved = file
+        ? await sendMediaMessage(id, file.blob, {
+            kind: draft.media_kind!,
+            clientId: draft.client_id!,
+            durationMs: file.durationMs,
+            width: file.width,
+            height: file.height,
+            caption: draft.body,
+            spoilerChapter: draft.spoiler_chapter,
+            replyTo: draft.reply_to,
+          })
+        : await sendMessage(id, {
+            body: draft.body ?? "",
+            clientId: draft.client_id!,
+            spoilerChapter: draft.spoiler_chapter,
+            replyTo: draft.reply_to,
+          });
+      if (file) {
+        // A cópia local fica no aparelho: a própria foto/áudio não é baixada de volta.
+        await keepMedia(saved.id, file.blob);
+        mediaFiles.current.delete(draft.client_id!);
+      }
       setMessages((cur) => mergeMessages(cur, [saved]));
     } catch (err) {
       setMessages((cur) => cur.map((m) => (m.client_id === draft.client_id && m.pending ? { ...m, pending: false, failed: true } : m)));
       setError(message(err));
     }
   }
+
+  /** Mensagem provisória (aparece na hora; a confirmada do servidor entra no lugar). */
+  function newDraft(fields: Partial<GroupMessage>): GroupMessage | null {
+    if (!session) return null;
+    return {
+      id: Number.MAX_SAFE_INTEGER,
+      group_id: id,
+      author_id: me,
+      author_name: String(session.user.user_metadata?.name ?? "Você"),
+      author_avatar: String(session.user.user_metadata?.avatar ?? ""),
+      author_photo: typeof session.user.user_metadata?.photo === "string" ? session.user.user_metadata.photo : null,
+      body: null,
+      spoiler_chapter: spoilerOn && spoiler ? Number(spoiler) : null,
+      reply_to: replyTo?.id ?? null,
+      client_id: newClientId(),
+      created_at: new Date().toISOString(),
+      deleted: false,
+      hidden: false,
+      reactions: [],
+      pending: true,
+      ...fields,
+    };
+  }
+
+  function queue(draft: GroupMessage) {
+    stickToBottom.current = true;
+    setMessages((cur) => [...cur, draft]);
+    setSpoiler("");
+    setSpoilerOn(false);
+    setReplyTo(null);
+    setError("");
+    void deliver(draft);
+  }
+
+  /** Foto ou áudio: aparece na hora com o arquivo local e sobe em seguida. */
+  function sendFile(kind: "image" | "audio", blob: Blob, meta: { durationMs?: number; width?: number; height?: number }) {
+    const caption = kind === "image" ? input.trim() || null : null;
+    const draft = newDraft({
+      body: caption,
+      media_kind: kind,
+      media_mime: blob.type,
+      media_duration_ms: meta.durationMs ?? null,
+      media_width: meta.width ?? null,
+      media_height: meta.height ?? null,
+      media_available: true,
+      media_local: URL.createObjectURL(blob),
+    });
+    if (!draft) return;
+    mediaFiles.current.set(draft.client_id!, { blob, ...meta });
+    if (caption) setInput("");
+    queue(draft);
+  }
+
+  async function pickPhoto(file: File | undefined) {
+    if (!file) return;
+    try {
+      const { blob, width, height } = await prepareChatImage(file);
+      sendFile("image", blob, { width, height });
+    } catch (err) {
+      setError(message(err));
+    }
+  }
+
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
@@ -322,6 +417,7 @@ export function GroupChat() {
       author_id: me,
       author_name: String(session.user.user_metadata?.name ?? "Você"),
       author_avatar: String(session.user.user_metadata?.avatar ?? ""),
+      author_photo: typeof session.user.user_metadata?.photo === "string" ? session.user.user_metadata.photo : null,
       body: text,
       spoiler_chapter: spoilerOn && spoiler ? Number(spoiler) : null,
       reply_to: replyTo?.id ?? null,
@@ -494,7 +590,7 @@ export function GroupChat() {
   return (
     <div
       className="group-chat-page"
-      style={{ "--group-hue": hueOf(id), ...(area ? { top: area.top, height: area.height, bottom: "auto" } : {}) } as CSSProperties}
+      style={area ? { top: area.top, height: area.height, bottom: "auto" } : undefined}
     >
       <header className="group-chat-header">
         <Link className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">
@@ -618,10 +714,10 @@ export function GroupChat() {
                   const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
                   const canAct = !m.pending && !m.failed && !m.deleted;
                   const fresh = m.pending || !initialIds.current.has(m.id);
-                  const jumbo = !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
+                  const jumbo = !m.media_kind && !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
                   const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
-                    <Fragment key={m.pending || m.failed ? m.client_id : m.id}>
+                    <Fragment key={m.client_id ?? m.id}>
                       {newDay ? (
                         <div className="group-day">
                           <span>{dayLabel(m.created_at)}</span>
@@ -649,7 +745,15 @@ export function GroupChat() {
                         <span className="group-swipe-icon" aria-hidden="true">
                           {GIcon.reply}
                         </span>
-                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" hot={hot.has(m.author_id)} /> : null}
+                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace
+                              id={m.author_id}
+                              name={m.author_name}
+                              avatar={m.author_avatar}
+                              photo={m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo}
+                              size="sm"
+                              hot={hot.has(m.author_id)}
+                              online={online.has(m.author_id)}
+                            /> : null}
                         <div className="group-bubble-wrap">
                           <div
                             className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
@@ -663,7 +767,7 @@ export function GroupChat() {
                             {parent ? (
                               <button type="button" className="group-quote" onClick={() => jumpTo(parent.id)} aria-label={`Ir para a mensagem de ${parent.author_name}`}>
                                 <strong>{parent.author_name}</strong>
-                                <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : stripFormatting(parent.body ?? "").slice(0, 90)}</span>
+                                <span>{parent.deleted ? "Mensagem apagada" : messagePreview(parent)}</span>
                               </button>
                             ) : null}
                             {m.deleted ? (
@@ -673,7 +777,7 @@ export function GroupChat() {
                             ) : spoilerHidden ? (
                               <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
                                 <span className="group-spoiler-blur" aria-hidden="true">
-                                  {m.body}
+                                  {m.body || messagePreview({ ...m, spoiler_chapter: null })}
                                 </span>
                                 <span className="group-spoiler-label">
                                   {GIcon.eyeOff} Spoiler até o cap. {m.spoiler_chapter} · tocar para ver
@@ -682,7 +786,8 @@ export function GroupChat() {
                             ) : (
                               <>
                                 {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
-                                <span className="group-text">{formatMessage(m.body ?? "")}</span>
+                                {m.media_kind === "image" ? <ChatImage message={m} /> : m.media_kind === "audio" ? <ChatAudio message={m} /> : null}
+                                {m.body ? <span className="group-text">{formatMessage(m.body)}</span> : null}
                               </>
                             )}
                             <span className="group-meta">
@@ -736,8 +841,10 @@ export function GroupChat() {
                       id={typingIds[0]}
                       name={typingNames[0]}
                       avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
+                      photo={group.members?.find((m) => m.user_id === typingIds[0])?.photo}
                       size="sm"
                       hot={hot.has(typingIds[0])}
+                      online
                     />
                     <div className="group-bubble">
                       <span className="group-typing-dots" aria-hidden="true">
@@ -766,7 +873,7 @@ export function GroupChat() {
                 <div className="group-replying">
                   {GIcon.reply}
                   <span>
-                    <strong>{replyTo.author_name}</strong> {replyTo.spoiler_chapter ? "🙈 Spoiler" : stripFormatting(replyTo.body ?? "").slice(0, 70)}
+                    <strong>{replyTo.author_name}</strong> {messagePreview(replyTo, 70)}
                   </span>
                   <button type="button" className="group-icon-btn" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}>
                     {GIcon.close}
@@ -792,6 +899,16 @@ export function GroupChat() {
                 </div>
               ) : null}
               <div className="group-composer-row">
+                <input
+                  ref={photoRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    void pickPhoto(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
                 {group.book_key ? (
                   <button
                     type="button"
@@ -804,16 +921,21 @@ export function GroupChat() {
                     {GIcon.eyeOff}
                   </button>
                 ) : null}
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => onInput(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder="Mensagem"
-                  aria-label="Mensagem"
-                  maxLength={MESSAGE_MAX}
-                  rows={1}
-                />
+                <div className="group-input-wrap">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => onInput(e.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder="Mensagem"
+                    aria-label="Mensagem"
+                    maxLength={MESSAGE_MAX}
+                    rows={1}
+                  />
+                  <button type="button" className="group-attach" onClick={() => photoRef.current?.click()} aria-label="Enviar foto" title="Enviar foto">
+                    {GIcon.image}
+                  </button>
+                </div>
                 <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
                   {GIcon.send}
                 </button>

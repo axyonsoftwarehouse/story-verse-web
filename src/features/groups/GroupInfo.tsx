@@ -216,7 +216,7 @@ export function GroupInfo({
             return (
               <li key={m.user_id}>
                 <div className="group-member-row">
-                  <PersonFace id={m.user_id} name={m.name} avatar={m.avatar} size="sm" hot={hot?.has(m.user_id)} />
+                  <PersonFace id={m.user_id} name={m.name} avatar={m.avatar} photo={m.photo} size="sm" hot={hot?.has(m.user_id)} online={m.online && m.user_id !== me} />
                   <span className="group-member-name">
                     {m.user_id === me ? `${m.name} (você)` : m.name}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}
@@ -226,22 +226,6 @@ export function GroupInfo({
                       </small>
                     ) : null}
                   </span>
-                  {group.book_key ? (
-                    <span className="group-member-progress" title="Progresso no livro do clube">
-                      {m.book_status === "finished" ? (
-                        "✓ terminou"
-                      ) : m.progress_percent !== null ? (
-                        <>
-                          <span className="group-progress-bar">
-                            <span style={{ width: `${Math.max(4, m.progress_percent)}%` }} />
-                          </span>
-                          {m.progress_percent}%
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </span>
-                  ) : null}
                   {canManage ? (
                     <button
                       type="button"

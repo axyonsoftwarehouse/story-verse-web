@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { myGroups, notifyGroupMessage, openGroupStream, type Group } from "../../lib/groups";
+import { syncPush } from "../../lib/push";
 
 /**
  * Total de mensagens não lidas nos grupos, para o selo da tela inicial, e aviso do navegador
@@ -15,6 +16,8 @@ export function useGroupsUnread(me: string): number {
     }
     let alive = true;
     let known: Group[] = [];
+    // Avisos no celular: com a permissão já dada, garante a inscrição deste aparelho nesta conta.
+    void syncPush().catch((err: unknown) => console.warn("[push] inscrição não sincronizada:", err));
     const load = () =>
       myGroups()
         .then((list) => {

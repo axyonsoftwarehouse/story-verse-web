@@ -29,6 +29,10 @@ export type GroupMember = {
   joined_at: string;
   name: string;
   avatar: string;
+  /** Foto do perfil (só arquivo do Storage da própria pessoa; a API filtra). */
+  photo?: string | null;
+  /** Com o app aberto agora (bolinha verde). */
+  online?: boolean;
   progress_percent: number | null;
   book_status: string | null;
 };
@@ -59,10 +63,14 @@ export type Group = {
   last_message_id: number | null;
   last_author_name: string | null;
   last_body: string | null;
+  /** A última mensagem foi uma foto ou um áudio. */
+  last_media_kind?: MediaKind | null;
   members?: GroupMember[];
 };
 
 export type Reaction = { emoji: string; count: number; mine: boolean };
+
+export type MediaKind = "image" | "audio";
 
 export type GroupMessage = {
   id: number;
@@ -70,6 +78,7 @@ export type GroupMessage = {
   author_id: string;
   author_name: string;
   author_avatar: string;
+  author_photo?: string | null;
   body: string | null;
   spoiler_chapter: number | null;
   reply_to: number | null;
@@ -78,6 +87,16 @@ export type GroupMessage = {
   deleted: boolean;
   hidden: boolean;
   reactions: Reaction[];
+  /** Foto ou áudio. O arquivo vence em 24 h no servidor; cada celular guarda a própria cópia. */
+  media_kind?: MediaKind | null;
+  media_mime?: string | null;
+  media_duration_ms?: number | null;
+  media_width?: number | null;
+  media_height?: number | null;
+  /** O servidor ainda tem o arquivo (false: venceu, foi apagada ou está oculta). */
+  media_available?: boolean;
+  /** Só no cliente: o arquivo local da mídia que acabou de ser enviada. */
+  media_local?: string;
   /** Só no cliente: enviada agora e ainda sem resposta do servidor. */
   pending?: boolean;
   failed?: boolean;
@@ -159,6 +178,61 @@ export const setMemberRole = (id: string, userId: string, role: GroupRole) =>
 
 export const listMessages = (id: string, opts: { before?: number; after?: number; limit?: number } = {}) =>
   call<GroupMessage[]>(`/api/v1/groups/${id}/messages${q(opts)}`);
+/** Foto ou áudio: o arquivo vai no corpo e os dados na URL (o servidor cria a mensagem junto). */
+export async function sendMediaMessage(
+  groupId: string,
+  file: Blob,
+  meta: {
+    kind: MediaKind;
+    clientId: string;
+    durationMs?: number;
+    width?: number;
+    height?: number;
+    caption?: string | null;
+    spoilerChapter?: number | null;
+    replyTo?: number | null;
+  },
+): Promise<GroupMessage> {
+  const params = q({
+    kind: meta.kind,
+    clientId: meta.clientId,
+    durationMs: meta.durationMs,
+    width: meta.width,
+    height: meta.height,
+    caption: meta.caption || undefined,
+    spoilerChapter: meta.spoilerChapter,
+    replyTo: meta.replyTo,
+  });
+  const response = await fetch(`${apiBaseUrl}/api/v1/groups/${groupId}/media${params}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await token()}`, "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+    credentials: "include",
+  });
+  const payload = (await response.json().catch(() => ({}))) as GroupMessage & { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Não foi possível enviar (${response.status}).`);
+  return payload;
+}
+
+/** Baixa o arquivo de uma foto/áudio (só membros). `null`: o servidor não tem mais (venceu). */
+export async function fetchMediaFile(messageId: number): Promise<Blob | null> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/groups/media/${messageId}`, {
+    headers: { Authorization: `Bearer ${await token()}` },
+    credentials: "include",
+  });
+  if (response.status === 404 || response.status === 410) return null;
+  if (!response.ok) throw new Error(`Falha ao baixar a mídia (${response.status}).`);
+  return response.blob();
+}
+
+/** Prévia em texto de uma mensagem (citações, lista de grupos, avisos). */
+export function messagePreview(m: { body: string | null; media_kind?: MediaKind | null; spoiler_chapter?: number | null }, max = 90): string {
+  if (m.spoiler_chapter) return "🙈 Spoiler";
+  const label = m.media_kind === "image" ? "📷 Foto" : m.media_kind === "audio" ? "🎤 Áudio" : "";
+  const text = stripFormatting(m.body ?? "").slice(0, max);
+  return label && text ? `${label}: ${text}` : label || text;
+}
+
 export const sendMessage = (
   id: string,
   body: { body: string; clientId: string; spoilerChapter?: number | null; replyTo?: number | null },
@@ -193,7 +267,8 @@ export type StreamEvent =
   | { type: "message_deleted"; data: { groupId: string; id: number } }
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
   | { type: "group"; data: { groupId: string; type: string; userId?: string } }
-  | { type: "typing"; data: { groupId: string; userId: string } };
+  | { type: "typing"; data: { groupId: string; userId: string } }
+  | { type: "presence"; data: { userId: string; online: boolean } };
 
 /** Quanto tempo o "digitando" fica na tela sem um aviso novo. */
 export const TYPING_SHOWN_MS = 6000;
@@ -314,7 +389,10 @@ export function mergeMessages(current: GroupMessage[], incoming: GroupMessage[])
     // A mensagem confirmada pelo servidor substitui a provisória com o mesmo clientId.
     if (m.client_id) byKey.delete(`c:${m.client_id}`);
     const old = byKey.get(`id:${m.id}`);
-    byKey.set(`id:${m.id}`, old && !m.reactions.length && old.reactions.length ? { ...m, reactions: old.reactions } : m);
+    let next = old && !m.reactions.length && old.reactions.length ? { ...m, reactions: old.reactions } : m;
+    // A chave da bolha na tela é o clientId: trocar a chave recriaria a bolha (a "piscada").
+    if (old && old.client_id !== next.client_id) next = { ...next, client_id: old.client_id };
+    byKey.set(`id:${m.id}`, next);
   }
   return [...byKey.values()].sort((a, b) => (a.pending || a.failed ? 1 : 0) - (b.pending || b.failed ? 1 : 0) || a.id - b.id);
 }
