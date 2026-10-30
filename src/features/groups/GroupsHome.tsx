@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import "../../App.css";
 import "./groups.css";
 import { useStoredSession } from "../auth/useStoredSession";
+import { enablePush, pushNeedsInstall, pushSupported, syncPush } from "../../lib/push";
 import {
   enableGroupNotifications,
   messageTime,
@@ -41,8 +42,14 @@ export function GroupsHome() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
-  const [askNotify, setAskNotify] = useState(() => notificationsAvailable() && Notification.permission === "default");
+  const [askNotify, setAskNotify] = useState(() => (notificationsAvailable() && Notification.permission === "default") || pushNeedsInstall());
+  const needsInstall = pushNeedsInstall();
   const me = session?.user.id;
+
+  // Já deu permissão antes: confere a inscrição deste aparelho (pode ter mudado ou trocado de conta).
+  useEffect(() => {
+    if (gate.ready) void syncPush().catch((err: unknown) => console.warn("[push] inscrição não sincronizada:", err));
+  }, [gate.ready]);
 
   useEffect(() => {
     if (!gate.ready) return;
@@ -155,10 +162,23 @@ export function GroupsHome() {
       {askNotify && tab === "mine" ? (
         <div className="groups-notify" role="status">
           <span className="groups-notify-icon">{GIcon.bell}</span>
-          <span>Receba um aviso quando chegar mensagem com o app aberto em outra aba.</span>
-          <button type="button" className="group-text-btn" onClick={() => void enableGroupNotifications().finally(() => setAskNotify(false))}>
-            Ativar
-          </button>
+          {needsInstall ? (
+            <span>
+              Para receber os avisos no iPhone, adicione o Storyverse à Tela de Início: toque em <strong>Compartilhar</strong> e depois em{" "}
+              <strong>Adicionar à Tela de Início</strong>.
+            </span>
+          ) : (
+            <>
+              <span>Receba no celular um aviso quando chegar mensagem nos seus grupos.</span>
+              <button
+                type="button"
+                className="group-text-btn"
+                onClick={() => void (pushSupported() ? enablePush() : enableGroupNotifications()).catch(() => false).finally(() => setAskNotify(false))}
+              >
+                Ativar
+              </button>
+            </>
+          )}
           <button type="button" className="group-icon-btn" aria-label="Agora não" onClick={() => setAskNotify(false)}>
             {GIcon.close}
           </button>

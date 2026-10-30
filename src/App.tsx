@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
 import { ReaderCount } from "./components/ReaderCount";
 import { ApiHttpError } from "./lib/backend";
+import { disablePush } from "./lib/push";
 import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
 import { featuredBooks, suggestedBooks } from "./data/ebooks";
@@ -6232,6 +6233,8 @@ export function App() {
     try {
       // Antes de sair, guarda na nuvem o que ainda não foi enviado.
       await syncNow(authSession).catch(() => {});
+      // Este aparelho para de receber as notificações da conta que saiu.
+      await disablePush(authSession).catch(() => {});
       await signOut(authSession);
     } catch (err) {
       setAuthNotice({ text: err instanceof Error ? `Sessão encerrada neste dispositivo. ${err.message}` : "Sessão encerrada neste dispositivo." });
