@@ -351,6 +351,23 @@ export async function enableGroupNotifications(): Promise<boolean> {
  * Aviso de mensagem nova quando a tela não está visível: no máximo 1 por grupo a cada 5 minutos,
  * nunca para grupo silenciado.
  */
+/**
+ * Formatação do WhatsApp: *negrito*, _itálico_ e ~riscado~ (um dentro do outro também vale).
+ * O marcador abre no começo ou depois de espaço/pontuação, encosta no texto e fecha na mesma
+ * linha; assim "2*3*4" ou "arquivo_final_v2" ficam como estão. Grupos: antes, marcador, miolo.
+ */
+export const FORMAT_MARK = /(^|[\s([{"'“‘])([*_~])(?!\s)([^\n]*?\S)\2(?=$|[\s.,!?;:)\]}"'”’…])/g;
+
+/** O texto sem os marcadores de formatação (prévias, citações e avisos). */
+export function stripFormatting(text: string): string {
+  let current = text;
+  for (;;) {
+    const next = current.replace(FORMAT_MARK, (_whole, before: string, _mark: string, inner: string) => before + inner);
+    if (next === current) return current;
+    current = next;
+  }
+}
+
 export function notifyGroupMessage(m: GroupMessage, groupName: string, muted: boolean) {
   if (muted || !notificationsAvailable() || Notification.permission !== "granted") return;
   if (document.visibilityState === "visible") return;
@@ -359,7 +376,7 @@ export function notifyGroupMessage(m: GroupMessage, groupName: string, muted: bo
   lastNotified.set(m.group_id, now);
   try {
     const n = new Notification(groupName, {
-      body: `${m.author_name}: ${m.spoiler_chapter ? "🙈 mensagem com spoiler" : (m.body ?? "").slice(0, 140)}`,
+      body: `${m.author_name}: ${m.spoiler_chapter ? "🙈 mensagem com spoiler" : stripFormatting(m.body ?? "").slice(0, 140)}`,
       icon: "/icons/icon-192.png",
       tag: `group-${m.group_id}`,
     });

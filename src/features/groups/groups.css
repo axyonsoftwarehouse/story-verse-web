@@ -98,6 +98,7 @@
 /* Rosto de quem escreve. */
 .group-face {
   --c: var(--accent);
+  position: relative;
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
@@ -967,9 +968,13 @@
 }
 
 .group-day {
+  position: sticky;
+  z-index: 2;
+  top: 0.5rem;
   display: flex;
   justify-content: center;
   margin: 0.9rem 0 0.4rem;
+  pointer-events: none;
 }
 
 .group-day span {
@@ -1081,6 +1086,14 @@
 .group-quote {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   margin: 0.1rem 0 0.15rem;
   padding: 0.3rem 0.55rem;
   border-left: 3px solid var(--accent);
@@ -1147,43 +1160,6 @@
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-}
-
-.group-reactions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-top: -0.35rem;
-  padding: 0 0.5rem;
-}
-
-.group-reaction {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.08rem 0.45rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: inherit;
-  font-size: 0.8rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-}
-
-.group-reaction span {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.group-reaction.is-mine {
-  border-color: rgba(var(--accent-rgb), 0.7);
-  background: color-mix(in srgb, var(--surface) 80%, rgb(var(--accent-rgb)));
-}
-
-.group-reaction.is-mine span {
-  color: var(--accent);
 }
 
 /* Botão de ações: aparece ao passar o mouse; no toque fica discreto sempre. */
@@ -1360,87 +1336,6 @@
 }
 
 .group-spoiler-row small {
-  color: var(--muted);
-}
-
-/* Folha de ações da mensagem. */
-.group-action-sheet {
-  display: grid;
-  width: min(100%, 26rem);
-  margin-bottom: env(safe-area-inset-bottom);
-  padding: 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) + 6px);
-  background: var(--surface);
-  box-shadow: var(--shadow-elevated);
-  animation: group-rise 0.2s var(--ease-out);
-}
-
-.group-action-emojis {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.25rem;
-  margin-bottom: 0.4rem;
-  padding: 0.35rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-}
-
-.group-action-emojis button {
-  display: grid;
-  place-items: center;
-  width: 2.7rem;
-  height: 2.7rem;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  font-size: 1.45rem;
-  cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
-}
-
-.group-action-emojis button:hover {
-  transform: scale(1.18);
-}
-
-.group-action-emojis button.is-mine {
-  background: rgba(var(--accent-rgb), 0.2);
-}
-
-.group-action-sheet > button {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.85rem;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 0.95rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.group-action-sheet > button:hover {
-  background: var(--surface-2);
-}
-
-.group-action-sheet > button svg {
-  color: var(--muted);
-}
-
-.group-action-sheet > button.is-danger,
-.group-action-sheet > button.is-danger svg {
-  color: var(--danger);
-}
-
-.group-action-sheet > .group-action-cancel {
-  justify-content: center;
-  margin-top: 0.3rem;
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   color: var(--muted);
 }
 
@@ -1947,7 +1842,7 @@
     color-mix(in srgb, var(--surface) 94%, transparent);
 }
 
-.group-msg:not(.is-mine) > :first-child:not(.group-face-gap) {
+.group-msg:not(.is-mine) > .group-face {
   border-radius: 50%;
   box-shadow: 0 0 0 2px hsl(var(--hue, 40) 55% 60% / 0.55);
 }
@@ -1983,15 +1878,6 @@
     linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18));
   background-size: 200% 100%, auto;
   animation: group-shimmer 1.2s linear infinite;
-}
-
-.group-reaction {
-  animation: group-pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.5) both;
-  transition: transform 0.12s;
-}
-
-.group-reaction:active {
-  transform: scale(0.88);
 }
 
 .group-send:not(:disabled) {
@@ -2340,4 +2226,494 @@ button.group-info-desc.is-empty {
   font-weight: 700;
   line-height: 1.1rem;
   text-align: center;
+}
+
+/* ------------------------------ Reações e gestos (como no WhatsApp) ------------------------------ */
+
+/* Selo único na borda de baixo da bolha: até 3 emojis e o total. */
+.group-msg.has-reactions {
+  margin-bottom: 0.7rem;
+}
+
+.group-reactions {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+  align-self: flex-start;
+  margin: -0.55rem 0 0 0.6rem;
+  padding: 0.12rem 0.45rem 0.12rem 0.35rem;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  animation: group-pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.5) both;
+  transition: transform 0.12s;
+}
+
+.group-msg.is-mine .group-reactions {
+  align-self: flex-end;
+  margin: -0.55rem 0.6rem 0 0;
+}
+
+.group-reactions.is-mine {
+  border-color: rgba(var(--accent-rgb), 0.6);
+}
+
+.group-reactions:active {
+  transform: scale(0.9);
+}
+
+.group-reaction-emoji {
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.group-reaction-count {
+  margin-left: 0.2rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+/* Botão de reagir ao lado da bolha (computador); no toque, segurar a mensagem. */
+.group-more svg {
+  width: 17px;
+  height: 17px;
+}
+
+@media (hover: none) {
+  .group-more {
+    display: none;
+  }
+
+  /* Segurar a mensagem abre o destaque, não a seleção de texto do sistema. */
+  .group-bubble {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* Arrastar para responder: a linha anda e o ícone de responder aparece atrás. */
+.group-msg {
+  --swipe: 0;
+  position: relative;
+  touch-action: pan-y;
+}
+
+.group-msg > :not(.group-swipe-icon) {
+  transform: translateX(calc(var(--swipe) * 1px));
+}
+
+.group-msg.is-returning > :not(.group-swipe-icon) {
+  transition: transform 0.22s var(--ease-out, ease-out);
+}
+
+.group-swipe-icon {
+  position: absolute;
+  top: 50%;
+  left: 0.2rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--muted);
+  opacity: min(1, calc(var(--swipe) / 56));
+  transform: translateY(-50%) scale(calc(0.5 + min(0.5, var(--swipe) / 112)));
+  pointer-events: none;
+}
+
+.group-msg.is-armed .group-swipe-icon {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.group-swipe-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Tocar na citação: a mensagem original pisca. */
+.group-msg.is-flash .group-bubble {
+  animation: group-flash 1.5s ease-out;
+}
+
+@keyframes group-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.7), 0 0 24px rgba(var(--accent-rgb), 0.45);
+  }
+}
+
+/* Mensagem só com emoji: grande e sem balão. */
+.group-bubble.is-jumbo {
+  min-width: 0;
+  padding: 0;
+  border-color: transparent !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+.group-bubble.is-jumbo .group-text {
+  font-size: 2.6rem;
+  line-height: 1.15;
+}
+
+.group-bubble.is-jumbo .group-author {
+  padding: 0 0.2rem;
+}
+
+.group-bubble.is-jumbo .group-meta {
+  margin-top: 0.1rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.group-msg.is-new .group-bubble.is-jumbo .group-text {
+  display: inline-block;
+  animation: group-jumbo-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.6) both;
+}
+
+@keyframes group-jumbo-in {
+  from {
+    transform: scale(0.3) rotate(-12deg);
+  }
+}
+
+/* Destaque da mensagem (segurar ou tocar no 😊). */
+.group-focus {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  animation: group-fade 0.16s ease-out;
+}
+
+.group-focus-panel {
+  position: absolute;
+  display: grid;
+  justify-items: start;
+  gap: 0.55rem;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 24px));
+}
+
+.group-focus-panel.is-mine {
+  justify-items: end;
+}
+
+.group-focus-emojis {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  transform-origin: bottom left;
+  animation: group-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+
+.group-focus-panel.is-mine .group-focus-emojis {
+  transform-origin: bottom right;
+}
+
+.group-focus-emojis button {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font-size: 1.55rem;
+  cursor: pointer;
+  animation: group-emoji-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.6) both;
+  animation-delay: calc(var(--i) * 35ms + 60ms);
+  transition: transform 0.15s;
+}
+
+.group-focus-emojis button:hover,
+.group-focus-emojis button:focus-visible {
+  outline: 0;
+  transform: scale(1.3) translateY(-4px);
+}
+
+.group-focus-emojis button.is-mine {
+  background: rgba(var(--accent-rgb), 0.25);
+}
+
+@keyframes group-emoji-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.3);
+  }
+}
+
+.group-focus-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 100%;
+  padding: 0.5rem 0.8rem 0.4rem;
+  border: 1px solid hsl(var(--hue, 40) 50% 58% / 0.4);
+  border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
+  background:
+    linear-gradient(160deg, hsl(var(--hue, 40) 50% 50% / 0.26), transparent 75%),
+    var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  overflow-wrap: anywhere;
+  animation: group-focus-lift 0.22s var(--ease-out, ease-out);
+}
+
+.group-focus-panel.is-mine .group-focus-bubble {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
+  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.18)), var(--surface);
+}
+
+.group-focus-bubble .group-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 8;
+  -webkit-box-orient: vertical;
+}
+
+@keyframes group-focus-lift {
+  from {
+    transform: scale(0.96);
+  }
+}
+
+.group-focus-reactions,
+.group-focus-actions {
+  width: 14.5rem;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.95rem;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  animation: group-rise 0.22s var(--ease-out, ease-out) both;
+}
+
+.group-focus-reactions {
+  padding: 0.55rem 0.6rem 0.6rem;
+}
+
+.group-focus-reactions h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.group-focus-reactions h3 small {
+  color: var(--muted);
+}
+
+.group-focus-reactions div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.group-focus-reactions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.15s;
+}
+
+.group-focus-reactions button:active {
+  transform: scale(0.92);
+}
+
+.group-focus-reactions button.is-mine {
+  border-color: rgba(var(--accent-rgb), 0.65);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+.group-focus-reactions small {
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.group-focus-emoji {
+  font-size: 1.1rem;
+}
+
+.group-focus-actions {
+  display: grid;
+  overflow: hidden;
+  animation-delay: 0.04s;
+}
+
+.group-focus-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.72rem 0.95rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-focus-actions button:last-child {
+  border-bottom: 0;
+}
+
+.group-focus-actions button:hover,
+.group-focus-actions button:focus-visible {
+  outline: 0;
+  background: var(--surface-2);
+}
+
+.group-focus-actions button svg {
+  width: 17px;
+  height: 17px;
+  color: var(--muted);
+}
+
+.group-focus-actions button.is-danger,
+.group-focus-actions button.is-danger svg {
+  color: var(--danger, #f08a8a);
+}
+
+/* Emoji que sobe da bolha ao reagir. */
+.group-bursts {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  pointer-events: none;
+}
+
+.group-burst {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.group-burst-emoji {
+  position: absolute;
+  font-size: 1.9rem;
+  transform: translate(-50%, -50%);
+  animation: group-burst-up 0.95s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.group-burst i {
+  position: absolute;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: group-spark 0.6s ease-out forwards;
+}
+
+@keyframes group-burst-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -90%) scale(1.35);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -260%) scale(0.9);
+  }
+}
+
+@keyframes group-spark {
+  from {
+    opacity: 1;
+    transform: rotate(var(--a)) translateX(0.4rem);
+  }
+  to {
+    opacity: 0;
+    transform: rotate(var(--a)) translateX(2.4rem) scale(0.3);
+  }
+}
+
+/* Caixa de texto: o botão de enviar acende quando tem o que mandar. */
+.group-send {
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.5), opacity 0.15s, box-shadow 0.2s;
+}
+
+.group-send:disabled {
+  transform: scale(0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-focus *,
+  .group-bursts * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* 🔥 no avatar de quem mais fala no grupo. */
+.group-face.is-hot {
+  box-shadow: 0 0 0 2px rgba(255, 140, 50, 0.85), 0 0 12px rgba(255, 120, 40, 0.45) !important;
+}
+
+.group-hot {
+  position: absolute;
+  right: -0.4rem;
+  bottom: -0.35rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  transform-origin: 50% 90%;
+  animation: group-flame 1.6s ease-in-out infinite;
+}
+
+@keyframes group-flame {
+  0%,
+  100% {
+    transform: scale(1) rotate(-4deg);
+  }
+  50% {
+    transform: scale(1.15) rotate(4deg);
+  }
+}
+
+.group-role.is-hot {
+  background: rgba(255, 130, 50, 0.16);
+  color: #ffb27a;
+}
+
+/* Formatação do texto (*negrito*, _itálico_, ~riscado~). */
+.group-text strong {
+  font-weight: 700;
+}
+
+.group-text s {
+  opacity: 0.75;
 }

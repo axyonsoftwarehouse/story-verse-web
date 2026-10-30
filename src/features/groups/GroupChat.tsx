@@ -1,4 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import "../../App.css";
@@ -9,7 +21,6 @@ import {
   applyReaction,
   deleteMessage,
   getGroup,
-  GROUP_EMOJIS,
   joinGroup,
   listMessages,
   markRead,
@@ -24,6 +35,7 @@ import {
   reportMessage,
   sendMessage,
   sendTyping,
+  stripFormatting,
   TYPING_SEND_MS,
   TYPING_SHOWN_MS,
   typingLabel,
@@ -33,9 +45,17 @@ import {
 import { GroupInfo } from "./GroupInfo";
 import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
-import { chatBackground, dayLabel, hueOf, myChapter, useGroupsGate } from "./groupHelpers";
+import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
+import { formatMessage } from "./messageFormat";
+import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
 const PAGE = 50;
+/** Segurar a mensagem por este tempo abre o destaque (reações e ações). */
+const LONG_PRESS_MS = 420;
+/** Arrastar a mensagem para a direita além disto responde a ela. */
+const SWIPE_REPLY_PX = 56;
+
+type Gesture = { id: number; x: number; y: number; timer: number; swipe: number; swiping: boolean; armed: boolean; el: HTMLElement };
 
 /**
  * Altura e topo da área que sobra na tela com o teclado aberto. No celular o teclado não encolhe
@@ -90,7 +110,10 @@ export function GroupChat() {
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
-  const [menuFor, setMenuFor] = useState<GroupMessage | null>(null);
+  const [menuFor, setMenuFor] = useState<{ message: GroupMessage; anchor: DOMRect } | null>(null);
+  const [bursts, setBursts] = useState<Burst[]>([]);
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const gesture = useRef<Gesture | null>(null);
   const [reporting, setReporting] = useState<GroupMessage | null>(null);
   /** Quem está digitando agora: conta → até quando mostrar. */
   const [typing, setTyping] = useState<Record<string, number>>({});
@@ -110,6 +133,7 @@ export function GroupChat() {
   groupRef.current = group;
 
   const isMember = Boolean(group?.is_member);
+  const hot = useMemo(() => hotAuthors(messages), [messages]);
   const chapter = myChapter(group?.book_key ?? null);
 
   const reloadGroup = useCallback(async () => {
@@ -334,9 +358,19 @@ export function GroupChat() {
     }
   }
 
+  function burst(m: GroupMessage, emoji: string) {
+    const bubble = listRef.current?.querySelector(`[data-mid="${m.id}"] .group-bubble`);
+    if (!bubble) return;
+    const r = bubble.getBoundingClientRect();
+    const key = Date.now() + Math.random();
+    setBursts((cur) => [...cur, { key, emoji, x: m.author_id === me ? r.right - 24 : r.left + 24, y: r.bottom - 10 }]);
+    window.setTimeout(() => setBursts((cur) => cur.filter((b) => b.key !== key)), 1000);
+  }
+
   async function toggleReaction(m: GroupMessage, emoji: string) {
     setMenuFor(null);
     const mine = m.reactions.some((r) => r.emoji === emoji && r.mine);
+    if (!mine) burst(m, emoji);
     setMessages((cur) => cur.map((x) => (x.id === m.id ? applyReaction(x, emoji, !mine, true) : x)));
     try {
       const reactions = await react(m.id, emoji, !mine);
@@ -345,6 +379,87 @@ export function GroupChat() {
       setMessages((cur) => cur.map((x) => (x.id === m.id ? applyReaction(x, emoji, mine, true) : x)));
       setError(message(err));
     }
+  }
+
+  /** Abre o destaque da mensagem no lugar onde a bolha está. */
+  function openFocus(m: GroupMessage, row: Element | null) {
+    const bubble = row?.querySelector(".group-bubble") ?? row;
+    if (!bubble || menuFor?.message.id === m.id) return;
+    navigator.vibrate?.(10);
+    setMenuFor({ message: m, anchor: bubble.getBoundingClientRect() });
+  }
+
+  function resetSwipe(g: Gesture) {
+    g.el.classList.add("is-returning");
+    g.el.classList.remove("is-armed");
+    g.el.style.setProperty("--swipe", "0");
+    window.setTimeout(() => g.el.classList.remove("is-returning"), 220);
+  }
+
+  // Toque: segurar abre o destaque; arrastar para a direita responde (como no WhatsApp).
+  function onPointerDown(m: GroupMessage, e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.pointerType === "mouse" || (e.target as Element).closest("button, a")) return;
+    const el = e.currentTarget;
+    const timer = window.setTimeout(() => {
+      gesture.current = null;
+      openFocus(m, el);
+    }, LONG_PRESS_MS);
+    gesture.current = { id: m.id, x: e.clientX, y: e.clientY, timer, swipe: 0, swiping: false, armed: false, el };
+  }
+
+  function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const g = gesture.current;
+    if (!g) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (!g.swiping) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) window.clearTimeout(g.timer);
+      if (dx > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) g.swiping = true;
+      else if (Math.abs(dy) > 10) gesture.current = null;
+      return;
+    }
+    // Depois do ponto de responder, a bolha anda mais devagar (resistência).
+    g.swipe = Math.max(0, dx < SWIPE_REPLY_PX ? dx : SWIPE_REPLY_PX + (dx - SWIPE_REPLY_PX) * 0.3);
+    g.el.style.setProperty("--swipe", String(Math.min(g.swipe, 90)));
+    const armed = g.swipe >= SWIPE_REPLY_PX;
+    if (armed !== g.armed) {
+      g.armed = armed;
+      g.el.classList.toggle("is-armed", armed);
+      if (armed) navigator.vibrate?.(8);
+    }
+  }
+
+  function onPointerEnd(m: GroupMessage) {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g) return;
+    window.clearTimeout(g.timer);
+    if (g.swiping) {
+      resetSwipe(g);
+      if (g.armed) {
+        setReplyTo(m);
+        inputRef.current?.focus();
+      }
+    }
+  }
+
+  async function copyText(m: GroupMessage) {
+    setMenuFor(null);
+    try {
+      await navigator.clipboard.writeText(m.body ?? "");
+      setNotice("Mensagem copiada.");
+    } catch {
+      setError("Não foi possível copiar.");
+    }
+  }
+
+  /** Toque na citação: vai até a mensagem original e ela pisca. */
+  function jumpTo(messageId: number) {
+    const row = listRef.current?.querySelector(`[data-mid="${messageId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    setFlashId(messageId);
+    window.setTimeout(() => setFlashId((cur) => (cur === messageId ? null : cur)), 1600);
   }
 
   async function remove(m: GroupMessage) {
@@ -503,21 +618,41 @@ export function GroupChat() {
                   const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
                   const canAct = !m.pending && !m.failed && !m.deleted;
                   const fresh = m.pending || !initialIds.current.has(m.id);
+                  const jumbo = !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
+                  const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
-                    <div key={m.pending || m.failed ? m.client_id : m.id}>
+                    <Fragment key={m.pending || m.failed ? m.client_id : m.id}>
                       {newDay ? (
                         <div className="group-day">
                           <span>{dayLabel(m.created_at)}</span>
                         </div>
                       ) : null}
                       <div
-                        className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`}
+                        className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""} ${total ? "has-reactions" : ""} ${flashId === m.id ? "is-flash" : ""}`}
                         style={{ "--hue": hueOf(m.author_id) } as CSSProperties}
+                        data-mid={m.pending || m.failed ? undefined : m.id}
+                        onPointerDown={canAct ? (e) => onPointerDown(m, e) : undefined}
+                        onPointerMove={canAct ? onPointerMove : undefined}
+                        onPointerUp={canAct ? () => onPointerEnd(m) : undefined}
+                        onPointerCancel={canAct ? () => onPointerEnd(m) : undefined}
+                        onContextMenu={
+                          canAct
+                            ? (e) => {
+                                e.preventDefault();
+                                if (gesture.current) window.clearTimeout(gesture.current.timer);
+                                gesture.current = null;
+                                openFocus(m, e.currentTarget);
+                              }
+                            : undefined
+                        }
                       >
-                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" /> : null}
+                        <span className="group-swipe-icon" aria-hidden="true">
+                          {GIcon.reply}
+                        </span>
+                        {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace id={m.author_id} name={m.author_name} avatar={m.author_avatar} size="sm" hot={hot.has(m.author_id)} /> : null}
                         <div className="group-bubble-wrap">
                           <div
-                            className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""}`}
+                            className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
                             onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
                           >
                             {!mine && !grouped ? (
@@ -526,10 +661,10 @@ export function GroupChat() {
                               </span>
                             ) : null}
                             {parent ? (
-                              <span className="group-quote">
+                              <button type="button" className="group-quote" onClick={() => jumpTo(parent.id)} aria-label={`Ir para a mensagem de ${parent.author_name}`}>
                                 <strong>{parent.author_name}</strong>
-                                <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : parent.body?.slice(0, 90)}</span>
-                              </span>
+                                <span>{parent.deleted ? "Mensagem apagada" : parent.spoiler_chapter ? "🙈 Spoiler" : stripFormatting(parent.body ?? "").slice(0, 90)}</span>
+                              </button>
                             ) : null}
                             {m.deleted ? (
                               <em className="group-text">Mensagem apagada</em>
@@ -547,7 +682,7 @@ export function GroupChat() {
                             ) : (
                               <>
                                 {m.spoiler_chapter ? <span className="group-spoiler-tag">Spoiler · cap. {m.spoiler_chapter}</span> : null}
-                                <span className="group-text">{m.body}</span>
+                                <span className="group-text">{formatMessage(m.body ?? "")}</span>
                               </>
                             )}
                             <span className="group-meta">
@@ -562,33 +697,37 @@ export function GroupChat() {
                               )}
                             </span>
                           </div>
-                          {m.reactions.length > 0 ? (
-                            <span className="group-reactions">
-                              {m.reactions.map((r) => (
-                                <button
-                                  key={r.emoji}
-                                  type="button"
-                                  className={`group-reaction ${r.mine ? "is-mine" : ""}`}
-                                  onClick={() => void toggleReaction(m, r.emoji)}
-                                  aria-label={`${r.emoji} ${r.count}${r.mine ? ", você reagiu" : ""}`}
-                                >
-                                  {r.emoji} <span>{r.count}</span>
-                                </button>
-                              ))}
-                            </span>
+                          {total > 0 ? (
+                            <button
+                              type="button"
+                              className={`group-reactions ${m.reactions.some((r) => r.mine) ? "is-mine" : ""}`}
+                              onClick={(e) => openFocus(m, e.currentTarget.closest(".group-msg"))}
+                              aria-label={`Reações: ${m.reactions.map((r) => `${r.emoji} ${r.count}`).join(", ")}. Toque para ver ou reagir.`}
+                            >
+                              {[...m.reactions]
+                                .sort((a, b) => b.count - a.count)
+                                .slice(0, 3)
+                                .map((r) => (
+                                  <span key={r.emoji} className="group-reaction-emoji">
+                                    {r.emoji}
+                                  </span>
+                                ))}
+                              {total > 1 ? <span className="group-reaction-count">{total}</span> : null}
+                            </button>
                           ) : null}
                         </div>
                         {canAct ? (
-                          <button type="button" className="group-more" aria-label="Ações da mensagem" onClick={() => setMenuFor(m)}>
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                              <circle cx="5" cy="12" r="1.8" />
-                              <circle cx="12" cy="12" r="1.8" />
-                              <circle cx="19" cy="12" r="1.8" />
-                            </svg>
+                          <button
+                            type="button"
+                            className="group-more"
+                            aria-label="Reagir ou ver as ações da mensagem"
+                            onClick={(e) => openFocus(m, e.currentTarget.closest(".group-msg"))}
+                          >
+                            {GIcon.smile}
                           </button>
                         ) : null}
                       </div>
-                    </div>
+                    </Fragment>
                   );
                 })}
                 {typingIds.length > 0 ? (
@@ -598,6 +737,7 @@ export function GroupChat() {
                       name={typingNames[0]}
                       avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
                       size="sm"
+                      hot={hot.has(typingIds[0])}
                     />
                     <div className="group-bubble">
                       <span className="group-typing-dots" aria-hidden="true">
@@ -626,7 +766,7 @@ export function GroupChat() {
                 <div className="group-replying">
                   {GIcon.reply}
                   <span>
-                    <strong>{replyTo.author_name}</strong> {replyTo.spoiler_chapter ? "🙈 Spoiler" : replyTo.body?.slice(0, 70)}
+                    <strong>{replyTo.author_name}</strong> {replyTo.spoiler_chapter ? "🙈 Spoiler" : stripFormatting(replyTo.body ?? "").slice(0, 70)}
                   </span>
                   <button type="button" className="group-icon-btn" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}>
                     {GIcon.close}
@@ -684,24 +824,30 @@ export function GroupChat() {
       )}
 
       {menuFor ? (
-        <MessageSheet
-          message={menuFor}
-          mine={menuFor.author_id === me}
-          canDelete={menuFor.author_id === me || manager}
+        <MessageFocus
+          message={messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message}
+          anchor={menuFor.anchor}
+          mine={menuFor.message.author_id === me}
+          hideText={
+            menuFor.message.spoiler_chapter !== null && menuFor.message.author_id !== me && chapter <= menuFor.message.spoiler_chapter && !revealed.has(menuFor.message.id)
+          }
+          canDelete={menuFor.message.author_id === me || manager}
           onClose={() => setMenuFor(null)}
-          onReact={(emoji) => void toggleReaction(menuFor, emoji)}
+          onReact={(emoji) => void toggleReaction(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message, emoji)}
           onReply={() => {
-            setReplyTo(menuFor);
+            setReplyTo(menuFor.message);
             setMenuFor(null);
             inputRef.current?.focus();
           }}
-          onDelete={() => void remove(menuFor)}
+          onCopy={() => void copyText(menuFor.message)}
+          onDelete={() => void remove(menuFor.message)}
           onReport={() => {
-            setReporting(menuFor);
+            setReporting(menuFor.message);
             setMenuFor(null);
           }}
         />
       ) : null}
+      <ReactionBursts bursts={bursts} />
 
       {reporting ? (
         <ReportDialog
@@ -718,6 +864,7 @@ export function GroupChat() {
         <GroupInfo
           group={group}
           me={me}
+          hot={hot}
           confirm={confirm}
           onClose={() => setInfoOpen(false)}
           onChanged={(g) => setGroup(g)}
@@ -726,70 +873,6 @@ export function GroupChat() {
       ) : null}
       {dialog}
     </div>
-  );
-}
-
-/** Ações de uma mensagem numa folha embaixo da tela: reagir, responder, apagar, denunciar. */
-function MessageSheet({
-  message: m,
-  mine,
-  canDelete,
-  onClose,
-  onReact,
-  onReply,
-  onDelete,
-  onReport,
-}: {
-  message: GroupMessage;
-  mine: boolean;
-  canDelete: boolean;
-  onClose: () => void;
-  onReact: (emoji: string) => void;
-  onReply: () => void;
-  onDelete: () => void;
-  onReport: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return createPortal(
-    <div className="group-sheet-backdrop is-bottom" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="group-action-sheet" role="menu" aria-label={`Ações da mensagem de ${m.author_name}`}>
-        <div className="group-action-emojis">
-          {GROUP_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              role="menuitem"
-              className={m.reactions.some((r) => r.emoji === emoji && r.mine) ? "is-mine" : ""}
-              onClick={() => onReact(emoji)}
-              aria-label={`Reagir com ${emoji}`}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-        <button type="button" role="menuitem" onClick={onReply}>
-          {GIcon.reply} Responder
-        </button>
-        {canDelete ? (
-          <button type="button" role="menuitem" className="is-danger" onClick={onDelete}>
-            {GIcon.trash} Apagar para todos
-          </button>
-        ) : null}
-        {!mine ? (
-          <button type="button" role="menuitem" onClick={onReport}>
-            {GIcon.flag} Denunciar
-          </button>
-        ) : null}
-        <button type="button" role="menuitem" className="group-action-cancel" onClick={onClose}>
-          Cancelar
-        </button>
-      </div>
-    </div>,
-    document.body,
   );
 }
 

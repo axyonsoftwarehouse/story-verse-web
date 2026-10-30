@@ -4,13 +4,29 @@ import { AvatarArt, findAvatar } from "../../avatars";
 import { GIcon } from "./groupIcons";
 import { hueOf } from "./groupHelpers";
 
-/** Rosto de quem escreve: o avatar escolhido no perfil ou a inicial numa cor própria da pessoa. */
-export function PersonFace({ id, name, avatar, size = "md" }: { id: string; name: string; avatar?: string | null; size?: "sm" | "md" }) {
+/**
+ * Rosto de quem escreve: o avatar escolhido no perfil ou a inicial numa cor própria da pessoa.
+ * `hot`: uma das pessoas que mais falam no grupo (ganha o 🔥).
+ */
+export function PersonFace({
+  id,
+  name,
+  avatar,
+  size = "md",
+  hot = false,
+}: {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  size?: "sm" | "md";
+  hot?: boolean;
+}) {
   const def = findAvatar(avatar);
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
   return (
-    <span className={`group-face group-face-${size}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
+    <span className={`group-face group-face-${size} ${hot ? "is-hot" : ""}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
       {def ? <AvatarArt avatar={def} /> : (name.trim().charAt(0) || "?").toUpperCase()}
+      {hot ? <span className="group-hot">🔥</span> : null}
     </span>
   );
 }

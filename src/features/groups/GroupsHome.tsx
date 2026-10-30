@@ -11,6 +11,7 @@ import {
   notifyGroupMessage,
   openGroupStream,
   publicGroups,
+  stripFormatting,
   type Group,
 } from "../../lib/groups";
 import { GroupForm } from "./GroupForm";
@@ -227,7 +228,7 @@ function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
   const preview =
     group.is_member && group.last_message_id ? (
       <>
-        <strong>{group.last_author_name}:</strong> {group.last_body ?? "🙈 mensagem com spoiler"}
+        <strong>{group.last_author_name}:</strong> {group.last_body ? stripFormatting(group.last_body) : "🙈 mensagem com spoiler"}
       </>
     ) : (
       group.description
