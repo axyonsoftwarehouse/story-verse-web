@@ -55,7 +55,10 @@ export async function syncPush(): Promise<boolean> {
   if (!apiEnabled || !pushSupported() || Notification.permission !== "granted") return false;
   const reg = await registration();
   if (!reg) return false;
-  const { publicKey } = await apiRequest<{ publicKey: string }>("/api/v1/push/key");
+  const session = await refreshAuthSession();
+  if (session.offline) return false;
+  // Com o login: com o paywall ligado, a API antiga pedia conta até para a chave pública.
+  const { publicKey } = await apiRequest<{ publicKey: string }>("/api/v1/push/key", { accessToken: session.access_token });
   const key = fromBase64Url(publicKey);
   let subscription = await reg.pushManager.getSubscription();
   if (subscription && !sameKey(subscription.options.applicationServerKey, key)) {
@@ -64,8 +67,6 @@ export async function syncPush(): Promise<boolean> {
   }
   subscription ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   const { endpoint, keys } = subscription.toJSON();
-  const session = await refreshAuthSession();
-  if (session.offline) return false;
   await apiRequest("/api/v1/push/subscriptions", { method: "POST", body: { endpoint, keys }, accessToken: session.access_token });
   return true;
 }
