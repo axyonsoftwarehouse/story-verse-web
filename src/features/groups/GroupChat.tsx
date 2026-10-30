@@ -497,7 +497,7 @@ export function GroupChat() {
   return (
     <div
       className="group-chat-page"
-      style={{ "--group-hue": hueOf(id), ...(area ? { top: area.top, height: area.height, bottom: "auto" } : {}) } as CSSProperties}
+      style={area ? { top: area.top, height: area.height, bottom: "auto" } : undefined}
     >
       <header className="group-chat-header">
         <Link className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">

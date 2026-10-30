@@ -1028,7 +1028,7 @@
   padding: 0.45rem 0.75rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
-  background: var(--surface);
+  background: var(--bubble-other);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   overflow-wrap: anywhere;
 }
@@ -1040,7 +1040,7 @@
 .group-msg.is-mine .group-bubble {
   border-color: rgba(var(--accent-rgb), 0.35);
   border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
-  background: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
+  background: var(--bubble-mine);
 }
 
 .group-msg.is-mine.is-grouped .group-bubble {
@@ -1797,10 +1797,11 @@
 }
 
 /* ------------------------------ Vida no chat ------------------------------ */
-/* Cada grupo tem um tom (--group-hue) e cada pessoa uma cor (--hue), do mesmo hash dos avatares. */
+/* Cada pessoa tem uma cor (--hue), do mesmo hash dos avatares; o resto segue o dourado do app. */
 
 .group-chat-page {
-  --group-tint: hsl(var(--group-hue, 40) 60% 55%);
+  /* O tom do topo, do brilho do fundo e dos detalhes segue o dourado do app. */
+  --group-tint: rgb(var(--accent-rgb));
 }
 
 .group-chat-header {
@@ -1838,8 +1839,8 @@
 
 /* Bolha dos outros: um toque da cor de quem escreveu. */
 .group-msg:not(.is-mine) .group-bubble {
-  border-color: hsl(var(--hue, 40) 50% 58% / 0.4);
-  background: linear-gradient(160deg, color-mix(in srgb, hsl(var(--hue, 40) 50% 50%) 20%, var(--surface)), var(--surface) 80%);
+  border-color: var(--border);
+  background: var(--bubble-other);
 }
 
 .group-msg:not(.is-mine) > .group-face {
@@ -1848,7 +1849,7 @@
 }
 
 .group-msg.is-mine .group-bubble {
-  background: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
+  background: var(--bubble-mine);
   box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.15);
 }
 
@@ -1876,6 +1877,7 @@
   background-image:
     linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%),
     linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
+  background-color: var(--bg);
   background-size: 200% 100%, auto;
   animation: group-shimmer 1.2s linear infinite;
 }
@@ -2465,9 +2467,9 @@ button.group-info-desc.is-empty {
   gap: 0.15rem;
   max-width: 100%;
   padding: 0.5rem 0.8rem 0.4rem;
-  border: 1px solid hsl(var(--hue, 40) 50% 58% / 0.4);
+  border: 1px solid var(--border);
   border-radius: 1.1rem 1.1rem 1.1rem 0.35rem;
-  background: linear-gradient(160deg, color-mix(in srgb, hsl(var(--hue, 40) 50% 50%) 20%, var(--surface)), var(--surface) 80%);
+  background: var(--bubble-other);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   overflow-wrap: anywhere;
   animation: group-focus-lift 0.22s var(--ease-out, ease-out);
@@ -2476,7 +2478,7 @@ button.group-info-desc.is-empty {
 .group-focus-panel.is-mine .group-focus-bubble {
   border-color: rgba(var(--accent-rgb), 0.45);
   border-radius: 1.1rem 1.1rem 0.35rem 1.1rem;
-  background: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
+  background: var(--bubble-mine);
 }
 
 .group-focus-bubble .group-text {
@@ -2714,4 +2716,12 @@ button.group-info-desc.is-empty {
 
 .group-text s {
   opacity: 0.75;
+}
+
+/* Bolhas sólidas: a superfície do tema é levemente transparente, então vai o fundo por baixo
+   (o desenho do chat não aparece através do texto). */
+.group-chat-page,
+.group-focus {
+  --bubble-other: linear-gradient(var(--surface), var(--surface)), var(--bg);
+  --bubble-mine: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface))), var(--bg);
 }
