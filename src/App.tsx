@@ -62,6 +62,8 @@ import { BookStatusControl } from "./features/library/BookStatusControl";
 import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
+import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
+import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { bookKeyOf, todayInBrazil } from "./lib/library";
 import {
   recordFinished,
@@ -5980,6 +5982,18 @@ export function App() {
     (role) => role === "superadmin" || role === "moderator",
   );
   const staffOn = isStaff(capabilities?.roles ?? []);
+  const groupsOn = GROUPS_AVAILABLE && hasFeature(capabilities, "groups");
+  const groupsUnread = useGroupsUnread(groupsOn && authUser ? authUser.id : "");
+  /** Abriu um convite de grupo sem conta: depois de entrar, volta para ele. */
+  useEffect(() => {
+    if (!authUser) return;
+    try {
+      const code = localStorage.getItem(PENDING_INVITE_KEY);
+      if (code && /^[A-Za-z0-9_-]{16,64}$/.test(code)) window.location.assign(`/g/${code}`);
+    } catch {
+      // Sem armazenamento.
+    }
+  }, [authUser]);
   // A estante só liga com os dados do aparelho já na conta da sessão (troca de conta terminada).
   useEffect(() => connectShelf(dataIsReady ? authSession : null, shelfOn), [authSession, shelfOn, dataIsReady]);
   /** Sequência quebrada ao abrir o app: salva com diamantes ou a oferta para salvar. */
@@ -7877,6 +7891,20 @@ export function App() {
               <Link className="btn nav-community" to="/comunidade" aria-label="Abrir a comunidade">
                 <span className="nav-community-long">Comunidade</span>
                 <span className="nav-community-short">Fórum</span>
+              </Link>
+            ) : null}
+            {groupsOn ? (
+              <Link
+                className="btn nav-groups"
+                to="/grupos"
+                aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
+              >
+                Grupos
+                {groupsUnread > 0 ? (
+                  <span className="nav-groups-badge" aria-hidden="true">
+                    {groupsUnread > 99 ? "99+" : groupsUnread}
+                  </span>
+                ) : null}
               </Link>
             ) : null}
             {staffOn ? (

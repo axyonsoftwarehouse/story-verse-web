@@ -2664,7 +2664,27 @@
 
   .home-nav-actions .nav-login,
   .home-nav-actions .nav-register,
-  .home-nav-actions .nav-community {
+  .home-nav-actions /* Selo de não lidas no botão "Grupos" da navegação. */
+.nav-groups {
+  position: relative;
+}
+
+.nav-groups-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.nav-community {
     min-height: 38px;
     padding: 0.4rem 0.62rem;
     font-size: 0.72rem;

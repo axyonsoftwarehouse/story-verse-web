@@ -12,6 +12,15 @@ export const ForumHome = lazy(() =>
 export const TopicPage = lazy(() =>
   loadRoute(() => import("./features/forum/TopicPage")).then((m) => ({ default: m.TopicPage })),
 );
+export const GroupsHome = lazy(() =>
+  loadRoute(() => import("./features/groups/GroupsHome")).then((m) => ({ default: m.GroupsHome })),
+);
+export const GroupChat = lazy(() =>
+  loadRoute(() => import("./features/groups/GroupChat")).then((m) => ({ default: m.GroupChat })),
+);
+export const GroupInvite = lazy(() =>
+  loadRoute(() => import("./features/groups/GroupInvite")).then((m) => ({ default: m.GroupInvite })),
+);
 export const SubscribePage = lazy(() =>
   loadRoute(() => import("./features/billing/SubscribePage")).then((m) => ({
     default: m.SubscribePage,

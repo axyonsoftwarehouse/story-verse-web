@@ -11,6 +11,9 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import {
   AdminRoute,
   ForumHome,
+  GroupChat,
+  GroupInvite,
+  GroupsHome,
   LegalPage,
   PublicBookPage,
   PublicLibraryPage,
@@ -56,6 +59,9 @@ createRoot(document.getElementById("root")!).render(
               path="/comunidade/t/:id"
               element={FORUM_VISIBLE ? <TopicPage /> : <Navigate to="/" replace />}
             />
+            <Route path="/grupos" element={<GroupsHome />} />
+            <Route path="/grupos/:id" element={<GroupChat />} />
+            <Route path="/g/:code" element={<GroupInvite />} />
             <Route path="/admin/*" element={<AdminRoute />} />
             <Route path="/assinar" element={<SubscribePage />} />
             <Route path="/conta/assinatura" element={<SubscriptionPage />} />
