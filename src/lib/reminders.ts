@@ -157,7 +157,8 @@ export type EngagementState = {
   streak: number;
   /** Último dia com leitura ("2026-09-25"). */
   lastReadDay: string | null;
-  book?: { title: string; chapterLabel?: string; character?: string };
+  /** `nudge`: recado do personagem na voz dele (ver characterNudge.ts). */
+  book?: { title: string; chapterLabel?: string; character?: string; nudge?: string };
 };
 
 export async function syncEngagementState(state: EngagementState) {

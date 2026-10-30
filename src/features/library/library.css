@@ -261,3 +261,42 @@
   color: var(--muted);
   font-size: 0.8rem;
 }
+
+/* Despedida do personagem ao terminar o livro. */
+.finish-farewell {
+  --c: var(--accent);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--surface-2, var(--surface));
+}
+
+.finish-farewell-face {
+  grid-row: span 2;
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  font-family: var(--font-read);
+  font-weight: 600;
+  color: var(--on-accent);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.55), transparent 55%),
+    var(--c);
+}
+
+.finish-farewell blockquote {
+  margin: 0;
+  font-family: var(--font-read);
+  color: var(--text-read, var(--text));
+}
+
+.finish-farewell figcaption {
+  color: var(--muted);
+  font-size: 0.8rem;
+}

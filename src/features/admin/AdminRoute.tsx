@@ -13,6 +13,7 @@ import { BillingSection } from "./BillingSection";
 import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
 import { ForumModeration } from "./ForumModeration";
+import { GroupReports } from "./GroupReports";
 import { MetricsSection } from "./MetricsSection";
 import { OverviewSection } from "./OverviewSection";
 import { SanctionsSection } from "./SanctionsSection";
@@ -275,6 +276,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="forum" roles={allowed}>
                   <ForumModeration session={session} canModerate={canModerateForum} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="moderacao/grupos"
+              element={
+                <RequireSection id="groups" roles={allowed}>
+                  <GroupReports canModerate={canModerateForum} />
                 </RequireSection>
               }
             />

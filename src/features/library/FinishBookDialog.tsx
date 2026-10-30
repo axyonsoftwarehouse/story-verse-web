@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { Ebook } from "../../data/types";
+import { farewellFor } from "../../lib/characterNudge";
 import { bookKeyOf } from "../../lib/library";
 import { markFinishPrompted, setRating, setReview } from "../../lib/libraryStore";
 import { RatingStars } from "./RatingStars";
@@ -8,11 +9,15 @@ import "./library.css";
 
 const REVIEW_MAX = 4000;
 
-/** Depois de terminar o livro: nota e resenha opcionais. Aparece uma vez por livro. */
+/**
+ * Depois de terminar o livro: o personagem se despede e o leitor dá nota e resenha (opcionais).
+ * Aparece uma vez por livro.
+ */
 export function FinishBookDialog({ book, onClose }: { book: Ebook; onClose: () => void }) {
   const key = bookKeyOf(book);
   const [rating, setLocalRating] = useState<number | null>(null);
   const [review, setLocalReview] = useState("");
+  const [farewell] = useState(() => farewellFor(book));
 
   useEffect(() => {
     if (key) markFinishPrompted(key);
@@ -39,6 +44,15 @@ export function FinishBookDialog({ book, onClose }: { book: Ebook; onClose: () =
     <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="auth-card shelf-dialog" role="dialog" aria-modal="true" aria-labelledby="finish-title">
         <span className="eyebrow">{book.title}</span>
+        {farewell ? (
+          <figure className="finish-farewell" style={{ "--c": farewell.voice.color } as CSSProperties}>
+            <span className="finish-farewell-face" aria-hidden="true">
+              {farewell.voice.name.charAt(0).toUpperCase()}
+            </span>
+            <blockquote>“{farewell.text}”</blockquote>
+            <figcaption>{farewell.voice.name}</figcaption>
+          </figure>
+        ) : null}
         <h2 id="finish-title">Você terminou. Que nota dá?</h2>
         <RatingStars value={rating} onChange={setLocalRating} />
         <div className="shelf-field">

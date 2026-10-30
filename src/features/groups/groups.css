@@ -1,0 +1,562 @@
+/* Grupos com chat: lista, conversa, detalhes. */
+
+.groups-blocked {
+  margin: 2rem auto;
+  max-width: 32rem;
+  text-align: center;
+}
+
+.groups-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.5rem;
+}
+
+.group-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.group-card:hover,
+.group-card:focus-visible {
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+
+.group-card.has-unread {
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.group-card-cover {
+  flex-shrink: 0;
+  width: 2.8rem;
+  height: 3.8rem;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.group-card-cover.is-empty {
+  display: grid;
+  place-items: center;
+  height: 2.8rem;
+  border-radius: 50%;
+  font-family: var(--font-read);
+  font-size: 1.2rem;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.group-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.group-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.group-card-sub,
+.group-card-last {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.group-card-last {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.group-card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.group-unread {
+  min-width: 1.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  text-align: center;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.group-tag {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.group-create .group-visibility {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group-visibility label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.group-visibility small {
+  display: block;
+  color: var(--muted);
+}
+
+.group-goal {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.group-preview {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+}
+
+/* ----------------------------- Conversa ----------------------------- */
+
+.group-chat-page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-bottom: 0;
+}
+
+.group-chat-nav {
+  gap: 0.6rem;
+}
+
+.group-chat-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-chat-title strong,
+.group-chat-title small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.group-chat-title small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.group-goal-banner {
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--accent-rgb), 0.1);
+  font-size: 0.85rem;
+}
+
+.group-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.5rem 0.25rem;
+  overscroll-behavior: contain;
+}
+
+/* As mensagens ficam junto da caixa de texto, como em qualquer chat. */
+.group-messages > :first-child {
+  margin-top: auto;
+}
+
+.group-older {
+  align-self: center;
+  margin-bottom: 0.5rem;
+}
+
+.group-msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: 100%;
+  margin-top: 0.45rem;
+}
+
+.group-msg.is-grouped {
+  margin-top: 0;
+}
+
+.group-msg.is-mine {
+  flex-direction: row-reverse;
+}
+
+.group-face {
+  --c: var(--accent);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  font-family: var(--font-read);
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--c);
+}
+
+.group-face-sm {
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 0.85rem;
+}
+
+.group-face svg {
+  width: 62%;
+  height: 62%;
+}
+
+.group-face-gap {
+  flex-shrink: 0;
+  width: 1.9rem;
+}
+
+.group-msg.is-mine .group-face-gap {
+  display: none;
+}
+
+.group-bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: min(78%, 34rem);
+}
+
+.group-msg.is-mine .group-bubble-wrap {
+  align-items: flex-end;
+}
+
+.group-author {
+  padding-left: 0.6rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.group-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 1rem 1rem 1rem 0.3rem;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.group-msg.is-mine .group-bubble {
+  border-radius: 1rem 1rem 0.3rem 1rem;
+  background: rgba(var(--accent-rgb), 0.18);
+}
+
+.group-bubble.is-muted {
+  color: var(--muted);
+}
+
+.group-text {
+  white-space: pre-wrap;
+}
+
+.group-quote {
+  padding: 0.25rem 0.5rem;
+  border-left: 3px solid var(--accent);
+  border-radius: 0.3rem;
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.group-spoiler {
+  padding: 0.35rem 0.6rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-spoiler-tag {
+  color: var(--accent);
+  font-size: 0.72rem;
+}
+
+.group-meta {
+  align-self: flex-end;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.group-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.group-reaction {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.group-reaction.is-mine {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.15);
+}
+
+.group-msg-actions {
+  position: relative;
+  align-self: center;
+}
+
+.group-more {
+  opacity: 0.5;
+}
+
+.group-msg:hover .group-more,
+.group-more:focus-visible,
+.group-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+/* Ações da mensagem: folha fixa embaixo da tela (não sai da tela nem empurra a conversa). */
+.group-menu-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.group-menu {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  display: grid;
+  width: min(92vw, 22rem);
+  padding: 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-elevated);
+  transform: translateX(-50%);
+}
+
+.group-menu > button {
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-menu > button:hover {
+  background: var(--surface-2);
+}
+
+.group-menu .is-danger,
+.link-btn.is-danger {
+  color: var(--danger);
+}
+
+.group-menu-emojis {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.group-menu-emojis button {
+  padding: 0.3rem;
+  border: 0;
+  background: none;
+  font-size: 1.45rem;
+  cursor: pointer;
+}
+
+.group-composer {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.group-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.group-composer textarea {
+  flex: 1;
+  min-height: 2.6rem;
+  max-height: 8rem;
+  resize: vertical;
+}
+
+.group-replying {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-left: 3px solid var(--accent);
+  border-radius: 0.3rem;
+  background: var(--surface-2);
+  font-size: 0.82rem;
+}
+
+.group-spoiler-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.group-spoiler-pick input {
+  width: 5rem;
+}
+
+/* ----------------------------- Detalhes ----------------------------- */
+
+.group-info {
+  width: min(100%, 520px);
+}
+
+.group-info h3 {
+  margin: 0.4rem 0 0;
+}
+
+.group-info h3 small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.group-invite {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.group-invite code {
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
+.group-members {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-members li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.group-member-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 8rem;
+}
+
+.group-member-progress {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.group-member-actions {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+  padding-left: 2.5rem;
+  font-size: 0.8rem;
+}
+
+.group-info-danger {
+  margin-top: 0.4rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.btn.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .group-bubble-wrap {
+    max-width: 84%;
+  }
+}
