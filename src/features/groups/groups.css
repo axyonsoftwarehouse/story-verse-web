@@ -2753,10 +2753,6 @@ button.group-info-desc.is-empty {
   bottom: auto;
 }
 
-.group-online-count {
-  color: #6fdc95;
-}
-
 /* Avisos no celular: estado neste aparelho e o botão de teste. */
 .groups-push-status {
   display: flex;
@@ -2800,4 +2796,198 @@ button.group-info-desc.is-empty {
 .groups-push-status.is-off {
   display: block;
   line-height: 1.5;
+}
+
+/* ------------------------------ Foto e áudio ------------------------------ */
+
+.group-media-image {
+  display: block;
+  width: min(15rem, 62vw);
+  aspect-ratio: var(--ratio, 1.333);
+  max-height: 20rem;
+  margin: 0.1rem 0 0.2rem;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.25);
+  cursor: zoom-in;
+}
+
+.group-media-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: group-fade 0.25s ease-out;
+}
+
+.group-media-image.is-loading {
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 70%);
+  background-size: 200% 100%;
+  animation: group-shimmer 1.2s linear infinite;
+}
+
+.group-lightbox {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.92);
+  animation: group-fade 0.15s ease-out;
+}
+
+.group-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0.5rem;
+  object-fit: contain;
+}
+
+.group-lightbox-close {
+  position: absolute;
+  top: calc(0.8rem + env(safe-area-inset-top));
+  right: 0.8rem;
+  color: #fff;
+}
+
+.group-audio {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(15rem, 62vw);
+  padding: 0.15rem 0;
+}
+
+.group-audio-play {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.3rem;
+  height: 2.3rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+
+.group-audio-play:active {
+  transform: scale(0.9);
+}
+
+.group-audio-play:disabled {
+  opacity: 0.5;
+}
+
+.group-audio-track {
+  position: relative;
+  flex: 1;
+  height: 1.4rem;
+  cursor: pointer;
+}
+
+.group-audio-track::before,
+.group-audio-track > span {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 0.22rem;
+  border-radius: 1rem;
+  transform: translateY(-50%);
+}
+
+.group-audio-track::before {
+  right: 0;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.group-audio-track > span {
+  background: var(--accent);
+}
+
+.group-audio-track > i {
+  position: absolute;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+}
+
+.group-audio-time {
+  min-width: 2.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.group-media-expired {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0 0.45rem;
+  padding: 0.35rem 0.1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.group-media-expired svg {
+  grid-row: span 2;
+  width: 18px;
+  height: 18px;
+}
+
+.group-media-expired small {
+  font-size: 0.7rem;
+  font-style: normal;
+  opacity: 0.8;
+}
+
+/* Caixa de envio: foto, microfone e o modo gravando. */
+.group-attach {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.group-send.is-mic {
+  animation: none;
+}
+
+.group-recording {
+  align-items: center;
+}
+
+.group-recording-time {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(240, 100, 100, 0.35);
+  border-radius: 1.4rem;
+  background: var(--bg);
+  font-variant-numeric: tabular-nums;
+}
+
+.group-recording-time i {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: group-breathe 1s ease-in-out infinite;
+}
+
+.group-recording-time small {
+  color: var(--muted);
+  font-size: 0.75rem;
 }

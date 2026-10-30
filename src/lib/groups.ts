@@ -63,10 +63,14 @@ export type Group = {
   last_message_id: number | null;
   last_author_name: string | null;
   last_body: string | null;
+  /** A última mensagem foi uma foto ou um áudio. */
+  last_media_kind?: MediaKind | null;
   members?: GroupMember[];
 };
 
 export type Reaction = { emoji: string; count: number; mine: boolean };
+
+export type MediaKind = "image" | "audio";
 
 export type GroupMessage = {
   id: number;
@@ -83,6 +87,16 @@ export type GroupMessage = {
   deleted: boolean;
   hidden: boolean;
   reactions: Reaction[];
+  /** Foto ou áudio. O arquivo vence em 24 h no servidor; cada celular guarda a própria cópia. */
+  media_kind?: MediaKind | null;
+  media_mime?: string | null;
+  media_duration_ms?: number | null;
+  media_width?: number | null;
+  media_height?: number | null;
+  /** O servidor ainda tem o arquivo (false: venceu, foi apagada ou está oculta). */
+  media_available?: boolean;
+  /** Só no cliente: o arquivo local da mídia que acabou de ser enviada. */
+  media_local?: string;
   /** Só no cliente: enviada agora e ainda sem resposta do servidor. */
   pending?: boolean;
   failed?: boolean;
@@ -164,6 +178,61 @@ export const setMemberRole = (id: string, userId: string, role: GroupRole) =>
 
 export const listMessages = (id: string, opts: { before?: number; after?: number; limit?: number } = {}) =>
   call<GroupMessage[]>(`/api/v1/groups/${id}/messages${q(opts)}`);
+/** Foto ou áudio: o arquivo vai no corpo e os dados na URL (o servidor cria a mensagem junto). */
+export async function sendMediaMessage(
+  groupId: string,
+  file: Blob,
+  meta: {
+    kind: MediaKind;
+    clientId: string;
+    durationMs?: number;
+    width?: number;
+    height?: number;
+    caption?: string | null;
+    spoilerChapter?: number | null;
+    replyTo?: number | null;
+  },
+): Promise<GroupMessage> {
+  const params = q({
+    kind: meta.kind,
+    clientId: meta.clientId,
+    durationMs: meta.durationMs,
+    width: meta.width,
+    height: meta.height,
+    caption: meta.caption || undefined,
+    spoilerChapter: meta.spoilerChapter,
+    replyTo: meta.replyTo,
+  });
+  const response = await fetch(`${apiBaseUrl}/api/v1/groups/${groupId}/media${params}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await token()}`, "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+    credentials: "include",
+  });
+  const payload = (await response.json().catch(() => ({}))) as GroupMessage & { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Não foi possível enviar (${response.status}).`);
+  return payload;
+}
+
+/** Baixa o arquivo de uma foto/áudio (só membros). `null`: o servidor não tem mais (venceu). */
+export async function fetchMediaFile(messageId: number): Promise<Blob | null> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/groups/media/${messageId}`, {
+    headers: { Authorization: `Bearer ${await token()}` },
+    credentials: "include",
+  });
+  if (response.status === 404 || response.status === 410) return null;
+  if (!response.ok) throw new Error(`Falha ao baixar a mídia (${response.status}).`);
+  return response.blob();
+}
+
+/** Prévia em texto de uma mensagem (citações, lista de grupos, avisos). */
+export function messagePreview(m: { body: string | null; media_kind?: MediaKind | null; spoiler_chapter?: number | null }, max = 90): string {
+  if (m.spoiler_chapter) return "🙈 Spoiler";
+  const label = m.media_kind === "image" ? "📷 Foto" : m.media_kind === "audio" ? "🎤 Áudio" : "";
+  const text = stripFormatting(m.body ?? "").slice(0, max);
+  return label && text ? `${label}: ${text}` : label || text;
+}
+
 export const sendMessage = (
   id: string,
   body: { body: string; clientId: string; spoilerChapter?: number | null; replyTo?: number | null },
