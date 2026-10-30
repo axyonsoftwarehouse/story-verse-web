@@ -41,6 +41,14 @@ describe("mergeMessages", () => {
     expect(merged.some((m) => m.pending)).toBe(false);
   });
 
+  it("a confirmada fica com o clientId da provisória (a bolha não é recriada nem pisca)", () => {
+    const draft = msg(Number.MAX_SAFE_INTEGER, { client_id: "c1", pending: true });
+    const confirmed = mergeMessages([draft], [msg(2, { client_id: "c1" })]);
+    expect(confirmed[0].client_id).toBe("c1");
+    // O eco do tempo real sem clientId (API antiga) não troca a chave.
+    expect(mergeMessages(confirmed, [msg(2, { client_id: undefined })])[0].client_id).toBe("c1");
+  });
+
   it("não repete mensagem que chega pelo envio e pelo tempo real", () => {
     const merged = mergeMessages([msg(1)], [msg(2), msg(2)]);
     expect(merged.map((m) => m.id)).toEqual([1, 2]);

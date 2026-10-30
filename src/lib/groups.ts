@@ -29,6 +29,10 @@ export type GroupMember = {
   joined_at: string;
   name: string;
   avatar: string;
+  /** Foto do perfil (só arquivo do Storage da própria pessoa; a API filtra). */
+  photo?: string | null;
+  /** Com o app aberto agora (bolinha verde). */
+  online?: boolean;
   progress_percent: number | null;
   book_status: string | null;
 };
@@ -70,6 +74,7 @@ export type GroupMessage = {
   author_id: string;
   author_name: string;
   author_avatar: string;
+  author_photo?: string | null;
   body: string | null;
   spoiler_chapter: number | null;
   reply_to: number | null;
@@ -193,7 +198,8 @@ export type StreamEvent =
   | { type: "message_deleted"; data: { groupId: string; id: number } }
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
   | { type: "group"; data: { groupId: string; type: string; userId?: string } }
-  | { type: "typing"; data: { groupId: string; userId: string } };
+  | { type: "typing"; data: { groupId: string; userId: string } }
+  | { type: "presence"; data: { userId: string; online: boolean } };
 
 /** Quanto tempo o "digitando" fica na tela sem um aviso novo. */
 export const TYPING_SHOWN_MS = 6000;
@@ -314,7 +320,10 @@ export function mergeMessages(current: GroupMessage[], incoming: GroupMessage[])
     // A mensagem confirmada pelo servidor substitui a provisória com o mesmo clientId.
     if (m.client_id) byKey.delete(`c:${m.client_id}`);
     const old = byKey.get(`id:${m.id}`);
-    byKey.set(`id:${m.id}`, old && !m.reactions.length && old.reactions.length ? { ...m, reactions: old.reactions } : m);
+    let next = old && !m.reactions.length && old.reactions.length ? { ...m, reactions: old.reactions } : m;
+    // A chave da bolha na tela é o clientId: trocar a chave recriaria a bolha (a "piscada").
+    if (old && old.client_id !== next.client_id) next = { ...next, client_id: old.client_id };
+    byKey.set(`id:${m.id}`, next);
   }
   return [...byKey.values()].sort((a, b) => (a.pending || a.failed ? 1 : 0) - (b.pending || b.failed ? 1 : 0) || a.id - b.id);
 }
