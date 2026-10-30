@@ -208,12 +208,41 @@ self.addEventListener("message", (event) => {
   if (event.data === "storyverse-test-reminder") event.waitUntil(maybeNotify(true));
 });
 
+// Notificação no celular (Web Push): mensagem nova num grupo, mandada pela API.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    (async () => {
+      // App aberto na frente: a mensagem já aparece na tela, sem notificação por cima.
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      if (windows.some((c) => c.visibilityState === "visible" && c.focused)) return;
+      await self.registration.showNotification(data.title || "Storyverse", {
+        body: data.body || "Mensagem nova",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: data.tag || "storyverse-push",
+        renotify: true,
+        data: { url: data.url || "/" },
+      });
+    })(),
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  // Só caminhos do próprio app (a URL vem no aviso).
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  const url = typeof target === "string" && target.startsWith("/") && !target.startsWith("//") ? target : "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       const open = list.find((c) => new URL(c.url).origin === self.location.origin);
-      return open ? open.focus() : self.clients.openWindow("/");
+      if (!open) return self.clients.openWindow(url);
+      return open.focus().then((client) => (url !== "/" && "navigate" in client ? client.navigate(url).catch(() => client) : client));
     }),
   );
 });
