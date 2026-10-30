@@ -26,6 +26,7 @@ function message(error: unknown): string {
 export function GroupInfo({
   group,
   me,
+  hot,
   confirm,
   onClose,
   onChanged,
@@ -33,6 +34,8 @@ export function GroupInfo({
 }: {
   group: Group;
   me: string;
+  /** Quem está entre os que mais falam (🔥). */
+  hot?: Set<string>;
   confirm: (o: ConfirmOptions) => Promise<boolean>;
   onClose: () => void;
   onChanged: (g: Group) => void;
@@ -213,10 +216,15 @@ export function GroupInfo({
             return (
               <li key={m.user_id}>
                 <div className="group-member-row">
-                  <PersonFace id={m.user_id} name={m.name} avatar={m.avatar} size="sm" />
+                  <PersonFace id={m.user_id} name={m.name} avatar={m.avatar} size="sm" hot={hot?.has(m.user_id)} />
                   <span className="group-member-name">
                     {m.user_id === me ? `${m.name} (você)` : m.name}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}
+                    {hot?.has(m.user_id) ? (
+                      <small className="group-role is-hot" title="Uma das pessoas que mais falam no grupo nesta semana">
+                        🔥 em chamas
+                      </small>
+                    ) : null}
                   </span>
                   {group.book_key ? (
                     <span className="group-member-progress" title="Progresso no livro do clube">
