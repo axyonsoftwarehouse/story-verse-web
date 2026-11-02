@@ -6,3 +6,8 @@ dist
 .vercel
 .idea
 supabase/.temp
+
+# Worktrees/artefatos locais do agente e do QA (evitam varreduras gigantes no node_modules).
+.claude/
+.dependency-resolve/
+qa-runs/

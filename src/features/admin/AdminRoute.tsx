@@ -10,6 +10,7 @@ import { AdminAcervo } from "./AdminAcervo";
 import { AdminNav, type AdminPending } from "./AdminNav";
 import { AuditSection } from "./AuditSection";
 import { BillingSection } from "./BillingSection";
+import { CatalogAudioPage } from "./CatalogAudioPage";
 import { CatalogBookPage } from "./CatalogBookPage";
 import { FeaturesSection } from "./FeaturesSection";
 import { GroupReports } from "./GroupReports";
@@ -261,6 +262,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="catalog" roles={allowed}>
                   <CatalogBookPage session={session} roles={allowed} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="acervo/:id/audio"
+              element={
+                <RequireSection id="catalog" roles={allowed}>
+                  <CatalogAudioPage session={session} roles={allowed} />
                 </RequireSection>
               }
             />

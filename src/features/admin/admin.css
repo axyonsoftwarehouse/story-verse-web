@@ -1257,9 +1257,201 @@
   font-size: 0.88rem;
 }
 
+/* Audiolivro */
+
+.audio-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.audio-editions-panel {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.audio-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.audio-panel-head h2 {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.audio-editions-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.audio-edition {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.audio-edition:hover {
+  border-color: var(--accent-dim);
+}
+
+.audio-edition.is-on {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.audio-edition:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.audio-edition-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.audio-edition-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.audio-edition .status-chip {
+  justify-self: start;
+  margin-top: 0.2rem;
+}
+
+.audio-editions-help {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.audio-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.audio-chapters-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.audio-chapters-head h2 {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-read);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.audio-chapters-head p {
+  margin: 0;
+}
+
+.audio-warning {
+  margin: 0.8rem 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  border-radius: 8px;
+  color: var(--accent-light);
+  background: rgba(var(--accent-rgb), 0.08);
+  font-size: 0.84rem;
+}
+
+.audio-table-wrap {
+  overflow-x: auto;
+  margin: 0.8rem 0;
+}
+
+.audio-chapter-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.audio-chapter-table th,
+.audio-chapter-table td {
+  padding: 0.5rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.audio-chapter-table th {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.audio-chapter-table td:first-child {
+  width: 2.2rem;
+  color: var(--muted);
+}
+
+.audio-chapter-table td small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.audio-chapter-table select {
+  width: 100%;
+  min-width: 130px;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-deep);
+  color: inherit;
+}
+
+.audio-single-file {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.audio-single-file h3 {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-read);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.audio-single-file p {
+  margin: 0 0 0.7rem;
+}
+
+.audio-chapter-actions {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
 @media (max-width: 900px) {
   .catalog-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .audio-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .audio-editions-panel {
+    position: static;
   }
 
   .catalog-detail-cover {

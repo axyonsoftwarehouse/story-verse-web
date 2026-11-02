@@ -485,6 +485,10 @@ export function CatalogBookPage({
                 Prévia do texto
               </button>
 
+              <Link className="btn" to={`/admin/acervo/${book.id}/audio`}>
+                Audiolivro
+              </Link>
+
               <label className={`btn catalog-file-action ${disabled ? "is-disabled" : ""}`}>
                 {busy === "text" ? "Enviando…" : "Substituir arquivo"}
                 <input
