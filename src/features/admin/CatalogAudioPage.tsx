@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, NavLink, useParams } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
 import {
   AUDIO_ACCEPT,
@@ -482,6 +482,22 @@ export function CatalogAudioPage({
 
   return (
     <section className="shelf admin-catalog-detail audio-admin">
+      <nav className="segmented acervo-tabs" aria-label="Seções do livro">
+        <NavLink
+          to={`/admin/acervo/${book.id}`}
+          end
+          className={({ isActive }) => (isActive ? "is-on" : "")}
+        >
+          Detalhes
+        </NavLink>
+        <NavLink
+          to={`/admin/acervo/${book.id}/audio`}
+          className={({ isActive }) => (isActive ? "is-on" : "")}
+        >
+          Áudio
+        </NavLink>
+      </nav>
+
       <div className="catalog-detail-head">
         <Link className="btn" to={`/admin/acervo/${book.id}`}>
           Voltar ao livro

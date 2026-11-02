@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
 import {
   catalogChars,
@@ -340,6 +340,22 @@ export function CatalogBookPage({
 
   return (
     <section className="shelf admin-catalog-detail">
+      <nav className="segmented acervo-tabs" aria-label="Seções do livro">
+        <NavLink
+          to={`/admin/acervo/${book.id}`}
+          end
+          className={({ isActive }) => (isActive ? "is-on" : "")}
+        >
+          Detalhes
+        </NavLink>
+        <NavLink
+          to={`/admin/acervo/${book.id}/audio`}
+          className={({ isActive }) => (isActive ? "is-on" : "")}
+        >
+          Áudio
+        </NavLink>
+      </nav>
+
       <div className="catalog-detail-head">
         <Link className="btn" to="/admin/acervo">
           Voltar
