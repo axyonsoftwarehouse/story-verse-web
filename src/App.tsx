@@ -7885,6 +7885,7 @@ export function App() {
                 className={`btn nav-install ${installBannerOff ? "" : "has-banner"}`}
                 onClick={() => setInstallOpen(true)}
                 aria-label="Baixar app"
+                title="Baixar app"
               >
                 {Icon.download}
                 <span className="nav-install-label">Baixar app</span>
@@ -7931,7 +7932,7 @@ export function App() {
               </button>
             ) : null}
             {!authEnabled ? null : authUser ? (
-              <button type="button" className="btn nav-account" onClick={() => setProfileOpen(true)} aria-label="Abrir seu perfil">
+              <button type="button" className="btn nav-account" onClick={() => setProfileOpen(true)} aria-label="Abrir seu perfil" title="Abrir seu perfil">
                 <UserAvatar user={authUser} className="nav-avatar" />
                 <span className="nav-account-name">{displayNameOf(authUser).split(" ")[0]}</span>
               </button>

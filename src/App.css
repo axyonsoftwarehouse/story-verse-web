@@ -10843,3 +10843,46 @@ button.ranking-diamonds {
     padding-top: max(1rem, calc(env(safe-area-inset-top) + 0.5rem));
   }
 }
+
+/*
+ * Cabeçalho compacto: o bloco de ações não pode transbordar para a esquerda e
+ * cobrir a marca "Storyverse" (o contador online é o primeiro item dele).
+ * O contador fica só com a bolinha e o número; o nome da conta fica no avatar,
+ * que mantém aria-label/title. Em telas menores, encurta os rótulos.
+ */
+.home-nav-actions {
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+}
+
+.online-label {
+  display: none;
+}
+
+.nav-import-long {
+  display: none;
+}
+
+.nav-import-short {
+  display: inline;
+}
+
+.nav-account-name {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .nav-install-label {
+    display: none;
+  }
+
+  .nav-library-long,
+  .nav-audio-long {
+    display: none;
+  }
+
+  .nav-library-short,
+  .nav-audio-short {
+    display: inline;
+  }
+}
