@@ -34,6 +34,9 @@ import {
   REPORT_REASONS,
   reportMessage,
   messagePreview,
+  messageStatus,
+  noteDelivered,
+  type MessageStatus,
   sendMediaMessage,
   sendMessage,
   sendTyping,
@@ -178,6 +181,8 @@ export function GroupChat() {
         if (!alive) return;
         initialIds.current = new Set(list.map((m) => m.id));
         setMessages(list);
+        const newest = list[list.length - 1];
+        if (newest) noteDelivered(id, newest.id);
         setHasMore(list.length === PAGE);
         setLoaded(true);
       })
@@ -187,6 +192,7 @@ export function GroupChat() {
       (event) => {
         if (event.type === "message" && event.data.group_id === id) {
           setMessages((cur) => mergeMessages(cur, [event.data]));
+          if (event.data.author_id !== me) noteDelivered(id, event.data.id);
           setTyping(({ [event.data.author_id]: _sent, ...rest }) => rest);
           const g = groupRef.current;
           if (event.data.author_id !== me) {
@@ -200,6 +206,21 @@ export function GroupChat() {
           // A minha reação já foi aplicada na hora do clique.
           if (userId === me) return;
           setMessages((cur) => cur.map((m) => (m.id === messageId ? applyReaction(m, emoji, added, false) : m)));
+        } else if (event.type === "receipt" && event.data.groupId === id) {
+          // Alguém recebeu ou leu: atualiza os selos das minhas mensagens.
+          const { userId, deliveredId, readId } = event.data;
+          setGroup((g) =>
+            g?.members
+              ? {
+                  ...g,
+                  members: g.members.map((x) =>
+                    x.user_id === userId
+                      ? { ...x, last_delivered_id: Math.max(x.last_delivered_id ?? 0, deliveredId), last_read_id: Math.max(x.last_read_id ?? 0, readId) }
+                      : x,
+                  ),
+                }
+              : g,
+          );
         } else if (event.type === "presence") {
           const { userId, online: on } = event.data;
           setGroup((g) =>
@@ -795,10 +816,11 @@ export function GroupChat() {
                                 <button type="button" className="group-retry" onClick={() => retry(m)}>
                                   Não enviada · tentar de novo
                                 </button>
-                              ) : m.pending ? (
-                                "enviando…"
                               ) : (
-                                messageTime(m.created_at)
+                                <>
+                                  {m.pending ? "enviando…" : messageTime(m.created_at)}
+                                  {mine ? <StatusTicks status={messageStatus(m, group.members ?? [], me)} /> : null}
+                                </>
                               )}
                             </span>
                           </div>
@@ -1056,5 +1078,34 @@ function ReportDialog({ message: target, onClose, onSent }: { message: GroupMess
       </form>
     </div>,
     document.body,
+  );
+}
+
+const STATUS_LABEL: Record<MessageStatus, string> = {
+  pending: "Enviando",
+  sent: "Enviada",
+  delivered: "Recebida por todos",
+  read: "Vista por todos",
+};
+
+/** Selo da mensagem: 🕓 enviando, ✓ enviada, ✓✓ recebida, ✓✓ azul vista (por todos do grupo). */
+function StatusTicks({ status }: { status: MessageStatus }) {
+  return (
+    <span className={`group-ticks is-${status}`} role="img" aria-label={STATUS_LABEL[status]} title={STATUS_LABEL[status]}>
+      {status === "pending" ? (
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" />
+          <path d="M8 4.8V8l2.2 1.4" />
+        </svg>
+      ) : status === "sent" ? (
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 8.5l3 3 7-7" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 20 16" width="17" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M1.5 8.5l3 3 7-7M8 11.5l1 0.1 7-7.1" />
+        </svg>
+      )}
+    </span>
   );
 }
