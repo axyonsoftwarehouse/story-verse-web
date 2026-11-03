@@ -33,6 +33,9 @@ export type GroupMember = {
   photo?: string | null;
   /** Com o app aberto agora (bolinha verde). */
   online?: boolean;
+  /** Até onde o aparelho recebeu e até onde leu (selos ✓✓ das mensagens). */
+  last_delivered_id?: number;
+  last_read_id?: number;
   progress_percent: number | null;
   book_status: string | null;
 };
@@ -169,6 +172,45 @@ export const setMuted = (id: string, muted: boolean) =>
   call<Group>(`/api/v1/groups/${id}/mute`, { method: "POST", body: { muted } });
 export const markRead = (id: string, lastId: number) =>
   call<void>(`/api/v1/groups/${id}/read`, { method: "POST", body: { lastId } });
+
+const deliveredSent = new Map<string, number>();
+const deliveredTimers = new Map<string, number>();
+
+/**
+ * "Recebi até a mensagem tal" (selo ✓✓ para quem escreveu). Junta as chamadas de cada grupo
+ * por um instante e nunca repete uma posição já avisada.
+ */
+export function noteDelivered(groupId: string, messageId: number) {
+  if (!GROUPS_AVAILABLE || !(messageId > 0) || messageId >= Number.MAX_SAFE_INTEGER) return;
+  if ((deliveredSent.get(groupId) ?? 0) >= messageId) return;
+  deliveredSent.set(groupId, messageId);
+  window.clearTimeout(deliveredTimers.get(groupId));
+  deliveredTimers.set(
+    groupId,
+    window.setTimeout(() => {
+      deliveredTimers.delete(groupId);
+      void call<void>(`/api/v1/groups/${groupId}/delivered`, { method: "POST", body: { lastId: deliveredSent.get(groupId) } }).catch(() => {
+        // Sem rede: o próximo aviso leva a posição mais nova.
+        deliveredSent.set(groupId, 0);
+      });
+    }, 1500),
+  );
+}
+
+export type MessageStatus = "pending" | "sent" | "delivered" | "read";
+
+/**
+ * Selo de uma mensagem minha: ✓ enviada, ✓✓ recebida por todos, ✓✓ azul vista por todos (como
+ * nos grupos do WhatsApp, o selo só avança quando todos os outros membros chegaram lá).
+ */
+export function messageStatus(m: Pick<GroupMessage, "id" | "pending">, members: GroupMember[], me: string): MessageStatus {
+  if (m.pending) return "pending";
+  const others = members.filter((x) => x.user_id !== me);
+  if (others.length === 0) return "sent";
+  if (others.every((x) => (x.last_read_id ?? 0) >= m.id)) return "read";
+  if (others.every((x) => Math.max(x.last_delivered_id ?? 0, x.last_read_id ?? 0) >= m.id)) return "delivered";
+  return "sent";
+}
 /** Avisa os outros membros que a conta está digitando (vale uns segundos; a API ignora repetições). */
 export const sendTyping = (id: string) => call<void>(`/api/v1/groups/${id}/typing`, { method: "POST" });
 export const removeMember = (id: string, userId: string) =>
@@ -268,7 +310,9 @@ export type StreamEvent =
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
   | { type: "group"; data: { groupId: string; type: string; userId?: string } }
   | { type: "typing"; data: { groupId: string; userId: string } }
-  | { type: "presence"; data: { userId: string; online: boolean } };
+  | { type: "presence"; data: { userId: string; online: boolean } }
+  | { type: "receipt"; data: { groupId: string; userId: string; deliveredId: number; readId: number } }
+  | { type: "notification"; data: { kind: string } };
 
 /** Quanto tempo o "digitando" fica na tela sem um aviso novo. */
 export const TYPING_SHOWN_MS = 6000;

@@ -64,6 +64,8 @@ import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
+import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
+import { NotificationBell } from "./features/notifications/NotificationBell";
 import { bookKeyOf, todayInBrazil } from "./lib/library";
 import {
   recordFinished,
@@ -5988,7 +5990,8 @@ export function App() {
   );
   const staffOn = isStaff(capabilities?.roles ?? []);
   const groupsOn = GROUPS_AVAILABLE && hasFeature(capabilities, "groups");
-  const groupsUnread = useGroupsUnread(groupsOn && authUser ? authUser.id : "");
+  const groupsActivity = useGroupsUnread(groupsOn && authUser ? authUser.id : "");
+  const groupsUnread = groupsActivity.total;
   /** Abriu um convite de grupo sem conta: depois de entrar, volta para ele. */
   useEffect(() => {
     if (!authUser) return;
@@ -7865,7 +7868,7 @@ export function App() {
         <nav className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
-            Storyverse
+            <span className="wordmark-text">Storyverse</span>
           </span>
           <div className="home-nav-actions">
             {authUser && onlineCount !== null && onlineCount > 0 ? (
@@ -7879,6 +7882,7 @@ export function App() {
               <span className="status-dot" aria-hidden="true" />
               {providerLabel}
             </span>
+            <div className="nav-secondary">
             {!installed ? (
               <button
                 type="button"
@@ -7899,21 +7903,6 @@ export function App() {
               <span className="nav-audio-long">Audiolivros</span>
               <span className="nav-audio-short">Áudio</span>
             </Link>
-            {groupsOn ? (
-              <Link
-                className="btn nav-groups"
-                to="/grupos"
-                aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
-              >
-                {Icon.chat}
-                <span className="nav-groups-label">Grupos</span>
-                {groupsUnread > 0 ? (
-                  <span className="nav-groups-badge" aria-hidden="true">
-                    {groupsUnread > 99 ? "99+" : groupsUnread}
-                  </span>
-                ) : null}
-              </Link>
-            ) : null}
             {staffOn ? (
               <Link className="btn nav-admin" to="/admin" aria-label="Abrir painel administrativo">
                 Admin
@@ -7931,6 +7920,32 @@ export function App() {
                 <span className="nav-import-short">Importar</span>
               </button>
             ) : null}
+            </div>
+            {groupsOn ? (
+              <Link
+                className="btn nav-groups"
+                to="/grupos"
+                aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
+              >
+                {Icon.chat}
+                <span className="nav-groups-label">Grupos</span>
+                {groupsUnread > 0 ? (
+                  <span className="nav-groups-badge" aria-hidden="true">
+                    {groupsUnread > 99 ? "99+" : groupsUnread}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
+            {groupsOn && authUser ? <NotificationBell groups={groupsActivity.groups} activity={groupsActivity.activity} /> : null}
+            <NavMore
+              items={[
+                ...(!installed ? [{ key: "install", label: "Baixar app", icon: Icon.download, onClick: () => setInstallOpen(true) }] : []),
+                { key: "library", label: "Biblioteca", icon: Icon.book, to: "/biblioteca" },
+                { key: "audio", label: "Audiolivros", icon: Icon.speaker, to: "/ouvir" },
+                ...(canRead ? [{ key: "import", label: "Importar livro", icon: Icon.upload, onClick: () => requestImport() }] : []),
+                ...(staffOn ? [{ key: "admin", label: "Painel admin", icon: Icon.settings, to: "/admin" }] : []),
+              ] satisfies NavMoreItem[]}
+            />
             {!authEnabled ? null : authUser ? (
               <button type="button" className="btn nav-account" onClick={() => setProfileOpen(true)} aria-label="Abrir seu perfil" title="Abrir seu perfil">
                 <UserAvatar user={authUser} className="nav-avatar" />

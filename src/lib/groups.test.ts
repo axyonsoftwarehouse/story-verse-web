@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyReaction, mergeMessages, messageTime, parseSse, typingLabel, type GroupMessage } from "./groups";
+import { applyReaction, mergeMessages, messageStatus, messageTime, parseSse, typingLabel, type GroupMember, type GroupMessage } from "./groups";
 
 function msg(id: number, extra: Partial<GroupMessage> = {}): GroupMessage {
   return {
@@ -91,5 +91,23 @@ describe("typingLabel", () => {
     expect(typingLabel(["Ana"])).toBe("Ana está digitando…");
     expect(typingLabel(["Ana", "Bia"])).toBe("Ana e Bia estão digitando…");
     expect(typingLabel(["Ana", "Bia", "Caio"])).toBe("Ana e mais 2 estão digitando…");
+  });
+});
+
+describe("messageStatus", () => {
+  const member = (user_id: string, last_delivered_id: number, last_read_id: number) =>
+    ({ user_id, role: "member", joined_at: "", name: user_id, avatar: "", progress_percent: null, book_status: null, last_delivered_id, last_read_id }) as GroupMember;
+
+  it("enviando, enviada, recebida por todos e vista por todos", () => {
+    const members = [member("eu", 0, 0), member("ana", 9, 9), member("bia", 9, 7)];
+    expect(messageStatus({ id: 10, pending: true }, members, "eu")).toBe("pending");
+    expect(messageStatus({ id: 10 }, members, "eu")).toBe("sent");
+    expect(messageStatus({ id: 8 }, members, "eu")).toBe("delivered");
+    expect(messageStatus({ id: 7 }, members, "eu")).toBe("read");
+  });
+
+  it("sozinho no grupo fica só enviada; ler também conta como recebida", () => {
+    expect(messageStatus({ id: 5 }, [member("eu", 0, 0)], "eu")).toBe("sent");
+    expect(messageStatus({ id: 5 }, [member("eu", 0, 0), member("ana", 0, 6)], "eu")).toBe("read");
   });
 });

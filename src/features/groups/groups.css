@@ -2988,3 +2988,40 @@ button.group-info-desc.is-empty {
   width: 20px;
   height: 20px;
 }
+
+/* Selos de status (só nas minhas mensagens), ao lado da hora. */
+.group-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.group-ticks {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.group-ticks.is-read {
+  color: #4fc3f7;
+}
+
+/* Reações: o selo fica à esquerda e só encosta na borda da bolha (a hora fica à direita, livre). */
+.group-reactions,
+.group-msg.is-mine .group-reactions {
+  align-self: flex-start;
+  margin: -0.3rem 0 0 0.5rem;
+  padding: 0.05rem 0.4rem 0.05rem 0.3rem;
+}
+
+.group-reaction-emoji {
+  font-size: 0.85rem;
+  line-height: 1.25;
+}
+
+.group-reaction-count {
+  font-size: 0.7rem;
+}
+
+.group-msg.has-reactions {
+  margin-bottom: 0.45rem;
+}

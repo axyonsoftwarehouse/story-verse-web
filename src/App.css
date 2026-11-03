@@ -10886,3 +10886,53 @@ button.ranking-diamonds {
     display: inline;
   }
 }
+
+/*
+ * Topo sem quebra de linha: a barra fica sempre numa linha só. Nas telas estreitas, os botões
+ * menos usados (baixar app, biblioteca, audiolivros, importar, admin) vão para o menu "Mais";
+ * na barra ficam o online, os grupos, o sininho e a conta.
+ */
+.home-nav-actions {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.nav-secondary {
+  display: contents;
+}
+
+@media (max-width: 899px) {
+  .home-nav-actions .nav-secondary {
+    display: none;
+  }
+
+  .home-nav-actions .nav-more {
+    display: inline-grid;
+  }
+
+  .home-nav-actions .nav-groups {
+    padding-inline: 0.6rem;
+  }
+
+  .home-nav-actions .nav-groups-label {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .wordmark-text {
+    display: none;
+  }
+}
+
+/* O selo "IA ativa" não espreme em duas linhas: some quando a barra fica cheia. */
+.home-nav-actions .status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 1360px) {
+  .home-nav-actions .status {
+    display: none;
+  }
+}
