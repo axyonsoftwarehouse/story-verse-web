@@ -69,17 +69,31 @@ export async function prepareChatImage(file: File): Promise<{ blob: Blob; width:
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error("Não foi possível abrir esta imagem. Tente uma foto em JPG ou PNG.");
   });
-  const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
+  try {
+    return await exportChatImage(bitmap, { x: 0, y: 0, width: bitmap.width, height: bitmap.height });
+  } finally {
+    bitmap.close?.();
+  }
+}
+
+/**
+ * Recorta um pedaço da imagem (em pixels da imagem original), reduz para caber em 1280 px e
+ * comprime. Usado pelo corte da foto antes de enviar.
+ */
+export async function exportChatImage(
+  source: CanvasImageSource,
+  crop: { x: number; y: number; width: number; height: number },
+): Promise<{ blob: Blob; width: number; height: number }> {
+  const scale = Math.min(1, 1280 / Math.max(crop.width, crop.height));
+  const width = Math.max(1, Math.round(crop.width * scale));
+  const height = Math.max(1, Math.round(crop.height * scale));
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Seu navegador não conseguiu processar a imagem.");
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close?.();
+  ctx.drawImage(source, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
   const toBlob = (type: string, quality: number) => new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
   const webp = await toBlob("image/webp", 0.78);
   const blob = webp && webp.type === "image/webp" ? webp : await toBlob("image/jpeg", 0.8);

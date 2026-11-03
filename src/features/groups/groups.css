@@ -978,10 +978,11 @@
 }
 
 .group-day span {
-  padding: 0.2rem 0.75rem;
+  padding: 0.22rem 0.8rem;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
-  backdrop-filter: blur(6px);
+  /* Sólido: o desenho do fundo e o cartão do começo não aparecem através do selo. */
+  background: linear-gradient(var(--surface), var(--surface)), var(--bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 600;
@@ -3024,4 +3025,197 @@ button.group-info-desc.is-empty {
 
 .group-msg.has-reactions {
   margin-bottom: 0.45rem;
+}
+
+/* ------------------------------ Cortar a foto antes de enviar ------------------------------ */
+
+.image-crop {
+  position: fixed;
+  z-index: 95;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #050505;
+  color: #fff;
+  animation: group-fade 0.15s ease-out;
+}
+
+.image-crop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(0.5rem + env(safe-area-inset-top)) 0.6rem 0.5rem;
+}
+
+.image-crop-head .group-icon-btn {
+  color: #fff;
+}
+
+.image-crop-head span {
+  width: 2.4rem;
+}
+
+.image-crop-stage {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  place-items: center;
+  padding: 0.5rem 1rem;
+  touch-action: none;
+}
+
+.image-crop-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.image-crop-frame img {
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 15rem);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.image-crop-box {
+  position: absolute;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  cursor: move;
+  touch-action: none;
+}
+
+/* Grade de terços para ajudar a enquadrar. */
+.image-crop-box::before,
+.image-crop-box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.image-crop-box::before {
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  left: 33.33%;
+  right: 33.33%;
+}
+
+.image-crop-box::after {
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  top: 33.33%;
+  bottom: 33.33%;
+}
+
+.image-crop-handle {
+  position: absolute;
+  z-index: 1;
+  width: 1.6rem;
+  height: 1.6rem;
+  touch-action: none;
+}
+
+.image-crop-handle::after {
+  content: "";
+  position: absolute;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-color: #fff;
+  border-style: solid;
+}
+
+.image-crop-handle.is-nw {
+  top: -0.5rem;
+  left: -0.5rem;
+  cursor: nwse-resize;
+}
+.image-crop-handle.is-nw::after {
+  top: 0.4rem;
+  left: 0.4rem;
+  border-width: 4px 0 0 4px;
+}
+.image-crop-handle.is-ne {
+  top: -0.5rem;
+  right: -0.5rem;
+  cursor: nesw-resize;
+}
+.image-crop-handle.is-ne::after {
+  top: 0.4rem;
+  right: 0.4rem;
+  border-width: 4px 4px 0 0;
+}
+.image-crop-handle.is-sw {
+  bottom: -0.5rem;
+  left: -0.5rem;
+  cursor: nesw-resize;
+}
+.image-crop-handle.is-sw::after {
+  bottom: 0.4rem;
+  left: 0.4rem;
+  border-width: 0 0 4px 4px;
+}
+.image-crop-handle.is-se {
+  right: -0.5rem;
+  bottom: -0.5rem;
+  cursor: nwse-resize;
+}
+.image-crop-handle.is-se::after {
+  right: 0.4rem;
+  bottom: 0.4rem;
+  border-width: 0 4px 4px 0;
+}
+
+.image-crop-aspects {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+}
+
+.image-crop-aspects button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.image-crop-aspects button.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.image-crop-error {
+  margin: 0 1rem;
+  color: #f0a0a0;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.image-crop-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+.image-crop-foot input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1.4rem;
+  background: #161616;
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
 }

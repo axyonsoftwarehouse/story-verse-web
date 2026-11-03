@@ -52,7 +52,9 @@ import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
-import { keepMedia, prepareChatImage } from "../../lib/chatMedia";
+import { keepMedia } from "../../lib/chatMedia";
+import { ImageCrop } from "./ImageCrop";
+import { playReceived, playSent, unlockChatSounds } from "../../lib/chatSounds";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
 const PAGE = 50;
@@ -112,6 +114,7 @@ export function GroupChat() {
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
   const photoRef = useRef<HTMLInputElement>(null);
+  const [cropping, setCropping] = useState<File | null>(null);
   /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
   const mediaFiles = useRef(new Map<string, { blob: Blob; durationMs?: number; width?: number; height?: number }>());
   const [spoilerOn, setSpoilerOn] = useState(false);
@@ -192,7 +195,10 @@ export function GroupChat() {
       (event) => {
         if (event.type === "message" && event.data.group_id === id) {
           setMessages((cur) => mergeMessages(cur, [event.data]));
-          if (event.data.author_id !== me) noteDelivered(id, event.data.id);
+          if (event.data.author_id !== me) {
+            noteDelivered(id, event.data.id);
+            if (!groupRef.current?.muted) playReceived();
+          }
           setTyping(({ [event.data.author_id]: _sent, ...rest }) => rest);
           const g = groupRef.current;
           if (event.data.author_id !== me) {
@@ -359,6 +365,7 @@ export function GroupChat() {
         mediaFiles.current.delete(draft.client_id!);
       }
       setMessages((cur) => mergeMessages(cur, [saved]));
+      playSent();
     } catch (err) {
       setMessages((cur) => cur.map((m) => (m.client_id === draft.client_id && m.pending ? { ...m, pending: false, failed: true } : m)));
       setError(message(err));
@@ -399,8 +406,8 @@ export function GroupChat() {
   }
 
   /** Foto ou áudio: aparece na hora com o arquivo local e sobe em seguida. */
-  function sendFile(kind: "image" | "audio", blob: Blob, meta: { durationMs?: number; width?: number; height?: number }) {
-    const caption = kind === "image" ? input.trim() || null : null;
+  function sendFile(kind: "image" | "audio", blob: Blob, meta: { durationMs?: number; width?: number; height?: number; caption?: string }) {
+    const caption = kind === "image" ? (meta.caption ?? input.trim()) || null : null;
     const draft = newDraft({
       body: caption,
       media_kind: kind,
@@ -412,19 +419,19 @@ export function GroupChat() {
       media_local: URL.createObjectURL(blob),
     });
     if (!draft) return;
-    mediaFiles.current.set(draft.client_id!, { blob, ...meta });
-    if (caption) setInput("");
+    mediaFiles.current.set(draft.client_id!, { blob, durationMs: meta.durationMs, width: meta.width, height: meta.height });
+    setInput("");
     queue(draft);
   }
 
-  async function pickPhoto(file: File | undefined) {
+  /** Foto escolhida: abre o corte (com a legenda) antes de enviar. */
+  function pickPhoto(file: File | undefined) {
     if (!file) return;
-    try {
-      const { blob, width, height } = await prepareChatImage(file);
-      sendFile("image", blob, { width, height });
-    } catch (err) {
-      setError(message(err));
+    if (!file.type.startsWith("image/")) {
+      setError("Escolha uma imagem.");
+      return;
     }
+    setCropping(file);
   }
 
 
@@ -611,6 +618,7 @@ export function GroupChat() {
   return (
     <div
       className="group-chat-page"
+      onPointerDown={unlockChatSounds}
       style={area ? { top: area.top, height: area.height, bottom: "auto" } : undefined}
     >
       <header className="group-chat-header">
@@ -927,7 +935,7 @@ export function GroupChat() {
                   accept="image/*"
                   hidden
                   onChange={(e) => {
-                    void pickPhoto(e.target.files?.[0]);
+                    pickPhoto(e.target.files?.[0]);
                     e.target.value = "";
                   }}
                 />
@@ -992,6 +1000,17 @@ export function GroupChat() {
         />
       ) : null}
       <ReactionBursts bursts={bursts} />
+      {cropping ? (
+        <ImageCrop
+          file={cropping}
+          caption={input}
+          onCancel={() => setCropping(null)}
+          onSend={(image, caption) => {
+            setCropping(null);
+            sendFile("image", image.blob, { width: image.width, height: image.height, caption });
+          }}
+        />
+      ) : null}
 
       {reporting ? (
         <ReportDialog
