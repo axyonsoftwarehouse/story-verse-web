@@ -12,6 +12,7 @@ import {
   type Group,
   type GroupMember,
 } from "../../lib/groups";
+import { chatSoundsOn, setChatSounds } from "../../lib/chatSounds";
 import { GroupForm } from "./GroupForm";
 import { GroupAvatar, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
@@ -46,6 +47,7 @@ export function GroupInfo({
   const [editing, setEditing] = useState(false);
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [coverBroken, setCoverBroken] = useState(false);
+  const [sounds, setSounds] = useState(chatSoundsOn);
   const owner = group.my_role === "owner";
   const manager = owner || group.my_role === "moderator";
   const members = group.members ?? [];
@@ -205,6 +207,25 @@ export function GroupInfo({
             <small>As mensagens chegam, mas sem notificação nem contador.</small>
           </span>
           <input type="checkbox" role="switch" checked={group.muted} onChange={(e) => void run(() => setMuted(group.id, e.target.checked), onChanged)} />
+        </label>
+
+        <label className="group-info-card group-switch">
+          <span className="group-info-card-icon" aria-hidden="true">
+            🔊
+          </span>
+          <span>
+            <strong>Sons da conversa</strong>
+            <small>Um som ao enviar e ao receber mensagem com a conversa aberta (vale para todos os grupos).</small>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={sounds}
+            onChange={(e) => {
+              setChatSounds(e.target.checked);
+              setSounds(e.target.checked);
+            }}
+          />
         </label>
 
         <h3 className="group-info-section">
