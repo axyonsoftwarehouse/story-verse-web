@@ -11,6 +11,7 @@ import {
   type CatalogBook,
 } from "../../lib/catalog";
 import { fetchShelfEntry, putShelfEntry } from "../../lib/library";
+import { fetchAudioManifest, type AudioManifest } from "../../lib/publicAudiobooks";
 import { useAccountFeatures } from "../auth/useAccountFeatures";
 import { useStoredSession } from "../auth/useStoredSession";
 import { CatalogCover } from "./CatalogCover";
@@ -30,6 +31,7 @@ export function PublicBookPage() {
   const [error, setError] = useState("");
   const [shelf, setShelf] = useState<ShelfState>("unknown");
   const [message, setMessage] = useState("");
+  const [audio, setAudio] = useState<AudioManifest | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -44,6 +46,21 @@ export function PublicBookPage() {
       })
       .finally(() => {
         if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [bookKey]);
+
+  useEffect(() => {
+    if (!bookKey) return;
+    let alive = true;
+    fetchAudioManifest(bookKey)
+      .then((manifest) => {
+        if (alive) setAudio(manifest);
+      })
+      .catch(() => {
+        if (alive) setAudio(null);
       });
     return () => {
       alive = false;
@@ -192,6 +209,13 @@ export function PublicBookPage() {
               <Link className="btn btn-primary btn-lg" to={readerHref(false)}>
                 Ler agora
               </Link>
+              {audio && audio.editions.length > 0 ? (
+                <Link className="btn btn-lg" to={`/ouvir/${encodeURIComponent(book.book_key)}`}>
+                  {audio.editions[0].narrator
+                    ? `Ouvir · ${audio.editions[0].narrator}`
+                    : "Ouvir audiolivro"}
+                </Link>
+              ) : null}
               <Link className="btn" to={readerHref(true)}>
                 Conversar com personagens
               </Link>

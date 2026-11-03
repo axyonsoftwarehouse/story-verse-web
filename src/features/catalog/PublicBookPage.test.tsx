@@ -6,6 +6,7 @@ import type { SupabaseSession } from "../../lib/auth";
 import { ApiHttpError } from "../../lib/backend";
 import { getCatalogBook, type CatalogBook } from "../../lib/catalog";
 import { fetchShelfEntry, putShelfEntry, type ShelfEntry } from "../../lib/library";
+import { fetchAudioManifest } from "../../lib/publicAudiobooks";
 import { PublicBookPage } from "./PublicBookPage";
 
 vi.mock("../../lib/catalog", async (importOriginal) => {
@@ -16,6 +17,10 @@ vi.mock("../../lib/catalog", async (importOriginal) => {
 vi.mock("../../lib/library", () => ({
   fetchShelfEntry: vi.fn(),
   putShelfEntry: vi.fn(),
+}));
+
+vi.mock("../../lib/publicAudiobooks", () => ({
+  fetchAudioManifest: vi.fn(),
 }));
 
 const authState = vi.hoisted(() => ({ session: null as SupabaseSession | null }));
@@ -67,8 +72,17 @@ describe("PublicBookPage", () => {
     authState.session = null;
     accountState.capabilities = null;
     vi.mocked(getCatalogBook).mockResolvedValue(book);
-    vi.mocked(fetchShelfEntry).mockRejectedValue(new ApiHttpError("Não está na estante.", 404, undefined, {}));
+    vi.mocked(fetchShelfEntry).mockRejectedValue(new ApiHttpError("Nǜo estǭ na estante.", 404, undefined, {}));
     vi.mocked(putShelfEntry).mockResolvedValue({ bookKey: book.book_key } as ShelfEntry);
+    vi.mocked(fetchAudioManifest).mockResolvedValue({
+      book: {
+        bookKey: book.book_key,
+        title: book.title,
+        author: book.author,
+        coverUrl: book.cover_url,
+      },
+      editions: [],
+    });
   });
 
   afterEach(() => {
@@ -120,5 +134,38 @@ describe("PublicBookPage", () => {
     vi.mocked(fetchShelfEntry).mockResolvedValue({ bookKey: book.book_key } as ShelfEntry);
     renderPage();
     expect(await screen.findByRole("button", { name: "Na sua estante" })).toBeInTheDocument();
+  });
+
+  it("mostra o botão Ouvir quando há audiolivro publicado", async () => {
+    vi.mocked(fetchAudioManifest).mockResolvedValue({
+      book: {
+        bookKey: book.book_key,
+        title: book.title,
+        author: book.author,
+        coverUrl: book.cover_url,
+      },
+      editions: [
+        {
+          id: "audio-1",
+          language: "pt",
+          narrator: "Karen Savage",
+          source: "librivox",
+          sourceUrl: null,
+          rights: "public_domain",
+          licenseNote: null,
+          totalDurationSeconds: 3600,
+          chapterCount: 1,
+          coverUrl: null,
+          freeChapterIndex: 1,
+          requiresSubscription: true,
+          chapters: [],
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByRole("link", { name: /Ouvir/ })).toHaveAttribute(
+      "href",
+      `/ouvir/${encodeURIComponent(book.book_key)}`,
+    );
   });
 });

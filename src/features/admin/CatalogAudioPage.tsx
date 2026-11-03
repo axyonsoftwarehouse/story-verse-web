@@ -128,6 +128,8 @@ export function CatalogAudioPage({
   const [busy, setBusy] = useState<string | null>(null);
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [newChapter, setNewChapter] = useState({ title: "", start: "", end: "" });
+  const [timeEditIndex, setTimeEditIndex] = useState<number | null>(null);
+  const [timeDraft, setTimeDraft] = useState({ title: "", start: "", end: "" });
   const { confirm, dialog } = useConfirm();
 
   const selected = editions?.find((edition) => edition.id === selectedId) ?? null;
@@ -371,6 +373,48 @@ export function CatalogAudioPage({
       setMessage("Capítulo adicionado ao arquivo.");
     } catch (err) {
       setError(catalogErrorMessage(err, "Não foi possível adicionar o capítulo."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function startEditTimes(chapter: AdminAudioChapter) {
+    setTimeEditIndex(chapter.chapter_index);
+    setTimeDraft({
+      title: chapter.title ?? "",
+      start: formatAudioClock(chapter.start_seconds),
+      end: formatAudioClock(chapterEnd(chapter)),
+    });
+    setError("");
+    setMessage("");
+  }
+
+  function cancelEditTimes() {
+    setTimeEditIndex(null);
+  }
+
+  async function saveTimes(chapter: AdminAudioChapter) {
+    if (!selected) return;
+    const start = parseAudioClock(timeDraft.start);
+    const end = parseAudioClock(timeDraft.end);
+    if (start === null || end === null || end <= start) {
+      setError("Informe início e fim válidos (o fim precisa ser maior que o início).");
+      return;
+    }
+    setBusy(`times-${chapter.chapter_index}`);
+    setError("");
+    setMessage("");
+    try {
+      await updateAudioChapter(session, selected.id, chapter.chapter_index, {
+        title: timeDraft.title.trim() || undefined,
+        startSeconds: start,
+        endSeconds: end,
+      });
+      await refresh(selected.id);
+      setTimeEditIndex(null);
+      setMessage("Tempos do capítulo atualizados.");
+    } catch (err) {
+      setError(catalogErrorMessage(err, "Não foi possível salvar os tempos do capítulo."));
     } finally {
       setBusy(null);
     }
@@ -805,8 +849,82 @@ export function CatalogAudioPage({
                             <small>{formatAudioClock(chapter.duration_seconds)}</small>
                           </td>
                           <td>
-                            {formatAudioClock(chapter.start_seconds)} –{" "}
-                            {formatAudioClock(chapterEnd(chapter))}
+                            {timeEditIndex === chapter.chapter_index ? (
+                              <div className="audio-time-editor">
+                                <input
+                                  aria-label={`Título do capítulo ${chapter.chapter_index}`}
+                                  value={timeDraft.title}
+                                  onChange={(event) =>
+                                    setTimeDraft((current) => ({
+                                      ...current,
+                                      title: event.target.value,
+                                    }))
+                                  }
+                                  maxLength={200}
+                                  placeholder="Título"
+                                  disabled={disabled}
+                                />
+                                <div className="audio-time-row">
+                                  <input
+                                    aria-label={`Início do capítulo ${chapter.chapter_index}`}
+                                    value={timeDraft.start}
+                                    onChange={(event) =>
+                                      setTimeDraft((current) => ({
+                                        ...current,
+                                        start: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="00:00"
+                                    inputMode="numeric"
+                                    disabled={disabled}
+                                  />
+                                  <span>–</span>
+                                  <input
+                                    aria-label={`Fim do capítulo ${chapter.chapter_index}`}
+                                    value={timeDraft.end}
+                                    onChange={(event) =>
+                                      setTimeDraft((current) => ({
+                                        ...current,
+                                        end: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="12:34"
+                                    inputMode="numeric"
+                                    disabled={disabled}
+                                  />
+                                </div>
+                                <div className="audio-time-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={() => void saveTimes(chapter)}
+                                    disabled={disabled}
+                                  >
+                                    {busy === `times-${chapter.chapter_index}` ? "Salvando…" : "Salvar"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={cancelEditTimes}
+                                    disabled={disabled}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="inline-link"
+                                onClick={() => startEditTimes(chapter)}
+                                disabled={disabled}
+                                aria-label={`Editar tempos do capítulo ${chapter.chapter_index}`}
+                                title="Editar título, início e fim"
+                              >
+                                {formatAudioClock(chapter.start_seconds)} –{" "}
+                                {formatAudioClock(chapterEnd(chapter))}
+                              </button>
+                            )}
                           </td>
                           <td>
                             <select
@@ -862,8 +980,9 @@ export function CatalogAudioPage({
                 <div className="audio-single-file">
                   <h3>Adicionar capítulo do mesmo arquivo</h3>
                   <p className="muted">
-                    Use para MP3 único: informe o início e o fim de cada capítulo. Em arquivos por
-                    capítulo, envie um arquivo para cada um.
+                    Para dividir um M4A/MP3 único, clique nos tempos do capítulo 1 e ajuste o fim;
+                    depois adicione os próximos com início e fim. Em arquivos por capítulo, envie um
+                    arquivo para cada um.
                   </p>
                   <div className="catalog-form-grid">
                     <label className="catalog-field">

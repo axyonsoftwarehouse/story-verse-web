@@ -10,6 +10,8 @@ import { OfflineNotice } from "./components/OfflineNotice";
 import { ScrollToTop } from "./components/ScrollToTop";
 import {
   AdminRoute,
+  AudiobookPage,
+  AudiobooksPage,
   GroupChat,
   GroupInvite,
   GroupsHome,
@@ -58,6 +60,8 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/conta/assinatura" element={<SubscriptionPage />} />
             <Route path="/biblioteca" element={<PublicLibraryPage />} />
             <Route path="/biblioteca/:bookKey" element={<PublicBookPage />} />
+            <Route path="/ouvir" element={<AudiobooksPage />} />
+            <Route path="/ouvir/:bookKey" element={<AudiobookPage />} />
             <Route path="/termos" element={<LegalPage doc="termos" />} />
             <Route path="/privacidade" element={<LegalPage doc="privacidade" />} />
             <Route path="/cancelamento" element={<LegalPage doc="cancelamento" />} />
