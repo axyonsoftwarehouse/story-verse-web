@@ -1418,6 +1418,43 @@
   color: inherit;
 }
 
+.audio-time-editor {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 170px;
+}
+
+.audio-time-editor input {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-deep);
+  color: inherit;
+  font-size: 0.8rem;
+}
+
+.audio-time-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.audio-time-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.audio-time-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.audio-time-actions .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
 .audio-single-file {
   margin-top: 1rem;
   padding-top: 1rem;

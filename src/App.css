@@ -3698,6 +3698,31 @@
   display: none;
 }
 
+.nav-audio {
+  flex-shrink: 0;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.nav-audio-short {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .nav-audio {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .nav-audio-long {
+    display: none;
+  }
+
+  .nav-audio-short {
+    display: inline;
+  }
+}
+
 .nav-admin {
   flex-shrink: 0;
   border-color: var(--accent-dim);

@@ -7894,6 +7894,10 @@ export function App() {
               <span className="nav-library-long">Biblioteca</span>
               <span className="nav-library-short">Livros</span>
             </Link>
+            <Link className="btn nav-audio" to="/ouvir" aria-label="Abrir os audiolivros">
+              <span className="nav-audio-long">Audiolivros</span>
+              <span className="nav-audio-short">Áudio</span>
+            </Link>
             {groupsOn ? (
               <Link
                 className="btn nav-groups"

@@ -246,4 +246,37 @@ describe("CatalogAudioPage", () => {
       await screen.findByText("Defina o mapeamento do texto na edição antes de publicar."),
     ).toBeInTheDocument();
   });
+
+  it("permite editar título e tempos de um capítulo do arquivo único", async () => {
+    vi.mocked(listAudioEditions).mockResolvedValue([
+      edition({
+        chapters: [
+          chapter(1, { start_seconds: 0, end_seconds: 60 }),
+          chapter(2, { start_seconds: 60, end_seconds: 180 }),
+        ],
+      }),
+    ]);
+    vi.mocked(updateAudioChapter).mockResolvedValue(
+      chapter(1, { title: "Abertura", start_seconds: 0, end_seconds: 30 }),
+    );
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Editar tempos do capítulo 1" }));
+    fireEvent.change(screen.getByLabelText("Título do capítulo 1"), {
+      target: { value: "Abertura" },
+    });
+    fireEvent.change(screen.getByLabelText("Fim do capítulo 1"), {
+      target: { value: "0:30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() =>
+      expect(updateAudioChapter).toHaveBeenCalledWith(session, "a1", 1, {
+        title: "Abertura",
+        startSeconds: 0,
+        endSeconds: 30,
+      }),
+    );
+  });
 });
