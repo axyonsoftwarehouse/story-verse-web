@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ConfirmOptions } from "../../components/ConfirmDialog";
 import {
+  addMemberByEmail,
   deleteGroup,
   inviteUrl,
   leaveGroup,
@@ -28,7 +29,6 @@ function message(error: unknown): string {
 export function GroupInfo({
   group,
   me,
-  hot,
   confirm,
   onClose,
   onChanged,
@@ -36,8 +36,6 @@ export function GroupInfo({
 }: {
   group: Group;
   me: string;
-  /** Quem está entre os que mais falam (🔥). */
-  hot?: Set<string>;
   confirm: (o: ConfirmOptions) => Promise<boolean>;
   onClose: () => void;
   onChanged: (g: Group) => void;
@@ -47,6 +45,8 @@ export function GroupInfo({
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [openMember, setOpenMember] = useState<string | null>(null);
+  const [addEmail, setAddEmail] = useState("");
+  const [added, setAdded] = useState("");
   const [coverBroken, setCoverBroken] = useState(false);
   const [sounds, setSounds] = useState(chatSoundsOn);
   const owner = group.my_role === "owner";
@@ -231,6 +231,47 @@ export function GroupInfo({
           />
         </label>
 
+        {manager ? (
+          <form
+            className="group-info-card group-add-member"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const email = addEmail.trim();
+              if (!email) return;
+              void run(
+                () => addMemberByEmail(group.id, email),
+                (g) => {
+                  onChanged(g);
+                  setAddEmail("");
+                  setAdded(email);
+                },
+              );
+            }}
+          >
+            <span className="group-info-card-icon">{GIcon.users}</span>
+            <span className="group-add-member-body">
+              <strong>Adicionar pessoa</strong>
+              <small>{added ? `Pronto: ${added} entrou no grupo e foi avisada no sininho.` : "Digite o e-mail da conta da pessoa no Storyverse."}</small>
+              <span className="group-add-member-row">
+                <input
+                  type="email"
+                  value={addEmail}
+                  onChange={(e) => {
+                    setAddEmail(e.target.value);
+                    setAdded("");
+                  }}
+                  placeholder="email@exemplo.com"
+                  aria-label="E-mail da pessoa"
+                  maxLength={254}
+                />
+                <button type="submit" className="btn btn-primary" disabled={!addEmail.trim()}>
+                  Adicionar
+                </button>
+              </span>
+            </span>
+          </form>
+        ) : null}
+
         <h3 className="group-info-section">
           Membros <small>{members.length}</small>
         </h3>
@@ -246,7 +287,6 @@ export function GroupInfo({
                     avatar={m.rp_character ? null : m.avatar}
                     photo={m.rp_character ? m.rp_photo : m.photo}
                     size="sm"
-                    hot={hot?.has(m.user_id)}
                     online={m.online && m.user_id !== me}
                   />
                   <span className="group-member-name">
@@ -260,11 +300,6 @@ export function GroupInfo({
                       m.name
                     )}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}
-                    {hot?.has(m.user_id) ? (
-                      <small className="group-role is-hot" title="Uma das pessoas que mais falam no grupo nesta semana">
-                        🔥 em chamas
-                      </small>
-                    ) : null}
                   </span>
                   {canManage ? (
                     <button

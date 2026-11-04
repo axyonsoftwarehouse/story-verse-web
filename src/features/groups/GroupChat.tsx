@@ -50,7 +50,7 @@ import {
 import { GroupInfo } from "./GroupInfo";
 import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
-import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
+import { chatBackground, dayLabel, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
 import { keepMedia } from "../../lib/chatMedia";
@@ -148,7 +148,6 @@ export function GroupChat() {
   groupRef.current = group;
 
   const isMember = Boolean(group?.is_member);
-  const hot = useMemo(() => hotAuthors(messages.filter((m) => m.kind !== "narrator")), [messages]);
   const roleplay = group?.mode === "roleplay";
   const [characterOpen, setCharacterOpen] = useState(false);
   const [bookTick, setBookTick] = useState(0);
@@ -815,7 +814,6 @@ export function GroupChat() {
                               avatar={characterOf(m.author_id) ? null : m.author_avatar}
                               photo={characterPhotoOf(m.author_id) ?? (characterOf(m.author_id) ? null : (m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo))}
                               size="sm"
-                              hot={hot.has(m.author_id)}
                               online={online.has(m.author_id)}
                             /> : null}
                         <div className="group-bubble-wrap">
@@ -915,7 +913,6 @@ export function GroupChat() {
                       avatar={characterOf(typingIds[0]) ? null : (group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null)}
                       photo={characterPhotoOf(typingIds[0]) ?? (characterOf(typingIds[0]) ? null : group.members?.find((m) => m.user_id === typingIds[0])?.photo)}
                       size="sm"
-                      hot={hot.has(typingIds[0])}
                       online
                     />
                     <div className="group-bubble">
@@ -992,7 +989,7 @@ export function GroupChat() {
                     <PersonFace id={me} name={group.my_character} photo={group.my_character_photo} size="sm" />
                   </button>
                 ) : null}
-                {roleplay ? (
+                {roleplay && (group.my_role === "owner" || group.my_role === "moderator") ? (
                   <button
                     type="button"
                     className="group-icon-btn group-narrate"
@@ -1116,7 +1113,6 @@ export function GroupChat() {
         <GroupInfo
           group={group}
           me={me}
-          hot={hot}
           confirm={confirm}
           onClose={() => setInfoOpen(false)}
           onChanged={(g) => setGroup(g)}
