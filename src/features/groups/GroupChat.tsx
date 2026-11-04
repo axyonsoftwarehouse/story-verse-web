@@ -41,7 +41,6 @@ import {
   sendMessage,
   sendTyping,
   narrateNow,
-  setCharacter,
   TYPING_SEND_MS,
   TYPING_SHOWN_MS,
   typingLabel,
@@ -56,6 +55,7 @@ import { formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
 import { keepMedia } from "../../lib/chatMedia";
 import { ImageCrop } from "./ImageCrop";
+import { CharacterDialog } from "./CharacterDialog";
 import { playReceived, playSent, unlockChatSounds } from "../../lib/chatSounds";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
@@ -149,7 +149,7 @@ export function GroupChat() {
   const isMember = Boolean(group?.is_member);
   const hot = useMemo(() => hotAuthors(messages.filter((m) => m.kind !== "narrator")), [messages]);
   const roleplay = group?.mode === "roleplay";
-  const [characterDraft, setCharacterDraft] = useState("");
+  const [characterOpen, setCharacterOpen] = useState(false);
   const online = useMemo(() => new Set((group?.members ?? []).filter((m) => m.online && m.user_id !== me).map((m) => m.user_id)), [group?.members, me]);
   const chapter = myChapter(group?.book_key ?? null);
 
@@ -626,14 +626,9 @@ export function GroupChat() {
   const members = Number(group?.member_count ?? 0);
   const typingIds = Object.keys(typing);
   const typingNames = typingIds.map((uid) => (uid === "narrator" ? "Narrador" : (group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém")));
-  function saveCharacter() {
-    const name = characterDraft.trim();
-    if (!name) return;
-    void setCharacter(id, name)
-      .then((g) => setGroup(g))
-      .catch((err: unknown) => setError(message(err)));
-  }
+  /** Roleplay: o personagem da pessoa (nome e foto), que aparece no lugar dela. */
   const characterOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_character : null);
+  const characterPhotoOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_photo : null);
   const typingText = typingLabel(typingNames);
   const wallpaper = chatBackground(group?.background);
 
@@ -807,9 +802,9 @@ export function GroupChat() {
                         </span>
                         {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace
                               id={m.author_id}
-                              name={m.author_name}
-                              avatar={m.author_avatar}
-                              photo={m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo}
+                              name={characterOf(m.author_id) ?? m.author_name}
+                              avatar={characterOf(m.author_id) ? null : m.author_avatar}
+                              photo={characterPhotoOf(m.author_id) ?? (characterOf(m.author_id) ? null : (m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo))}
                               size="sm"
                               hot={hot.has(m.author_id)}
                               online={online.has(m.author_id)}
@@ -908,8 +903,8 @@ export function GroupChat() {
                     <PersonFace
                       id={typingIds[0]}
                       name={typingNames[0]}
-                      avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
-                      photo={group.members?.find((m) => m.user_id === typingIds[0])?.photo}
+                      avatar={characterOf(typingIds[0]) ? null : (group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null)}
+                      photo={characterPhotoOf(typingIds[0]) ?? (characterOf(typingIds[0]) ? null : group.members?.find((m) => m.user_id === typingIds[0])?.photo)}
                       size="sm"
                       hot={hot.has(typingIds[0])}
                       online
@@ -967,27 +962,27 @@ export function GroupChat() {
                 </div>
               ) : null}
               {roleplay && !group.my_character ? (
-                <div className="group-rp-character">
+                <button type="button" className="group-rp-character" onClick={() => setCharacterOpen(true)}>
                   <span aria-hidden="true">🎭</span>
-                  <input
-                    value={characterDraft}
-                    onChange={(e) => setCharacterDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        saveCharacter();
-                      }
-                    }}
-                    maxLength={60}
-                    placeholder="Quem você vai interpretar?"
-                    aria-label="Nome do seu personagem"
-                  />
-                  <button type="button" className="group-text-btn" onClick={saveCharacter} disabled={!characterDraft.trim()}>
-                    Entrar na história
-                  </button>
-                </div>
+                  <span>
+                    <strong>Crie seu personagem</strong>
+                    <small>Escolha nome e foto para entrar na história.</small>
+                  </span>
+                  <span className="group-text-btn">Criar</span>
+                </button>
               ) : null}
               <div className="group-composer-row">
+                {roleplay && group.my_character ? (
+                  <button
+                    type="button"
+                    className="group-my-character"
+                    onClick={() => setCharacterOpen(true)}
+                    aria-label={`Seu personagem: ${group.my_character}. Toque para editar`}
+                    title={group.my_character}
+                  >
+                    <PersonFace id={me} name={group.my_character} photo={group.my_character_photo} size="sm" />
+                  </button>
+                ) : null}
                 {roleplay ? (
                   <button
                     type="button"
@@ -1074,6 +1069,17 @@ export function GroupChat() {
         />
       ) : null}
       <ReactionBursts bursts={bursts} />
+      {characterOpen && group ? (
+        <CharacterDialog
+          group={group}
+          me={me}
+          onClose={() => setCharacterOpen(false)}
+          onSaved={(g) => {
+            setGroup(g);
+            setCharacterOpen(false);
+          }}
+        />
+      ) : null}
       {cropping ? (
         <ImageCrop
           file={cropping}

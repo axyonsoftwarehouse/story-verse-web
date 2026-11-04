@@ -29,7 +29,7 @@ export function PersonFace({
   const [broken, setBroken] = useState<string | null>(null);
   const def = findAvatar(avatar);
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
-  const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`)) && broken !== photo);
+  const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`) || photo.startsWith("blob:")) && broken !== photo);
   return (
     <span className={`group-face group-face-${size} ${hot ? "is-hot" : ""}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
       {showPhoto ? (

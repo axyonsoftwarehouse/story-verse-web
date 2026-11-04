@@ -37,6 +37,7 @@ export type GroupMember = {
   last_delivered_id?: number;
   /** Roleplay: o personagem que a pessoa interpreta. */
   rp_character?: string | null;
+  rp_photo?: string | null;
   last_read_id?: number;
   progress_percent: number | null;
   book_status: string | null;
@@ -65,6 +66,7 @@ export type Group = {
   mode?: "chat" | "roleplay";
   rp_premise?: string | null;
   my_character?: string | null;
+  my_character_photo?: string | null;
   muted: boolean;
   last_read_id: number;
   unread: number;
@@ -174,7 +176,8 @@ export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
 /** Roleplay: chama o narrador agora (a API respeita o intervalo e o teto do dia). */
 export const narrateNow = (id: string) => call<void>(`/api/v1/groups/${id}/narrate`, { method: "POST" });
 /** Roleplay: o personagem que a pessoa interpreta. */
-export const setCharacter = (id: string, character: string) => call<Group>(`/api/v1/groups/${id}/character`, { method: "PUT", body: { character } });
+export const setCharacter = (id: string, character: string, photo?: string | null) =>
+  call<Group>(`/api/v1/groups/${id}/character`, { method: "PUT", body: { character, photo: photo ?? null } });
 export const createGroup = (fields: GroupFields) => call<Group>("/api/v1/groups", { method: "POST", body: fields });
 export const updateGroup = (id: string, fields: Partial<GroupFields>) =>
   call<Group>(`/api/v1/groups/${id}`, { method: "PATCH", body: fields });
