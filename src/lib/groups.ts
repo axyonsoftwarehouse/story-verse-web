@@ -35,6 +35,8 @@ export type GroupMember = {
   online?: boolean;
   /** Até onde o aparelho recebeu e até onde leu (selos ✓✓ das mensagens). */
   last_delivered_id?: number;
+  /** Roleplay: o personagem que a pessoa interpreta. */
+  rp_character?: string | null;
   last_read_id?: number;
   progress_percent: number | null;
   book_status: string | null;
@@ -59,6 +61,10 @@ export type Group = {
   member_count: number;
   is_member: boolean;
   my_role: GroupRole | null;
+  /** "roleplay": as pessoas escrevem a história e a IA narra. */
+  mode?: "chat" | "roleplay";
+  rp_premise?: string | null;
+  my_character?: string | null;
   muted: boolean;
   last_read_id: number;
   unread: number;
@@ -68,6 +74,7 @@ export type Group = {
   last_body: string | null;
   /** A última mensagem foi uma foto ou um áudio. */
   last_media_kind?: MediaKind | null;
+  last_kind?: "user" | "narrator" | null;
   members?: GroupMember[];
 };
 
@@ -92,6 +99,8 @@ export type GroupMessage = {
   reactions: Reaction[];
   /** Foto ou áudio. O arquivo vence em 24 h no servidor; cada celular guarda a própria cópia. */
   media_kind?: MediaKind | null;
+  /** "narrator": fala do narrador (IA) num roleplay. */
+  kind?: "user" | "narrator";
   media_mime?: string | null;
   media_duration_ms?: number | null;
   media_width?: number | null;
@@ -116,6 +125,9 @@ export type GroupFields = {
   bookCover?: string | null;
   goalChapter?: number | null;
   goalUntil?: string | null;
+  /** Só ao criar: "roleplay" pede a premissa. */
+  mode?: "chat" | "roleplay";
+  rpPremise?: string | null;
 };
 
 export type GroupReport = {
@@ -159,6 +171,10 @@ export const myGroups = () => call<Group[]>("/api/v1/groups");
 export const publicGroups = (opts: { q?: string; book?: string } = {}) =>
   call<Group[]>(`/api/v1/groups${q({ scope: "public", q: opts.q, book: opts.book })}`);
 export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
+/** Roleplay: chama o narrador agora (a API respeita o intervalo e o teto do dia). */
+export const narrateNow = (id: string) => call<void>(`/api/v1/groups/${id}/narrate`, { method: "POST" });
+/** Roleplay: o personagem que a pessoa interpreta. */
+export const setCharacter = (id: string, character: string) => call<Group>(`/api/v1/groups/${id}/character`, { method: "PUT", body: { character } });
 export const createGroup = (fields: GroupFields) => call<Group>("/api/v1/groups", { method: "POST", body: fields });
 export const updateGroup = (id: string, fields: Partial<GroupFields>) =>
   call<Group>(`/api/v1/groups/${id}`, { method: "PATCH", body: fields });

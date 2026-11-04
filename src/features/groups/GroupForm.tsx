@@ -34,6 +34,8 @@ export function GroupForm({
   const [name, setName] = useState(group?.name ?? (presetTitle ? `Clube: ${presetTitle}`.slice(0, 60) : ""));
   const [description, setDescription] = useState(group?.description ?? "");
   const [visibility, setVisibility] = useState<"public" | "private">(group?.visibility ?? "public");
+  const [mode, setMode] = useState<"chat" | "roleplay">(group?.mode ?? "chat");
+  const [premise, setPremise] = useState(group?.rp_premise ?? "");
   const [bookKey, setBookKey] = useState(group?.book_key ?? presetBook ?? "");
   const [goalChapter, setGoalChapter] = useState(group?.goal_chapter ? String(group.goal_chapter) : "");
   const [goalUntil, setGoalUntil] = useState(group?.goal_until ?? "");
@@ -128,6 +130,9 @@ export function GroupForm({
         bookCover: book?.cover ?? null,
         goalChapter: book && goalChapter ? Number(goalChapter) : null,
         goalUntil: book && goalUntil ? goalUntil : null,
+        // O modo só se escolhe ao criar; a premissa do roleplay dá para editar depois.
+        ...(group ? {} : { mode }),
+        ...(mode === "roleplay" ? { rpPremise: premise.trim() } : {}),
       };
       onSaved(group ? await updateGroup(group.id, fields) : await createGroup(fields));
     } catch (err) {
@@ -166,6 +171,48 @@ export function GroupForm({
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} />
         </div>
+
+        {group ? null : (
+          <fieldset className="group-field group-choice">
+            <legend>Tipo de grupo</legend>
+            <label className={mode === "chat" ? "is-on" : ""}>
+              <input type="radio" name="mode" checked={mode === "chat"} onChange={() => setMode("chat")} />
+              <span className="group-choice-icon">{GIcon.chat}</span>
+              <span>
+                <strong>Conversa</strong>
+                <small>Um chat para falar de livros, combinar leituras e trocar ideias.</small>
+              </span>
+            </label>
+            <label className={mode === "roleplay" ? "is-on" : ""}>
+              <input type="radio" name="mode" checked={mode === "roleplay"} onChange={() => setMode("roleplay")} />
+              <span className="group-choice-icon" aria-hidden="true">
+                🎭
+              </span>
+              <span>
+                <strong>Roleplay</strong>
+                <small>Vocês escrevem a história juntos e a IA narra o que acontece. No fim, vira livro.</small>
+              </span>
+            </label>
+          </fieldset>
+        )}
+
+        {mode === "roleplay" ? (
+          <label className="group-field">
+            <span>
+              Premissa da história <small>{premise.length}/1500</small>
+            </span>
+            <textarea
+              value={premise}
+              onChange={(e) => setPremise(e.target.value)}
+              maxLength={1500}
+              rows={4}
+              required
+              minLength={10}
+              placeholder="Ex.: Viajantes ficam presos num castelo nos Cárpatos durante uma tempestade. O dono do castelo é gentil demais…"
+            />
+            <small className="group-field-hint">O narrador (IA) usa a premissa para abrir a história e manter o tom. A IA usa a sua cota de mensagens.</small>
+          </label>
+        ) : null}
 
         <label className="group-field">
           <span>Nome</span>
@@ -278,7 +325,7 @@ export function GroupForm({
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy || name.trim().length < 3}>
+          <button type="submit" className="btn btn-primary" disabled={busy || name.trim().length < 3 || (mode === "roleplay" && premise.trim().length < 10)}>
             {busy ? "Salvando…" : group ? "Salvar" : "Criar grupo"}
           </button>
         </footer>
