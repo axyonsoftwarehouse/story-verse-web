@@ -151,9 +151,14 @@ export function GroupInfo({
             </button>
           ) : null}
           {owner ? (
-            <button type="button" className="btn group-edit-btn" onClick={() => setEditing(true)}>
-              {GIcon.pencil} Editar grupo
-            </button>
+            <div className="group-info-owner-actions">
+              <button type="button" className="btn group-edit-btn" onClick={() => setEditing(true)}>
+                {GIcon.pencil} Editar grupo
+              </button>
+              <button type="button" className="btn group-edit-btn group-delete-btn" onClick={() => void removeGroup()}>
+                {GIcon.trash} Apagar grupo
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -343,11 +348,6 @@ export function GroupInfo({
           <button type="button" className="group-danger-btn" onClick={() => void leave()}>
             Sair do grupo
           </button>
-          {owner ? (
-            <button type="button" className="group-danger-btn" onClick={() => void removeGroup()}>
-              {GIcon.trash} Apagar grupo
-            </button>
-          ) : null}
         </div>
       </section>
       {editing ? (

@@ -3463,3 +3463,342 @@ button.group-rp-character small {
   flex-shrink: 0;
   padding-inline: 0.9rem;
 }
+
+/* ==========================================================================
+ * Limpeza no estilo WhatsApp: menos enfeite, mais leitura. Cores lisas, sem bordas nem brilhos,
+ * fundo quase uma textura e poucas animações. Fica por último para valer sobre o resto.
+ * ========================================================================== */
+
+.group-chat-page {
+  --wa-in: #26211c;
+  --wa-out: #4d3b1f;
+  --wa-bar: #1b1714;
+  --wa-chip: #2a241f;
+}
+
+/* Topo: sólido, sem brilho e sem anel no avatar. */
+.group-chat-page .group-chat-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--wa-bar);
+  backdrop-filter: none;
+}
+
+.group-chat-page .group-chat-header .group-avatar {
+  box-shadow: none;
+}
+
+/* Fundo padrão: o desenho vira só uma textura, quase invisível. */
+.group-chat-page .group-chat-body:not([class*="chat-bg-"]) {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--bg) 92%, transparent), color-mix(in srgb, var(--bg) 92%, transparent)),
+    url("/images/chat-pattern.svg");
+  background-size: auto, 280px 280px;
+  background-attachment: local, local;
+}
+
+/* Começo da conversa: pequeno e discreto. */
+.group-chat-page .group-chat-start {
+  gap: 0.2rem;
+  max-width: 17rem;
+  margin: 0.3rem auto 0.4rem;
+  padding: 0.6rem 0.9rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: var(--wa-chip);
+  backdrop-filter: none;
+}
+
+.group-chat-page .group-chat-start .group-avatar {
+  box-shadow: none;
+  animation: none;
+}
+
+.group-chat-page .group-chat-start strong {
+  font-size: 0.92rem;
+}
+
+.group-chat-page .group-chat-start-desc {
+  font-size: 0.76rem;
+}
+
+/* Data: selinho simples. */
+.group-chat-page .group-day {
+  margin: 0.8rem 0 0.5rem;
+}
+
+.group-chat-page .group-day span {
+  padding: 0.22rem 0.6rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: var(--wa-chip);
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.3);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Mensagens: sequência apertada, nova pessoa com um respiro. */
+.group-chat-page .group-msg {
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.group-chat-page .group-msg.is-grouped {
+  margin-top: 0.12rem;
+}
+
+.group-chat-page .group-msg.has-reactions {
+  margin-bottom: 0.55rem;
+}
+
+.group-chat-page .group-msg > .group-face,
+.group-chat-page .group-msg:not(.is-mine) > .group-face {
+  width: 1.75rem;
+  height: 1.75rem;
+  box-shadow: none;
+}
+
+.group-chat-page .group-face-gap {
+  width: 1.75rem;
+}
+
+/* Bolhas lisas: sem borda, sem degradê, sombra mínima, cantos menores. */
+.group-chat-page .group-bubble,
+.group-chat-page .group-msg:not(.is-mine) .group-bubble,
+.group-chat-page .group-msg.is-mine .group-bubble {
+  gap: 0.05rem;
+  min-width: 3.5rem;
+  padding: 0.32rem 0.55rem 0.28rem 0.6rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: var(--wa-in);
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.35);
+  transition: none;
+}
+
+.group-chat-page .group-msg.is-mine .group-bubble {
+  background: var(--wa-out);
+}
+
+.group-chat-page .group-msg:hover .group-bubble {
+  transform: none;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.35);
+}
+
+/* A pontinha na primeira mensagem de cada sequência. */
+.group-chat-page .group-msg:not(.is-grouped) .group-bubble:not(.is-jumbo) {
+  border-top-left-radius: 0;
+}
+
+.group-chat-page .group-msg.is-mine:not(.is-grouped) .group-bubble:not(.is-jumbo) {
+  border-top-left-radius: 0.55rem;
+  border-top-right-radius: 0;
+}
+
+.group-chat-page .group-msg:not(.is-grouped) .group-bubble:not(.is-jumbo)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -7px;
+  width: 8px;
+  height: 12px;
+  background: var(--wa-in);
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+}
+
+.group-chat-page .group-msg.is-mine:not(.is-grouped) .group-bubble:not(.is-jumbo)::before {
+  right: -7px;
+  left: auto;
+  background: var(--wa-out);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.group-chat-page .group-bubble.is-jumbo {
+  background: none !important;
+  box-shadow: none !important;
+}
+
+.group-chat-page .group-bubble.is-pending {
+  animation: none;
+  opacity: 0.75;
+}
+
+.group-chat-page .group-text {
+  font-size: 0.93rem;
+  line-height: 1.38;
+}
+
+.group-chat-page .group-author {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.group-chat-page .group-meta {
+  margin-top: 0;
+  color: rgba(245, 240, 232, 0.5);
+  font-size: 0.66rem;
+}
+
+.group-chat-page .group-quote {
+  border-left-width: 3px;
+  border-radius: 0.35rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Reações: selo liso, colado na borda de baixo. */
+.group-chat-page .group-reactions {
+  border: 2px solid var(--bg);
+  background: var(--wa-chip);
+  box-shadow: none;
+  animation: none;
+}
+
+/* Mensagem nova entra só deslizando de leve (sem quicar). */
+.group-chat-page .group-msg.is-new,
+.group-chat-page .group-msg.is-new.is-mine {
+  animation: group-wa-in 0.16s ease-out both;
+}
+
+@keyframes group-wa-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Caixa de envio: barra sólida, campo liso sem contorno, botão sem brilho. */
+.group-chat-page .group-composer {
+  border-top: 0;
+  background: var(--wa-bar);
+  backdrop-filter: none;
+}
+
+.group-chat-page .group-composer textarea {
+  border: 0;
+  background: var(--wa-chip);
+}
+
+.group-chat-page .group-composer textarea:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.group-chat-page .group-send,
+.group-chat-page .group-send:not(:disabled) {
+  background: var(--accent);
+  box-shadow: none;
+  animation: none;
+}
+
+.group-chat-page .group-send:not(:disabled):hover {
+  transform: none;
+}
+
+/* Roleplay: o narrador como um trecho de livro limpo, centralizado, sem moldura pesada. */
+.group-chat-page .group-narration {
+  gap: 0.25rem;
+  max-width: 32rem;
+  margin: 0.8rem auto 0.5rem;
+  padding: 0.6rem 0.9rem 0.45rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: none;
+  text-align: center;
+}
+
+.group-chat-page .group-narration.is-new {
+  animation: group-wa-in 0.2s ease-out both;
+}
+
+.group-chat-page .group-narration-label {
+  color: rgba(var(--accent-rgb), 0.85);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+}
+
+.group-chat-page .group-narration .group-text {
+  color: var(--text-read, var(--text));
+  font-size: 0.97rem;
+  font-style: italic;
+  line-height: 1.55;
+}
+
+.group-chat-page .group-narration .group-text strong {
+  font-style: normal;
+}
+
+.group-chat-page .group-narration .group-meta {
+  justify-self: center;
+}
+
+.group-chat-page .group-rp-badge {
+  padding: 0.05rem 0.5rem;
+  font-size: 0.68rem;
+}
+
+/* Convite para criar personagem: uma linha fina. */
+.group-chat-page button.group-rp-character {
+  padding: 0.35rem 0.5rem 0.35rem 0.7rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: var(--wa-chip);
+}
+
+.group-chat-page button.group-rp-character small {
+  display: none;
+}
+
+/* Personagem e Narrar: menores, sem anel dourado. */
+.group-chat-page .group-my-character,
+.group-chat-page .group-narrate {
+  width: 2.3rem;
+  height: 2.3rem;
+}
+
+.group-chat-page .group-my-character .group-face {
+  width: 1.9rem;
+  height: 1.9rem;
+  box-shadow: none;
+}
+
+.group-chat-page .group-narrate {
+  font-size: 1rem;
+}
+
+/* Destaque da mensagem (segurar): a bolha também lisa. */
+.group-focus-bubble {
+  border: 0 !important;
+  border-radius: 0.55rem !important;
+  background: #26211c !important;
+}
+
+.group-focus-panel.is-mine .group-focus-bubble {
+  background: #4d3b1f !important;
+}
+
+/* Detalhes do grupo: editar e apagar logo no topo (dono). */
+.group-info-owner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.group-delete-btn {
+  border-color: rgba(240, 120, 120, 0.35);
+  color: #f0a0a0;
+}
+
+.group-delete-btn:hover {
+  border-color: rgba(240, 120, 120, 0.6);
+  background: rgba(240, 120, 120, 0.08);
+}
+
+.group-delete-btn svg {
+  width: 16px;
+  height: 16px;
+}

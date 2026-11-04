@@ -753,11 +753,6 @@ export function GroupChat() {
                     <strong>{group.name}</strong>
                     {roleplay ? <span className="group-rp-badge">🎭 Roleplay</span> : null}
                     <span className="group-chat-start-desc">{roleplay ? group.rp_premise : (group.description ?? "Este é o começo da conversa.")}</span>
-                    {group.my_role === "owner" && (!group.description || !group.background) ? (
-                      <button type="button" className="group-start-edit" onClick={() => setInfoOpen(true)}>
-                        {GIcon.pencil} {group.description ? "Escolher o fundo da conversa" : "Adicionar descrição e fundo"}
-                      </button>
-                    ) : null}
                   </div>
                 ) : null}
                 {messages.map((m, i) => {
