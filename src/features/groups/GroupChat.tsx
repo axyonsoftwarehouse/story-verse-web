@@ -498,8 +498,8 @@ export function GroupChat() {
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter envia; Shift+Enter quebra a linha.
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    // Enter quebra a linha (como no WhatsApp do celular); Ctrl+Enter (ou ⌘+Enter) envia pelo teclado.
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
     }
@@ -632,6 +632,8 @@ export function GroupChat() {
 
   const manager = group?.my_role === "owner" || group?.my_role === "moderator";
   const byId = new Map(messages.map((m) => [m.id, m]));
+  // Mensagem apagada some da conversa, sem deixar o aviso de "Mensagem apagada".
+  const shown = messages.filter((m) => !m.deleted);
   const members = Number(group?.member_count ?? 0);
   const typingIds = Object.keys(typing);
   const typingNames = typingIds.map((uid) => (uid === "narrator" ? "Narrador" : (group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém")));
@@ -757,17 +759,19 @@ export function GroupChat() {
                     <span className="group-chat-start-desc">{roleplay ? group.rp_premise : (group.description ?? "Este é o começo da conversa.")}</span>
                   </div>
                 ) : null}
-                {messages.map((m, i) => {
+                {shown.map((m, i) => {
                   const narration = m.kind === "narrator";
                   const mine = !narration && m.author_id === me;
-                  const prev = messages[i - 1];
+                  const prev = shown[i - 1];
                   const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
-                  const grouped = !newDay && prev && prev.author_id === m.author_id && (prev.kind ?? "user") === (m.kind ?? "user") && !prev.deleted;
+                  const grouped = !newDay && prev && prev.author_id === m.author_id && (prev.kind ?? "user") === (m.kind ?? "user");
                   const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
-                  const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
-                  const canAct = !m.pending && !m.failed && !m.deleted;
+                  // Resposta a uma mensagem apagada: a citação some junto (como se nunca tivesse existido).
+                  const quoted = m.reply_to ? byId.get(m.reply_to) : undefined;
+                  const parent = quoted && !quoted.deleted ? quoted : undefined;
+                  const canAct = !m.pending && !m.failed;
                   const fresh = m.pending || !initialIds.current.has(m.id);
-                  const jumbo = !m.media_kind && !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
+                  const jumbo = !m.media_kind && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
                   const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
                     <Fragment key={m.client_id ?? m.id}>
@@ -788,7 +792,7 @@ export function GroupChat() {
                           <div className="group-bubble-wrap">
                             <div className="group-bubble group-narration">
                               {!grouped ? <span className="group-author group-narration-label">Narrador</span> : null}
-                              {m.deleted ? <em className="group-text">Narração apagada</em> : <span className="group-text">{formatMessage(m.body ?? "")}</span>}
+                              <span className="group-text">{formatMessage(m.body ?? "")}</span>
                               <span className="group-meta">{messageTime(m.created_at)}</span>
                             </div>
                           </div>
@@ -826,7 +830,7 @@ export function GroupChat() {
                             /> : null}
                         <div className="group-bubble-wrap">
                           <div
-                            className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
+                            className={`group-bubble ${m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
                             onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
                           >
                             {!mine && !grouped ? (
@@ -843,12 +847,10 @@ export function GroupChat() {
                             {parent ? (
                               <button type="button" className="group-quote" onClick={() => jumpTo(parent.id)} aria-label={`Ir para a mensagem de ${parent.author_name}`}>
                                 <strong>{parent.author_name}</strong>
-                                <span>{parent.deleted ? "Mensagem apagada" : messagePreview(parent)}</span>
+                                <span>{messagePreview(parent)}</span>
                               </button>
                             ) : null}
-                            {m.deleted ? (
-                              <em className="group-text">Mensagem apagada</em>
-                            ) : m.hidden ? (
+                            {m.hidden ? (
                               <em className="group-text">Mensagem oculta por denúncias, aguardando a moderação.</em>
                             ) : spoilerHidden ? (
                               <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
