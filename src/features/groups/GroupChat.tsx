@@ -40,6 +40,8 @@ import {
   sendMediaMessage,
   sendMessage,
   sendTyping,
+  narrateNow,
+  setCharacter,
   TYPING_SEND_MS,
   TYPING_SHOWN_MS,
   typingLabel,
@@ -145,7 +147,9 @@ export function GroupChat() {
   groupRef.current = group;
 
   const isMember = Boolean(group?.is_member);
-  const hot = useMemo(() => hotAuthors(messages), [messages]);
+  const hot = useMemo(() => hotAuthors(messages.filter((m) => m.kind !== "narrator")), [messages]);
+  const roleplay = group?.mode === "roleplay";
+  const [characterDraft, setCharacterDraft] = useState("");
   const online = useMemo(() => new Set((group?.members ?? []).filter((m) => m.online && m.user_id !== me).map((m) => m.user_id)), [group?.members, me]);
   const chapter = myChapter(group?.book_key ?? null);
 
@@ -195,6 +199,7 @@ export function GroupChat() {
       (event) => {
         if (event.type === "message" && event.data.group_id === id) {
           setMessages((cur) => mergeMessages(cur, [event.data]));
+          if (event.data.kind === "narrator") setTyping(({ narrator: _done, ...rest }) => rest);
           if (event.data.author_id !== me) {
             noteDelivered(id, event.data.id);
             if (!groupRef.current?.muted) playReceived();
@@ -237,6 +242,15 @@ export function GroupChat() {
         } else if (event.type === "group" && event.data.groupId === id) {
           if (event.data.type === "deleted") {
             navigate("/grupos", { replace: true });
+            return;
+          }
+          if (event.data.type === "narrator_quota") {
+            setTyping(({ narrator: _done, ...rest }) => rest);
+            setNotice("O narrador descansou por hoje: a cota de IA de quem criou o grupo acabou.");
+            return;
+          }
+          if (event.data.type === "narrator_cooldown") {
+            setNotice("O narrador acabou de falar. Espere uns segundos para chamar de novo.");
             return;
           }
           void reloadGroup();
@@ -611,7 +625,15 @@ export function GroupChat() {
   const byId = new Map(messages.map((m) => [m.id, m]));
   const members = Number(group?.member_count ?? 0);
   const typingIds = Object.keys(typing);
-  const typingNames = typingIds.map((uid) => group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém");
+  const typingNames = typingIds.map((uid) => (uid === "narrator" ? "Narrador" : (group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém")));
+  function saveCharacter() {
+    const name = characterDraft.trim();
+    if (!name) return;
+    void setCharacter(id, name)
+      .then((g) => setGroup(g))
+      .catch((err: unknown) => setError(message(err)));
+  }
+  const characterOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_character : null);
   const typingText = typingLabel(typingNames);
   const wallpaper = chatBackground(group?.background);
 
@@ -726,7 +748,8 @@ export function GroupChat() {
                   <div className="group-chat-start">
                     <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="md" />
                     <strong>{group.name}</strong>
-                    <span className="group-chat-start-desc">{group.description ?? "Este é o começo da conversa."}</span>
+                    {roleplay ? <span className="group-rp-badge">🎭 Roleplay</span> : null}
+                    <span className="group-chat-start-desc">{roleplay ? group.rp_premise : (group.description ?? "Este é o começo da conversa.")}</span>
                     {group.my_role === "owner" && (!group.description || !group.background) ? (
                       <button type="button" className="group-start-edit" onClick={() => setInfoOpen(true)}>
                         {GIcon.pencil} {group.description ? "Escolher o fundo da conversa" : "Adicionar descrição e fundo"}
@@ -735,10 +758,11 @@ export function GroupChat() {
                   </div>
                 ) : null}
                 {messages.map((m, i) => {
-                  const mine = m.author_id === me;
+                  const narration = m.kind === "narrator";
+                  const mine = !narration && m.author_id === me;
                   const prev = messages[i - 1];
                   const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
-                  const grouped = !newDay && prev && prev.author_id === m.author_id && !prev.deleted;
+                  const grouped = !newDay && prev && prev.author_id === m.author_id && (prev.kind ?? "user") === (m.kind ?? "user") && !prev.deleted;
                   const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
                   const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
                   const canAct = !m.pending && !m.failed && !m.deleted;
@@ -752,6 +776,13 @@ export function GroupChat() {
                           <span>{dayLabel(m.created_at)}</span>
                         </div>
                       ) : null}
+                      {narration ? (
+                        <div className={`group-narration ${fresh ? "is-new" : ""}`} data-mid={m.id}>
+                          <span className="group-narration-label">🎭 Narrador</span>
+                          {m.deleted ? <em className="group-text">Narração apagada</em> : <p className="group-text">{formatMessage(m.body ?? "")}</p>}
+                          <span className="group-meta">{messageTime(m.created_at)}</span>
+                        </div>
+                      ) : (
                       <div
                         className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""} ${total ? "has-reactions" : ""} ${flashId === m.id ? "is-flash" : ""}`}
                         style={{ "--hue": hueOf(m.author_id) } as CSSProperties}
@@ -790,7 +821,13 @@ export function GroupChat() {
                           >
                             {!mine && !grouped ? (
                               <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>
-                                {m.author_name}
+                                {characterOf(m.author_id) ? (
+                                  <>
+                                    {characterOf(m.author_id)} <small className="group-author-player">· {m.author_name}</small>
+                                  </>
+                                ) : (
+                                  m.author_name
+                                )}
                               </span>
                             ) : null}
                             {parent ? (
@@ -862,6 +899,7 @@ export function GroupChat() {
                           </button>
                         ) : null}
                       </div>
+                      )}
                     </Fragment>
                   );
                 })}
@@ -928,7 +966,43 @@ export function GroupChat() {
                   <small>Fica borrada para quem ainda não passou desse capítulo.</small>
                 </div>
               ) : null}
+              {roleplay && !group.my_character ? (
+                <div className="group-rp-character">
+                  <span aria-hidden="true">🎭</span>
+                  <input
+                    value={characterDraft}
+                    onChange={(e) => setCharacterDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveCharacter();
+                      }
+                    }}
+                    maxLength={60}
+                    placeholder="Quem você vai interpretar?"
+                    aria-label="Nome do seu personagem"
+                  />
+                  <button type="button" className="group-text-btn" onClick={saveCharacter} disabled={!characterDraft.trim()}>
+                    Entrar na história
+                  </button>
+                </div>
+              ) : null}
               <div className="group-composer-row">
+                {roleplay ? (
+                  <button
+                    type="button"
+                    className="group-icon-btn group-narrate"
+                    onClick={() => {
+                      void narrateNow(id)
+                        .then(() => setTyping((cur) => ({ ...cur, narrator: Date.now() + 20_000 })))
+                        .catch((err: unknown) => setError(message(err)));
+                    }}
+                    aria-label="Chamar o narrador"
+                    title="Narrar"
+                  >
+                    <span aria-hidden="true">🎭</span>
+                  </button>
+                ) : null}
                 <input
                   ref={photoRef}
                   type="file"
@@ -957,7 +1031,7 @@ export function GroupChat() {
                     value={input}
                     onChange={(e) => onInput(e.target.value)}
                     onKeyDown={onKeyDown}
-                    placeholder="Mensagem"
+                    placeholder={roleplay ? "*ação* e fala" : "Mensagem"}
                     aria-label="Mensagem"
                     maxLength={MESSAGE_MAX}
                     rows={1}
