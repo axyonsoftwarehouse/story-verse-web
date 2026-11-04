@@ -56,6 +56,7 @@ import { ChatAudio, ChatImage } from "./MediaParts";
 import { keepMedia } from "../../lib/chatMedia";
 import { ImageCrop } from "./ImageCrop";
 import { CharacterDialog } from "./CharacterDialog";
+import { RoleplayBookCard } from "./RoleplayBookCard";
 import { playReceived, playSent, unlockChatSounds } from "../../lib/chatSounds";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
@@ -150,6 +151,7 @@ export function GroupChat() {
   const hot = useMemo(() => hotAuthors(messages.filter((m) => m.kind !== "narrator")), [messages]);
   const roleplay = group?.mode === "roleplay";
   const [characterOpen, setCharacterOpen] = useState(false);
+  const [bookTick, setBookTick] = useState(0);
   const online = useMemo(() => new Set((group?.members ?? []).filter((m) => m.online && m.user_id !== me).map((m) => m.user_id)), [group?.members, me]);
   const chapter = myChapter(group?.book_key ?? null);
 
@@ -247,6 +249,12 @@ export function GroupChat() {
           if (event.data.type === "narrator_quota") {
             setTyping(({ narrator: _done, ...rest }) => rest);
             setNotice("O narrador descansou por hoje: a cota de IA de quem criou o grupo acabou.");
+            return;
+          }
+          if (event.data.type === "book_writing" || event.data.type === "book_ready" || event.data.type === "book_failed") {
+            setBookTick((n) => n + 1);
+            if (event.data.type === "book_ready") setNotice("📖 A história virou livro! Veja nos detalhes do grupo.");
+            if (event.data.type === "book_writing") setNotice("✍️ A IA começou a escrever o livro desta história.");
             return;
           }
           if (event.data.type === "narrator_cooldown") {
@@ -732,6 +740,7 @@ export function GroupChat() {
         </div>
       ) : (
         <>
+          {roleplay ? <RoleplayBookCard group={group} refresh={bookTick} compact /> : null}
           <div className="group-chat-main">
             <div className={`group-chat-body ${wallpaper.className}`} style={wallpaper.style} ref={listRef} onScroll={onScroll}>
               <div className="group-messages" aria-live="polite">

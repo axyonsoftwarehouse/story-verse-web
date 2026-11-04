@@ -3368,3 +3368,39 @@ button.group-rp-character small {
   height: 5.5rem;
   font-size: 2rem;
 }
+
+/* Roleplay que vira livro. */
+.group-rp-book {
+  align-items: flex-start;
+}
+
+.group-rp-book > span:last-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.group-rp-book-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.group-rp-book-error {
+  color: #f0a0a0;
+}
+
+.group-rp-book-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.3);
+  background: rgba(var(--accent-rgb), 0.1);
+  font-size: 0.85rem;
+}
+
+.group-rp-book-banner > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
