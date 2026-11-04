@@ -3404,3 +3404,28 @@ button.group-rp-character small {
   flex: 1;
   min-width: 0;
 }
+
+/*
+ * Selo da data ("Hoje"): limpo, sem o desenho do fundo encostando. Um respiro da cor do fundo
+ * em volta esconde os livrinhos e estrelas do padrão perto do selo.
+ */
+.group-day {
+  margin: 1rem 0 0.6rem;
+}
+
+.group-day span {
+  padding: 0.3rem 0.95rem;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(var(--surface-2), var(--surface-2)), var(--bg);
+  box-shadow:
+    0 0 0 7px var(--bg),
+    0 0 18px 10px var(--bg);
+  color: var(--text-read, var(--text));
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+}
+
+/* Com fundo escolhido (tema ou foto), o respiro escuro viraria mancha: só a sombra. */
+:is(.chat-bg-noite, .chat-bg-biblioteca, .chat-bg-floresta, .chat-bg-oceano, .chat-bg-por-do-sol, .chat-bg-papel, .chat-bg-image) .group-day span {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
