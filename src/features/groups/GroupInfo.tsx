@@ -14,6 +14,7 @@ import {
 } from "../../lib/groups";
 import { chatSoundsOn, setChatSounds } from "../../lib/chatSounds";
 import { GroupForm } from "./GroupForm";
+import { RoleplayBookCard } from "./RoleplayBookCard";
 import { GroupAvatar, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 
@@ -175,6 +176,8 @@ export function GroupInfo({
             </span>
           </div>
         ) : null}
+
+        {group.mode === "roleplay" ? <RoleplayBookCard group={group} confirm={confirm} /> : null}
 
         {error ? (
           <p className="auth-error" role="alert">
