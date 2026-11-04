@@ -237,9 +237,25 @@ export function GroupInfo({
             return (
               <li key={m.user_id}>
                 <div className="group-member-row">
-                  <PersonFace id={m.user_id} name={m.name} avatar={m.avatar} photo={m.photo} size="sm" hot={hot?.has(m.user_id)} online={m.online && m.user_id !== me} />
+                  <PersonFace
+                    id={m.user_id}
+                    name={m.rp_character ?? m.name}
+                    avatar={m.rp_character ? null : m.avatar}
+                    photo={m.rp_character ? m.rp_photo : m.photo}
+                    size="sm"
+                    hot={hot?.has(m.user_id)}
+                    online={m.online && m.user_id !== me}
+                  />
                   <span className="group-member-name">
-                    {m.user_id === me ? `${m.name} (você)` : m.name}
+                    {m.rp_character ? (
+                      <>
+                        {m.rp_character} <small className="group-author-player">· {m.user_id === me ? `${m.name} (você)` : m.name}</small>
+                      </>
+                    ) : m.user_id === me ? (
+                      `${m.name} (você)`
+                    ) : (
+                      m.name
+                    )}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}
                     {hot?.has(m.user_id) ? (
                       <small className="group-role is-hot" title="Uma das pessoas que mais falam no grupo nesta semana">

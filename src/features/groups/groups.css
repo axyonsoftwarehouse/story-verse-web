@@ -3312,3 +3312,59 @@ button.group-info-desc.is-empty {
   font-size: 0.75rem;
   line-height: 1.4;
 }
+
+/* Roleplay: convite para criar o personagem e a foto dele ao lado do campo. */
+button.group-rp-character {
+  width: 100%;
+  padding: 0.55rem 0.7rem 0.55rem 0.85rem;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.group-rp-character > span:nth-child(2) {
+  display: grid;
+  flex: 1;
+  gap: 0.05rem;
+}
+
+button.group-rp-character strong {
+  font-size: 0.9rem;
+}
+
+button.group-rp-character small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.group-my-character {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.group-my-character .group-face {
+  width: 2.2rem;
+  height: 2.2rem;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.group-character-photo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.group-character-face .group-face {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 2rem;
+}
