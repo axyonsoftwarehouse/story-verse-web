@@ -200,3 +200,51 @@
   height: 18px;
   color: var(--muted);
 }
+
+/*
+ * Painéis do topo destacados do app: tom mais claro e sólido (o fundo do app é --bg), borda
+ * visível e a tela de trás escurecida enquanto estão abertos.
+ */
+.notif-backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  animation: notif-fade 0.15s ease-out;
+}
+
+@keyframes notif-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.notif-panel,
+.nav-more-panel {
+  border: 1px solid var(--border-strong);
+  background:
+    linear-gradient(var(--surface-2), var(--surface-2)),
+    linear-gradient(var(--surface), var(--surface)),
+    var(--bg);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.notif-panel header {
+  border-bottom-color: var(--border-strong);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.notif-item:hover,
+.notif-item:focus-visible,
+.nav-more-panel a:hover,
+.nav-more-panel button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.notif-item.is-new {
+  background: rgba(var(--accent-rgb), 0.12);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.notif-item.is-new:hover {
+  background: rgba(var(--accent-rgb), 0.18);
+}
