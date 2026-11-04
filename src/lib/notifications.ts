@@ -5,7 +5,7 @@ import type { MediaKind } from "./groups";
 /** Aviso do sininho: responderam, reagiram ou entrou alguém num grupo da conta. */
 export type AppNotification = {
   id: number;
-  kind: "reply" | "reaction" | "member_joined";
+  kind: "reply" | "reaction" | "member_joined" | "member_added";
   group_id: string;
   group_name: string;
   message_id: number | null;

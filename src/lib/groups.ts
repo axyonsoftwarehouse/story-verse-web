@@ -174,6 +174,8 @@ export const myGroups = () => call<Group[]>("/api/v1/groups");
 export const publicGroups = (opts: { q?: string; book?: string } = {}) =>
   call<Group[]>(`/api/v1/groups${q({ scope: "public", q: opts.q, book: opts.book })}`);
 export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
+/** Quem administra adiciona uma pessoa pelo e-mail da conta dela. */
+export const addMemberByEmail = (id: string, email: string) => call<Group>(`/api/v1/groups/${id}/members`, { method: "POST", body: { email } });
 /** Roleplay: encerra e transforma a história em livro (só o dono; a IA escreve em segundo plano). */
 export const startRoleplayBook = (id: string) => call<RoleplayBook>(`/api/v1/groups/${id}/book`, { method: "POST" });
 /** Roleplay: o livro da história (status e texto). 404 enquanto não foi encomendado. */

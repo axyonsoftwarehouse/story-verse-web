@@ -17,6 +17,7 @@ function describe(n: AppNotification): { text: string; quote: string | null } {
   const quote = n.message_body || n.message_media_kind ? messagePreview({ body: n.message_body, media_kind: n.message_media_kind }, 70) : null;
   if (n.kind === "reply") return { text: `${n.actor_name} respondeu sua mensagem em ${n.group_name}`, quote };
   if (n.kind === "reaction") return { text: `${n.actor_name} reagiu ${n.emoji ?? ""} à sua mensagem em ${n.group_name}`, quote };
+  if (n.kind === "member_added") return { text: `${n.actor_name} adicionou você ao grupo ${n.group_name}`, quote: null };
   return { text: `${n.actor_name} entrou no grupo ${n.group_name}`, quote: null };
 }
 

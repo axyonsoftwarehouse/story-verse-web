@@ -2679,36 +2679,9 @@ button.group-info-desc.is-empty {
   }
 }
 
-/* 🔥 no avatar de quem mais fala no grupo. */
-.group-face.is-hot {
-  box-shadow: 0 0 0 2px rgba(255, 140, 50, 0.85), 0 0 12px rgba(255, 120, 40, 0.45) !important;
-}
 
-.group-hot {
-  position: absolute;
-  right: -0.4rem;
-  bottom: -0.35rem;
-  font-size: 0.85rem;
-  line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-  transform-origin: 50% 90%;
-  animation: group-flame 1.6s ease-in-out infinite;
-}
 
-@keyframes group-flame {
-  0%,
-  100% {
-    transform: scale(1) rotate(-4deg);
-  }
-  50% {
-    transform: scale(1.15) rotate(4deg);
-  }
-}
 
-.group-role.is-hot {
-  background: rgba(255, 130, 50, 0.16);
-  color: #ffb27a;
-}
 
 /* Formatação do texto (*negrito*, _itálico_, ~riscado~). */
 .group-text strong {
@@ -2748,11 +2721,6 @@ button.group-info-desc.is-empty {
   box-shadow: 0 0 6px rgba(62, 207, 110, 0.6);
 }
 
-.group-face.is-hot .group-hot {
-  top: -0.45rem;
-  right: -0.45rem;
-  bottom: auto;
-}
 
 /* Avisos no celular: estado neste aparelho e o botão de teste. */
 .groups-push-status {
@@ -3428,4 +3396,70 @@ button.group-rp-character small {
 /* Com fundo escolhido (tema ou foto), o respiro escuro viraria mancha: só a sombra. */
 :is(.chat-bg-noite, .chat-bg-biblioteca, .chat-bg-floresta, .chat-bg-oceano, .chat-bg-por-do-sol, .chat-bg-papel, .chat-bg-image) .group-day span {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* Caixa de envio com respiro nas laterais: o botão de enviar não fica colado no canto. */
+.group-composer {
+  padding-right: calc(0.9rem + env(safe-area-inset-right));
+  padding-left: calc(0.75rem + env(safe-area-inset-left));
+}
+
+.group-composer-row {
+  gap: 0.5rem;
+}
+
+.group-composer .group-send {
+  margin-right: 0.1rem;
+}
+
+/*
+ * Selo da data: só o selo, sem borda dura. O respiro suave em volta (mesma cor do fundo, com
+ * desfoque) apaga o desenho do fundo perto dele sem criar um anel.
+ */
+.group-day span {
+  border: 0;
+  background: linear-gradient(var(--surface-2), var(--surface-2)), var(--bg);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.45),
+    0 0 16px 10px color-mix(in srgb, var(--bg) 82%, transparent);
+}
+
+/* Adicionar pessoa pelo e-mail (quem administra). */
+.group-add-member {
+  align-items: flex-start;
+}
+
+.group-add-member-body {
+  display: grid;
+  flex: 1;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.group-add-member-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.group-add-member-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+/* A coluna do cartão não cresce além dele (o botão "Adicionar" ficava para fora). */
+.group-add-member-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.group-add-member-row .btn {
+  flex-shrink: 0;
+  padding-inline: 0.9rem;
 }

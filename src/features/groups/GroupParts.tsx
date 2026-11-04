@@ -7,7 +7,7 @@ import { hueOf } from "./groupHelpers";
 
 /**
  * Rosto de quem escreve: a foto do perfil; sem foto (ou se não carregar), o avatar escolhido ou a
- * inicial numa cor própria da pessoa. `hot`: uma das que mais falam (🔥); `online`: bolinha verde.
+ * inicial numa cor própria da pessoa. `online`: bolinha verde.
  */
 export function PersonFace({
   id,
@@ -15,7 +15,6 @@ export function PersonFace({
   avatar,
   photo,
   size = "md",
-  hot = false,
   online = false,
 }: {
   id: string;
@@ -23,7 +22,6 @@ export function PersonFace({
   avatar?: string | null;
   photo?: string | null;
   size?: "sm" | "md";
-  hot?: boolean;
   online?: boolean;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
@@ -31,7 +29,7 @@ export function PersonFace({
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
   const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`) || photo.startsWith("blob:")) && broken !== photo);
   return (
-    <span className={`group-face group-face-${size} ${hot ? "is-hot" : ""}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
+    <span className={`group-face group-face-${size}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
       {showPhoto ? (
         <img src={photo!} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(photo!)} />
       ) : def ? (
@@ -39,7 +37,6 @@ export function PersonFace({
       ) : (
         (name.trim().charAt(0) || "?").toUpperCase()
       )}
-      {hot ? <span className="group-hot">🔥</span> : null}
       {online ? <span className="group-online" /> : null}
     </span>
   );
