@@ -3199,45 +3199,6 @@ button.group-info-desc.is-empty {
   font-weight: 700;
 }
 
-/* Fala do narrador: um cartão de largura total, como um trecho de livro. */
-.group-narration {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0.9rem 0.2rem 0.4rem;
-  padding: 0.75rem 0.95rem 0.5rem;
-  border: 1px solid rgba(var(--accent-rgb), 0.35);
-  border-left: 3px solid var(--accent);
-  border-radius: 0.85rem;
-  background:
-    linear-gradient(160deg, rgba(var(--accent-rgb), 0.12), transparent 70%),
-    linear-gradient(var(--surface), var(--surface)),
-    var(--bg);
-  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.3);
-}
-
-.group-narration.is-new {
-  animation: group-msg-in 0.35s ease-out both;
-}
-
-.group-narration-label {
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.group-narration .group-text {
-  margin: 0;
-  font-family: var(--font-read);
-  font-size: 1rem;
-  line-height: 1.55;
-}
-
-.group-narration .group-meta {
-  justify-self: end;
-}
-
 .group-author-player {
   color: var(--muted);
   font-weight: 500;
@@ -3668,16 +3629,80 @@ button.group-rp-character small {
   }
 }
 
-/* Caixa de envio: barra sólida, campo liso sem contorno, botão sem brilho. */
+/*
+ * Caixa de envio como no WhatsApp: um campo largo em pílula, com o personagem, o Narrar e a foto
+ * dentro dele, e o botão de enviar grande e sempre aceso ao lado.
+ */
 .group-chat-page .group-composer {
+  padding: 0.4rem calc(0.45rem + env(safe-area-inset-right)) calc(0.45rem + env(safe-area-inset-bottom))
+    calc(0.45rem + env(safe-area-inset-left));
   border-top: 0;
   background: var(--wa-bar);
   backdrop-filter: none;
 }
 
-.group-chat-page .group-composer textarea {
-  border: 0;
+.group-chat-page .group-composer-row {
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.group-chat-page .group-input-wrap {
+  align-items: flex-end;
+  gap: 0.1rem;
+  padding: 0 0.3rem 0 0.35rem;
+  border-radius: 1.5rem;
   background: var(--wa-chip);
+}
+
+.group-chat-page .group-input-field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+/* O texto digitado e a camada formatada atrás dele precisam ter exatamente as mesmas medidas. */
+.group-chat-page .group-composer textarea,
+.group-chat-page .group-input-mirror {
+  box-sizing: border-box;
+  min-height: 3rem;
+  max-height: 168px;
+  margin: 0;
+  padding: 0.75rem 0.4rem;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5rem;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  tab-size: 4;
+}
+
+.group-chat-page .group-composer textarea {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  scrollbar-width: none;
+}
+
+.group-chat-page .group-composer textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.group-chat-page .group-composer textarea::placeholder {
+  color: var(--muted);
+}
+
+.group-chat-page .group-composer textarea::selection {
+  background: rgba(var(--accent-rgb), 0.35);
+  color: transparent;
 }
 
 .group-chat-page .group-composer textarea:focus {
@@ -3685,53 +3710,120 @@ button.group-rp-character small {
   box-shadow: none;
 }
 
+.group-input-mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--text);
+  pointer-events: none;
+}
+
+/* Formatação ao vivo: o negrito é um contorno e o itálico inclina a palavra (a largura não muda). */
+.group-input-mirror .fmt-mark {
+  color: var(--muted);
+}
+
+.group-input-mirror .fmt-b {
+  color: #fff;
+  -webkit-text-stroke: 0.045em currentColor;
+}
+
+.group-input-mirror .fmt-i-word {
+  display: inline-block;
+  transform: skewX(-11deg);
+}
+
+.group-input-mirror .fmt-s {
+  text-decoration: line-through;
+}
+
+/* Botões dentro do campo. */
+.group-chat-page .group-input-wrap .group-attach {
+  position: static;
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.group-chat-page .group-input-wrap .group-narrate {
+  font-size: 1.15rem;
+}
+
+.group-chat-page .group-input-wrap .group-spoiler-toggle.is-on {
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+}
+
+.group-chat-page .group-my-character {
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.group-chat-page .group-my-character .group-face {
+  width: 1.95rem;
+  height: 1.95rem;
+  box-shadow: none;
+}
+
+/* Enviar: grande, cor cheia e sempre visível (vazio ele só não faz nada). */
 .group-chat-page .group-send,
-.group-chat-page .group-send:not(:disabled) {
+.group-chat-page .group-send:not(:disabled),
+.group-chat-page .group-send:disabled {
+  width: 3rem;
+  height: 3rem;
+  margin: 0;
   background: var(--accent);
   box-shadow: none;
+  opacity: 1;
+  transform: none;
   animation: none;
 }
 
-.group-chat-page .group-send:not(:disabled):hover {
-  transform: none;
+.group-chat-page .group-send svg {
+  width: 21px;
+  height: 21px;
 }
 
-/* Roleplay: o narrador como um trecho de livro limpo, centralizado, sem moldura pesada. */
-.group-chat-page .group-narration {
-  gap: 0.25rem;
-  max-width: 32rem;
-  margin: 0.8rem auto 0.5rem;
-  padding: 0.6rem 0.9rem 0.45rem;
-  border: 0;
-  border-radius: 0.6rem;
-  background: rgba(255, 255, 255, 0.035);
-  box-shadow: none;
-  text-align: center;
+.group-chat-page .group-send:not(:disabled):active {
+  transform: scale(0.92);
 }
 
-.group-chat-page .group-narration.is-new {
-  animation: group-wa-in 0.2s ease-out both;
+/*
+ * Narrador: uma mensagem como as outras, do lado esquerdo e com a foto 🎭, para alinhar com
+ * quem escreve. Só o tom da bolha e o texto em itálico mostram que é a voz da história.
+ */
+.group-chat-page {
+  --wa-narrator: color-mix(in srgb, rgb(var(--accent-rgb)) 6%, var(--wa-in));
+}
+
+.group-narrator-face {
+  background: var(--wa-chip);
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.group-chat-page .group-msg.is-narration .group-bubble {
+  background: var(--wa-narrator);
+}
+
+.group-chat-page .group-msg.is-narration:not(.is-grouped) .group-bubble::before {
+  background: var(--wa-narrator);
 }
 
 .group-chat-page .group-narration-label {
-  color: rgba(var(--accent-rgb), 0.85);
-  font-size: 0.66rem;
-  letter-spacing: 0.12em;
+  color: var(--accent);
 }
 
 .group-chat-page .group-narration .group-text {
-  color: var(--text-read, var(--text));
-  font-size: 0.97rem;
+  font-family: var(--font-read);
   font-style: italic;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .group-chat-page .group-narration .group-text strong {
   font-style: normal;
-}
-
-.group-chat-page .group-narration .group-meta {
-  justify-self: center;
 }
 
 .group-chat-page .group-rp-badge {
@@ -3749,23 +3841,6 @@ button.group-rp-character small {
 
 .group-chat-page button.group-rp-character small {
   display: none;
-}
-
-/* Personagem e Narrar: menores, sem anel dourado. */
-.group-chat-page .group-my-character,
-.group-chat-page .group-narrate {
-  width: 2.3rem;
-  height: 2.3rem;
-}
-
-.group-chat-page .group-my-character .group-face {
-  width: 1.9rem;
-  height: 1.9rem;
-  box-shadow: none;
-}
-
-.group-chat-page .group-narrate {
-  font-size: 1rem;
 }
 
 /* Destaque da mensagem (segurar): a bolha também lisa. */

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { stripFormatting } from "../../lib/groups";
-import { formatMessage } from "./messageFormat";
+import { formatDraft, formatMessage } from "./messageFormat";
 
 const html = (text: string) => renderToStaticMarkup(<>{formatMessage(text)}</>);
 
@@ -29,5 +29,24 @@ describe("stripFormatting", () => {
     expect(stripFormatting("*Ana* disse _oi_ ~e~")).toBe("Ana disse oi e");
     expect(stripFormatting("*tudo _junto_*")).toBe("tudo junto");
     expect(stripFormatting("2*3*4")).toBe("2*3*4");
+  });
+});
+
+describe("formatDraft", () => {
+  const draft = (text: string) => renderToStaticMarkup(<>{formatDraft(text)}</>);
+
+  it("mantém os marcadores e o texto inteiro, só marcando os trechos", () => {
+    expect(draft("isso é *muito* bom")).toBe('isso é <span class="fmt-b"><span class="fmt-mark">*</span>muito<span class="fmt-mark">*</span></span> bom');
+    expect(draft("~não~")).toBe('<span class="fmt-s"><span class="fmt-mark">~</span>não<span class="fmt-mark">~</span></span>');
+  });
+
+  it("itálico inclina palavra por palavra, sem juntar os espaços", () => {
+    expect(draft("_quem está_")).toBe(
+      '<span class="fmt-i"><span class="fmt-mark">_</span><span class="fmt-i-word">quem</span> <span class="fmt-i-word">está</span><span class="fmt-mark">_</span></span>',
+    );
+  });
+
+  it("sem marcação é o próprio texto", () => {
+    expect(draft("*começo\nfim* 2*3*4")).toBe("*começo\nfim* 2*3*4");
   });
 });

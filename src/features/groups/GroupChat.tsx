@@ -51,7 +51,7 @@ import { GroupInfo } from "./GroupInfo";
 import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
-import { formatMessage } from "./messageFormat";
+import { formatDraft, formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
 import { keepMedia } from "../../lib/chatMedia";
 import { ImageCrop } from "./ImageCrop";
@@ -137,6 +137,7 @@ export function GroupChat() {
   const initialIds = useRef<Set<number>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [newBelow, setNewBelow] = useState(0);
@@ -319,15 +320,16 @@ export function GroupChat() {
     setNewBelow(0);
   }
 
-  // A caixa de texto cresce com a mensagem (até umas 6 linhas).
+  // A caixa de texto cresce com a mensagem (até umas 6 linhas) e a camada formatada acompanha a rolagem.
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     // scrollHeight não conta a borda (border-box): sem somá-la sobra a barra de rolagem.
     el.style.height = "auto";
     const full = el.scrollHeight + el.offsetHeight - el.clientHeight;
-    el.style.height = `${Math.min(full, 150)}px`;
-    el.style.overflowY = full > 150 ? "auto" : "hidden";
+    el.style.height = `${Math.min(full, 168)}px`;
+    el.style.overflowY = full > 168 ? "auto" : "hidden";
+    if (mirrorRef.current) mirrorRef.current.scrollTop = el.scrollTop;
   }, [input]);
 
   function onScroll() {
@@ -775,10 +777,21 @@ export function GroupChat() {
                         </div>
                       ) : null}
                       {narration ? (
-                        <div className={`group-narration ${fresh ? "is-new" : ""}`} data-mid={m.id}>
-                          <span className="group-narration-label">🎭 Narrador</span>
-                          {m.deleted ? <em className="group-text">Narração apagada</em> : <p className="group-text">{formatMessage(m.body ?? "")}</p>}
-                          <span className="group-meta">{messageTime(m.created_at)}</span>
+                        <div className={`group-msg is-narration ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`} data-mid={m.id}>
+                          {grouped ? (
+                            <span className="group-face-gap" />
+                          ) : (
+                            <span className="group-face group-face-sm group-narrator-face" aria-hidden="true">
+                              🎭
+                            </span>
+                          )}
+                          <div className="group-bubble-wrap">
+                            <div className="group-bubble group-narration">
+                              {!grouped ? <span className="group-author group-narration-label">Narrador</span> : null}
+                              {m.deleted ? <em className="group-text">Narração apagada</em> : <span className="group-text">{formatMessage(m.body ?? "")}</span>}
+                              <span className="group-meta">{messageTime(m.created_at)}</span>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                       <div
@@ -973,32 +986,6 @@ export function GroupChat() {
                 </button>
               ) : null}
               <div className="group-composer-row">
-                {roleplay && group.my_character ? (
-                  <button
-                    type="button"
-                    className="group-my-character"
-                    onClick={() => setCharacterOpen(true)}
-                    aria-label={`Seu personagem: ${group.my_character}. Toque para editar`}
-                    title={group.my_character}
-                  >
-                    <PersonFace id={me} name={group.my_character} photo={group.my_character_photo} size="sm" />
-                  </button>
-                ) : null}
-                {roleplay && (group.my_role === "owner" || group.my_role === "moderator") ? (
-                  <button
-                    type="button"
-                    className="group-icon-btn group-narrate"
-                    onClick={() => {
-                      void narrateNow(id)
-                        .then(() => setTyping((cur) => ({ ...cur, narrator: Date.now() + 20_000 })))
-                        .catch((err: unknown) => setError(message(err)));
-                    }}
-                    aria-label="Chamar o narrador"
-                    title="Narrar"
-                  >
-                    <span aria-hidden="true">🎭</span>
-                  </button>
-                ) : null}
                 <input
                   ref={photoRef}
                   type="file"
@@ -1009,29 +996,65 @@ export function GroupChat() {
                     e.target.value = "";
                   }}
                 />
-                {group.book_key ? (
-                  <button
-                    type="button"
-                    className={`group-icon-btn group-spoiler-toggle ${spoilerOn ? "is-on" : ""}`}
-                    onClick={() => setSpoilerOn((v) => !v)}
-                    aria-pressed={spoilerOn}
-                    aria-label="Marcar como spoiler"
-                    title="Marcar como spoiler"
-                  >
-                    {GIcon.eyeOff}
-                  </button>
-                ) : null}
                 <div className="group-input-wrap">
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => onInput(e.target.value)}
-                    onKeyDown={onKeyDown}
-                    placeholder={roleplay ? "*ação* e fala" : "Mensagem"}
-                    aria-label="Mensagem"
-                    maxLength={MESSAGE_MAX}
-                    rows={1}
-                  />
+                  {roleplay && group.my_character ? (
+                    <button
+                      type="button"
+                      className="group-my-character"
+                      onClick={() => setCharacterOpen(true)}
+                      aria-label={`Seu personagem: ${group.my_character}. Toque para editar`}
+                      title={group.my_character}
+                    >
+                      <PersonFace id={me} name={group.my_character} photo={group.my_character_photo} size="sm" />
+                    </button>
+                  ) : null}
+                  <div className="group-input-field">
+                    <div className="group-input-mirror" ref={mirrorRef} aria-hidden="true">
+                      {formatDraft(input)}
+                      {"\u200b"}
+                    </div>
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => onInput(e.target.value)}
+                      onKeyDown={onKeyDown}
+                      onScroll={(e) => {
+                        if (mirrorRef.current) mirrorRef.current.scrollTop = e.currentTarget.scrollTop;
+                      }}
+                      placeholder={roleplay ? "*ação* e fala" : "Mensagem"}
+                      aria-label="Mensagem"
+                      maxLength={MESSAGE_MAX}
+                      rows={1}
+                    />
+                  </div>
+                  {/* Como a câmera do WhatsApp: some enquanto digita, para sobrar espaço para o texto. */}
+                  {roleplay && (group.my_role === "owner" || group.my_role === "moderator") && !input ? (
+                    <button
+                      type="button"
+                      className="group-attach group-narrate"
+                      onClick={() => {
+                        void narrateNow(id)
+                          .then(() => setTyping((cur) => ({ ...cur, narrator: Date.now() + 20_000 })))
+                          .catch((err: unknown) => setError(message(err)));
+                      }}
+                      aria-label="Chamar o narrador"
+                      title="Narrar"
+                    >
+                      <span aria-hidden="true">🎭</span>
+                    </button>
+                  ) : null}
+                  {group.book_key ? (
+                    <button
+                      type="button"
+                      className={`group-attach group-spoiler-toggle ${spoilerOn ? "is-on" : ""}`}
+                      onClick={() => setSpoilerOn((v) => !v)}
+                      aria-pressed={spoilerOn}
+                      aria-label="Marcar como spoiler"
+                      title="Marcar como spoiler"
+                    >
+                      {GIcon.eyeOff}
+                    </button>
+                  ) : null}
                   <button type="button" className="group-attach" onClick={() => photoRef.current?.click()} aria-label="Enviar foto" title="Enviar foto">
                     {GIcon.image}
                   </button>
