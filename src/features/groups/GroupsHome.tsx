@@ -251,7 +251,7 @@ function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
   const preview =
     group.is_member && group.last_message_id ? (
       <>
-        <strong>{group.last_author_name}:</strong> {group.last_body
+        <strong>{group.last_kind === "narrator" ? "🎭 Narrador" : group.last_author_name}:</strong> {group.last_body
           ? `${group.last_media_kind === "image" ? "📷 " : group.last_media_kind === "audio" ? "🎤 " : ""}${stripFormatting(group.last_body)}`
           : group.last_media_kind === "image"
             ? "📷 Foto"
@@ -268,6 +268,11 @@ function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
       <span className="group-card-body">
         <span className="group-card-title">
           <strong>{group.name}</strong>
+          {group.mode === "roleplay" ? (
+            <span className="group-card-lock" title="Roleplay: a IA narra a história" aria-label="Roleplay">
+              🎭
+            </span>
+          ) : null}
           {group.visibility === "private" ? (
             <span className="group-card-lock" title="Grupo privado">
               {GIcon.lock}

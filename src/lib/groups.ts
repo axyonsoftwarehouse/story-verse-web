@@ -1,5 +1,6 @@
 import { refreshAuthSession } from "./auth";
 import { apiBaseUrl, apiEnabled, apiRequest, AuthSessionError } from "./backend";
+import type { RoleplayBook } from "./roleplayBook";
 
 /**
  * Grupos com chat (docs/SPEC_GRUPOS.md). Só existem na API própria. Cada chamada pega um token
@@ -33,6 +34,12 @@ export type GroupMember = {
   photo?: string | null;
   /** Com o app aberto agora (bolinha verde). */
   online?: boolean;
+  /** Até onde o aparelho recebeu e até onde leu (selos ✓✓ das mensagens). */
+  last_delivered_id?: number;
+  /** Roleplay: o personagem que a pessoa interpreta. */
+  rp_character?: string | null;
+  rp_photo?: string | null;
+  last_read_id?: number;
   progress_percent: number | null;
   book_status: string | null;
 };
@@ -56,6 +63,11 @@ export type Group = {
   member_count: number;
   is_member: boolean;
   my_role: GroupRole | null;
+  /** "roleplay": as pessoas escrevem a história e a IA narra. */
+  mode?: "chat" | "roleplay";
+  rp_premise?: string | null;
+  my_character?: string | null;
+  my_character_photo?: string | null;
   muted: boolean;
   last_read_id: number;
   unread: number;
@@ -65,6 +77,7 @@ export type Group = {
   last_body: string | null;
   /** A última mensagem foi uma foto ou um áudio. */
   last_media_kind?: MediaKind | null;
+  last_kind?: "user" | "narrator" | null;
   members?: GroupMember[];
 };
 
@@ -89,6 +102,8 @@ export type GroupMessage = {
   reactions: Reaction[];
   /** Foto ou áudio. O arquivo vence em 24 h no servidor; cada celular guarda a própria cópia. */
   media_kind?: MediaKind | null;
+  /** "narrator": fala do narrador (IA) num roleplay. */
+  kind?: "user" | "narrator";
   media_mime?: string | null;
   media_duration_ms?: number | null;
   media_width?: number | null;
@@ -113,6 +128,9 @@ export type GroupFields = {
   bookCover?: string | null;
   goalChapter?: number | null;
   goalUntil?: string | null;
+  /** Só ao criar: "roleplay" pede a premissa. */
+  mode?: "chat" | "roleplay";
+  rpPremise?: string | null;
 };
 
 export type GroupReport = {
@@ -156,6 +174,17 @@ export const myGroups = () => call<Group[]>("/api/v1/groups");
 export const publicGroups = (opts: { q?: string; book?: string } = {}) =>
   call<Group[]>(`/api/v1/groups${q({ scope: "public", q: opts.q, book: opts.book })}`);
 export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
+/** Quem administra adiciona uma pessoa pelo e-mail da conta dela. */
+export const addMemberByEmail = (id: string, email: string) => call<Group>(`/api/v1/groups/${id}/members`, { method: "POST", body: { email } });
+/** Roleplay: encerra e transforma a história em livro (só o dono; a IA escreve em segundo plano). */
+export const startRoleplayBook = (id: string) => call<RoleplayBook>(`/api/v1/groups/${id}/book`, { method: "POST" });
+/** Roleplay: o livro da história (status e texto). 404 enquanto não foi encomendado. */
+export const fetchRoleplayBook = (id: string) => call<RoleplayBook>(`/api/v1/groups/${id}/book`);
+/** Roleplay: chama o narrador agora (a API respeita o intervalo e o teto do dia). */
+export const narrateNow = (id: string) => call<void>(`/api/v1/groups/${id}/narrate`, { method: "POST" });
+/** Roleplay: o personagem que a pessoa interpreta. */
+export const setCharacter = (id: string, character: string, photo?: string | null) =>
+  call<Group>(`/api/v1/groups/${id}/character`, { method: "PUT", body: { character, photo: photo ?? null } });
 export const createGroup = (fields: GroupFields) => call<Group>("/api/v1/groups", { method: "POST", body: fields });
 export const updateGroup = (id: string, fields: Partial<GroupFields>) =>
   call<Group>(`/api/v1/groups/${id}`, { method: "PATCH", body: fields });
@@ -169,6 +198,45 @@ export const setMuted = (id: string, muted: boolean) =>
   call<Group>(`/api/v1/groups/${id}/mute`, { method: "POST", body: { muted } });
 export const markRead = (id: string, lastId: number) =>
   call<void>(`/api/v1/groups/${id}/read`, { method: "POST", body: { lastId } });
+
+const deliveredSent = new Map<string, number>();
+const deliveredTimers = new Map<string, number>();
+
+/**
+ * "Recebi até a mensagem tal" (selo ✓✓ para quem escreveu). Junta as chamadas de cada grupo
+ * por um instante e nunca repete uma posição já avisada.
+ */
+export function noteDelivered(groupId: string, messageId: number) {
+  if (!GROUPS_AVAILABLE || !(messageId > 0) || messageId >= Number.MAX_SAFE_INTEGER) return;
+  if ((deliveredSent.get(groupId) ?? 0) >= messageId) return;
+  deliveredSent.set(groupId, messageId);
+  window.clearTimeout(deliveredTimers.get(groupId));
+  deliveredTimers.set(
+    groupId,
+    window.setTimeout(() => {
+      deliveredTimers.delete(groupId);
+      void call<void>(`/api/v1/groups/${groupId}/delivered`, { method: "POST", body: { lastId: deliveredSent.get(groupId) } }).catch(() => {
+        // Sem rede: o próximo aviso leva a posição mais nova.
+        deliveredSent.set(groupId, 0);
+      });
+    }, 1500),
+  );
+}
+
+export type MessageStatus = "pending" | "sent" | "delivered" | "read";
+
+/**
+ * Selo de uma mensagem minha: ✓ enviada, ✓✓ recebida por todos, ✓✓ azul vista por todos (como
+ * nos grupos do WhatsApp, o selo só avança quando todos os outros membros chegaram lá).
+ */
+export function messageStatus(m: Pick<GroupMessage, "id" | "pending">, members: GroupMember[], me: string): MessageStatus {
+  if (m.pending) return "pending";
+  const others = members.filter((x) => x.user_id !== me);
+  if (others.length === 0) return "sent";
+  if (others.every((x) => (x.last_read_id ?? 0) >= m.id)) return "read";
+  if (others.every((x) => Math.max(x.last_delivered_id ?? 0, x.last_read_id ?? 0) >= m.id)) return "delivered";
+  return "sent";
+}
 /** Avisa os outros membros que a conta está digitando (vale uns segundos; a API ignora repetições). */
 export const sendTyping = (id: string) => call<void>(`/api/v1/groups/${id}/typing`, { method: "POST" });
 export const removeMember = (id: string, userId: string) =>
@@ -268,7 +336,9 @@ export type StreamEvent =
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
   | { type: "group"; data: { groupId: string; type: string; userId?: string } }
   | { type: "typing"; data: { groupId: string; userId: string } }
-  | { type: "presence"; data: { userId: string; online: boolean } };
+  | { type: "presence"; data: { userId: string; online: boolean } }
+  | { type: "receipt"; data: { groupId: string; userId: string; deliveredId: number; readId: number } }
+  | { type: "notification"; data: { kind: string } };
 
 /** Quanto tempo o "digitando" fica na tela sem um aviso novo. */
 export const TYPING_SHOWN_MS = 6000;

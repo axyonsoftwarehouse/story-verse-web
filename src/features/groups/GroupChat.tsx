@@ -34,9 +34,13 @@ import {
   REPORT_REASONS,
   reportMessage,
   messagePreview,
+  messageStatus,
+  noteDelivered,
+  type MessageStatus,
   sendMediaMessage,
   sendMessage,
   sendTyping,
+  narrateNow,
   TYPING_SEND_MS,
   TYPING_SHOWN_MS,
   typingLabel,
@@ -46,10 +50,14 @@ import {
 import { GroupInfo } from "./GroupInfo";
 import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
-import { chatBackground, dayLabel, hotAuthors, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
-import { formatMessage } from "./messageFormat";
+import { chatBackground, dayLabel, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
+import { formatDraft, formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
-import { keepMedia, prepareChatImage } from "../../lib/chatMedia";
+import { keepMedia } from "../../lib/chatMedia";
+import { ImageCrop } from "./ImageCrop";
+import { CharacterDialog } from "./CharacterDialog";
+import { RoleplayBookCard } from "./RoleplayBookCard";
+import { playReceived, playSent, unlockChatSounds } from "../../lib/chatSounds";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
 
 const PAGE = 50;
@@ -109,6 +117,7 @@ export function GroupChat() {
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
   const photoRef = useRef<HTMLInputElement>(null);
+  const [cropping, setCropping] = useState<File | null>(null);
   /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
   const mediaFiles = useRef(new Map<string, { blob: Blob; durationMs?: number; width?: number; height?: number }>());
   const [spoilerOn, setSpoilerOn] = useState(false);
@@ -128,6 +137,7 @@ export function GroupChat() {
   const initialIds = useRef<Set<number>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [newBelow, setNewBelow] = useState(0);
@@ -139,7 +149,9 @@ export function GroupChat() {
   groupRef.current = group;
 
   const isMember = Boolean(group?.is_member);
-  const hot = useMemo(() => hotAuthors(messages), [messages]);
+  const roleplay = group?.mode === "roleplay";
+  const [characterOpen, setCharacterOpen] = useState(false);
+  const [bookTick, setBookTick] = useState(0);
   const online = useMemo(() => new Set((group?.members ?? []).filter((m) => m.online && m.user_id !== me).map((m) => m.user_id)), [group?.members, me]);
   const chapter = myChapter(group?.book_key ?? null);
 
@@ -178,6 +190,8 @@ export function GroupChat() {
         if (!alive) return;
         initialIds.current = new Set(list.map((m) => m.id));
         setMessages(list);
+        const newest = list[list.length - 1];
+        if (newest) noteDelivered(id, newest.id);
         setHasMore(list.length === PAGE);
         setLoaded(true);
       })
@@ -187,6 +201,11 @@ export function GroupChat() {
       (event) => {
         if (event.type === "message" && event.data.group_id === id) {
           setMessages((cur) => mergeMessages(cur, [event.data]));
+          if (event.data.kind === "narrator") setTyping(({ narrator: _done, ...rest }) => rest);
+          if (event.data.author_id !== me) {
+            noteDelivered(id, event.data.id);
+            if (!groupRef.current?.muted) playReceived();
+          }
           setTyping(({ [event.data.author_id]: _sent, ...rest }) => rest);
           const g = groupRef.current;
           if (event.data.author_id !== me) {
@@ -200,6 +219,21 @@ export function GroupChat() {
           // A minha reação já foi aplicada na hora do clique.
           if (userId === me) return;
           setMessages((cur) => cur.map((m) => (m.id === messageId ? applyReaction(m, emoji, added, false) : m)));
+        } else if (event.type === "receipt" && event.data.groupId === id) {
+          // Alguém recebeu ou leu: atualiza os selos das minhas mensagens.
+          const { userId, deliveredId, readId } = event.data;
+          setGroup((g) =>
+            g?.members
+              ? {
+                  ...g,
+                  members: g.members.map((x) =>
+                    x.user_id === userId
+                      ? { ...x, last_delivered_id: Math.max(x.last_delivered_id ?? 0, deliveredId), last_read_id: Math.max(x.last_read_id ?? 0, readId) }
+                      : x,
+                  ),
+                }
+              : g,
+          );
         } else if (event.type === "presence") {
           const { userId, online: on } = event.data;
           setGroup((g) =>
@@ -210,6 +244,21 @@ export function GroupChat() {
         } else if (event.type === "group" && event.data.groupId === id) {
           if (event.data.type === "deleted") {
             navigate("/grupos", { replace: true });
+            return;
+          }
+          if (event.data.type === "narrator_quota") {
+            setTyping(({ narrator: _done, ...rest }) => rest);
+            setNotice("O narrador descansou por hoje: a cota de IA de quem criou o grupo acabou.");
+            return;
+          }
+          if (event.data.type === "book_writing" || event.data.type === "book_ready" || event.data.type === "book_failed") {
+            setBookTick((n) => n + 1);
+            if (event.data.type === "book_ready") setNotice("📖 A história virou livro! Veja nos detalhes do grupo.");
+            if (event.data.type === "book_writing") setNotice("✍️ A IA começou a escrever o livro desta história.");
+            return;
+          }
+          if (event.data.type === "narrator_cooldown") {
+            setNotice("O narrador acabou de falar. Espere uns segundos para chamar de novo.");
             return;
           }
           void reloadGroup();
@@ -271,15 +320,16 @@ export function GroupChat() {
     setNewBelow(0);
   }
 
-  // A caixa de texto cresce com a mensagem (até umas 6 linhas).
+  // A caixa de texto cresce com a mensagem (até umas 6 linhas) e a camada formatada acompanha a rolagem.
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     // scrollHeight não conta a borda (border-box): sem somá-la sobra a barra de rolagem.
     el.style.height = "auto";
     const full = el.scrollHeight + el.offsetHeight - el.clientHeight;
-    el.style.height = `${Math.min(full, 150)}px`;
-    el.style.overflowY = full > 150 ? "auto" : "hidden";
+    el.style.height = `${Math.min(full, 168)}px`;
+    el.style.overflowY = full > 168 ? "auto" : "hidden";
+    if (mirrorRef.current) mirrorRef.current.scrollTop = el.scrollTop;
   }, [input]);
 
   function onScroll() {
@@ -338,6 +388,7 @@ export function GroupChat() {
         mediaFiles.current.delete(draft.client_id!);
       }
       setMessages((cur) => mergeMessages(cur, [saved]));
+      playSent();
     } catch (err) {
       setMessages((cur) => cur.map((m) => (m.client_id === draft.client_id && m.pending ? { ...m, pending: false, failed: true } : m)));
       setError(message(err));
@@ -378,8 +429,8 @@ export function GroupChat() {
   }
 
   /** Foto ou áudio: aparece na hora com o arquivo local e sobe em seguida. */
-  function sendFile(kind: "image" | "audio", blob: Blob, meta: { durationMs?: number; width?: number; height?: number }) {
-    const caption = kind === "image" ? input.trim() || null : null;
+  function sendFile(kind: "image" | "audio", blob: Blob, meta: { durationMs?: number; width?: number; height?: number; caption?: string }) {
+    const caption = kind === "image" ? (meta.caption ?? input.trim()) || null : null;
     const draft = newDraft({
       body: caption,
       media_kind: kind,
@@ -391,19 +442,19 @@ export function GroupChat() {
       media_local: URL.createObjectURL(blob),
     });
     if (!draft) return;
-    mediaFiles.current.set(draft.client_id!, { blob, ...meta });
-    if (caption) setInput("");
+    mediaFiles.current.set(draft.client_id!, { blob, durationMs: meta.durationMs, width: meta.width, height: meta.height });
+    setInput("");
     queue(draft);
   }
 
-  async function pickPhoto(file: File | undefined) {
+  /** Foto escolhida: abre o corte (com a legenda) antes de enviar. */
+  function pickPhoto(file: File | undefined) {
     if (!file) return;
-    try {
-      const { blob, width, height } = await prepareChatImage(file);
-      sendFile("image", blob, { width, height });
-    } catch (err) {
-      setError(message(err));
+    if (!file.type.startsWith("image/")) {
+      setError("Escolha uma imagem.");
+      return;
     }
+    setCropping(file);
   }
 
 
@@ -447,8 +498,8 @@ export function GroupChat() {
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter envia; Shift+Enter quebra a linha.
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    // Enter quebra a linha (como no WhatsApp do celular); Ctrl+Enter (ou ⌘+Enter) envia pelo teclado.
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
     }
@@ -581,15 +632,21 @@ export function GroupChat() {
 
   const manager = group?.my_role === "owner" || group?.my_role === "moderator";
   const byId = new Map(messages.map((m) => [m.id, m]));
+  // Mensagem apagada some da conversa, sem deixar o aviso de "Mensagem apagada".
+  const shown = messages.filter((m) => !m.deleted);
   const members = Number(group?.member_count ?? 0);
   const typingIds = Object.keys(typing);
-  const typingNames = typingIds.map((uid) => group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém");
+  const typingNames = typingIds.map((uid) => (uid === "narrator" ? "Narrador" : (group?.members?.find((m) => m.user_id === uid)?.name ?? "Alguém")));
+  /** Roleplay: o personagem da pessoa (nome e foto), que aparece no lugar dela. */
+  const characterOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_character : null);
+  const characterPhotoOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_photo : null);
   const typingText = typingLabel(typingNames);
   const wallpaper = chatBackground(group?.background);
 
   return (
     <div
       className="group-chat-page"
+      onPointerDown={unlockChatSounds}
       style={area ? { top: area.top, height: area.height, bottom: "auto" } : undefined}
     >
       <header className="group-chat-header">
@@ -686,6 +743,7 @@ export function GroupChat() {
         </div>
       ) : (
         <>
+          {roleplay ? <RoleplayBookCard group={group} refresh={bookTick} compact /> : null}
           <div className="group-chat-main">
             <div className={`group-chat-body ${wallpaper.className}`} style={wallpaper.style} ref={listRef} onScroll={onScroll}>
               <div className="group-messages" aria-live="polite">
@@ -697,24 +755,23 @@ export function GroupChat() {
                   <div className="group-chat-start">
                     <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="md" />
                     <strong>{group.name}</strong>
-                    <span className="group-chat-start-desc">{group.description ?? "Este é o começo da conversa."}</span>
-                    {group.my_role === "owner" && (!group.description || !group.background) ? (
-                      <button type="button" className="group-start-edit" onClick={() => setInfoOpen(true)}>
-                        {GIcon.pencil} {group.description ? "Escolher o fundo da conversa" : "Adicionar descrição e fundo"}
-                      </button>
-                    ) : null}
+                    {roleplay ? <span className="group-rp-badge">🎭 Roleplay</span> : null}
+                    <span className="group-chat-start-desc">{roleplay ? group.rp_premise : (group.description ?? "Este é o começo da conversa.")}</span>
                   </div>
                 ) : null}
-                {messages.map((m, i) => {
-                  const mine = m.author_id === me;
-                  const prev = messages[i - 1];
+                {shown.map((m, i) => {
+                  const narration = m.kind === "narrator";
+                  const mine = !narration && m.author_id === me;
+                  const prev = shown[i - 1];
                   const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
-                  const grouped = !newDay && prev && prev.author_id === m.author_id && !prev.deleted;
+                  const grouped = !newDay && prev && prev.author_id === m.author_id && (prev.kind ?? "user") === (m.kind ?? "user");
                   const spoilerHidden = m.spoiler_chapter !== null && !mine && chapter <= m.spoiler_chapter && !revealed.has(m.id);
-                  const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
-                  const canAct = !m.pending && !m.failed && !m.deleted;
+                  // Resposta a uma mensagem apagada: a citação some junto (como se nunca tivesse existido).
+                  const quoted = m.reply_to ? byId.get(m.reply_to) : undefined;
+                  const parent = quoted && !quoted.deleted ? quoted : undefined;
+                  const canAct = !m.pending && !m.failed;
                   const fresh = m.pending || !initialIds.current.has(m.id);
-                  const jumbo = !m.media_kind && !m.deleted && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
+                  const jumbo = !m.media_kind && !m.hidden && !spoilerHidden && !parent && !m.spoiler_chapter && isJumboEmoji(m.body);
                   const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
                     <Fragment key={m.client_id ?? m.id}>
@@ -723,6 +780,24 @@ export function GroupChat() {
                           <span>{dayLabel(m.created_at)}</span>
                         </div>
                       ) : null}
+                      {narration ? (
+                        <div className={`group-msg is-narration ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`} data-mid={m.id}>
+                          {grouped ? (
+                            <span className="group-face-gap" />
+                          ) : (
+                            <span className="group-face group-face-sm group-narrator-face" aria-hidden="true">
+                              🎭
+                            </span>
+                          )}
+                          <div className="group-bubble-wrap">
+                            <div className="group-bubble group-narration">
+                              {!grouped ? <span className="group-author group-narration-label">Narrador</span> : null}
+                              <span className="group-text">{formatMessage(m.body ?? "")}</span>
+                              <span className="group-meta">{messageTime(m.created_at)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
                       <div
                         className={`group-msg ${mine ? "is-mine" : ""} ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""} ${total ? "has-reactions" : ""} ${flashId === m.id ? "is-flash" : ""}`}
                         style={{ "--hue": hueOf(m.author_id) } as CSSProperties}
@@ -747,32 +822,35 @@ export function GroupChat() {
                         </span>
                         {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace
                               id={m.author_id}
-                              name={m.author_name}
-                              avatar={m.author_avatar}
-                              photo={m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo}
+                              name={characterOf(m.author_id) ?? m.author_name}
+                              avatar={characterOf(m.author_id) ? null : m.author_avatar}
+                              photo={characterPhotoOf(m.author_id) ?? (characterOf(m.author_id) ? null : (m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo))}
                               size="sm"
-                              hot={hot.has(m.author_id)}
                               online={online.has(m.author_id)}
                             /> : null}
                         <div className="group-bubble-wrap">
                           <div
-                            className={`group-bubble ${m.deleted || m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
+                            className={`group-bubble ${m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
                             onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
                           >
                             {!mine && !grouped ? (
                               <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>
-                                {m.author_name}
+                                {characterOf(m.author_id) ? (
+                                  <>
+                                    {characterOf(m.author_id)} <small className="group-author-player">· {m.author_name}</small>
+                                  </>
+                                ) : (
+                                  m.author_name
+                                )}
                               </span>
                             ) : null}
                             {parent ? (
                               <button type="button" className="group-quote" onClick={() => jumpTo(parent.id)} aria-label={`Ir para a mensagem de ${parent.author_name}`}>
                                 <strong>{parent.author_name}</strong>
-                                <span>{parent.deleted ? "Mensagem apagada" : messagePreview(parent)}</span>
+                                <span>{messagePreview(parent)}</span>
                               </button>
                             ) : null}
-                            {m.deleted ? (
-                              <em className="group-text">Mensagem apagada</em>
-                            ) : m.hidden ? (
+                            {m.hidden ? (
                               <em className="group-text">Mensagem oculta por denúncias, aguardando a moderação.</em>
                             ) : spoilerHidden ? (
                               <button type="button" className="group-spoiler" onClick={() => setRevealed((s) => new Set(s).add(m.id))}>
@@ -795,10 +873,11 @@ export function GroupChat() {
                                 <button type="button" className="group-retry" onClick={() => retry(m)}>
                                   Não enviada · tentar de novo
                                 </button>
-                              ) : m.pending ? (
-                                "enviando…"
                               ) : (
-                                messageTime(m.created_at)
+                                <>
+                                  {m.pending ? "enviando…" : messageTime(m.created_at)}
+                                  {mine ? <StatusTicks status={messageStatus(m, group.members ?? [], me)} /> : null}
+                                </>
                               )}
                             </span>
                           </div>
@@ -832,6 +911,7 @@ export function GroupChat() {
                           </button>
                         ) : null}
                       </div>
+                      )}
                     </Fragment>
                   );
                 })}
@@ -840,10 +920,9 @@ export function GroupChat() {
                     <PersonFace
                       id={typingIds[0]}
                       name={typingNames[0]}
-                      avatar={group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null}
-                      photo={group.members?.find((m) => m.user_id === typingIds[0])?.photo}
+                      avatar={characterOf(typingIds[0]) ? null : (group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null)}
+                      photo={characterPhotoOf(typingIds[0]) ?? (characterOf(typingIds[0]) ? null : group.members?.find((m) => m.user_id === typingIds[0])?.photo)}
                       size="sm"
-                      hot={hot.has(typingIds[0])}
                       online
                     />
                     <div className="group-bubble">
@@ -898,6 +977,16 @@ export function GroupChat() {
                   <small>Fica borrada para quem ainda não passou desse capítulo.</small>
                 </div>
               ) : null}
+              {roleplay && !group.my_character ? (
+                <button type="button" className="group-rp-character" onClick={() => setCharacterOpen(true)}>
+                  <span aria-hidden="true">🎭</span>
+                  <span>
+                    <strong>Crie seu personagem</strong>
+                    <small>Escolha nome e foto para entrar na história.</small>
+                  </span>
+                  <span className="group-text-btn">Criar</span>
+                </button>
+              ) : null}
               <div className="group-composer-row">
                 <input
                   ref={photoRef}
@@ -905,33 +994,69 @@ export function GroupChat() {
                   accept="image/*"
                   hidden
                   onChange={(e) => {
-                    void pickPhoto(e.target.files?.[0]);
+                    pickPhoto(e.target.files?.[0]);
                     e.target.value = "";
                   }}
                 />
-                {group.book_key ? (
-                  <button
-                    type="button"
-                    className={`group-icon-btn group-spoiler-toggle ${spoilerOn ? "is-on" : ""}`}
-                    onClick={() => setSpoilerOn((v) => !v)}
-                    aria-pressed={spoilerOn}
-                    aria-label="Marcar como spoiler"
-                    title="Marcar como spoiler"
-                  >
-                    {GIcon.eyeOff}
-                  </button>
-                ) : null}
                 <div className="group-input-wrap">
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => onInput(e.target.value)}
-                    onKeyDown={onKeyDown}
-                    placeholder="Mensagem"
-                    aria-label="Mensagem"
-                    maxLength={MESSAGE_MAX}
-                    rows={1}
-                  />
+                  {roleplay && group.my_character ? (
+                    <button
+                      type="button"
+                      className="group-my-character"
+                      onClick={() => setCharacterOpen(true)}
+                      aria-label={`Seu personagem: ${group.my_character}. Toque para editar`}
+                      title={group.my_character}
+                    >
+                      <PersonFace id={me} name={group.my_character} photo={group.my_character_photo} size="sm" />
+                    </button>
+                  ) : null}
+                  <div className="group-input-field">
+                    <div className="group-input-mirror" ref={mirrorRef} aria-hidden="true">
+                      {formatDraft(input)}
+                      {"\u200b"}
+                    </div>
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => onInput(e.target.value)}
+                      onKeyDown={onKeyDown}
+                      onScroll={(e) => {
+                        if (mirrorRef.current) mirrorRef.current.scrollTop = e.currentTarget.scrollTop;
+                      }}
+                      placeholder={roleplay ? "*ação* e fala" : "Mensagem"}
+                      aria-label="Mensagem"
+                      maxLength={MESSAGE_MAX}
+                      rows={1}
+                    />
+                  </div>
+                  {/* Como a câmera do WhatsApp: some enquanto digita, para sobrar espaço para o texto. */}
+                  {roleplay && (group.my_role === "owner" || group.my_role === "moderator") && !input ? (
+                    <button
+                      type="button"
+                      className="group-attach group-narrate"
+                      onClick={() => {
+                        void narrateNow(id)
+                          .then(() => setTyping((cur) => ({ ...cur, narrator: Date.now() + 20_000 })))
+                          .catch((err: unknown) => setError(message(err)));
+                      }}
+                      aria-label="Chamar o narrador"
+                      title="Narrar"
+                    >
+                      <span aria-hidden="true">🎭</span>
+                    </button>
+                  ) : null}
+                  {group.book_key ? (
+                    <button
+                      type="button"
+                      className={`group-attach group-spoiler-toggle ${spoilerOn ? "is-on" : ""}`}
+                      onClick={() => setSpoilerOn((v) => !v)}
+                      aria-pressed={spoilerOn}
+                      aria-label="Marcar como spoiler"
+                      title="Marcar como spoiler"
+                    >
+                      {GIcon.eyeOff}
+                    </button>
+                  ) : null}
                   <button type="button" className="group-attach" onClick={() => photoRef.current?.click()} aria-label="Enviar foto" title="Enviar foto">
                     {GIcon.image}
                   </button>
@@ -970,6 +1095,28 @@ export function GroupChat() {
         />
       ) : null}
       <ReactionBursts bursts={bursts} />
+      {characterOpen && group ? (
+        <CharacterDialog
+          group={group}
+          me={me}
+          onClose={() => setCharacterOpen(false)}
+          onSaved={(g) => {
+            setGroup(g);
+            setCharacterOpen(false);
+          }}
+        />
+      ) : null}
+      {cropping ? (
+        <ImageCrop
+          file={cropping}
+          caption={input}
+          onCancel={() => setCropping(null)}
+          onSend={(image, caption) => {
+            setCropping(null);
+            sendFile("image", image.blob, { width: image.width, height: image.height, caption });
+          }}
+        />
+      ) : null}
 
       {reporting ? (
         <ReportDialog
@@ -986,7 +1133,6 @@ export function GroupChat() {
         <GroupInfo
           group={group}
           me={me}
-          hot={hot}
           confirm={confirm}
           onClose={() => setInfoOpen(false)}
           onChanged={(g) => setGroup(g)}
@@ -1056,5 +1202,34 @@ function ReportDialog({ message: target, onClose, onSent }: { message: GroupMess
       </form>
     </div>,
     document.body,
+  );
+}
+
+const STATUS_LABEL: Record<MessageStatus, string> = {
+  pending: "Enviando",
+  sent: "Enviada",
+  delivered: "Recebida por todos",
+  read: "Vista por todos",
+};
+
+/** Selo da mensagem: 🕓 enviando, ✓ enviada, ✓✓ recebida, ✓✓ azul vista (por todos do grupo). */
+function StatusTicks({ status }: { status: MessageStatus }) {
+  return (
+    <span className={`group-ticks is-${status}`} role="img" aria-label={STATUS_LABEL[status]} title={STATUS_LABEL[status]}>
+      {status === "pending" ? (
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" />
+          <path d="M8 4.8V8l2.2 1.4" />
+        </svg>
+      ) : status === "sent" ? (
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 8.5l3 3 7-7" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 20 16" width="17" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M1.5 8.5l3 3 7-7M8 11.5l1 0.1 7-7.1" />
+        </svg>
+      )}
+    </span>
   );
 }

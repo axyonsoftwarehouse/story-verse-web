@@ -90,31 +90,3 @@ export function isJumboEmoji(text: string | null | undefined): boolean {
   const t = text?.trim() ?? "";
   return t.length > 0 && ONLY_EMOJI.test(t);
 }
-
-/** Quem conta para o 🔥: mensagens dos últimos dias e o mínimo para não premiar duas falas. */
-export const HOT_DAYS = 7;
-export const HOT_MIN_MESSAGES = 5;
-export const HOT_TOP = 3;
-
-/**
- * As pessoas "em chamas" do grupo: as que mais falaram nos últimos {@link HOT_DAYS} dias entre
- * as mensagens carregadas (até {@link HOT_TOP}, com pelo menos {@link HOT_MIN_MESSAGES}).
- */
-export function hotAuthors(
-  messages: { author_id: string; created_at: string; deleted?: boolean; pending?: boolean; failed?: boolean }[],
-  now = Date.now(),
-): Set<string> {
-  const since = now - HOT_DAYS * 86_400_000;
-  const counts = new Map<string, number>();
-  for (const m of messages) {
-    if (m.deleted || m.pending || m.failed || Date.parse(m.created_at) < since) continue;
-    counts.set(m.author_id, (counts.get(m.author_id) ?? 0) + 1);
-  }
-  return new Set(
-    [...counts]
-      .filter(([, n]) => n >= HOT_MIN_MESSAGES)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, HOT_TOP)
-      .map(([id]) => id),
-  );
-}

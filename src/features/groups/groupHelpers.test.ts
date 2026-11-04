@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatBackground, hotAuthors, isJumboEmoji } from "./groupHelpers";
+import { chatBackground, isJumboEmoji } from "./groupHelpers";
 
 describe("chatBackground", () => {
   it("sem fundo escolhido usa o padrão", () => {
@@ -32,25 +32,5 @@ describe("isJumboEmoji", () => {
     expect(isJumboEmoji("123")).toBe(false);
     expect(isJumboEmoji("")).toBe(false);
     expect(isJumboEmoji(null)).toBe(false);
-  });
-});
-
-describe("hotAuthors", () => {
-  const now = Date.parse("2026-10-30T12:00:00Z");
-  const day = 86_400_000;
-  const say = (author_id: string, n: number, ago = 0, extra = {}) =>
-    Array.from({ length: n }, () => ({ author_id, created_at: new Date(now - ago).toISOString(), ...extra }));
-
-  it("as até 3 pessoas que mais falaram na semana, com o mínimo de mensagens", () => {
-    const hot = hotAuthors([...say("ana", 9), ...say("bia", 7), ...say("caio", 6), ...say("duda", 5), ...say("eva", 4)], now);
-    expect([...hot]).toEqual(["ana", "bia", "caio"]);
-  });
-
-  it("não conta mensagens antigas, apagadas ou ainda não enviadas", () => {
-    const hot = hotAuthors(
-      [...say("ana", 8, 8 * day), ...say("bia", 6, 0, { deleted: true }), ...say("caio", 6, 0, { pending: true }), ...say("duda", 5, 2 * day)],
-      now,
-    );
-    expect([...hot]).toEqual(["duda"]);
   });
 });

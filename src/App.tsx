@@ -64,6 +64,8 @@ import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
+import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
+import { NotificationBell } from "./features/notifications/NotificationBell";
 import { bookKeyOf, todayInBrazil } from "./lib/library";
 import {
   recordFinished,
@@ -158,7 +160,6 @@ import {
   dayKey,
   streakRescue,
   weekStartDate,
-  monthReading,
 } from "./lib/readingStats";
 import {
   autoFreezeEnabled,
@@ -216,7 +217,7 @@ import {
   syncEngagementState,
 } from "./lib/reminders";
 import { installPlatform, storeLinks, useAppInstall, useUpdateReady, type InstallPlatform } from "./lib/pwa";
-import { renderRecapCard, renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
+import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
   listVoices,
   RATE_OPTIONS,
@@ -3568,86 +3569,6 @@ function AchievementToast({ achievement, onDone }: { achievement: Achievement; o
   );
 }
 
-const MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-const RECAP_DISMISSED_KEY = "storyverse:recap-dismissed";
-
-/**
- * Retrospectiva do mês que passou: aparece só na primeira semana do mês, para quem leu, e sai
- * de vez ao fechar. Gera um cartão para postar com os números e o personagem favorito.
- */
-function MonthRecap({ favorite }: { favorite?: { name: string; book: string } }) {
-  const now = new Date();
-  const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-  const month = (now.getMonth() + 11) % 12;
-  const key = `${year}-${month + 1}`;
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return userStorage.getItem(RECAP_DISMISSED_KEY) === key;
-    } catch {
-      return false;
-    }
-  });
-  const [busy, setBusy] = useState(false);
-  const data = useMemo(() => monthReading(year, month), [year, month]);
-  const finished = useMemo(
-    () =>
-      finishedBooks().filter((f) => {
-        const d = new Date(f.finishedAt);
-        return d.getFullYear() === year && d.getMonth() === month;
-      }).length,
-    [year, month],
-  );
-  if (now.getDate() > 7 || dismissed || data.minutes < 1) return null;
-  const monthLabel = `${MONTHS[month]} de ${year}`;
-
-  function dismiss() {
-    setDismissed(true);
-    try {
-      userStorage.setItem(RECAP_DISMISSED_KEY, key);
-    } catch {
-      // Sem armazenamento: volta a aparecer na próxima visita.
-    }
-  }
-
-  async function share() {
-    setBusy(true);
-    try {
-      const blob = await renderRecapCard({
-        monthLabel,
-        minutes: data.minutes,
-        daysRead: data.daysRead,
-        finished,
-        bestStreak: data.bestStreak,
-        favoriteCharacter: favorite?.name,
-        favoriteBook: favorite?.book,
-      });
-      await shareOrDownload(blob, `storyverse-${MONTHS[month]}-${year}.png`, `Minha leitura em ${monthLabel} no Storyverse`);
-    } catch (e) {
-      console.warn("Falha ao gerar a retrospectiva:", e);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="month-recap" aria-label={`Sua leitura em ${monthLabel}`}>
-      <div className="month-recap-text">
-        <span className="eyebrow">Retrospectiva</span>
-        <strong>Sua leitura em {MONTHS[month]}</strong>
-        <span>
-          {data.minutes >= 120 ? `${Math.round(data.minutes / 60)} horas` : `${data.minutes} min`} · {data.daysRead}{" "}
-          {data.daysRead === 1 ? "dia" : "dias"} lendo · {finished} {finished === 1 ? "livro terminado" : "livros terminados"}
-        </span>
-      </div>
-      <button type="button" className="btn btn-primary" onClick={() => void share()} disabled={busy}>
-        {Icon.share} {busy ? "Gerando…" : "Compartilhar"}
-      </button>
-      <button type="button" className="icon-btn month-recap-close" onClick={dismiss} aria-label="Fechar a retrospectiva">
-        {Icon.close}
-      </button>
-    </section>
-  );
-}
 
 /**
  * Recado do personagem na tela inicial: o leitor sumiu do livro há alguns dias e quem estava
@@ -5988,7 +5909,8 @@ export function App() {
   );
   const staffOn = isStaff(capabilities?.roles ?? []);
   const groupsOn = GROUPS_AVAILABLE && hasFeature(capabilities, "groups");
-  const groupsUnread = useGroupsUnread(groupsOn && authUser ? authUser.id : "");
+  const groupsActivity = useGroupsUnread(groupsOn && authUser ? authUser.id : "");
+  const groupsUnread = groupsActivity.total;
   /** Abriu um convite de grupo sem conta: depois de entrar, volta para ele. */
   useEffect(() => {
     if (!authUser) return;
@@ -7750,12 +7672,6 @@ export function App() {
     // Sumiu do livro há alguns dias: o personagem manda um recado (ver characterNudge.ts).
     const nudge = homeNudge(recent);
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
-    const favoriteTalk = (() => {
-      const top = characterTalks()[0];
-      const talkBook = top && (currentBook.get(top.bookId) ?? recent.find((p) => p.book.id === top.bookId)?.book);
-      const who = talkBook && (top.characterId === "narrador" ? narratorCharacter(talkBook.title) : knownCast(talkBook)?.find((c) => c.id === top.characterId));
-      return who && talkBook ? { name: who.name, book: talkBook.title } : undefined;
-    })();
     if (shopOpen && authSession) {
       return (
         <DiamondShopPage
@@ -7865,7 +7781,7 @@ export function App() {
         <nav className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
-            Storyverse
+            <span className="wordmark-text">Storyverse</span>
           </span>
           <div className="home-nav-actions">
             {authUser && onlineCount !== null && onlineCount > 0 ? (
@@ -7879,6 +7795,7 @@ export function App() {
               <span className="status-dot" aria-hidden="true" />
               {providerLabel}
             </span>
+            <div className="nav-secondary">
             {!installed ? (
               <button
                 type="button"
@@ -7899,21 +7816,6 @@ export function App() {
               <span className="nav-audio-long">Audiolivros</span>
               <span className="nav-audio-short">Áudio</span>
             </Link>
-            {groupsOn ? (
-              <Link
-                className="btn nav-groups"
-                to="/grupos"
-                aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
-              >
-                {Icon.chat}
-                <span className="nav-groups-label">Grupos</span>
-                {groupsUnread > 0 ? (
-                  <span className="nav-groups-badge" aria-hidden="true">
-                    {groupsUnread > 99 ? "99+" : groupsUnread}
-                  </span>
-                ) : null}
-              </Link>
-            ) : null}
             {staffOn ? (
               <Link className="btn nav-admin" to="/admin" aria-label="Abrir painel administrativo">
                 Admin
@@ -7931,6 +7833,32 @@ export function App() {
                 <span className="nav-import-short">Importar</span>
               </button>
             ) : null}
+            </div>
+            {groupsOn ? (
+              <Link
+                className="btn nav-groups"
+                to="/grupos"
+                aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
+              >
+                {Icon.chat}
+                <span className="nav-groups-label">Grupos</span>
+                {groupsUnread > 0 ? (
+                  <span className="nav-groups-badge" aria-hidden="true">
+                    {groupsUnread > 99 ? "99+" : groupsUnread}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
+            {groupsOn && authUser ? <NotificationBell groups={groupsActivity.groups} activity={groupsActivity.activity} /> : null}
+            <NavMore
+              items={[
+                ...(!installed ? [{ key: "install", label: "Baixar app", icon: Icon.download, onClick: () => setInstallOpen(true) }] : []),
+                { key: "library", label: "Biblioteca", icon: Icon.book, to: "/biblioteca" },
+                { key: "audio", label: "Audiolivros", icon: Icon.speaker, to: "/ouvir" },
+                ...(canRead ? [{ key: "import", label: "Importar livro", icon: Icon.upload, onClick: () => requestImport() }] : []),
+                ...(staffOn ? [{ key: "admin", label: "Painel admin", icon: Icon.settings, to: "/admin" }] : []),
+              ] satisfies NavMoreItem[]}
+            />
             {!authEnabled ? null : authUser ? (
               <button type="button" className="btn nav-account" onClick={() => setProfileOpen(true)} aria-label="Abrir seu perfil" title="Abrir seu perfil">
                 <UserAvatar user={authUser} className="nav-avatar" />
@@ -8182,7 +8110,6 @@ export function App() {
           />
         ) : null}
 
-        {canRead ? <MonthRecap favorite={favoriteTalk} /> : null}
 
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
 
@@ -9215,6 +9142,16 @@ export function App() {
           </PrivacyNote>
 
           <div ref={chatBodyRef} className="chat-body">
+            {character ? (
+              // Sempre no começo da conversa: deixa claro que é ficção feita por IA.
+              <p className="chat-ai-notice" role="note">
+                <span aria-hidden="true">🤖</span>
+                <span>
+                  <strong>Conversa fictícia criada por inteligência artificial.</strong> {character.name} é um personagem, não uma pessoa
+                  real: as respostas são geradas por IA e podem conter erros.
+                </span>
+              </p>
+            ) : null}
             {messages.map((m) =>
               m.role === "assistant" && character ? (
                 <div key={m.id} className="msg msg-assistant">
