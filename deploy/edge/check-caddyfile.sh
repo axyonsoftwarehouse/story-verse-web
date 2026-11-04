@@ -41,4 +41,10 @@ has storyverse.2.29.42.104.sslip.io '"root":"/srv/storyverse/current"' "site de 
 has qa.storyverse.2.29.42.104.sslip.io '"dial":"umami-umami-1:3000"' "QA serve o Umami em /u/script.js e /u/api/send"
 has storyverse.2.29.42.104.sslip.io '"dial":"umami-umami-1:3000"' "produção serve o Umami em /u/script.js e /u/api/send"
 hasnt storyverse.2.29.42.104.sslip.io 'qa.storyverse' "site de produção sem nada de QA"
+for host in storyverse.2.29.42.104.sslip.io qa.storyverse.2.29.42.104.sslip.io; do
+  hasnt "$host" 'https://cdn.jsdelivr.net;' "$host: CSP sem o jsDelivr inteiro"
+  hasnt "$host" 'vercel' "$host: CSP sem domínios da Vercel"
+  has "$host" '"/openlibrary/works/*"' "$host: proxy da Open Library liberando a ficha da obra"
+  hasnt "$host" '"/openlibrary/*"' "$host: proxy da Open Library sem caminho aberto"
+done
 echo "OK"

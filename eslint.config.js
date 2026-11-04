@@ -5,7 +5,8 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules"] },
+  // Worktrees do agente (.claude/) e artefatos locais de QA têm tsconfig próprio e confundem o parser.
+  { ignores: ["dist", "node_modules", ".claude", ".dependency-resolve", "qa-runs"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
