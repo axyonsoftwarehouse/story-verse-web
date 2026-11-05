@@ -73,6 +73,7 @@ import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
+import { publishShowcase } from "./lib/social";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
 import { NotificationBell } from "./features/notifications/NotificationBell";
@@ -4269,6 +4270,15 @@ function ProfilePage({
   );
   const unlockedCount = badges.filter((b) => b.unlocked).length;
   const allBadges = unlockedCount === badges.length;
+  // Perfil público (rede social): leva as conquistas e alguns números para quem abrir o perfil.
+  useEffect(() => {
+    void publishShowcase(user.id, badges, {
+      totalMinutes: totals.totalMinutes,
+      bestStreak: totals.bestStreak,
+      finishedBooks: finished.length,
+      messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
+    });
+  }, [user.id, badges, totals, finished.length, allTalks]);
   const nowReading = lendo[0];
 
   /** Cor do app: vale na hora (sem "Salvar"), e o app inteiro troca junto. */
@@ -6263,7 +6273,19 @@ export function App() {
   /** Conquistas novas na fila do aviso (uma por vez). */
   const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
   const noticeAchievements = useCallback(() => {
-    const fresh = takeNewAchievements(currentAchievements(), userStorage);
+    const now = currentAchievements();
+    const fresh = takeNewAchievements(now, userStorage);
+    // Conquista nova: atualiza a vitrine do perfil público (só manda se mudou).
+    const owner = storedAuthSession()?.user.id;
+    if (fresh.length > 0 && owner) {
+      const totals = readingTotals();
+      void publishShowcase(owner, now, {
+        totalMinutes: totals.totalMinutes,
+        bestStreak: totals.bestStreak,
+        finishedBooks: finishedBooks().length,
+        messagesSent: characterTalks().reduce((n, t) => n + t.sent, 0),
+      });
+    }
     // Várias de uma vez é dado chegando de outro aparelho (já avisado lá): só registra.
     if (fresh.length > 0 && fresh.length <= 2) setAchievementQueue((q) => [...q, ...fresh]);
   }, []);

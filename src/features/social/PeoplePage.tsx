@@ -7,7 +7,7 @@ import { useStoredSession } from "../auth/useStoredSession";
 import { useGroupsGate } from "../groups/groupHelpers";
 import { GIcon } from "../groups/groupIcons";
 import { followersOf, followingOf, peopleSuggestions, removeFollower, searchPeople, type Person, errorText } from "../../lib/social";
-import { PeopleBlocked, PeopleEmpty, PeopleList, PeopleSkeleton, PersonRow } from "./PeopleParts";
+import { PeopleBlocked, PeopleEmpty, PeopleList, PeopleSkeleton, PersonRow, SuggestionsStrip } from "./PeopleParts";
 
 type Tab = "sugestoes" | "seguindo" | "seguidores";
 const TABS: { id: Tab; label: string }[] = [
@@ -105,6 +105,7 @@ export function PeoplePage() {
               extra={(p, remove) => <RemoveFollower person={p} onRemoved={remove} />}
             />
           ) : null}
+          {tab !== "sugestoes" ? <SuggestionsStrip me={me} title="Sugestões para você" skipFollowers={tab === "seguidores"} /> : null}
         </>
       )}
     </div>

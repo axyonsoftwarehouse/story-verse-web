@@ -1,5 +1,5 @@
 import { refreshAuthSession } from "./auth";
-import { apiRequest, AuthSessionError } from "./backend";
+import { apiEnabled, apiRequest, AuthSessionError } from "./backend";
 
 /**
  * Rede social: seguir perfis. Seguir é de mão única; quando as duas pessoas se seguem, viram
@@ -22,6 +22,21 @@ export type Person = {
   groups_in_common?: number;
 };
 
+export type ProfileBook = {
+  book_key: string;
+  title: string;
+  author: string | null;
+  cover_url: string | null;
+  status: "reading" | "finished";
+  rating: number | null;
+  progress_percent: number | null;
+  finished_on: string | null;
+};
+
+export type ProfileBadge = { id: string; emoji: string; title: string; description?: string };
+export type ProfileGift = { gift_id: string; name: string; icon: string; rarity: "common" | "rare" | "epic"; total: number };
+export type ProfileStats = { totalMinutes?: number; bestStreak?: number; finishedBooks?: number; messagesSent?: number };
+
 export type PersonProfile = Person & {
   is_me: boolean;
   member_since: string;
@@ -30,6 +45,17 @@ export type PersonProfile = Person & {
   /** Quantas pessoas seguem e são seguidas de volta por este perfil. */
   connections: number;
   groups_in_common: number;
+  /** A pessoa escolheu mostrar leituras, conquistas e presentes (só faz diferença no próprio perfil). */
+  show_reading: boolean;
+  /** Quem vê não pode ver as leituras (a pessoa escondeu). */
+  reading_hidden: boolean;
+  books: ProfileBook[];
+  reading_counts: { reading: number; finished: number };
+  gifts: ProfileGift[];
+  badges: ProfileBadge[];
+  /** Quantas conquistas existem (para "6 de 17"). 0: o app da pessoa ainda não publicou. */
+  badges_total: number;
+  stats: ProfileStats;
 };
 
 export type Relation = "self" | "connection" | "following" | "follows_me" | "none";
@@ -78,7 +104,7 @@ async function token(): Promise<string> {
   return session.access_token;
 }
 
-async function call<T>(path: string, init: { method?: string } = {}): Promise<T> {
+async function call<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   return apiRequest<T>(path, { ...init, accessToken: await token() });
 }
 
@@ -96,3 +122,39 @@ export const followingOf = (userId: string, offset = 0) =>
 export const follow = (userId: string) => call<PersonProfile>(`/api/v1/social/people/${id(userId)}/follow`, { method: "PUT" });
 export const unfollow = (userId: string) => call<PersonProfile>(`/api/v1/social/people/${id(userId)}/follow`, { method: "DELETE" });
 export const removeFollower = (userId: string) => call<void>(`/api/v1/social/me/followers/${id(userId)}`, { method: "DELETE" });
+export const booksOf = (userId: string, offset = 0) =>
+  call<ProfileBook[]>(`/api/v1/social/people/${id(userId)}/books?limit=24&offset=${offset}`);
+export const setShowReading = (showReading: boolean) =>
+  call<{ show_reading: boolean }>("/api/v1/social/me/privacy", { method: "PUT", body: { showReading } });
+
+type ShowcaseBadge = { id: string; emoji: string; title: string; description: string; unlocked: boolean };
+
+/**
+ * Publica no perfil as conquistas desbloqueadas e alguns números de leitura. Só manda quando
+ * algo mudou desde a última vez (guardado por conta neste aparelho). Falha calada: é enfeite.
+ */
+export async function publishShowcase(userId: string, badges: ShowcaseBadge[], stats: ProfileStats): Promise<void> {
+  if (!apiEnabled || !userId) return;
+  const body = {
+    badges: badges.filter((b) => b.unlocked).map(({ id: badgeId, emoji, title, description }) => ({ id: badgeId, emoji, title, description })),
+    total: badges.length,
+    stats,
+  };
+  const key = `storyverse:showcase:${userId}`;
+  const signature = JSON.stringify(body);
+  try {
+    if (localStorage.getItem(key) === signature) return;
+  } catch {
+    // Sem armazenamento: publica de qualquer jeito.
+  }
+  try {
+    await call<void>("/api/v1/social/me/showcase", { method: "PUT", body });
+    try {
+      localStorage.setItem(key, signature);
+    } catch {
+      // Sem armazenamento: tenta de novo na próxima vez.
+    }
+  } catch {
+    // Sem a liberação da comunidade, offline ou limite: tenta de novo depois.
+  }
+}

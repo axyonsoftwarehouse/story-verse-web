@@ -20,6 +20,8 @@ import { PushStatus } from "./PushStatus";
 import { GroupAvatar, GroupsBlocked } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { useGroupsGate } from "./groupHelpers";
+import { SuggestionsStrip } from "../social/PeopleParts";
+import "../social/social.css";
 
 type Tab = "mine" | "explore";
 
@@ -236,6 +238,8 @@ export function GroupsHome() {
           ))}
         </ul>
       )}
+
+      {tab === "mine" && list !== null && me ? <SuggestionsStrip me={me} /> : null}
 
       {creating ? (
         <GroupForm

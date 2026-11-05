@@ -38,3 +38,10 @@ export async function markNotificationsRead(): Promise<void> {
   if (!accessToken) return;
   await apiRequest("/api/v1/notifications/read", { method: "POST", accessToken });
 }
+
+/** "Limpar tudo": apaga os avisos da conta no servidor. */
+export async function clearNotifications(): Promise<void> {
+  const accessToken = await token();
+  if (!accessToken) return;
+  await apiRequest("/api/v1/notifications", { method: "DELETE", accessToken });
+}

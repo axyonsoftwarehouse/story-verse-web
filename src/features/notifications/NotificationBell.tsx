@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { messagePreview, messageTime, type Group } from "../../lib/groups";
-import { fetchNotifications, markNotificationsRead, type AppNotification } from "../../lib/notifications";
+import { markRead, messagePreview, messageTime, type Group } from "../../lib/groups";
+import { clearNotifications, fetchNotifications, markNotificationsRead, type AppNotification } from "../../lib/notifications";
+import { GIcon } from "../groups/groupIcons";
 import { GroupAvatar, PersonFace } from "../groups/GroupParts";
 import "../groups/groups.css";
 import "./notifications.css";
@@ -33,6 +34,9 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [pos, setPos] = useState<CSSProperties>({});
+  /** Grupos limpos agora: escondidos até chegar mensagem depois da que estava no topo. */
+  const [cleared, setCleared] = useState<Record<string, number>>({});
+  const [clearing, setClearing] = useState(false);
 
   const load = useCallback(() => {
     void fetchNotifications()
@@ -47,7 +51,9 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
 
   useEffect(() => load(), [load, activity]);
 
-  const newGroups = groups.filter((g) => !g.muted && Number(g.unread) > 0);
+  const newGroups = groups.filter(
+    (g) => !g.muted && Number(g.unread) > 0 && (cleared[g.id] === undefined || Number(g.last_message_id ?? 0) > cleared[g.id]),
+  );
   const badge = unread + newGroups.length;
 
   useLayoutEffect(() => {
@@ -81,6 +87,30 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
     navigate(path);
   }
 
+  /** "Limpar tudo": apaga os avisos e dá as mensagens novas dos grupos como lidas. */
+  async function clearAll() {
+    if (clearing) return;
+    setClearing(true);
+    const groupsBefore = newGroups;
+    const itemsBefore = items;
+    setItems([]);
+    setUnread(0);
+    setCleared((cur) => ({ ...cur, ...Object.fromEntries(groupsBefore.map((g) => [g.id, Number(g.last_message_id ?? 0)])) }));
+    try {
+      await Promise.all([
+        clearNotifications(),
+        ...groupsBefore.filter((g) => g.last_message_id).map((g) => markRead(g.id, Number(g.last_message_id)).catch(() => undefined)),
+      ]);
+    } catch {
+      // Sem rede: os avisos voltam (os grupos continuam escondidos até chegar mensagem nova).
+      setItems(itemsBefore);
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  const empty = items.length === 0 && newGroups.length === 0;
+
   return (
     <>
       <button
@@ -102,8 +132,16 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
         ? createPortal(
             <div className="notif-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
               <section className="notif-panel" style={pos} role="dialog" aria-label="Notificações">
-                <header>
+                <header className="notif-head">
                   <h2>Notificações</h2>
+                  {!empty ? (
+                    <button type="button" className="notif-clear" onClick={() => void clearAll()} disabled={clearing}>
+                      {GIcon.check} Limpar tudo
+                    </button>
+                  ) : null}
+                  <button type="button" className="group-icon-btn notif-close" onClick={() => setOpen(false)} aria-label="Fechar notificações" title="Fechar">
+                    {GIcon.close}
+                  </button>
                 </header>
                 <div className="notif-scroll">
                   {newGroups.length > 0 ? (
@@ -130,9 +168,16 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                       </ul>
                     </>
                   ) : null}
-                  <h3>Atividade</h3>
+                  {empty ? (
+                    <div className="notif-all-clear">
+                      <span aria-hidden="true">{BELL}</span>
+                      <strong>Tudo em dia</strong>
+                      <p>Quando responderem, reagirem às suas mensagens ou seguirem você, aparece aqui.</p>
+                    </div>
+                  ) : null}
+                  {items.length > 0 ? <h3>Atividade</h3> : null}
                   {items.length === 0 ? (
-                    <p className="notif-empty">Quando responderem, reagirem às suas mensagens ou seguirem você, aparece aqui.</p>
+                    null
                   ) : (
                     <ul>
                       {items.map((n) => {
