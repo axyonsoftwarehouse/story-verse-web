@@ -21,7 +21,7 @@ export function PersonFace({
   name: string;
   avatar?: string | null;
   photo?: string | null;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   online?: boolean;
 }) {
   const [broken, setBroken] = useState<string | null>(null);

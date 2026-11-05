@@ -102,6 +102,9 @@ export function GroupsHome() {
         <Link className="btn" to="/">
           Voltar
         </Link>
+        <Link className="btn groups-people-link" to="/pessoas">
+          {GIcon.users} Pessoas
+        </Link>
       </nav>
 
       <header className="groups-hero">

@@ -7938,6 +7938,7 @@ export function App() {
                 ...(!installed ? [{ key: "install", label: "Baixar app", icon: Icon.download, onClick: () => setInstallOpen(true) }] : []),
                 { key: "library", label: "Biblioteca", icon: Icon.book, to: "/biblioteca" },
                 { key: "audio", label: "Audiolivros", icon: Icon.speaker, to: "/ouvir" },
+                ...(groupsOn && authUser ? [{ key: "people", label: "Pessoas", icon: Icon.chat, to: "/pessoas" }] : []),
                 ...(canRead ? [{ key: "import", label: "Importar livro", icon: Icon.upload, onClick: () => requestImport() }] : []),
                 ...(staffOn ? [{ key: "admin", label: "Painel admin", icon: Icon.settings, to: "/admin" }] : []),
               ] satisfies NavMoreItem[]}

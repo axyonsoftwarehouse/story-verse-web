@@ -1,0 +1,311 @@
+/* Rede social: página "Pessoas" e perfil de um leitor. Cores só das variáveis do tema. */
+
+.people-page .groups-hero {
+  grid-template-columns: auto 1fr;
+}
+
+.people-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.people-search {
+  flex: none;
+  margin-bottom: 1rem;
+}
+
+.people-tabs {
+  margin-bottom: 1rem;
+}
+
+.people-hint {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.people-section-title {
+  margin: 1.4rem 0 0.7rem;
+  font-family: var(--font-read);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+/* ---- Lista de pessoas ---- */
+
+.people-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.people-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+
+.people-row:hover {
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.people-row.is-skeleton {
+  height: 3.9rem;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: group-shimmer 1.2s linear infinite;
+}
+
+.people-row-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.people-row-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
+
+.people-row-text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.people-row-text strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.people-row-meta:empty {
+  display: none;
+}
+
+.people-you {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.people-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.people-badge.is-connection {
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+}
+
+.people-remove {
+  color: var(--muted);
+}
+
+.people-remove:hover {
+  color: var(--text);
+}
+
+/* ---- Botão de seguir ---- */
+
+.people-follow-wrap {
+  display: inline-grid;
+  justify-items: end;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.people-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.people-follow svg {
+  width: 16px;
+  height: 16px;
+}
+
+.people-follow.is-compact {
+  min-height: 34px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+/* Já segue: botão discreto (o destaque fica para quem ainda não segue). */
+.people-follow.is-on {
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text);
+}
+
+.people-follow.is-on:hover {
+  border-color: var(--accent);
+}
+
+.people-follow-error {
+  max-width: 12rem;
+  color: var(--danger, #e27b6b);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+/* ---- Perfil ---- */
+
+.person-hero {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem 1.25rem;
+  margin: 0.4rem 0 0.5rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  border-radius: calc(var(--radius) + 4px);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(var(--accent-rgb), 0.16), transparent 55%),
+    var(--surface);
+}
+
+.person-hero.is-skeleton {
+  height: 13rem;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: group-shimmer 1.2s linear infinite;
+}
+
+.person-hero .group-face-lg {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.35);
+}
+
+.person-hero-text {
+  min-width: 0;
+}
+
+.person-hero-text h1 {
+  margin: 0 0 0.35rem;
+  overflow-wrap: anywhere;
+  font-family: var(--font-read);
+  font-size: 1.7rem;
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.person-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.person-stats {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+}
+
+.person-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.65rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-deep);
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+button.person-stat {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+button.person-stat:hover,
+button.person-stat.is-on {
+  border-color: rgba(var(--accent-rgb), 0.55);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.person-stat dd {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.person-stat dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* Celular: rosto e nome centralizados, botão de seguir largo logo abaixo. */
+@media (max-width: 560px) {
+  .person-hero {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 1.25rem 1rem;
+    text-align: center;
+  }
+
+  .person-hero-meta {
+    justify-content: center;
+  }
+
+  .person-stats {
+    justify-self: stretch;
+  }
+
+  .person-hero-action,
+  .person-hero-action .people-follow-wrap,
+  .person-hero-action .people-follow,
+  .person-hero-action > .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .people-follow-label {
+    display: inline;
+  }
+
+  .people-row .people-follow.is-compact {
+    padding: 0.3rem 0.65rem;
+  }
+}

@@ -17,6 +17,7 @@ function describe(n: AppNotification): { text: string; quote: string | null } {
   const quote = n.message_body || n.message_media_kind ? messagePreview({ body: n.message_body, media_kind: n.message_media_kind }, 70) : null;
   if (n.kind === "reply") return { text: `${n.actor_name} respondeu sua mensagem em ${n.group_name}`, quote };
   if (n.kind === "reaction") return { text: `${n.actor_name} reagiu ${n.emoji ?? ""} à sua mensagem em ${n.group_name}`, quote };
+  if (n.kind === "follow") return { text: `${n.actor_name} começou a seguir você`, quote: null };
   if (n.kind === "member_added") return { text: `${n.actor_name} adicionou você ao grupo ${n.group_name}`, quote: null };
   return { text: `${n.actor_name} entrou no grupo ${n.group_name}`, quote: null };
 }
@@ -75,9 +76,9 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
     return () => window.removeEventListener("keydown", onKey);
   }, [open, unread]);
 
-  function go(groupId: string) {
+  function go(path: string) {
     setOpen(false);
-    navigate(`/grupos/${groupId}`);
+    navigate(path);
   }
 
   return (
@@ -111,7 +112,7 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                       <ul>
                         {newGroups.map((g) => (
                           <li key={g.id}>
-                            <button type="button" className="notif-item is-new" onClick={() => go(g.id)}>
+                            <button type="button" className="notif-item is-new" onClick={() => go(`/grupos/${g.id}`)}>
                               <GroupAvatar id={g.id} name={g.name} photo={g.photo_url} size="sm" />
                               <span className="notif-text">
                                 <strong>
@@ -131,14 +132,14 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                   ) : null}
                   <h3>Atividade</h3>
                   {items.length === 0 ? (
-                    <p className="notif-empty">Quando responderem ou reagirem às suas mensagens, aparece aqui.</p>
+                    <p className="notif-empty">Quando responderem, reagirem às suas mensagens ou seguirem você, aparece aqui.</p>
                   ) : (
                     <ul>
                       {items.map((n) => {
                         const { text, quote } = describe(n);
                         return (
                           <li key={n.id}>
-                            <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(n.group_id)}>
+                            <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(n.kind === "follow" || !n.group_id ? `/pessoas/${n.actor_id}` : `/grupos/${n.group_id}`)}>
                               <PersonFace id={n.actor_id} name={n.actor_name} avatar={n.actor_avatar} photo={n.actor_photo} size="sm" />
                               <span className="notif-text">
                                 <strong>{text}</strong>

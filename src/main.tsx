@@ -16,6 +16,8 @@ import {
   GroupInvite,
   GroupsHome,
   LegalPage,
+  PeoplePage,
+  PersonProfilePage,
   PublicBookPage,
   PublicLibraryPage,
   RouteLoading,
@@ -55,6 +57,8 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/grupos" element={<GroupsHome />} />
             <Route path="/grupos/:id" element={<GroupChat />} />
             <Route path="/g/:code" element={<GroupInvite />} />
+            <Route path="/pessoas" element={<PeoplePage />} />
+            <Route path="/pessoas/:id" element={<PersonProfilePage />} />
             <Route path="/admin/*" element={<AdminRoute />} />
             <Route path="/assinar" element={<SubscribePage />} />
             <Route path="/conta/assinatura" element={<SubscriptionPage />} />
