@@ -12,7 +12,7 @@
  */
 // Mudar a versão faz quem já tem o app baixar de novo a página e os ícones. Livros e imagens
 // (capas, retratos) ficam em caches sem versão: continuam guardados entre atualizações.
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL = `storyverse-shell-${VERSION}`;
 const BOOKS = "storyverse-books-v1";
 // v2: a v1 chegou a guardar páginas de erro (HTML) no lugar de capas, que ficavam quebradas.
@@ -24,7 +24,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL)
-      .then((c) => c.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png"]))
+      .then((c) => c.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/badge-96.png"]))
       .then(() => self.skipWaiting()),
   );
 });
@@ -192,7 +192,7 @@ async function maybeNotify(force) {
   await self.registration.showNotification(title, {
     body,
     icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
     tag: "storyverse-daily",
     data: { url: "/" },
   });
@@ -224,7 +224,7 @@ self.addEventListener("push", (event) => {
       await self.registration.showNotification(data.title || "Storyverse", {
         body: data.body || "Mensagem nova",
         icon: "/icons/icon-192.png",
-        badge: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png",
         tag: data.tag || "storyverse-push",
         renotify: true,
         data: { url: data.url || "/" },

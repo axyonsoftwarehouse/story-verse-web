@@ -17,6 +17,13 @@ export const GIcon = {
   ),
   send: svg(<path d="M5 12l14-7-5 15-3-6-6-2z" />),
   plus: svg(<path d="M12 5v14M5 12h14" />),
+  check: svg(<path d="M5 12.5l4.5 4.5L19 7.5" />),
+  userPlus: svg(
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6" />
+    </>,
+  ),
   search: svg(
     <>
       <circle cx="11" cy="11" r="7" />

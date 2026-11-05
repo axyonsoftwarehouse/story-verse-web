@@ -5,31 +5,6 @@
 
 /* ------------------------------ Peças comuns ------------------------------ */
 
-.group-icon-btn {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 2.4rem;
-  height: 2.4rem;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.group-icon-btn:hover,
-.group-icon-btn:focus-visible {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.group-icon-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .group-text-btn {
   padding: 0;
   border: 0;
@@ -41,8 +16,10 @@
   cursor: pointer;
 }
 
-.group-text-btn:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .group-text-btn:hover {
+    text-decoration: underline;
+  }
 }
 
 .group-text-btn.is-danger {
@@ -55,73 +32,10 @@
 }
 
 /* Avatar do grupo: foto ou inicial num degradê com o tom do grupo. */
-.group-avatar {
-  --h: 40;
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 30%;
-  font-family: var(--font-read);
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(140deg, hsl(var(--h) 46% 52%), hsl(calc(var(--h) + 40) 42% 32%));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.group-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.group-avatar-sm {
-  width: 2.3rem;
-  height: 2.3rem;
-  font-size: 1rem;
-}
-
-.group-avatar-lg {
-  width: 3.4rem;
-  height: 3.4rem;
-  font-size: 1.4rem;
-}
-
-.group-avatar-xl {
-  width: 5.5rem;
-  height: 5.5rem;
-  font-size: 2.3rem;
-}
 
 /* Rosto de quem escreve. */
-.group-face {
-  --c: var(--accent);
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 50%;
-  font-family: var(--font-read);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #1b1712;
-  background: var(--c);
-}
 
-.group-face-sm {
-  width: 1.9rem;
-  height: 1.9rem;
-  font-size: 0.82rem;
-}
-
-.group-face svg {
-  width: 60%;
-  height: 60%;
-}
+/* Cabeçalho do perfil de uma pessoa (rede social). */
 
 .group-role {
   padding: 0.08rem 0.5rem;
@@ -323,13 +237,22 @@
   background: var(--surface);
   color: inherit;
   text-decoration: none;
-  transition: border-color 0.2s, transform 0.2s var(--ease-out), background 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease-out),
+    background 0.2s;
 }
 
-.group-card:hover,
 .group-card:focus-visible {
   border-color: rgba(var(--accent-rgb), 0.45);
   background: color-mix(in srgb, var(--surface) 92%, rgb(var(--accent-rgb)));
+}
+
+@media (hover: hover) {
+  .group-card:hover {
+    border-color: rgba(var(--accent-rgb), 0.45);
+    background: color-mix(in srgb, var(--surface) 92%, rgb(var(--accent-rgb)));
+  }
 }
 
 .group-card:active {
@@ -338,9 +261,6 @@
 
 .group-card.is-skeleton {
   height: 4.9rem;
-  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
-  background-size: 200% 100%;
-  animation: group-shimmer 1.2s linear infinite;
 }
 
 @keyframes group-shimmer {
@@ -679,7 +599,9 @@
   border-radius: var(--radius-sm);
   background: var(--bg);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .group-choice label.is-on,
@@ -819,8 +741,10 @@
   cursor: pointer;
 }
 
-.group-chat-title:hover {
-  background: rgba(255, 255, 255, 0.04);
+@media (hover: hover) {
+  .group-chat-title:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
 }
 
 .group-chat-title-text {
@@ -913,7 +837,9 @@
   background-image:
     radial-gradient(90% 60% at 50% 0%, rgba(var(--accent-rgb), 0.06), transparent 70%),
     url("/images/chat-pattern.svg");
-  background-size: auto, 280px 280px;
+  background-size:
+    auto,
+    280px 280px;
   background-attachment: local, local;
 }
 
@@ -925,7 +851,6 @@
   margin: 0 auto;
   padding: 0.75rem 0.75rem 1rem;
 }
-
 
 /* Cartão discreto no começo da conversa (como o aviso do topo no WhatsApp). */
 .group-chat-start {
@@ -1178,16 +1103,25 @@
   color: var(--muted);
   opacity: 0;
   cursor: pointer;
-  transition: opacity 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
 }
 
-.group-msg:hover .group-more,
 .group-more:focus-visible {
   opacity: 1;
 }
 
-.group-more:hover {
-  background: rgba(255, 255, 255, 0.07);
+@media (hover: hover) {
+  .group-msg:hover .group-more {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) {
+  .group-more:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
 }
 
 @media (hover: none) {
@@ -1253,11 +1187,15 @@
   background: linear-gradient(140deg, var(--accent-light, var(--accent)), var(--accent));
   color: var(--on-accent);
   cursor: pointer;
-  transition: transform 0.15s, opacity 0.15s;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
 }
 
-.group-send:not(:disabled):hover {
-  transform: scale(1.05);
+@media (hover: hover) {
+  .group-send:not(:disabled):hover {
+    transform: scale(1.05);
+  }
 }
 
 .group-send:disabled {
@@ -1675,8 +1613,10 @@
   cursor: pointer;
 }
 
-.group-danger-btn:hover {
-  background: rgba(232, 120, 120, 0.08);
+@media (hover: hover) {
+  .group-danger-btn:hover {
+    background: rgba(232, 120, 120, 0.08);
+  }
 }
 
 /* ------------------------------ Denúncias (admin) ------------------------------ */
@@ -1808,12 +1748,18 @@
 .group-chat-header {
   border-bottom-color: color-mix(in srgb, var(--group-tint) 25%, var(--border));
   background:
-    linear-gradient(100deg, color-mix(in srgb, var(--group-tint) 26%, transparent), transparent 70%),
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--group-tint) 26%, transparent),
+      transparent 70%
+    ),
     color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .group-chat-header .group-avatar {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--group-tint) 55%, transparent);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--group-tint) 55%, transparent);
 }
 
 .group-chat-title-text small.is-typing {
@@ -1824,10 +1770,17 @@
 
 .group-chat-body {
   background-image:
-    radial-gradient(75% 50% at 15% 0%, color-mix(in srgb, var(--group-tint) 20%, transparent), transparent 70%),
+    radial-gradient(
+      75% 50% at 15% 0%,
+      color-mix(in srgb, var(--group-tint) 20%, transparent),
+      transparent 70%
+    ),
     radial-gradient(60% 40% at 100% 100%, rgba(var(--accent-rgb), 0.08), transparent 70%),
     url("/images/chat-pattern.svg");
-  background-size: auto, auto, 280px 280px;
+  background-size:
+    auto,
+    auto,
+    280px 280px;
   background-attachment: local, local, local;
 }
 
@@ -1855,7 +1808,9 @@
 }
 
 .group-bubble {
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 
 @media (hover: hover) {
@@ -1877,9 +1832,15 @@
 .group-msg.is-mine .group-bubble.is-pending {
   background-image:
     linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%),
-    linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface)));
+    linear-gradient(
+      150deg,
+      color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)),
+      color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface))
+    );
   background-color: var(--bg);
-  background-size: 200% 100%, auto;
+  background-size:
+    200% 100%,
+    auto;
   animation: group-shimmer 1.2s linear infinite;
 }
 
@@ -1974,12 +1935,6 @@
   }
 }
 
-@keyframes group-shimmer {
-  to {
-    background-position: -200% 0, 0 0;
-  }
-}
-
 @keyframes group-breathe {
   50% {
     opacity: 0.55;
@@ -2022,7 +1977,13 @@
     radial-gradient(1px 1px at 60px 170px, rgba(255, 255, 255, 0.5), transparent 60%),
     radial-gradient(70% 50% at 80% 0%, rgba(120, 110, 255, 0.22), transparent 70%),
     linear-gradient(180deg, #0b1232, #151036 55%, #0a0a1c);
-  background-size: 190px 190px, 190px 190px, 190px 190px, 190px 190px, auto, auto;
+  background-size:
+    190px 190px,
+    190px 190px,
+    190px 190px,
+    190px 190px,
+    auto,
+    auto;
 }
 
 .chat-bg-biblioteca {
@@ -2043,7 +2004,11 @@
 .chat-bg-oceano {
   background:
     radial-gradient(70% 45% at 50% 0%, rgba(110, 220, 255, 0.22), transparent 70%),
-    repeating-radial-gradient(circle at 50% 120%, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 26px),
+    repeating-radial-gradient(
+      circle at 50% 120%,
+      rgba(255, 255, 255, 0.025) 0 2px,
+      transparent 2px 26px
+    ),
     linear-gradient(180deg, #0b3044, #06192a 60%, #040f1a);
 }
 
@@ -2106,11 +2071,16 @@
   border: 2px solid var(--border);
   border-radius: 0.8rem;
   color: var(--muted);
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .group-bg-swatch.is-default {
-  background: url("/images/chat-pattern.svg") 0 0 / 120px 120px, var(--bg);
+  background:
+    url("/images/chat-pattern.svg") 0 0 / 120px 120px,
+    var(--bg);
 }
 
 .group-bg-upload {
@@ -2118,8 +2088,10 @@
   background: var(--bg);
 }
 
-.group-bg-option:hover .group-bg-swatch {
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .group-bg-option:hover .group-bg-swatch {
+    transform: translateY(-2px);
+  }
 }
 
 .group-bg-option.is-on .group-bg-swatch {
@@ -2350,7 +2322,9 @@ button.group-info-desc.is-empty {
 @keyframes group-flash {
   0%,
   35% {
-    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.7), 0 0 24px rgba(var(--accent-rgb), 0.45);
+    box-shadow:
+      0 0 0 3px rgba(var(--accent-rgb), 0.7),
+      0 0 24px rgba(var(--accent-rgb), 0.45);
   }
 }
 
@@ -2445,10 +2419,16 @@ button.group-info-desc.is-empty {
   transition: transform 0.15s;
 }
 
-.group-focus-emojis button:hover,
 .group-focus-emojis button:focus-visible {
   outline: 0;
   transform: scale(1.3) translateY(-4px);
+}
+
+@media (hover: hover) {
+  .group-focus-emojis button:hover {
+    outline: 0;
+    transform: scale(1.3) translateY(-4px);
+  }
 }
 
 .group-focus-emojis button.is-mine {
@@ -2541,7 +2521,9 @@ button.group-info-desc.is-empty {
   font: inherit;
   font-size: 0.82rem;
   cursor: pointer;
-  transition: transform 0.12s, border-color 0.15s;
+  transition:
+    transform 0.12s,
+    border-color 0.15s;
 }
 
 .group-focus-reactions button:active {
@@ -2589,10 +2571,16 @@ button.group-info-desc.is-empty {
   border-bottom: 0;
 }
 
-.group-focus-actions button:hover,
 .group-focus-actions button:focus-visible {
   outline: 0;
   background: var(--surface-2);
+}
+
+@media (hover: hover) {
+  .group-focus-actions button:hover {
+    outline: 0;
+    background: var(--surface-2);
+  }
 }
 
 .group-focus-actions button svg {
@@ -2664,7 +2652,10 @@ button.group-info-desc.is-empty {
 
 /* Caixa de texto: o botão de enviar acende quando tem o que mandar. */
 .group-send {
-  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.5), opacity 0.15s, box-shadow 0.2s;
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.5),
+    opacity 0.15s,
+    box-shadow 0.2s;
 }
 
 .group-send:disabled {
@@ -2678,10 +2669,6 @@ button.group-info-desc.is-empty {
     transition: none !important;
   }
 }
-
-
-
-
 
 /* Formatação do texto (*negrito*, _itálico_, ~riscado~). */
 .group-text strong {
@@ -2697,30 +2684,18 @@ button.group-info-desc.is-empty {
 .group-chat-page,
 .group-focus {
   --bubble-other: linear-gradient(var(--surface), var(--surface)), var(--bg);
-  --bubble-mine: linear-gradient(150deg, color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)), color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface))), var(--bg);
+  --bubble-mine:
+    linear-gradient(
+      150deg,
+      color-mix(in srgb, rgb(var(--accent-rgb)) 36%, var(--surface)),
+      color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--surface))
+    ),
+    var(--bg);
 }
 
 /* Foto do perfil no rosto da pessoa. */
-.group-face img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 /* Bolinha verde: com o app aberto agora. O 🔥 sobe para o alto quando as duas aparecem. */
-.group-online {
-  position: absolute;
-  right: -0.05rem;
-  bottom: -0.05rem;
-  width: 0.62rem;
-  height: 0.62rem;
-  border: 2px solid var(--bg);
-  border-radius: 50%;
-  background: #3ecf6e;
-  box-shadow: 0 0 6px rgba(62, 207, 110, 0.6);
-}
-
 
 /* Avisos no celular: estado neste aparelho e o botão de teste. */
 .groups-push-status {
@@ -2791,7 +2766,12 @@ button.group-info-desc.is-empty {
 }
 
 .group-media-image.is-loading {
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 70%);
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.04) 70%
+  );
   background-size: 200% 100%;
   animation: group-shimmer 1.2s linear infinite;
 }
@@ -2945,12 +2925,16 @@ button.group-info-desc.is-empty {
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
-.group-attach:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
+@media (hover: hover) {
+  .group-attach:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+  }
 }
 
 .group-attach svg {
@@ -3355,7 +3339,17 @@ button.group-rp-character small {
 }
 
 /* Com fundo escolhido (tema ou foto), o respiro escuro viraria mancha: só a sombra. */
-:is(.chat-bg-noite, .chat-bg-biblioteca, .chat-bg-floresta, .chat-bg-oceano, .chat-bg-por-do-sol, .chat-bg-papel, .chat-bg-image) .group-day span {
+:is(
+    .chat-bg-noite,
+    .chat-bg-biblioteca,
+    .chat-bg-floresta,
+    .chat-bg-oceano,
+    .chat-bg-por-do-sol,
+    .chat-bg-papel,
+    .chat-bg-image
+  )
+  .group-day
+  span {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
@@ -3452,9 +3446,14 @@ button.group-rp-character small {
 .group-chat-page .group-chat-body:not([class*="chat-bg-"]) {
   background-color: var(--bg);
   background-image:
-    linear-gradient(color-mix(in srgb, var(--bg) 92%, transparent), color-mix(in srgb, var(--bg) 92%, transparent)),
+    linear-gradient(
+      color-mix(in srgb, var(--bg) 92%, transparent),
+      color-mix(in srgb, var(--bg) 92%, transparent)
+    ),
     url("/images/chat-pattern.svg");
-  background-size: auto, 280px 280px;
+  background-size:
+    auto,
+    280px 280px;
   background-attachment: local, local;
 }
 
@@ -3543,9 +3542,11 @@ button.group-rp-character small {
   background: var(--wa-out);
 }
 
-.group-chat-page .group-msg:hover .group-bubble {
-  transform: none;
-  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.35);
+@media (hover: hover) {
+  .group-chat-page .group-msg:hover .group-bubble {
+    transform: none;
+    box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.35);
+  }
 }
 
 /* A pontinha na primeira mensagem de cada sequência. */
@@ -3634,8 +3635,8 @@ button.group-rp-character small {
  * dentro dele, e o botão de enviar grande e sempre aceso ao lado.
  */
 .group-chat-page .group-composer {
-  padding: 0.4rem calc(0.45rem + env(safe-area-inset-right)) calc(0.45rem + env(safe-area-inset-bottom))
-    calc(0.45rem + env(safe-area-inset-left));
+  padding: 0.4rem calc(0.45rem + env(safe-area-inset-right))
+    calc(0.45rem + env(safe-area-inset-bottom)) calc(0.45rem + env(safe-area-inset-left));
   border-top: 0;
   background: var(--wa-bar);
   backdrop-filter: none;
@@ -3698,6 +3699,10 @@ button.group-rp-character small {
 
 .group-chat-page .group-composer textarea::placeholder {
   color: var(--muted);
+  /* A dica do roleplay é longa: numa linha só, cortada com reticências no celular. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .group-chat-page .group-composer textarea::selection {
@@ -3868,12 +3873,100 @@ button.group-rp-character small {
   color: #f0a0a0;
 }
 
-.group-delete-btn:hover {
-  border-color: rgba(240, 120, 120, 0.6);
-  background: rgba(240, 120, 120, 0.08);
+@media (hover: hover) {
+  .group-delete-btn:hover {
+    border-color: rgba(240, 120, 120, 0.6);
+    background: rgba(240, 120, 120, 0.08);
+  }
 }
 
 .group-delete-btn svg {
   width: 16px;
   height: 16px;
+}
+
+/* Nome do membro leva ao perfil (rede social). */
+.group-member-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.group-member-link:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .group-member-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.groups-people-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* "N novas ↓": com mensagem nova abaixo, o botão redondo vira uma pílula dourada que pulsa. */
+.group-to-end.has-new {
+  width: auto;
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0 0.75rem 0 0.95rem;
+  border-color: transparent;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.35);
+}
+
+.group-to-end.has-new::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.55);
+  animation: group-to-end-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.group-to-end-label {
+  animation: group-pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.5) both;
+}
+
+@keyframes group-to-end-pulse {
+  to {
+    box-shadow: 0 0 0 12px rgba(var(--accent-rgb), 0);
+  }
+}
+
+/* Os emojis do selo de reações entram um depois do outro. */
+.group-reaction-emoji {
+  display: inline-block;
+  animation: group-reaction-hop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+.group-reaction-emoji:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.group-reaction-emoji:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+@keyframes group-reaction-hop {
+  0% {
+    transform: translateY(6px) scale(0.4);
+  }
+  60% {
+    transform: translateY(-3px) scale(1.15);
+  }
 }

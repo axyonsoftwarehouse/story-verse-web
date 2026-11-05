@@ -12,6 +12,12 @@ export const GroupsHome = lazy(() =>
 export const GroupChat = lazy(() =>
   loadRoute(() => import("./features/groups/GroupChat")).then((m) => ({ default: m.GroupChat })),
 );
+export const PeoplePage = lazy(() =>
+  loadRoute(() => import("./features/social/PeoplePage")).then((m) => ({ default: m.PeoplePage })),
+);
+export const PersonProfilePage = lazy(() =>
+  loadRoute(() => import("./features/social/PersonProfilePage")).then((m) => ({ default: m.PersonProfilePage })),
+);
 export const GroupInvite = lazy(() =>
   loadRoute(() => import("./features/groups/GroupInvite")).then((m) => ({ default: m.GroupInvite })),
 );
@@ -53,7 +59,7 @@ export const LegalPage = lazy(() =>
 /** Enquanto o código da rota chega (na primeira visita a abertura ainda cobre a tela). */
 export function RouteLoading() {
   return (
-    <main className="auth-loading" role="status" aria-live="polite">
+    <main className="auth-loading" role="status" aria-live="polite" data-route-loading>
       <span className="spinner" aria-hidden="true" />
       <p>Carregando…</p>
     </main>

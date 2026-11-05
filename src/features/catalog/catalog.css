@@ -22,7 +22,11 @@
   padding: 1.1rem 1.2rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: linear-gradient(165deg, rgba(var(--card-top-rgb), 0.55), rgba(var(--card-bottom-rgb), 0.65));
+  background: linear-gradient(
+    165deg,
+    rgba(var(--card-top-rgb), 0.55),
+    rgba(var(--card-bottom-rgb), 0.65)
+  );
 }
 
 .library-panel .library-search {
@@ -142,8 +146,10 @@
   margin-bottom: 0.35rem;
 }
 
-.catalog-card:hover .cover {
-  transform: rotateY(-8deg) translateX(2px);
+@media (hover: hover) {
+  .catalog-card:hover .cover {
+    transform: rotateY(-8deg) translateX(2px);
+  }
 }
 
 .catalog-card strong {
@@ -184,8 +190,10 @@
   cursor: pointer;
 }
 
-.collection-card:hover {
-  border-color: var(--accent-dim);
+@media (hover: hover) {
+  .collection-card:hover {
+    border-color: var(--accent-dim);
+  }
 }
 
 .collection-card strong {

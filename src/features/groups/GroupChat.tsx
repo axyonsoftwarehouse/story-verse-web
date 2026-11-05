@@ -12,7 +12,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import "../../App.css";
 import "./groups.css";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -59,6 +59,7 @@ import { CharacterDialog } from "./CharacterDialog";
 import { RoleplayBookCard } from "./RoleplayBookCard";
 import { playReceived, playSent, unlockChatSounds } from "../../lib/chatSounds";
 import { MessageFocus, ReactionBursts, type Burst } from "./MessageFocus";
+import { TransitionLink } from "../../components/TransitionLink";
 
 const PAGE = 50;
 /** Segurar a mensagem por este tempo abre o destaque (reações e ações). */
@@ -650,9 +651,9 @@ export function GroupChat() {
       style={area ? { top: area.top, height: area.height, bottom: "auto" } : undefined}
     >
       <header className="group-chat-header">
-        <Link className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">
+        <TransitionLink back className="group-icon-btn" to="/grupos" aria-label="Voltar para os grupos">
           {GIcon.back}
-        </Link>
+        </TransitionLink>
         {group ? (
           <button type="button" className="group-chat-title" onClick={() => setInfoOpen(true)} aria-label={`Ver detalhes de ${group.name}`}>
             <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="sm" />
@@ -883,6 +884,8 @@ export function GroupChat() {
                           </div>
                           {total > 0 ? (
                             <button
+                              // Muda a chave quando chega reação: o selo "pula" de novo.
+                              key={`reactions-${total}`}
                               type="button"
                               className={`group-reactions ${m.reactions.some((r) => r.mine) ? "is-mine" : ""}`}
                               onClick={(e) => openFocus(m, e.currentTarget.closest(".group-msg"))}
@@ -937,8 +940,17 @@ export function GroupChat() {
               </div>
             </div>
             {!atBottom ? (
-              <button type="button" className="group-to-end" onClick={scrollToEnd} aria-label={newBelow ? `${newBelow} mensagens novas, ir para o fim` : "Ir para a última mensagem"}>
-                {newBelow ? <span className="group-to-end-count">{newBelow > 99 ? "99+" : newBelow}</span> : null}
+              <button
+                type="button"
+                className={`group-to-end ${newBelow ? "has-new" : ""}`}
+                onClick={scrollToEnd}
+                aria-label={newBelow ? `${newBelow} mensagens novas, ir para o fim` : "Ir para a última mensagem"}
+              >
+                {newBelow ? (
+                  <span className="group-to-end-label" key={newBelow}>
+                    {newBelow > 99 ? "99+" : newBelow} {newBelow === 1 ? "nova" : "novas"}
+                  </span>
+                ) : null}
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
@@ -1023,8 +1035,15 @@ export function GroupChat() {
                       onScroll={(e) => {
                         if (mirrorRef.current) mirrorRef.current.scrollTop = e.currentTarget.scrollTop;
                       }}
-                      placeholder={roleplay ? "*ação* e fala" : "Mensagem"}
-                      aria-label="Mensagem"
+                      placeholder={
+                        roleplay
+                          ? group.my_character
+                            ? `Fala de ${group.my_character} · *ações entre asteriscos*`
+                            : "Escreva a fala · *ações entre asteriscos*"
+                          : "Mensagem"
+                      }
+                      aria-label={roleplay ? "Mensagem do personagem. Ações entre asteriscos, falas sem." : "Mensagem"}
+                      title={roleplay ? "Ex.: *abre a porta devagar* Tem alguém aí?" : undefined}
                       maxLength={MESSAGE_MAX}
                       rows={1}
                     />

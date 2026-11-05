@@ -105,18 +105,26 @@
   cursor: pointer;
 }
 
-.notif-item:hover,
 .notif-item:focus-visible {
   outline: 0;
   background: var(--surface-2);
+}
+
+@media (hover: hover) {
+  .notif-item:hover {
+    outline: 0;
+    background: var(--surface-2);
+  }
 }
 
 .notif-item.is-new {
   background: rgba(var(--accent-rgb), 0.08);
 }
 
-.notif-item.is-new:hover {
-  background: rgba(var(--accent-rgb), 0.14);
+@media (hover: hover) {
+  .notif-item.is-new:hover {
+    background: rgba(var(--accent-rgb), 0.14);
+  }
 }
 
 .notif-text {
@@ -190,9 +198,11 @@
   cursor: pointer;
 }
 
-.nav-more-panel a:hover,
-.nav-more-panel button:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .nav-more-panel a:hover,
+  .nav-more-panel button:hover {
+    background: var(--surface-2);
+  }
 }
 
 .nav-more-panel svg {
@@ -221,8 +231,7 @@
   border: 1px solid var(--border-strong);
   background:
     linear-gradient(var(--surface-2), var(--surface-2)),
-    linear-gradient(var(--surface), var(--surface)),
-    var(--bg);
+    linear-gradient(var(--surface), var(--surface)), var(--bg);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 24px 60px rgba(0, 0, 0, 0.6);
@@ -233,11 +242,16 @@
   background: rgba(var(--accent-rgb), 0.06);
 }
 
-.notif-item:hover,
-.notif-item:focus-visible,
-.nav-more-panel a:hover,
-.nav-more-panel button:hover {
+.notif-item:focus-visible {
   background: rgba(255, 255, 255, 0.06);
+}
+
+@media (hover: hover) {
+  .notif-item:hover,
+  .nav-more-panel a:hover,
+  .nav-more-panel button:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
 
 .notif-item.is-new {
@@ -245,6 +259,107 @@
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.notif-item.is-new:hover {
-  background: rgba(var(--accent-rgb), 0.18);
+@media (hover: hover) {
+  .notif-item.is-new:hover {
+    background: rgba(var(--accent-rgb), 0.18);
+  }
+}
+
+/* Cabeçalho do sininho: título, "Limpar tudo" e fechar. */
+.notif-panel .notif-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.5rem 0.6rem 1rem;
+}
+
+.notif-head h2 {
+  flex: 1;
+}
+
+.notif-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.notif-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+.notif-clear:focus-visible {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+@media (hover: hover) {
+  .notif-clear:hover:not(:disabled) {
+    border-color: rgba(var(--accent-rgb), 0.5);
+    background: rgba(var(--accent-rgb), 0.1);
+  }
+}
+
+.notif-clear:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.notif-close {
+  width: 2.1rem;
+  height: 2.1rem;
+  color: var(--muted);
+}
+
+@media (hover: hover) {
+  .notif-close:hover {
+    color: var(--text);
+  }
+}
+
+/* Nada novo: sino calmo no lugar da lista. */
+.notif-all-clear {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 1.6rem 1rem 1.4rem;
+  text-align: center;
+  animation: notif-calm-in 0.35s ease both;
+}
+
+.notif-all-clear > span {
+  display: grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  margin-bottom: 0.2rem;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+}
+
+.notif-all-clear p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+@keyframes notif-calm-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }

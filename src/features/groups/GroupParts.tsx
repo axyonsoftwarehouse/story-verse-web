@@ -4,6 +4,7 @@ import { AvatarArt, findAvatar } from "../../avatars";
 import { apiBaseUrl } from "../../lib/backend";
 import { GIcon } from "./groupIcons";
 import { hueOf } from "./groupHelpers";
+import "./faces.css";
 
 /**
  * Rosto de quem escreve: a foto do perfil; sem foto (ou se não carregar), o avatar escolhido ou a
@@ -21,7 +22,7 @@ export function PersonFace({
   name: string;
   avatar?: string | null;
   photo?: string | null;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   online?: boolean;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
