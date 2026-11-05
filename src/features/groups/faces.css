@@ -1,0 +1,127 @@
+/*
+ * Rostos (pessoa e grupo) e botões redondos de ícone: usados no chat, nas listas de pessoas e
+ * no sininho do topo. Separados de groups.css para o sininho (que aparece na página inicial)
+ * não trazer todo o CSS da conversa para a primeira carga.
+ */
+
+.group-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.group-icon-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+@media (hover: hover) {
+  .group-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+}
+
+.group-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.group-avatar {
+  --h: 40;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 30%;
+  font-family: var(--font-read);
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(140deg, hsl(var(--h) 46% 52%), hsl(calc(var(--h) + 40) 42% 32%));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.group-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.group-face {
+  --c: var(--accent);
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  font-family: var(--font-read);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1b1712;
+  background: var(--c);
+}
+
+.group-face svg {
+  width: 60%;
+  height: 60%;
+}
+
+.group-face img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.group-online {
+  position: absolute;
+  right: -0.05rem;
+  bottom: -0.05rem;
+  width: 0.62rem;
+  height: 0.62rem;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: #3ecf6e;
+  box-shadow: 0 0 6px rgba(62, 207, 110, 0.6);
+}
+
+.group-avatar-sm {
+  width: 2.3rem;
+  height: 2.3rem;
+  font-size: 1rem;
+}
+
+.group-avatar-lg {
+  width: 3.4rem;
+  height: 3.4rem;
+  font-size: 1.4rem;
+}
+
+.group-avatar-xl {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 2.3rem;
+}
+
+.group-face-sm {
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 0.82rem;
+}
+
+.group-face-lg {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 2.2rem;
+}

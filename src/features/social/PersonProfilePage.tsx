@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import "../../App.css";
 import "../groups/groups.css";
 import "./social.css";
@@ -19,42 +19,20 @@ import {
   type PersonProfile,
   type ProfileBook,
 } from "../../lib/social";
+import { prefersReducedMotion, useAnimatedNumber } from "../../lib/motion";
 import { FollowButton, PeopleBlocked, PeopleEmpty, PeopleList, RelationBadge, SuggestionsStrip } from "./PeopleParts";
+import { TransitionLink } from "../../components/TransitionLink";
+import { useTransitionBack } from "../../lib/useTransitionBack";
+import { PageFoot } from "../../components/PageFoot";
 
 type ListTab = "seguidores" | "seguindo";
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-}
-
-/** Número que sobe de 0 até o valor ao abrir o perfil (fica parado com "reduzir movimento"). */
-function useCountUp(target: number, delay = 0): number {
-  const [value, setValue] = useState(() => (prefersReducedMotion() ? target : 0));
-  const from = useRef(0);
-  useEffect(() => {
-    if (prefersReducedMotion()) {
-      setValue(target);
-      return;
-    }
-    let raf = 0;
-    const start = performance.now() + delay;
-    const base = from.current;
-    const duration = 900;
-    const step = (now: number) => {
-      const t = Math.min(1, Math.max(0, (now - start) / duration));
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(base + (target - base) * eased));
-      if (t < 1) raf = requestAnimationFrame(step);
-      else from.current = target;
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, delay]);
-  return value;
-}
-
+/** Número que sobe a partir de 0 ao abrir o perfil (o `useAnimatedNumber` já respeita "reduzir movimento"). */
 function CountUp({ value, delay }: { value: number; delay: number }) {
-  return <>{useCountUp(value, delay).toLocaleString("pt-BR")}</>;
+  // Entra como null e vira o valor logo depois: assim o número conta a partir de 0 ao abrir.
+  const [target, setTarget] = useState<number | null>(null);
+  useEffect(() => setTarget(value), [value]);
+  return <>{(useAnimatedNumber(target, { from: 0, delay }) ?? 0).toLocaleString("pt-BR")}</>;
 }
 
 /** Perfil de um leitor: quem é, como se relaciona com a conta, o que lê, conquistas, presentes e rede. */
@@ -62,7 +40,7 @@ export function PersonProfilePage() {
   const { id = "" } = useParams();
   const { session, loading: sessionLoading } = useStoredSession();
   const gate = useGroupsGate(session, sessionLoading);
-  const navigate = useNavigate();
+  const goBack = useTransitionBack("/pessoas");
   const [params, setParams] = useSearchParams();
   const list: ListTab = params.get("lista") === "seguindo" ? "seguindo" : "seguidores";
   const [profile, setProfile] = useState<PersonProfile | null>(null);
@@ -87,12 +65,12 @@ export function PersonProfilePage() {
 
   const back = (
     <nav className="home-nav profile-nav">
-      <button type="button" className="btn" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/pessoas"))}>
+      <button type="button" className="btn" onClick={goBack}>
         Voltar
       </button>
-      <Link className="btn people-nav-link" to="/pessoas">
+      <TransitionLink className="btn people-nav-link" to="/pessoas">
         {GIcon.users} Pessoas
-      </Link>
+      </TransitionLink>
     </nav>
   );
 
@@ -109,11 +87,11 @@ export function PersonProfilePage() {
     return (
       <div className="home groups-page people-page">
         {back}
-        <section className="person-hero is-skeleton" aria-busy="true" aria-label="Carregando perfil" />
+        <section className="person-hero is-skeleton skeleton" aria-busy="true" aria-label="Carregando perfil" />
         <div className="person-skeleton-row" aria-hidden="true">
-          <span />
-          <span />
-          <span />
+          <span className="skeleton" />
+          <span className="skeleton" />
+          <span className="skeleton" />
         </div>
       </div>
     );
@@ -258,6 +236,7 @@ export function PersonProfilePage() {
         }
       />
       {profile.is_me ? <SuggestionsStrip me={me} skipFollowers={list === "seguidores"} /> : null}
+      <PageFoot />
     </div>
   );
 }

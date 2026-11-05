@@ -2495,7 +2495,7 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
           {items.length > SUBMISSIONS_PAGE ? ` · ${items.length} no total` : ""}.
         </p>
       </div>
-      <ul className="submission-list">
+      <ul className="submission-list stagger">
         {items.slice(0, visible).map((s) => (
           <li key={s.id} className="profile-card submission">
             <div className="submission-main">
@@ -3591,14 +3591,20 @@ function currentAchievements(): Achievement[] {
 
 /** Aviso pequeno no topo quando sai uma conquista nova; some sozinho e não cobre a leitura. */
 function AchievementToast({ achievement, onDone }: { achievement: Achievement; onDone: () => void }) {
+  const medal = useRef<HTMLSpanElement>(null);
+  /** Ao sair, a medalha voa até o avatar do topo (é lá que as conquistas ficam guardadas). */
+  const leave = useCallback(() => {
+    flyEmoji(achievement.emoji, medal.current, document.querySelector(".nav-account .nav-avatar") ?? document.querySelector(".nav-account"));
+    onDone();
+  }, [achievement, onDone]);
   useEffect(() => {
     haptic([20, 40, 20]);
-    const t = window.setTimeout(onDone, 3600);
+    const t = window.setTimeout(leave, 3600);
     return () => window.clearTimeout(t);
-  }, [achievement, onDone]);
+  }, [leave]);
   return createPortal(
-    <div className="achievement-toast" role="status" onClick={onDone}>
-      <span className="achievement-toast-medal" aria-hidden="true">
+    <div className="achievement-toast" role="status" onClick={leave}>
+      <span className="achievement-toast-medal" aria-hidden="true" ref={medal}>
         {achievement.emoji}
       </span>
       <span>

@@ -22,6 +22,8 @@ import { GIcon } from "./groupIcons";
 import { useGroupsGate } from "./groupHelpers";
 import { SuggestionsStrip } from "../social/PeopleParts";
 import "../social/social.css";
+import { TransitionLink } from "../../components/TransitionLink";
+import { PageFoot } from "../../components/PageFoot";
 
 type Tab = "mine" | "explore";
 
@@ -104,9 +106,9 @@ export function GroupsHome() {
         <Link className="btn" to="/">
           Voltar
         </Link>
-        <Link className="btn groups-people-link" to="/pessoas">
+        <TransitionLink className="btn groups-people-link" to="/pessoas">
           {GIcon.users} Pessoas
-        </Link>
+        </TransitionLink>
       </nav>
 
       <header className="groups-hero">
@@ -202,7 +204,7 @@ export function GroupsHome() {
       {list === null ? (
         <ul className="group-list" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="group-card is-skeleton" />
+            <li key={i} className="group-card is-skeleton skeleton" />
           ))}
         </ul>
       ) : list.length === 0 ? (
@@ -230,7 +232,7 @@ export function GroupsHome() {
           </div>
         </div>
       ) : (
-        <ul className="group-list">
+        <ul className="group-list stagger" key={tab}>
           {list.map((g) => (
             <li key={g.id}>
               <GroupCard group={g} explore={tab === "explore"} />
@@ -249,6 +251,7 @@ export function GroupsHome() {
           onSaved={(g) => navigate(`/grupos/${g.id}`)}
         />
       ) : null}
+      <PageFoot />
     </div>
   );
 }
@@ -270,7 +273,7 @@ function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
       group.description
     );
   return (
-    <Link className={`group-card ${group.unread > 0 ? "has-unread" : ""}`} to={`/grupos/${group.id}`}>
+    <TransitionLink className={`group-card ${group.unread > 0 ? "has-unread" : ""}`} to={`/grupos/${group.id}`}>
       <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="lg" />
       <span className="group-card-body">
         <span className="group-card-title">
@@ -313,6 +316,6 @@ function GroupCard({ group, explore }: { group: Group; explore: boolean }) {
           </>
         )}
       </span>
-    </Link>
+    </TransitionLink>
   );
 }
