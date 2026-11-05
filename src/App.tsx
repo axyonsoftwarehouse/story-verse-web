@@ -1,5 +1,14 @@
 import { userStorage } from "./lib/dataOwner";
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
@@ -276,6 +285,8 @@ import "./App.css";
 type Msg = ChatMsg;
 
 const EMPTY_THREAD: Msg[] = [];
+/** Capítulo sem tradução carregada: a mesma referência sempre, para não refazer o texto da tela. */
+const NO_TRANSLATIONS: Record<number, (string | null)[]> = {};
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -517,6 +528,7 @@ function Avatar({
       alive = false;
     };
     // O objeto do personagem muda a cada render; nome e id bastam.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character.id, character.name, bookTitle, generate]);
 
   return (
@@ -6138,7 +6150,7 @@ export function App() {
     return () => {
       alive = false;
     };
-  }, [authUserId, authLoading]);
+  }, [authUserId, authLoading, syncAccount, applyRemoteData]);
   useEffect(
     () => (authEnabled ? startAutoSync(() => authSessionRef.current, syncAccount, applyRemoteData) : undefined),
     [syncAccount, applyRemoteData],
@@ -6818,7 +6830,7 @@ export function App() {
 
   const retryLoad = useCallback(() => setLoadAttempt((n) => n + 1), []);
 
-  const characters = cast ?? [];
+  const characters = useMemo(() => cast ?? [], [cast]);
   const character = useMemo(
     () => characters.find((c) => c.id === activeCharId) ?? characters[0],
     [activeCharId, characters],
@@ -6857,6 +6869,34 @@ export function App() {
     };
   }, [book]);
 
+  /** Avisa da sequência de dias e da meta do dia batidas durante a leitura. */
+  const celebrate = useCallback(
+    (ev: ReadingEvents) => {
+      noticeAchievements();
+      if (ev.dayCompleted) {
+        const n = ev.streak;
+        const milestone = [3, 7, 14, 30, 50, 100, 365].includes(n);
+        setCelebration({
+          emoji: "🔥",
+          title: n === 1 ? "Sequência começou!" : `${n} dias seguidos!`,
+          roll: n > 1 ? { from: n - 1, to: n, suffix: "dias seguidos!" } : undefined,
+          text: ev.shieldEarned
+            ? "Você ganhou um escudo 🛡️: se um dia passar sem leitura, ele salva a sua sequência."
+            : milestone
+              ? "Que marca! Os personagens estão orgulhosos."
+              : n === 1
+                ? "Volte amanhã para manter o fogo aceso."
+                : "Continue assim — volte amanhã para manter a sequência.",
+        });
+      } else if (ev.goalReached) {
+        // Sem janela por cima do texto: a barra do topo brilha e um aviso pequeno some sozinho.
+        haptic([20, 40, 20]);
+        setGoalFlash(Date.now());
+      }
+    },
+    [noticeAchievements],
+  );
+
   /** Tempo de leitura (para a sequência de dias e a meta): conta de 15 em 15 s com o leitor ativo. */
   useEffect(() => {
     if (!book || loadState !== "ready") return;
@@ -6877,36 +6917,12 @@ export function App() {
       window.clearInterval(t);
       if (session) void readingHeartbeat(session, false).catch(() => {});
     };
-  }, [book, loadState]);
+  }, [book, loadState, celebrate]);
 
   // Conquista nova ao conversar, marcar um trecho ou ao abrir o app com os dados prontos.
   useEffect(() => {
     if (dataIsReady) noticeAchievements();
   }, [dataIsReady, threads, highlights, noticeAchievements]);
-
-  function celebrate(ev: ReadingEvents) {
-    noticeAchievements();
-    if (ev.dayCompleted) {
-      const n = ev.streak;
-      const milestone = [3, 7, 14, 30, 50, 100, 365].includes(n);
-      setCelebration({
-        emoji: "🔥",
-        title: n === 1 ? "Sequência começou!" : `${n} dias seguidos!`,
-        roll: n > 1 ? { from: n - 1, to: n, suffix: "dias seguidos!" } : undefined,
-        text: ev.shieldEarned
-          ? "Você ganhou um escudo 🛡️: se um dia passar sem leitura, ele salva a sua sequência."
-          : milestone
-            ? "Que marca! Os personagens estão orgulhosos."
-            : n === 1
-              ? "Volte amanhã para manter o fogo aceso."
-              : "Continue assim — volte amanhã para manter a sequência.",
-      });
-    } else if (ev.goalReached) {
-      // Sem janela por cima do texto: a barra do topo brilha e um aviso pequeno some sozinho.
-      haptic([20, 40, 20]);
-      setGoalFlash(Date.now());
-    }
-  }
 
   /** Trocou de personagem no chat: o retrato do topo gira como uma moeda. */
   const flippedForRef = useRef<string | null>(null);
@@ -7094,11 +7110,16 @@ export function App() {
     book?.source === "local" && engine !== "local" && !translateConsent;
   const translateOn = canTranslate && prefs.translate && !remoteTranslationNeedsConsent;
   const chunks = useMemo(() => chunkRanges(blocks.map((b) => b.text)), [blocks]);
+  /** Traduções do capítulo; `chunks` diz para quais trechos o guardado no aparelho já foi carregado. */
   const [translated, setTranslated] = useState<{
     key: string;
+    chunks: [number, number][] | null;
     byChunk: Record<number, (string | null)[]>;
-  }>({ key: "", byChunk: {} });
-  const translations = translated.key === chapterKey ? translated.byChunk : {};
+  }>({ key: "", chunks: null, byChunk: {} });
+  const translations = useMemo(
+    () => (translated.key === chapterKey ? translated.byChunk : NO_TRANSLATIONS),
+    [translated, chapterKey],
+  );
   const [translatingChunk, setTranslatingChunk] = useState<number | null>(null);
   const [failedChunks, setFailedChunks] = useState<number[]>([]);
 
@@ -7139,7 +7160,7 @@ export function App() {
         if (t) cached[c] = t;
       });
     }
-    setTranslated({ key: chapterKeyRef.current, byChunk: cached });
+    setTranslated({ key: chapterKeyRef.current, chunks, byChunk: cached });
     setTranslatingChunk(null);
     setFailedChunks([]);
   }, [book, canTranslate, chapterIndex, chunks]);
@@ -7167,7 +7188,7 @@ export function App() {
         .then((result) => {
           storeTranslation(book.gutenbergId, chapterIndex, c, result);
           if (chapterKeyRef.current === key) {
-            setTranslated((prev) => ({ key, byChunk: { ...prev.byChunk, [c]: result } }));
+            setTranslated((prev) => ({ ...prev, key, byChunk: { ...prev.byChunk, [c]: result } }));
           }
         })
         .catch((err) => {
@@ -7189,6 +7210,7 @@ export function App() {
     visibleChunk,
     chunks,
     translated,
+    translations,
     failedChunks,
     chapterKey,
     chapterIndex,
@@ -7351,13 +7373,23 @@ export function App() {
     if (!continueSpeechRef.current) stopSpeaking();
   }, [chapterIndex, translateOn, stopSpeaking]);
 
-  /** A voz terminou um capítulo: quando o próximo estiver na tela, continua do começo. */
+  /** Lê do começo com o texto mais recente na tela (não o do render em que o efeito foi marcado). */
+  const continueSpeaking = useEffectEvent(() => startSpeaking(0));
+  /**
+   * A voz terminou um capítulo: quando o próximo estiver na tela, continua do começo. Com a
+   * tradução ligada, espera as traduções guardadas do capítulo entrarem; senão a voz em português
+   * começaria pelo texto original.
+   */
+  const chapterTextReady =
+    loadState === "ready" && blocks.length > 0 && (!translateOn || translated.chunks === chunks);
   useEffect(() => {
-    if (!continueSpeechRef.current || loadState !== "ready" || blocks.length === 0) return;
-    continueSpeechRef.current = false;
-    const frame = requestAnimationFrame(() => startSpeaking(0));
+    if (!continueSpeechRef.current || !chapterTextReady) return;
+    const frame = requestAnimationFrame(() => {
+      continueSpeechRef.current = false;
+      continueSpeaking();
+    });
     return () => cancelAnimationFrame(frame);
-  }, [blocks, loadState]);
+  }, [chapterTextReady, blocks, translated.chunks]);
 
   /* ---- Seleção de texto: marcar, significado, compartilhar ---- */
 
