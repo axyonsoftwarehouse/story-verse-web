@@ -12,6 +12,11 @@ describe("formatMessage", () => {
     expect(html("*tudo _junto_*")).toBe("<strong>tudo <em>junto</em></strong>");
   });
 
+  it("espaço que não quebra (texto colado do Word) vira espaço comum, e *ação* continua formatando", () => {
+    expect(html("palavras coladas do Word")).toBe("palavras coladas do Word");
+    expect(html("*abre a porta* Boa noite")).toBe("<strong>abre a porta</strong> Boa noite");
+  });
+
   it("não formata no meio de palavras, com espaço encostado ou entre linhas", () => {
     expect(html("2*3*4")).toBe("2*3*4");
     expect(html("arquivo_final_v2")).toBe("arquivo_final_v2");

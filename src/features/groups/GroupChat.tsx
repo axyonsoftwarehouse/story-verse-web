@@ -753,11 +753,15 @@ export function GroupChat() {
                     {loadingOlder ? "Carregando…" : "Mensagens anteriores"}
                   </button>
                 ) : loaded ? (
-                  <div className="group-chat-start">
+                  <div className={`group-chat-start ${roleplay && group.rp_premise ? "has-scene" : ""}`}>
                     <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="md" />
                     <strong>{group.name}</strong>
                     {roleplay ? <span className="group-rp-badge">🎭 Roleplay</span> : null}
-                    <span className="group-chat-start-desc">{roleplay ? group.rp_premise : (group.description ?? "Este é o começo da conversa.")}</span>
+                    {roleplay && group.rp_premise ? (
+                      <RoleplayScene text={group.rp_premise} />
+                    ) : (
+                      <span className="group-chat-start-desc">{group.description ?? "Este é o começo da conversa."}</span>
+                    )}
                   </div>
                 ) : null}
                 {shown.map((m, i) => {
@@ -1059,7 +1063,7 @@ export function GroupChat() {
                           .catch((err: unknown) => setError(message(err)));
                       }}
                       aria-label="Chamar o narrador"
-                      title="Narrar"
+                      title="Narrar (ou escreva “narrador” na mensagem)"
                     >
                       <span aria-hidden="true">🎭</span>
                     </button>
@@ -1250,5 +1254,24 @@ function StatusTicks({ status }: { status: MessageStatus }) {
         </svg>
       )}
     </span>
+  );
+}
+
+/** Cena de abertura do roleplay (a premissa) com quebras de linha e *ações*; longa, abre num toque. */
+function RoleplayScene({ text }: { text: string }) {
+  const long = text.length > 320 || text.split(/\n/).length > 6;
+  const [open, setOpen] = useState(!long);
+  return (
+    <div className={`group-scene ${open ? "is-open" : ""}`}>
+      <span className="group-scene-label">Cena de abertura</span>
+      <div className="group-scene-text" id="group-scene-text">
+        {formatMessage(text)}
+      </div>
+      {long ? (
+        <button type="button" className="group-text-btn group-scene-toggle" aria-expanded={open} aria-controls="group-scene-text" onClick={() => setOpen((v) => !v)}>
+          {open ? "Mostrar menos" : "Ler a cena inteira"}
+        </button>
+      ) : null}
+    </div>
   );
 }
