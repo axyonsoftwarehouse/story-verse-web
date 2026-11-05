@@ -36,6 +36,8 @@ export function LibraryPage({
   const options = useMemo(() => shelfOptions(entries), [entries]);
   const shown = useMemo(() => filterShelf(entries, filter, sort, available), [entries, filter, sort, available]);
   const set = (patch: ShelfFilter) => setFilter((f) => ({ ...f, ...patch }));
+  const activeFilters = Object.values(filter).filter((v) => v !== undefined).length;
+  const cls = (v: unknown) => (v !== undefined ? "is-set" : undefined);
 
   return (
     <main className="shelf-page">
@@ -61,6 +63,7 @@ export function LibraryPage({
             <label>
               Status
               <select
+                className={cls(filter.status)}
                 value={filter.status ?? ""}
                 onChange={(e) => set({ status: (e.target.value || undefined) as ShelfStatus | undefined })}
               >
@@ -75,7 +78,7 @@ export function LibraryPage({
             {options.authors.length > 1 ? (
               <label>
                 Autor
-                <select value={filter.author ?? ""} onChange={(e) => set({ author: e.target.value || undefined })}>
+                <select className={cls(filter.author)} value={filter.author ?? ""} onChange={(e) => set({ author: e.target.value || undefined })}>
                   <option value="">Todos</option>
                   {options.authors.map((a) => (
                     <option key={a}>{a}</option>
@@ -86,7 +89,7 @@ export function LibraryPage({
             {options.genres.length > 0 ? (
               <label>
                 Gênero
-                <select value={filter.genre ?? ""} onChange={(e) => set({ genre: e.target.value || undefined })}>
+                <select className={cls(filter.genre)} value={filter.genre ?? ""} onChange={(e) => set({ genre: e.target.value || undefined })}>
                   <option value="">Todos</option>
                   {options.genres.map((g) => (
                     <option key={g}>{g}</option>
@@ -98,6 +101,7 @@ export function LibraryPage({
               <label>
                 Ano
                 <select
+                  className={cls(filter.year)}
                   value={filter.year ?? ""}
                   onChange={(e) => set({ year: e.target.value ? Number(e.target.value) : undefined })}
                 >
@@ -111,6 +115,7 @@ export function LibraryPage({
             <label>
               Nota mínima
               <select
+                className={cls(filter.minRating)}
                 value={filter.minRating ?? ""}
                 onChange={(e) => set({ minRating: e.target.value ? Number(e.target.value) : undefined })}
               >
@@ -125,6 +130,7 @@ export function LibraryPage({
             <label>
               Arquivo
               <select
+                className={cls(filter.hasFile)}
                 value={filter.hasFile === undefined ? "" : String(filter.hasFile)}
                 onChange={(e) => set({ hasFile: e.target.value === "" ? undefined : e.target.value === "true" })}
               >
@@ -133,7 +139,7 @@ export function LibraryPage({
                 <option value="false">Sem arquivo</option>
               </select>
             </label>
-            <label>
+            <label className="shelf-sort">
               Ordenar
               <select value={sort} onChange={(e) => setSort(e.target.value as ShelfSort)}>
                 {SORTS.map((s) => (
@@ -143,6 +149,13 @@ export function LibraryPage({
                 ))}
               </select>
             </label>
+            {activeFilters > 0 ? (
+              <div className="shelf-filters-foot">
+                <button type="button" className="shelf-filters-clear" onClick={() => setFilter({})}>
+                  Limpar {activeFilters === 1 ? "filtro" : `${activeFilters} filtros`}
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {shown.length === 0 ? (

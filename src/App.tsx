@@ -1373,15 +1373,21 @@ function MyBooks({
               </button>
             </div>
 
-            <label className={`file-drop ${parsed ? "is-ready" : ""}`}>
+            <label
+              className={`file-drop ${parsed ? "is-ready" : ""} ${parsing ? "is-loading" : ""}`}
+              aria-busy={parsing}
+            >
               <input type="file" accept={ACCEPTED_EXTENSIONS} onChange={onFile} disabled={parsing || saving} />
+              {parsing ? <span className="spinner file-drop-spinner" aria-hidden="true" /> : null}
               <strong>
                 {parsing ? "Lendo o arquivo…" : fileName || "Escolher arquivo"}
               </strong>
-              <span>
-                {parsed
-                  ? `${chapterCount} ${chapterCount === 1 ? "parte encontrada" : "partes encontradas"} · toque para trocar`
-                  : ".epub, .pdf ou .txt"}
+              <span role="status">
+                {parsing
+                  ? `${fileName} · livros grandes podem levar alguns segundos`
+                  : parsed
+                    ? `${chapterCount} ${chapterCount === 1 ? "parte encontrada" : "partes encontradas"} · toque para trocar`
+                    : ".epub, .pdf ou .txt"}
               </span>
             </label>
 
@@ -1503,7 +1509,8 @@ function MyBooks({
               <button type="button" className="btn" onClick={close} disabled={saving}>
                 Cancelar
               </button>
-              <button type="submit" className="btn btn-primary" disabled={!parsed || saving}>
+              <button type="submit" className="btn btn-primary" disabled={!parsed || saving} aria-busy={saving}>
+                {saving ? <span className="spinner btn-spinner" aria-hidden="true" /> : null}
                 {saving ? (share ? "Enviando…" : "Guardando…") : share ? "Enviar e ler" : "Importar e ler"}
               </button>
             </div>
@@ -2443,9 +2450,13 @@ const STATUS_LABELS: Record<Submission["status"], string> = {
   rejected: "Recusado",
 };
 
+/** Quantos envios aparecem de início e quantos a mais cada "Ver mais" mostra. */
+const SUBMISSIONS_PAGE = 5;
+
 /** Envios do próprio leitor, com o andamento de cada um (no perfil). */
 function MySubmissions({ session }: { session: SupabaseSession }) {
   const [items, setItems] = useState<Submission[] | null>(null);
+  const [visible, setVisible] = useState(SUBMISSIONS_PAGE);
   useEffect(() => {
     void listSubmissions(session, "mine").then(setItems).catch(() => setItems([]));
   }, [session]);
@@ -2465,10 +2476,13 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
     <section className="shelf">
       <div className="shelf-head">
         <h2>Seus envios</h2>
-        <p>Livros que você sugeriu para o acervo da comunidade.</p>
+        <p>
+          Livros que você sugeriu para o acervo da comunidade
+          {items.length > SUBMISSIONS_PAGE ? ` · ${items.length} no total` : ""}.
+        </p>
       </div>
       <ul className="submission-list">
-        {items.map((s) => (
+        {items.slice(0, visible).map((s) => (
           <li key={s.id} className="profile-card submission">
             <div className="submission-main">
               <strong>{s.title}</strong>
@@ -2486,6 +2500,19 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
           </li>
         ))}
       </ul>
+      {items.length > SUBMISSIONS_PAGE ? (
+        <div className="shelf-more">
+          {visible < items.length ? (
+            <button type="button" className="btn" onClick={() => setVisible((v) => v + SUBMISSIONS_PAGE)}>
+              Ver mais ({items.length - visible} {items.length - visible === 1 ? "restante" : "restantes"})
+            </button>
+          ) : (
+            <button type="button" className="btn" onClick={() => setVisible(SUBMISSIONS_PAGE)}>
+              Mostrar menos
+            </button>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -4210,6 +4237,7 @@ function ProfilePage({
   }, [allTalks, bookById]);
   const [allCharacters, setAllCharacters] = useState(false);
   const shownTalks = allCharacters ? talks : talks.slice(0, TALKS_PREVIEW);
+  const [showAllBadges, setShowAllBadges] = useState(false);
   const favorite = talks[0];
 
   const badges = useMemo(
@@ -4487,9 +4515,10 @@ function ProfilePage({
           </div>
         ) : null}
         <ol className={`badge-grid ${allBadges ? "is-complete" : ""}`}>
-          {/* Conquistadas primeiro; depois as que estão mais perto de sair. */}
+          {/* Conquistadas primeiro; depois as que estão mais perto de sair. De início, só a primeira leva. */}
           {[...badges]
             .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.current / b.target - a.current / a.target)
+            .slice(0, showAllBadges ? undefined : BADGES_PREVIEW)
             .map((b, i) => (
               <li
                 key={b.id}
@@ -4514,6 +4543,18 @@ function ProfilePage({
               </li>
             ))}
         </ol>
+        {badges.length > BADGES_PREVIEW ? (
+          <div className="shelf-more">
+            <button
+              type="button"
+              className="btn"
+              aria-expanded={showAllBadges}
+              onClick={() => setShowAllBadges((v) => !v)}
+            >
+              {showAllBadges ? "Mostrar menos" : `Ver todas (${badges.length})`}
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {onOpenShelf ? <ShelfSummary onOpen={onOpenShelf} /> : null}
@@ -5109,6 +5150,8 @@ function CelebrationOverlay({ celebration, onClose }: { celebration: Celebration
 const CONTINUE_PREVIEW = 4;
 /** Personagens no perfil antes do "Ver todos". */
 const TALKS_PREVIEW = 6;
+/** Conquistas visíveis antes do "Ver todas": uma fileira na grade larga, três no celular. */
+const BADGES_PREVIEW = 6;
 
 /**
  * O livro ainda pode ser aberto por esta conta? Importado: precisa estar em "Seus livros" neste
@@ -8298,31 +8341,42 @@ export function App() {
               .
             </p>
           </div>
-          <nav className="foot-links" aria-label="Links do rodapé">
-            <button type="button" className="foot-link" onClick={() => setAboutOpen(true)}>
-              Sobre nós
-            </button>
-            <Link className="foot-link" to="/biblioteca">
-              Biblioteca pública
-            </Link>
-            {BILLING_UI_ENABLED && authUser ? (
-              <Link className="foot-link" to="/conta/assinatura">
-                Minha assinatura
+          <nav className="foot-cols" aria-label="Links do rodapé">
+            <div className="foot-col">
+              <h2 className="foot-col-title">Storyverse</h2>
+              <button type="button" className="foot-link" onClick={() => setAboutOpen(true)}>
+                Sobre nós
+              </button>
+              <Link className="foot-link" to="/biblioteca">
+                Biblioteca pública
               </Link>
-            ) : null}
-            <Link className="foot-link" to="/termos">
-              Termos de uso
-            </Link>
-            <Link className="foot-link" to="/privacidade">
-              Privacidade
-            </Link>
-            <Link className="foot-link" to="/cancelamento">
-              Cancelamento e reembolso
-            </Link>
+              {BILLING_UI_ENABLED && authUser ? (
+                <Link className="foot-link" to="/conta/assinatura">
+                  Minha assinatura
+                </Link>
+              ) : null}
+            </div>
+            <div className="foot-col">
+              <h2 className="foot-col-title">Legal</h2>
+              <Link className="foot-link" to="/termos">
+                Termos de uso
+              </Link>
+              <Link className="foot-link" to="/privacidade">
+                Privacidade
+              </Link>
+              <Link className="foot-link" to="/cancelamento">
+                Cancelamento e reembolso
+              </Link>
+            </div>
           </nav>
-          <p className="home-credit">
-            Desenvolvido por <strong>Axyon Software House</strong> · {LEGAL_HOLDER}
-          </p>
+          <div className="home-credit">
+            <span>© {new Date().getFullYear()} Storyverse</span>
+            <span>
+              Desenvolvido por <strong>Axyon Software House</strong>
+              <span className="home-credit-sep" aria-hidden="true"> · </span>
+              <span className="home-credit-holder">{LEGAL_HOLDER}</span>
+            </span>
+          </div>
         </footer>
       </div>
     );

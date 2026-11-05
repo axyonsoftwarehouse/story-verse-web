@@ -3698,6 +3698,10 @@ button.group-rp-character small {
 
 .group-chat-page .group-composer textarea::placeholder {
   color: var(--muted);
+  /* A dica do roleplay é longa: numa linha só, cortada com reticências no celular. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .group-chat-page .group-composer textarea::selection {

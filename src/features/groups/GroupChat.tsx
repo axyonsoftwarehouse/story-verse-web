@@ -1023,8 +1023,15 @@ export function GroupChat() {
                       onScroll={(e) => {
                         if (mirrorRef.current) mirrorRef.current.scrollTop = e.currentTarget.scrollTop;
                       }}
-                      placeholder={roleplay ? "*ação* e fala" : "Mensagem"}
-                      aria-label="Mensagem"
+                      placeholder={
+                        roleplay
+                          ? group.my_character
+                            ? `Fala de ${group.my_character} · *ações entre asteriscos*`
+                            : "Escreva a fala · *ações entre asteriscos*"
+                          : "Mensagem"
+                      }
+                      aria-label={roleplay ? "Mensagem do personagem. Ações entre asteriscos, falas sem." : "Mensagem"}
+                      title={roleplay ? "Ex.: *abre a porta devagar* Tem alguém aí?" : undefined}
                       maxLength={MESSAGE_MAX}
                       rows={1}
                     />
