@@ -3590,6 +3590,44 @@
   font-size: 0.78rem;
 }
 
+.voice-natural-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voice-natural-options li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.1rem;
+}
+
+.voice-natural-name {
+  font-weight: 600;
+}
+
+.voice-natural-options .btn {
+  align-self: center;
+  padding: 0.35rem 0.85rem;
+}
+
+.voice-natural-progress {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 11rem;
+}
+
+.voice-natural-progress .voice-natural-bar {
+  flex: 1;
+}
+
 .voice-natural-bar {
   display: block;
   height: 6px;

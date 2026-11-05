@@ -1,5 +1,12 @@
 import { userStorage } from "./dataOwner";
-import { isNaturalVoiceUri, naturalVoiceLabel, naturalVoiceReady, naturalVoiceUri, synthesize } from "./naturalVoice";
+import {
+  naturalVoiceFromUri,
+  naturalVoiceLabel,
+  naturalVoiceReady,
+  naturalVoiceUri,
+  storedNaturalVoices,
+  synthesize,
+} from "./naturalVoice";
 /**
  * Leitura em voz alta com as vozes do próprio aparelho (Web Speech API): grátis e sem chave.
  * A qualidade depende do navegador: o Edge tem vozes "Natural" quase humanas; Chrome e Android,
@@ -116,7 +123,7 @@ function shortLabel(v: SpeechSynthesisVoice): string {
     .trim();
 }
 
-/** Vozes do idioma para o painel de escolha, da melhor para a pior (a natural baixada vem primeiro). */
+/** Vozes do idioma para o painel de escolha, da melhor para a pior (as naturais baixadas vêm primeiro). */
 export async function listVoices(lang: "pt" | "en"): Promise<VoiceOption[]> {
   if (!speechSupported()) return [];
   const device = sortedVoices(await voicesReady(), lang).map((v) => ({
@@ -125,9 +132,12 @@ export async function listVoices(lang: "pt" | "en"): Promise<VoiceOption[]> {
     lang: v.lang,
     natural: isNatural(v),
   }));
-  const piper = (await naturalVoiceReady(lang))
-    ? [{ uri: naturalVoiceUri(lang), label: naturalVoiceLabel(lang), lang: lang === "pt" ? "pt-BR" : "en-US", natural: true }]
-    : [];
+  const piper = (await storedNaturalVoices(lang)).map((id) => ({
+    uri: naturalVoiceUri(id),
+    label: naturalVoiceLabel(id),
+    lang: lang === "pt" ? "pt-BR" : "en-US",
+    natural: true,
+  }));
   return [...piper, ...device];
 }
 
@@ -189,6 +199,7 @@ function playBlob(audio: HTMLAudioElement, blob: Blob, rate: number): Promise<vo
  * geração falhar (sem internet para o motor, aparelho sem suporte), segue com a voz do aparelho.
  */
 function speakNatural(
+  voiceId: string,
   paragraphs: string[],
   start: number,
   lang: "pt" | "en",
@@ -211,11 +222,11 @@ function speakNatural(
   void (async () => {
     let k = 0;
     let shown = -1;
-    let next: Promise<Blob> | null = items[0] ? synthesize(items[0].text, lang) : null;
+    let next: Promise<Blob> | null = items[0] ? synthesize(items[0].text, voiceId) : null;
     try {
       while (!stopped && k < items.length && next) {
         const blob = await next;
-        next = items[k + 1] ? synthesize(items[k + 1].text, lang) : null;
+        next = items[k + 1] ? synthesize(items[k + 1].text, voiceId) : null;
         // A próxima falha cedo não pode virar erro sem dono enquanto esta toca.
         next?.catch(() => {});
         if (stopped) return;
@@ -254,14 +265,16 @@ export function speakParagraphs(
   onParagraph: (index: number) => void,
   onEnd: () => void,
 ): SpeechSession {
-  if (!isNaturalVoiceUri(savedVoiceUri(lang))) return speakSystem(paragraphs, start, lang, rate, onParagraph, onEnd);
+  const natural = naturalVoiceFromUri(savedVoiceUri(lang));
+  // Voz natural de outro idioma (escolha antiga) também cai na voz do aparelho.
+  if (!natural || natural.lang !== lang) return speakSystem(paragraphs, start, lang, rate, onParagraph, onEnd);
   // Voz natural escolhida: confere se continua baixada (pode ter sido apagada pelo navegador).
   let stopped = false;
   let inner: SpeechSession | null = null;
-  void naturalVoiceReady(lang).then((ready) => {
+  void naturalVoiceReady(natural.id).then((ready) => {
     if (stopped) return;
     inner = ready
-      ? speakNatural(paragraphs, start, lang, rate, onParagraph, onEnd)
+      ? speakNatural(natural.id, paragraphs, start, lang, rate, onParagraph, onEnd)
       : speakSystem(paragraphs, start, lang, rate, onParagraph, onEnd);
   });
   return {
@@ -334,7 +347,8 @@ function speakSystem(
 export function speakSample(uri: string, lang: "pt" | "en", rate: number) {
   const synth = window.speechSynthesis;
   synth.cancel();
-  if (isNaturalVoiceUri(uri)) {
+  const natural = naturalVoiceFromUri(uri);
+  if (natural) {
     const audio = audioPlayer();
     audio.src = SILENCE;
     void audio.play().catch(() => {});
@@ -342,7 +356,7 @@ export function speakSample(uri: string, lang: "pt" | "en", rate: number) {
       lang === "pt"
         ? "Era uma vez uma história que ganhava vida enquanto alguém a lia."
         : "Once upon a time, there was a story that came alive while someone read it.",
-      lang,
+      natural.id,
     )
       .then((blob) => playBlob(audio, blob, rate))
       .catch(() => {});

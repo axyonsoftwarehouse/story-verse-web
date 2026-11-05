@@ -40,9 +40,10 @@ import {
   dismissNaturalOffer,
   downloadNaturalVoice,
   naturalOfferDismissed,
-  naturalVoiceReady,
+  naturalVoicesFor,
   naturalVoiceSupported,
   naturalVoiceUri,
+  storedNaturalVoices,
 } from "./lib/naturalVoice";
 import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
@@ -7225,25 +7226,29 @@ export function App() {
   const canSpeak = speechSupported();
   const speakLang: "pt" | "en" = !book ? "pt" : translateOn ? "pt" : book.textLanguage;
 
-  /** Voz natural (Piper): já baixada, baixando (0–100) ou ainda não baixada. */
-  const [naturalVoice, setNaturalVoice] = useState<"checking" | "absent" | number | "ready" | "error">("checking");
+  /** Vozes naturais (Piper) do idioma já baixadas (null = conferindo), a que está baixando e a que falhou. */
+  const [storedNatural, setStoredNatural] = useState<string[] | null>(null);
+  const [naturalDownload, setNaturalDownload] = useState<{ id: string; pct: number } | null>(null);
+  const [naturalError, setNaturalError] = useState<string | null>(null);
   useEffect(() => {
     if (!voicePanelOpen || !naturalVoiceSupported()) return;
     let alive = true;
-    void naturalVoiceReady(speakLang).then((ready) => {
-      if (alive) setNaturalVoice((s) => (typeof s === "number" ? s : ready ? "ready" : "absent"));
+    setStoredNatural(null);
+    void storedNaturalVoices(speakLang).then((ids) => {
+      if (alive) setStoredNatural(ids);
     });
     return () => {
       alive = false;
     };
   }, [voicePanelOpen, speakLang]);
+  const missingNatural = storedNatural ? naturalVoicesFor(speakLang).filter((v) => !storedNatural.includes(v.id)) : [];
 
   /** Começa a ler e, enquanto a voz natural não foi baixada (nem recusada), já mostra a oferta. */
   function listenAloud() {
     startSpeaking(firstVisibleBlock());
     if (!naturalVoiceSupported() || naturalOfferDismissed()) return;
-    void naturalVoiceReady(speakLang).then((ready) => {
-      if (!ready) setVoicePanelOpen(true);
+    void storedNaturalVoices(speakLang).then((ids) => {
+      if (ids.length === 0) setVoicePanelOpen(true);
     });
   }
 
@@ -7252,17 +7257,20 @@ export function App() {
     setVoicePanelOpen(false);
   }
 
-  async function getNaturalVoice() {
+  async function getNaturalVoice(id: string) {
     const lang = speakLang;
-    setNaturalVoice(0);
+    setNaturalDownload({ id, pct: 0 });
+    setNaturalError(null);
     try {
-      await downloadNaturalVoice(lang, (pct) => setNaturalVoice(pct));
-      setNaturalVoice("ready");
+      await downloadNaturalVoice(id, (pct) => setNaturalDownload({ id, pct }));
+      setStoredNatural(await storedNaturalVoices(lang));
       setVoices(await listVoices(lang));
-      chooseVoice(naturalVoiceUri(lang));
+      chooseVoice(naturalVoiceUri(id));
     } catch (e) {
       console.warn("Falha ao baixar a voz natural:", e);
-      setNaturalVoice("error");
+      setNaturalError(id);
+    } finally {
+      setNaturalDownload(null);
     }
   }
 
@@ -8803,25 +8811,56 @@ export function App() {
               </div>
 
               <span className="voice-label">Voz</span>
-              {naturalVoiceSupported() && naturalVoice !== "ready" && naturalVoice !== "checking" ? (
+              {naturalVoiceSupported() && missingNatural.length > 0 ? (
                 <div className="voice-natural">
-                  <strong>✨ Voz natural</strong>
-                  <span>
-                    Bem mais humana que as vozes do aparelho. Baixa uma vez (cerca de 60 MB) e fica guardada aqui;
-                    prefira usar o Wi-Fi.
-                  </span>
-                  {typeof naturalVoice === "number" ? (
-                    <span className="voice-natural-bar" role="progressbar" aria-valuenow={naturalVoice} aria-valuemin={0} aria-valuemax={100}>
-                      <span style={{ width: `${Math.max(3, naturalVoice)}%` }} />
-                    </span>
+                  {storedNatural?.length ? (
+                    <>
+                      <strong>✨ Mais vozes naturais</strong>
+                      <span>Cada uma baixa uma vez (cerca de 60 MB) e fica guardada aqui; prefira usar o Wi-Fi.</span>
+                    </>
                   ) : (
-                    <button type="button" className="btn btn-primary" onClick={() => void getNaturalVoice()}>
-                      {naturalVoice === "error" ? "Tentar de novo" : "Baixar voz natural"}
-                    </button>
+                    <>
+                      <strong>✨ Voz natural</strong>
+                      <span>
+                        Bem mais humana que as vozes do aparelho. Escolha uma: ela baixa uma vez (cerca de 60 MB) e
+                        fica guardada aqui; prefira usar o Wi-Fi.
+                      </span>
+                    </>
                   )}
-                  {typeof naturalVoice === "number" ? <small>Baixando… {naturalVoice}%</small> : null}
-                  {naturalVoice === "error" ? <small>Não deu para baixar agora. Confira a internet e tente de novo.</small> : null}
-                  {typeof naturalVoice !== "number" ? (
+                  <ul className="voice-natural-options">
+                    {missingNatural.map((v) => (
+                      <li key={v.id}>
+                        <span className="voice-natural-name">{v.name}</span>
+                        {naturalDownload?.id === v.id ? (
+                          <span className="voice-natural-progress">
+                            <span
+                              className="voice-natural-bar"
+                              role="progressbar"
+                              aria-label={`Baixando a voz ${v.name}`}
+                              aria-valuenow={naturalDownload.pct}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                            >
+                              <span style={{ width: `${Math.max(3, naturalDownload.pct)}%` }} />
+                            </span>
+                            <small>{naturalDownload.pct}%</small>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={naturalDownload !== null}
+                            aria-label={`Baixar a voz ${v.name}`}
+                            onClick={() => void getNaturalVoice(v.id)}
+                          >
+                            {naturalError === v.id ? "Tentar de novo" : "Baixar"}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {naturalError ? <small>Não deu para baixar agora. Confira a internet e tente de novo.</small> : null}
+                  {!storedNatural?.length && !naturalDownload ? (
                     <button type="button" className="link-btn voice-natural-later" onClick={declineNaturalVoice}>
                       Agora não
                     </button>
