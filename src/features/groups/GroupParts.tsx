@@ -4,6 +4,7 @@ import { AvatarArt, findAvatar } from "../../avatars";
 import { apiBaseUrl } from "../../lib/backend";
 import { GIcon } from "./groupIcons";
 import { hueOf } from "./groupHelpers";
+import "./faces.css";
 
 /**
  * Rosto de quem escreve: a foto do perfil; sem foto (ou se não carregar), o avatar escolhido ou a

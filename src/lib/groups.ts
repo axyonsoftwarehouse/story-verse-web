@@ -526,6 +526,7 @@ export function notifyGroupMessage(m: GroupMessage, groupName: string, muted: bo
     const n = new Notification(groupName, {
       body: `${m.author_name}: ${m.spoiler_chapter ? "🙈 mensagem com spoiler" : stripFormatting(m.body ?? "").slice(0, 140)}`,
       icon: "/icons/icon-192.png",
+      badge: "/icons/badge-96.png",
       tag: `group-${m.group_id}`,
     });
     n.onclick = () => {

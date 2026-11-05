@@ -264,3 +264,97 @@ body {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
+
+/*
+ * Peças visuais compartilhadas (antes copiadas em cada tela).
+ */
+
+/*
+ * Bloco "carregando" com um brilho que passa. A classe repetida dá peso para vencer o fundo e a
+ * animação de entrada do próprio cartão (o CSS das telas carrega depois deste arquivo).
+ */
+.skeleton.skeleton {
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: sv-shimmer 1.2s linear infinite;
+}
+
+@keyframes sv-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Listas que chegam: os itens sobem um depois do outro (até o 12º; o resto entra junto). */
+.stagger > * {
+  animation: sv-stagger-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: 0.36s;
+}
+
+.stagger > :nth-child(1) {
+  animation-delay: 0s;
+}
+.stagger > :nth-child(2) {
+  animation-delay: 0.03s;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 0.06s;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 0.09s;
+}
+.stagger > :nth-child(5) {
+  animation-delay: 0.12s;
+}
+.stagger > :nth-child(6) {
+  animation-delay: 0.15s;
+}
+.stagger > :nth-child(7) {
+  animation-delay: 0.18s;
+}
+.stagger > :nth-child(8) {
+  animation-delay: 0.21s;
+}
+.stagger > :nth-child(9) {
+  animation-delay: 0.24s;
+}
+.stagger > :nth-child(10) {
+  animation-delay: 0.27s;
+}
+.stagger > :nth-child(11) {
+  animation-delay: 0.3s;
+}
+.stagger > :nth-child(12) {
+  animation-delay: 0.33s;
+}
+
+@keyframes sv-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/*
+ * "Reduzir movimento" no aparelho: uma regra para o app todo. Animações e transições terminam na
+ * hora (no estado final); só o spinner e os pontinhos de "digitando" continuam, mais devagar
+ * (regras próprias no App.css), porque mostram que algo está acontecendo.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.spinner):not(.typing span),
+  *::before,
+  *::after {
+    animation-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

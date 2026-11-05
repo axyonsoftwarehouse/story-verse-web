@@ -351,8 +351,7 @@
   font-weight: 600;
   color: var(--on-accent);
   background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.55), transparent 55%),
-    var(--c);
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.55), transparent 55%), var(--c);
 }
 
 .finish-farewell blockquote {

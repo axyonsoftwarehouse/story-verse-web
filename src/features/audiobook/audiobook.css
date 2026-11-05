@@ -158,8 +158,10 @@
   cursor: pointer;
 }
 
-.audiobook-chapter:hover {
-  border-color: var(--accent-dim, rgba(201, 162, 39, 0.5));
+@media (hover: hover) {
+  .audiobook-chapter:hover {
+    border-color: var(--accent-dim, rgba(201, 162, 39, 0.5));
+  }
 }
 
 .audiobook-chapter.is-on {

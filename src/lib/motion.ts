@@ -17,7 +17,7 @@ export function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
-type ViewTransitionDoc = { startViewTransition?: (update: () => void) => { finished: Promise<void> } };
+type ViewTransitionDoc = { startViewTransition?: (update: () => void | Promise<void>) => { finished: Promise<void> } };
 
 /** Último toque: de onde saiu o pedido para abrir o livro (cartão, botão "Ler"...). */
 let lastPress: { el: Element; at: number } | null = null;
@@ -55,6 +55,43 @@ function pressedCover(): HTMLElement | null {
  * Abre o livro com a capa crescendo até virar a tela de leitura. Sem suporte no navegador (ou
  * com movimento reduzido), só abre. `update` precisa trocar a tela de forma síncrona.
  */
+/** A tela nova ainda está baixando o código (aparece o "Carregando…" das rotas)? */
+function routeStillLoading(): boolean {
+  return document.querySelector("[data-route-loading]") !== null;
+}
+
+/**
+ * Troca de tela com transição (lista → conversa, lista → perfil, voltar). A foto da tela antiga
+ * fica parada enquanto a nova baixa o código, então o "Carregando…" não pisca no meio. `back`
+ * desliza no sentido contrário. Sem suporte ou com "reduzir movimento", troca direto.
+ */
+export function navigateWithTransition(update: () => void, opts: { back?: boolean } = {}) {
+  const doc = document as unknown as ViewTransitionDoc;
+  if (!doc.startViewTransition || prefersReducedMotion()) {
+    update();
+    return;
+  }
+  const root = document.documentElement;
+  const cls = opts.back ? "vt-route-back" : "vt-route";
+  root.classList.add(cls);
+  const cleanup = () => root.classList.remove(cls);
+  try {
+    doc
+      .startViewTransition(async () => {
+        flushSync(update);
+        // Espera a rota preguiçosa montar (no máximo 700 ms; depois anima com o que tiver).
+        const until = performance.now() + 700;
+        while (routeStillLoading() && performance.now() < until) {
+          await new Promise((r) => window.setTimeout(r, 16));
+        }
+      })
+      .finished.finally(cleanup);
+  } catch {
+    cleanup();
+    update();
+  }
+}
+
 export function openBookWithTransition(update: () => void) {
   const doc = document as unknown as ViewTransitionDoc;
   if (!doc.startViewTransition || prefersReducedMotion()) {

@@ -105,18 +105,26 @@
   cursor: pointer;
 }
 
-.notif-item:hover,
 .notif-item:focus-visible {
   outline: 0;
   background: var(--surface-2);
+}
+
+@media (hover: hover) {
+  .notif-item:hover {
+    outline: 0;
+    background: var(--surface-2);
+  }
 }
 
 .notif-item.is-new {
   background: rgba(var(--accent-rgb), 0.08);
 }
 
-.notif-item.is-new:hover {
-  background: rgba(var(--accent-rgb), 0.14);
+@media (hover: hover) {
+  .notif-item.is-new:hover {
+    background: rgba(var(--accent-rgb), 0.14);
+  }
 }
 
 .notif-text {
@@ -190,9 +198,11 @@
   cursor: pointer;
 }
 
-.nav-more-panel a:hover,
-.nav-more-panel button:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .nav-more-panel a:hover,
+  .nav-more-panel button:hover {
+    background: var(--surface-2);
+  }
 }
 
 .nav-more-panel svg {
@@ -221,8 +231,7 @@
   border: 1px solid var(--border-strong);
   background:
     linear-gradient(var(--surface-2), var(--surface-2)),
-    linear-gradient(var(--surface), var(--surface)),
-    var(--bg);
+    linear-gradient(var(--surface), var(--surface)), var(--bg);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 24px 60px rgba(0, 0, 0, 0.6);
@@ -233,11 +242,16 @@
   background: rgba(var(--accent-rgb), 0.06);
 }
 
-.notif-item:hover,
-.notif-item:focus-visible,
-.nav-more-panel a:hover,
-.nav-more-panel button:hover {
+.notif-item:focus-visible {
   background: rgba(255, 255, 255, 0.06);
+}
+
+@media (hover: hover) {
+  .notif-item:hover,
+  .nav-more-panel a:hover,
+  .nav-more-panel button:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
 
 .notif-item.is-new {
@@ -245,8 +259,10 @@
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.notif-item.is-new:hover {
-  background: rgba(var(--accent-rgb), 0.18);
+@media (hover: hover) {
+  .notif-item.is-new:hover {
+    background: rgba(var(--accent-rgb), 0.18);
+  }
 }
 
 /* Cabeçalho do sininho: título, "Limpar tudo" e fechar. */
@@ -274,7 +290,9 @@
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .notif-clear svg {
@@ -282,10 +300,16 @@
   height: 14px;
 }
 
-.notif-clear:hover:not(:disabled),
 .notif-clear:focus-visible {
   border-color: rgba(var(--accent-rgb), 0.5);
   background: rgba(var(--accent-rgb), 0.1);
+}
+
+@media (hover: hover) {
+  .notif-clear:hover:not(:disabled) {
+    border-color: rgba(var(--accent-rgb), 0.5);
+    background: rgba(var(--accent-rgb), 0.1);
+  }
 }
 
 .notif-clear:disabled {
@@ -299,8 +323,10 @@
   color: var(--muted);
 }
 
-.notif-close:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .notif-close:hover {
+    color: var(--text);
+  }
 }
 
 /* Nada novo: sino calmo no lugar da lista. */
@@ -335,11 +361,5 @@
   from {
     opacity: 0;
     transform: translateY(6px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .notif-all-clear {
-    animation: none;
   }
 }

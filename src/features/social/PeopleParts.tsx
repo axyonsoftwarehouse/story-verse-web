@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { PersonFace } from "../groups/GroupParts";
 import { GIcon } from "../groups/groupIcons";
 import { errorText, follow, followLabel, PEOPLE_PAGE, peopleSuggestions, relationOf, unfollow, type Person, type PersonProfile } from "../../lib/social";
+import { TransitionLink } from "../../components/TransitionLink";
 
 /** Selo ao lado do nome: "Conexão" (as duas se seguem) ou "Segue você". */
 export function RelationBadge({ person }: { person: Pick<Person, "is_following" | "follows_me"> }) {
@@ -98,7 +99,7 @@ export function PersonRow({
 }) {
   return (
     <div className="people-row">
-      <Link className="people-row-main" to={`/pessoas/${person.id}`}>
+      <TransitionLink className="people-row-main" to={`/pessoas/${person.id}`}>
         <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} />
         <span className="people-row-text">
           <strong>
@@ -110,7 +111,7 @@ export function PersonRow({
             {detail ? <span>{detail}</span> : null}
           </span>
         </span>
-      </Link>
+      </TransitionLink>
       {person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
       {extra}
     </div>
@@ -186,7 +187,7 @@ export function PeopleList({
   const update = (next: Person) => setItems((cur) => cur?.map((p) => (p.id === next.id ? { ...p, ...next } : p)) ?? null);
   return (
     <>
-      <ul className="people-list">
+      <ul className="people-list stagger">
         {items.map((p) => (
           <li key={p.id}>
             <PersonRow
@@ -214,7 +215,7 @@ export function PeopleSkeleton() {
   return (
     <ul className="people-list" aria-busy="true" aria-label="Carregando">
       {[0, 1, 2, 3].map((i) => (
-        <li key={i} className="people-row is-skeleton" />
+        <li key={i} className="people-row is-skeleton skeleton" />
       ))}
     </ul>
   );
@@ -290,21 +291,21 @@ export function SuggestionsStrip({
         <h2>
           {GIcon.userPlus} {title}
         </h2>
-        <Link className="group-text-btn" to="/pessoas">
+        <TransitionLink className="group-text-btn" to="/pessoas">
           Ver todos
-        </Link>
+        </TransitionLink>
       </header>
       {items === null ? (
         <div className="people-strip-row" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <span key={i} className="people-strip-card is-skeleton" />
+            <span key={i} className="people-strip-card is-skeleton skeleton" />
           ))}
         </div>
       ) : (
         <ul className="people-strip-row">
           {shown.map((p, i) => (
             <li key={p.id} className="people-strip-card" style={{ "--i": i } as React.CSSProperties}>
-              <Link className="people-strip-person" to={`/pessoas/${p.id}`}>
+              <TransitionLink className="people-strip-person" to={`/pessoas/${p.id}`}>
                 <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} />
                 <strong>{p.name}</strong>
                 <small>
@@ -314,7 +315,7 @@ export function SuggestionsStrip({
                       ? `${p.groups_in_common} ${p.groups_in_common === 1 ? "grupo em comum" : "grupos em comum"}`
                       : "Leitor do Storyverse"}
                 </small>
-              </Link>
+              </TransitionLink>
               {p.id !== me ? (
                 <FollowButton person={p} compact onChange={(next) => setItems((cur) => cur?.map((x) => (x.id === next.id ? { ...x, ...next } : x)) ?? null)} />
               ) : null}

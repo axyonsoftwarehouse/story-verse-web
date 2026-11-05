@@ -7,6 +7,7 @@ import { RatingStars } from "./RatingStars";
 import { filterShelf, shelfOptions, type ShelfFilter, type ShelfSort } from "./shelfFilters";
 import { STATUS_LABEL, useShelfEntries } from "./useShelf";
 import "./library.css";
+import { PageFoot } from "../../components/PageFoot";
 
 const SORTS: { id: ShelfSort; label: string }[] = [
   { id: "recent", label: "Recentes" },
@@ -161,7 +162,7 @@ export function LibraryPage({
           {shown.length === 0 ? (
             <p className="shelf-empty">Nenhum livro com esses filtros.</p>
           ) : (
-            <ul className="shelf-list">
+            <ul className="shelf-list stagger">
               {shown.map((entry) => {
                 const canOpen = available(entry.bookKey);
                 return (
@@ -209,6 +210,7 @@ export function LibraryPage({
         </>
       )}
       {detail ? <BookStatusControl book={bookFor(detail)} onClose={() => setDetail(null)} /> : null}
+      <PageFoot />
     </main>
   );
 }

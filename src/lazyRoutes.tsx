@@ -59,7 +59,7 @@ export const LegalPage = lazy(() =>
 /** Enquanto o código da rota chega (na primeira visita a abertura ainda cobre a tela). */
 export function RouteLoading() {
   return (
-    <main className="auth-loading" role="status" aria-live="polite">
+    <main className="auth-loading" role="status" aria-live="polite" data-route-loading>
       <span className="spinner" aria-hidden="true" />
       <p>Carregando…</p>
     </main>

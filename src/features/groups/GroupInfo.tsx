@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ConfirmOptions } from "../../components/ConfirmDialog";
@@ -19,6 +18,7 @@ import { GroupForm } from "./GroupForm";
 import { RoleplayBookCard } from "./RoleplayBookCard";
 import { GroupAvatar, PersonFace } from "./GroupParts";
 import { GIcon } from "./groupIcons";
+import { TransitionLink } from "../../components/TransitionLink";
 
 const ROLE_LABEL = { owner: "Dono", moderator: "Moderador", member: "" } as const;
 
@@ -303,9 +303,9 @@ export function GroupInfo({
                     ) : m.user_id === me ? (
                       `${m.name} (você)`
                     ) : (
-                      <Link className="group-member-link" to={`/pessoas/${m.user_id}`} title={`Ver o perfil de ${m.name}`}>
+                      <TransitionLink className="group-member-link" to={`/pessoas/${m.user_id}`} title={`Ver o perfil de ${m.name}`}>
                         {m.name}
-                      </Link>
+                      </TransitionLink>
                     )}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}
                   </span>

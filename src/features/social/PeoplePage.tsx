@@ -8,6 +8,8 @@ import { useGroupsGate } from "../groups/groupHelpers";
 import { GIcon } from "../groups/groupIcons";
 import { followersOf, followingOf, peopleSuggestions, removeFollower, searchPeople, type Person, errorText } from "../../lib/social";
 import { PeopleBlocked, PeopleEmpty, PeopleList, PeopleSkeleton, PersonRow, SuggestionsStrip } from "./PeopleParts";
+import { TransitionLink } from "../../components/TransitionLink";
+import { PageFoot } from "../../components/PageFoot";
 
 type Tab = "sugestoes" | "seguindo" | "seguidores";
 const TABS: { id: Tab; label: string }[] = [
@@ -31,9 +33,9 @@ export function PeoplePage() {
   return (
     <div className="home groups-page people-page">
       <nav className="home-nav profile-nav">
-        <Link className="btn" to="/grupos">
+        <TransitionLink back className="btn" to="/grupos">
           Voltar
-        </Link>
+        </TransitionLink>
       </nav>
 
       <header className="groups-hero">
@@ -108,6 +110,7 @@ export function PeoplePage() {
           {tab !== "sugestoes" ? <SuggestionsStrip me={me} title="Sugestões para você" skipFollowers={tab === "seguidores"} /> : null}
         </>
       )}
+      <PageFoot />
     </div>
   );
 }
@@ -141,7 +144,7 @@ function SearchResults({ query, me }: { query: string; me: string }) {
   return (
     <>
       <h2 className="people-section-title">Resultados para “{query}”</h2>
-      <ul className="people-list">
+      <ul className="people-list stagger">
         {items.map((p) => (
           <li key={p.id}>
             <PersonRow person={p} me={me} onChange={(next) => setItems((cur) => cur?.map((x) => (x.id === next.id ? next : x)) ?? null)} />
@@ -186,7 +189,7 @@ function Suggestions({ me }: { me: string }) {
   return (
     <>
       <p className="people-hint">Quem segue você e quem está nos seus grupos.</p>
-      <ul className="people-list">
+      <ul className="people-list stagger">
         {items.map((p) => (
           <li key={p.id}>
             <PersonRow

@@ -5,7 +5,6 @@ import { markRead, messagePreview, messageTime, type Group } from "../../lib/gro
 import { clearNotifications, fetchNotifications, markNotificationsRead, type AppNotification } from "../../lib/notifications";
 import { GIcon } from "../groups/groupIcons";
 import { GroupAvatar, PersonFace } from "../groups/GroupParts";
-import "../groups/groups.css";
 import "./notifications.css";
 
 const BELL = (
