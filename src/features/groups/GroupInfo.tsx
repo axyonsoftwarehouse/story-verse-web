@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ConfirmOptions } from "../../components/ConfirmDialog";
@@ -302,7 +303,9 @@ export function GroupInfo({
                     ) : m.user_id === me ? (
                       `${m.name} (você)`
                     ) : (
-                      m.name
+                      <Link className="group-member-link" to={`/pessoas/${m.user_id}`} title={`Ver o perfil de ${m.name}`}>
+                        {m.name}
+                      </Link>
                     )}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}
                   </span>

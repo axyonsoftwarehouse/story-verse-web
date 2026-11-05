@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { messagePreview, messageTime, type Group } from "../../lib/groups";
-import { fetchNotifications, markNotificationsRead, type AppNotification } from "../../lib/notifications";
+import { markRead, messagePreview, messageTime, type Group } from "../../lib/groups";
+import { clearNotifications, fetchNotifications, markNotificationsRead, type AppNotification } from "../../lib/notifications";
+import { GIcon } from "../groups/groupIcons";
 import { GroupAvatar, PersonFace } from "../groups/GroupParts";
 import "../groups/groups.css";
 import "./notifications.css";
@@ -17,6 +18,7 @@ function describe(n: AppNotification): { text: string; quote: string | null } {
   const quote = n.message_body || n.message_media_kind ? messagePreview({ body: n.message_body, media_kind: n.message_media_kind }, 70) : null;
   if (n.kind === "reply") return { text: `${n.actor_name} respondeu sua mensagem em ${n.group_name}`, quote };
   if (n.kind === "reaction") return { text: `${n.actor_name} reagiu ${n.emoji ?? ""} à sua mensagem em ${n.group_name}`, quote };
+  if (n.kind === "follow") return { text: `${n.actor_name} começou a seguir você`, quote: null };
   if (n.kind === "member_added") return { text: `${n.actor_name} adicionou você ao grupo ${n.group_name}`, quote: null };
   return { text: `${n.actor_name} entrou no grupo ${n.group_name}`, quote: null };
 }
@@ -32,6 +34,9 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [pos, setPos] = useState<CSSProperties>({});
+  /** Grupos limpos agora: escondidos até chegar mensagem depois da que estava no topo. */
+  const [cleared, setCleared] = useState<Record<string, number>>({});
+  const [clearing, setClearing] = useState(false);
 
   const load = useCallback(() => {
     void fetchNotifications()
@@ -46,7 +51,9 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
 
   useEffect(() => load(), [load, activity]);
 
-  const newGroups = groups.filter((g) => !g.muted && Number(g.unread) > 0);
+  const newGroups = groups.filter(
+    (g) => !g.muted && Number(g.unread) > 0 && (cleared[g.id] === undefined || Number(g.last_message_id ?? 0) > cleared[g.id]),
+  );
   const badge = unread + newGroups.length;
 
   useLayoutEffect(() => {
@@ -75,10 +82,34 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
     return () => window.removeEventListener("keydown", onKey);
   }, [open, unread]);
 
-  function go(groupId: string) {
+  function go(path: string) {
     setOpen(false);
-    navigate(`/grupos/${groupId}`);
+    navigate(path);
   }
+
+  /** "Limpar tudo": apaga os avisos e dá as mensagens novas dos grupos como lidas. */
+  async function clearAll() {
+    if (clearing) return;
+    setClearing(true);
+    const groupsBefore = newGroups;
+    const itemsBefore = items;
+    setItems([]);
+    setUnread(0);
+    setCleared((cur) => ({ ...cur, ...Object.fromEntries(groupsBefore.map((g) => [g.id, Number(g.last_message_id ?? 0)])) }));
+    try {
+      await Promise.all([
+        clearNotifications(),
+        ...groupsBefore.filter((g) => g.last_message_id).map((g) => markRead(g.id, Number(g.last_message_id)).catch(() => undefined)),
+      ]);
+    } catch {
+      // Sem rede: os avisos voltam (os grupos continuam escondidos até chegar mensagem nova).
+      setItems(itemsBefore);
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  const empty = items.length === 0 && newGroups.length === 0;
 
   return (
     <>
@@ -101,8 +132,16 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
         ? createPortal(
             <div className="notif-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
               <section className="notif-panel" style={pos} role="dialog" aria-label="Notificações">
-                <header>
+                <header className="notif-head">
                   <h2>Notificações</h2>
+                  {!empty ? (
+                    <button type="button" className="notif-clear" onClick={() => void clearAll()} disabled={clearing}>
+                      {GIcon.check} Limpar tudo
+                    </button>
+                  ) : null}
+                  <button type="button" className="group-icon-btn notif-close" onClick={() => setOpen(false)} aria-label="Fechar notificações" title="Fechar">
+                    {GIcon.close}
+                  </button>
                 </header>
                 <div className="notif-scroll">
                   {newGroups.length > 0 ? (
@@ -111,7 +150,7 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                       <ul>
                         {newGroups.map((g) => (
                           <li key={g.id}>
-                            <button type="button" className="notif-item is-new" onClick={() => go(g.id)}>
+                            <button type="button" className="notif-item is-new" onClick={() => go(`/grupos/${g.id}`)}>
                               <GroupAvatar id={g.id} name={g.name} photo={g.photo_url} size="sm" />
                               <span className="notif-text">
                                 <strong>
@@ -129,16 +168,23 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                       </ul>
                     </>
                   ) : null}
-                  <h3>Atividade</h3>
+                  {empty ? (
+                    <div className="notif-all-clear">
+                      <span aria-hidden="true">{BELL}</span>
+                      <strong>Tudo em dia</strong>
+                      <p>Quando responderem, reagirem às suas mensagens ou seguirem você, aparece aqui.</p>
+                    </div>
+                  ) : null}
+                  {items.length > 0 ? <h3>Atividade</h3> : null}
                   {items.length === 0 ? (
-                    <p className="notif-empty">Quando responderem ou reagirem às suas mensagens, aparece aqui.</p>
+                    null
                   ) : (
                     <ul>
                       {items.map((n) => {
                         const { text, quote } = describe(n);
                         return (
                           <li key={n.id}>
-                            <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(n.group_id)}>
+                            <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(n.kind === "follow" || !n.group_id ? `/pessoas/${n.actor_id}` : `/grupos/${n.group_id}`)}>
                               <PersonFace id={n.actor_id} name={n.actor_name} avatar={n.actor_avatar} photo={n.actor_photo} size="sm" />
                               <span className="notif-text">
                                 <strong>{text}</strong>

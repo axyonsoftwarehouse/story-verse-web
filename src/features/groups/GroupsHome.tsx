@@ -20,6 +20,8 @@ import { PushStatus } from "./PushStatus";
 import { GroupAvatar, GroupsBlocked } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { useGroupsGate } from "./groupHelpers";
+import { SuggestionsStrip } from "../social/PeopleParts";
+import "../social/social.css";
 
 type Tab = "mine" | "explore";
 
@@ -101,6 +103,9 @@ export function GroupsHome() {
       <nav className="home-nav profile-nav">
         <Link className="btn" to="/">
           Voltar
+        </Link>
+        <Link className="btn groups-people-link" to="/pessoas">
+          {GIcon.users} Pessoas
         </Link>
       </nav>
 
@@ -233,6 +238,8 @@ export function GroupsHome() {
           ))}
         </ul>
       )}
+
+      {tab === "mine" && list !== null && me ? <SuggestionsStrip me={me} /> : null}
 
       {creating ? (
         <GroupForm
