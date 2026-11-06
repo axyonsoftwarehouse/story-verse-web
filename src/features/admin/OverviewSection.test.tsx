@@ -264,6 +264,9 @@ describe("OverviewSection", () => {
     expect(await screen.findByText(/Sentry não configurado\./)).toBeInTheDocument();
     expect(screen.getByText("backup · sem backup registrado")).toBeInTheDocument();
     expect(screen.queryByText("Atrasado")).toBeNull();
+    // Sem backup nenhum, o resumo também não pode dizer que está em dia.
+    expect(screen.queryByText("backup em dia")).toBeNull();
+    expect(screen.getAllByText(/sem backup registrado/).length).toBeGreaterThan(0);
   });
 
   it("moderador vê só as ações, sem métricas de negócio", async () => {
