@@ -302,7 +302,7 @@ describe("OverviewSection", () => {
     expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
   });
 
-  it("não repete a visão geral quando a sessão é recriada com o mesmo token", async () => {
+  it("não repete a visão geral quando o token é renovado na mesma carga", async () => {
     const { rerender } = render(
       <MemoryRouter>
         <OverviewSection session={session} roles={["superadmin"]} />
@@ -310,7 +310,8 @@ describe("OverviewSection", () => {
     );
     expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
 
-    const outraSessao = { ...session } as SupabaseSession;
+    // O refresh da sessão troca o token, mas é o mesmo usuário: não pode pedir de novo.
+    const outraSessao = { ...session, access_token: "token-renovado" } as SupabaseSession;
     rerender(
       <MemoryRouter>
         <OverviewSection session={outraSessao} roles={["superadmin"]} />
