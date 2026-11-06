@@ -29,6 +29,7 @@ import { installAnalytics } from "./lib/analytics";
 import { registerServiceWorker } from "./lib/pwa";
 import { startSplashExit } from "./lib/splash";
 import { applyAppTheme } from "./lib/appTheme";
+import { installAmbientMotion } from "./lib/motion";
 
 installTelemetry();
 
@@ -37,6 +38,9 @@ installAnalytics();
 
 // Cor escolhida pela pessoa antes do primeiro desenho (sem piscar o dourado antes).
 applyAppTheme();
+
+// Luz seguindo o cursor nos cartões e onda no toque dos botões (todas as telas).
+installAmbientMotion();
 
 // App instalável e leitura offline (só no build de produção).
 registerServiceWorker();

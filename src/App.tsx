@@ -73,6 +73,7 @@ import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
+import { GoldDust } from "./components/GoldDust";
 import { publishShowcase } from "./lib/social";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
@@ -8055,7 +8056,7 @@ export function App() {
                 {Icon.chat}
                 <span className="nav-groups-label">Grupos</span>
                 {groupsUnread > 0 ? (
-                  <span className="nav-groups-badge" aria-hidden="true">
+                  <span className="nav-groups-badge" aria-hidden="true" key={groupsUnread}>
                     {groupsUnread > 99 ? "99+" : groupsUnread}
                   </span>
                 ) : null}
@@ -8189,6 +8190,7 @@ export function App() {
 
         {returning ? (
           <header className="welcome">
+            <GoldDust density={30} />
             <span className="eyebrow">Storyverse</span>
             <h1>
               {greetingNow()}{authUser ? `, ${displayNameOf(authUser).split(" ")[0]}` : ""} <span aria-hidden="true">👋</span>
@@ -8229,6 +8231,7 @@ export function App() {
         ) : (
         <>
         <header className="hero">
+          <GoldDust />
           <div className="hero-copy">
             <span className="eyebrow">Leitura interativa</span>
             <h1 className="hero-title">

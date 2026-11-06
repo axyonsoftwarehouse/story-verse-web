@@ -296,3 +296,65 @@ export function flyEmoji(emoji: string, from: Element | DOMRect | null, to: Elem
   };
   flight.oncancel = () => el.remove();
 }
+
+/** Cartões que ganham a "luz de vela" seguindo o cursor (só em aparelhos com mouse). */
+const GLOW_CARDS = ".glow-card, .group-card, .people-row, .badge-card, .shelf-card, .person-badge, .book-carousel .book, .hero, .welcome";
+
+/**
+ * Vida no ambiente, uma vez para o app todo (um ouvinte só, nada por componente):
+ *  - luz que acompanha o cursor nos cartões (variáveis --gx/--gy, desenhadas no CSS);
+ *  - onda que se espalha do ponto do toque nos botões.
+ * Com "reduzir movimento" não faz nada.
+ */
+export function installAmbientMotion(): () => void {
+  if (typeof window === "undefined" || prefersReducedMotion()) return () => {};
+  const hover = window.matchMedia?.("(hover: hover)").matches ?? false;
+  let lit: HTMLElement | null = null;
+
+  const move = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") return;
+    const card = e.target instanceof Element ? (e.target.closest(GLOW_CARDS) as HTMLElement | null) : null;
+    if (lit && lit !== card) lit.classList.remove("is-lit");
+    lit = card;
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty("--gx", `${(e.clientX - r.left).toFixed(0)}px`);
+    card.style.setProperty("--gy", `${(e.clientY - r.top).toFixed(0)}px`);
+    card.classList.add("is-lit");
+  };
+
+  const leave = (e: PointerEvent) => {
+    if (!e.relatedTarget && lit) {
+      lit.classList.remove("is-lit");
+      lit = null;
+    }
+  };
+
+  const press = (e: PointerEvent) => {
+    const btn = e.target instanceof Element ? (e.target.closest(".btn, .group-send, .people-follow") as HTMLElement | null) : null;
+    if (!btn || (btn as HTMLButtonElement).disabled) return;
+    const r = btn.getBoundingClientRect();
+    if (getComputedStyle(btn).position === "static") btn.style.position = "relative";
+    const box = document.createElement("span");
+    box.className = "sv-ripple";
+    const dot = document.createElement("span");
+    const size = Math.max(r.width, r.height) * 2.2;
+    dot.style.width = dot.style.height = `${size}px`;
+    dot.style.left = `${e.clientX - r.left - size / 2}px`;
+    dot.style.top = `${e.clientY - r.top - size / 2}px`;
+    box.appendChild(dot);
+    btn.appendChild(box);
+    window.setTimeout(() => box.remove(), 650);
+  };
+
+  if (hover) {
+    document.addEventListener("pointermove", move, { passive: true });
+    document.addEventListener("pointerout", leave, { passive: true });
+  }
+  document.addEventListener("pointerdown", press, { passive: true });
+  return () => {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerout", leave);
+    document.removeEventListener("pointerdown", press);
+  };
+}
