@@ -77,6 +77,7 @@ import { GoldDust } from "./components/GoldDust";
 import { publishShowcase } from "./lib/social";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
+import { useNavCrowded } from "./lib/useNavCrowded";
 import { NotificationBell } from "./features/notifications/NotificationBell";
 import { bookKeyOf, todayInBrazil } from "./lib/library";
 import {
@@ -6526,6 +6527,7 @@ export function App() {
   useEffect(() => installCoverTilt(), []);
   useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length, catalogNew.length]);
   const [navScrolled, setNavScrolled] = useState(false);
+  const [navRef, navCrowded] = useNavCrowded();
   useEffect(() => {
     if (book) return;
     // Margem entre ligar e desligar: perto do limite a barra não fica alternando.
@@ -7991,7 +7993,7 @@ export function App() {
             onCancel={() => setPasswordReset(false)}
           />
         ) : null}
-        <nav className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""}`}>
+        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navCrowded ? "is-crowded" : ""}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
             <span className="wordmark-text">Storyverse</span>
