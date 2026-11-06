@@ -284,4 +284,40 @@ describe("OverviewSection", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Falha na visão geral."),
     );
   });
+
+  it("mostra o cabeçalho e o esqueleto enquanto a visão geral não chega", async () => {
+    let liberar: (value: AdminOverview) => void = () => undefined;
+    vi.mocked(getOverview).mockReturnValue(
+      new Promise<AdminOverview>((resolve) => {
+        liberar = resolve;
+      }),
+    );
+    renderSection(["superadmin"]);
+
+    // Sem a visão geral, a tela não fica em branco: título e estrutura já aparecem.
+    expect(screen.getByRole("heading", { name: "Visão geral" })).toBeInTheDocument();
+    expect(screen.getByText("Carregando…")).toBeInTheDocument();
+
+    liberar(overview);
+    expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
+  });
+
+  it("não repete a visão geral quando a sessão é recriada com o mesmo token", async () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <OverviewSection session={session} roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
+
+    const outraSessao = { ...session } as SupabaseSession;
+    rerender(
+      <MemoryRouter>
+        <OverviewSection session={outraSessao} roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Precisa de ação")).toBeInTheDocument());
+    expect(getOverview).toHaveBeenCalledTimes(1);
+  });
 });
