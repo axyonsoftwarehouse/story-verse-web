@@ -101,6 +101,15 @@ export async function exportChatImage(
   return { blob, width, height };
 }
 
+/** Formato de gravação que o aparelho sabe fazer, preferindo o que toca em todos (MP4/AAC, iPhone incluso). */
+export function recordingMime(): string | null {
+  if (typeof MediaRecorder === "undefined") return null;
+  for (const type of ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"]) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return null;
+}
+
 /** "0:07", "1:30". */
 export function clock(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));

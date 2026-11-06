@@ -83,6 +83,8 @@ export function ChatAudio({ message: m }: { message: GroupMessage }) {
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
+  /** Velocidade: 1× → 1,5× → 2× (narração longa no roleplay). */
+  const [rate, setRate] = useState(1);
   const duration = (m.media_duration_ms ?? 0) / 1000;
 
   useEffect(() => {
@@ -151,7 +153,21 @@ export function ChatAudio({ message: m }: { message: GroupMessage }) {
         <i style={{ left: `${progress}%` }} />
       </span>
       <small className="group-audio-time">{clock((playing || at > 0 ? at : total) * 1000)}</small>
-      {url ? <audio ref={audio} className="group-audio-el" src={url} preload="metadata" /> : null}
+      <button
+        type="button"
+        className={`group-audio-rate ${rate !== 1 ? "is-on" : ""}`}
+        disabled={!url}
+        onClick={() => {
+          const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1;
+          setRate(next);
+          if (audio.current) audio.current.playbackRate = next;
+        }}
+        aria-label={`Velocidade ${String(rate).replace(".", ",")}x. Toque para mudar`}
+        title="Velocidade"
+      >
+        {String(rate).replace(".", ",")}×
+      </button>
+      {url ? <audio ref={audio} className="group-audio-el" src={url} preload="metadata" onLoadedMetadata={(e) => (e.currentTarget.playbackRate = rate)} /> : null}
     </span>
   );
 }
