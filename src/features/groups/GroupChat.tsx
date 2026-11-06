@@ -53,7 +53,8 @@ import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatDraft, formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
-import { keepMedia } from "../../lib/chatMedia";
+import { keepMedia, recordingMime } from "../../lib/chatMedia";
+import { AudioRecorder } from "./AudioRecorder";
 import { ImageCrop } from "./ImageCrop";
 import { CharacterDialog } from "./CharacterDialog";
 import { RoleplayBookCard } from "./RoleplayBookCard";
@@ -118,6 +119,9 @@ export function GroupChat() {
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
   const photoRef = useRef<HTMLInputElement>(null);
+  /** Gravando (ou ouvindo antes de mandar) um áudio: a barra de gravação toma o lugar do campo. */
+  const [recording, setRecording] = useState(false);
+  const canRecord = useMemo(() => recordingMime() !== null, []);
   const [cropping, setCropping] = useState<File | null>(null);
   /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
   const mediaFiles = useRef(new Map<string, { blob: Blob; durationMs?: number; width?: number; height?: number }>());
@@ -851,7 +855,12 @@ export function GroupChat() {
                         <div className="group-bubble-wrap">
                           <div
                             className={`group-bubble ${m.hidden ? "is-muted" : ""} ${m.pending ? "is-pending" : ""} ${jumbo ? "is-jumbo" : ""}`}
-                            onDoubleClick={() => canAct && void toggleReaction(m, "❤️")}
+                            onDoubleClick={(e) => {
+                              // Toque duplo no texto curte com ❤️; em botão, link ou barra do áudio
+                              // (ex.: trocar a velocidade 1× → 1,5× → 2× rápido) não.
+                              if (e.target instanceof Element && e.target.closest("button, a, input, audio, [role=slider]")) return;
+                              if (canAct) void toggleReaction(m, "❤️");
+                            }}
                           >
                             {!mine && !grouped ? (
                               <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>
@@ -1020,6 +1029,13 @@ export function GroupChat() {
                   <span className="group-text-btn">Criar</span>
                 </button>
               ) : null}
+              {recording ? (
+                <AudioRecorder
+                  onSend={(blob, durationMs) => sendFile("audio", blob, { durationMs })}
+                  onClose={() => setRecording(false)}
+                  onError={(text) => setError(text)}
+                />
+              ) : (
               <div className="group-composer-row">
                 <input
                   ref={photoRef}
@@ -1101,10 +1117,18 @@ export function GroupChat() {
                     {GIcon.image}
                   </button>
                 </div>
-                <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
-                  {GIcon.send}
-                </button>
+                {/* Campo vazio: o botão vira microfone (como no WhatsApp). */}
+                {!input.trim() && canRecord && !spoilerOn ? (
+                  <button type="button" className="group-send is-mic" onClick={() => setRecording(true)} aria-label="Gravar áudio" title="Gravar áudio">
+                    {GIcon.mic}
+                  </button>
+                ) : (
+                  <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
+                    {GIcon.send}
+                  </button>
+                )}
               </div>
+              )}
             </div>
           </form>
         </>
