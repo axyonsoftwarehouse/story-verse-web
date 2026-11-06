@@ -55,6 +55,7 @@ import { formatDraft, formatMessage } from "./messageFormat";
 import { ChatAudio, ChatImage } from "./MediaParts";
 import { keepMedia, recordingMime } from "../../lib/chatMedia";
 import { AudioRecorder } from "./AudioRecorder";
+import { MicPermissionHelp } from "./MicPermissionHelp";
 import { ImageCrop } from "./ImageCrop";
 import { CharacterDialog } from "./CharacterDialog";
 import { RoleplayBookCard } from "./RoleplayBookCard";
@@ -121,6 +122,13 @@ export function GroupChat() {
   const photoRef = useRef<HTMLInputElement>(null);
   /** Gravando (ou ouvindo antes de mandar) um áudio: a barra de gravação toma o lugar do campo. */
   const [recording, setRecording] = useState(false);
+  /** Microfone bloqueado: painel com o caminho para liberar (e volta a gravar sozinho). */
+  const [micHelp, setMicHelp] = useState(false);
+  const retryMic = useCallback(() => {
+    setMicHelp(false);
+    setRecording(true);
+  }, []);
+  const closeMicHelp = useCallback(() => setMicHelp(false), []);
   const canRecord = useMemo(() => recordingMime() !== null, []);
   const [cropping, setCropping] = useState<File | null>(null);
   /** Arquivo de cada mídia enviada, para "tentar de novo" sem escolher de novo. */
@@ -1034,6 +1042,7 @@ export function GroupChat() {
                   onSend={(blob, durationMs) => sendFile("audio", blob, { durationMs })}
                   onClose={() => setRecording(false)}
                   onError={(text) => setError(text)}
+                  onBlocked={() => setMicHelp(true)}
                 />
               ) : (
               <div className="group-composer-row">
@@ -1133,6 +1142,8 @@ export function GroupChat() {
           </form>
         </>
       )}
+
+      {micHelp ? <MicPermissionHelp onRetry={retryMic} onClose={closeMicHelp} /> : null}
 
       {menuFor ? (
         <MessageFocus

@@ -4214,3 +4214,201 @@ button.group-rp-character small {
     display: none;
   }
 }
+
+/* ------------------- Microfone bloqueado: como liberar ------------------- */
+
+.mic-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 6, 4, 0.72);
+  backdrop-filter: blur(4px);
+  animation: group-fade 0.2s ease-out;
+}
+
+.mic-help {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  width: min(100%, 420px);
+  padding: 1.6rem 1.3rem 1.2rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 90% 45% at 50% 0%, rgba(var(--accent-rgb), 0.14), transparent 70%),
+    var(--bg);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+  text-align: center;
+  animation: mic-help-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes mic-help-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+}
+
+.mic-help-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  color: var(--muted);
+}
+
+/* Microfone com um traço de "bloqueado" que pisca. */
+.mic-help-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+}
+
+.mic-help-icon svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.mic-help-icon i {
+  position: absolute;
+  width: 2.6rem;
+  height: 3px;
+  border-radius: 2px;
+  background: #e5484d;
+  transform: rotate(-45deg);
+  box-shadow: 0 0 0 3px var(--bg);
+  animation: mic-help-slash 2.4s ease-in-out infinite;
+}
+
+@keyframes mic-help-slash {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.mic-help h2 {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-read);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.mic-help-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.mic-help-steps {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.mic-help-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  animation: person-rise 0.4s ease both;
+  animation-delay: calc(0.1s + var(--i, 0) * 0.08s);
+}
+
+.mic-help-steps strong {
+  color: var(--accent);
+}
+
+.mic-help-n {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.mic-help-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: left;
+  gap: 0.5rem;
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.mic-help-pulse {
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: group-rec-dot 1.4s ease-out infinite;
+  box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.6);
+}
+
+.mic-help-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.3rem;
+}
+
+.mic-help-actions .btn-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* No computador: seta apontando o ícone ao lado do endereço, no topo do navegador. */
+.mic-help-pointer {
+  position: fixed;
+  top: 6px;
+  left: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  pointer-events: none;
+  animation: mic-help-point 1.3s ease-in-out infinite;
+}
+
+.mic-help-pointer span {
+  margin-top: 1.6rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  white-space: nowrap;
+}
+
+@keyframes mic-help-point {
+  50% {
+    transform: translate(-4px, -4px);
+  }
+}

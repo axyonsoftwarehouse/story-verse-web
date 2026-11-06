@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { clock, recordingMime } from "../../lib/chatMedia";
+import { micPermission, micProblem, micProblemText } from "../../lib/micPermission";
 import { haptic, prefersReducedMotion } from "../../lib/motion";
 import { GIcon } from "./groupIcons";
 
@@ -20,10 +21,13 @@ export function AudioRecorder({
   onSend,
   onClose,
   onError,
+  onBlocked,
 }: {
   onSend: (blob: Blob, durationMs: number) => void;
   onClose: () => void;
   onError: (message: string) => void;
+  /** Microfone bloqueado nas permissões: quem chama mostra como liberar. */
+  onBlocked: () => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0.14));
@@ -45,12 +49,16 @@ export function AudioRecorder({
     let cancelled = false;
     const mime = recordingMime();
     if (!mime || !navigator.mediaDevices?.getUserMedia) {
-      onError("Este navegador não grava áudio.");
+      onError(micProblemText("unsupported"));
       onClose();
       return;
     }
-    void navigator.mediaDevices
-      .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+    // Já bloqueado: o navegador nem mostraria o pedido; vai direto para o "como liberar".
+    void micPermission()
+      .then((state) => {
+        if (state === "denied") throw new DOMException("bloqueado", "NotAllowedError");
+        return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      })
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -117,8 +125,11 @@ export function AudioRecorder({
         rec.start(1000);
         haptic(15);
       })
-      .catch(() => {
-        onError("Libere o microfone nas permissões do navegador para gravar áudio.");
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const problem = micProblem(error);
+        if (problem === "blocked") onBlocked();
+        else onError(micProblemText(problem));
         onClose();
       });
     return () => {
