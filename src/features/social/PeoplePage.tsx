@@ -9,7 +9,6 @@ import { GIcon } from "../groups/groupIcons";
 import { followersOf, followingOf, peopleSuggestions, removeFollower, searchPeople, type Person, errorText } from "../../lib/social";
 import { PeopleBlocked, PeopleEmpty, PeopleList, PeopleSkeleton, PersonRow, SuggestionsStrip } from "./PeopleParts";
 import { TransitionLink } from "../../components/TransitionLink";
-import { PageFoot } from "../../components/PageFoot";
 
 type Tab = "sugestoes" | "seguindo" | "seguidores";
 const TABS: { id: Tab; label: string }[] = [
@@ -110,7 +109,6 @@ export function PeoplePage() {
           {tab !== "sugestoes" ? <SuggestionsStrip me={me} title="Sugestões para você" skipFollowers={tab === "seguidores"} /> : null}
         </>
       )}
-      <PageFoot />
     </div>
   );
 }

@@ -1093,7 +1093,9 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  align-self: center;
+  /* No fim da bolha (perto da hora), não no meio de uma cena longa. */
+  align-self: flex-end;
+  margin-bottom: 0.15rem;
   width: 1.9rem;
   height: 1.9rem;
   padding: 0;
@@ -4024,4 +4026,38 @@ button.group-rp-character small {
 /* TAB no começo da linha (texto do PC) não vira um buraco de 8 espaços no celular. */
 .group-text {
   tab-size: 2;
+}
+
+/* Um bloco por dia: a data gruda só dentro do próprio dia (o dia seguinte empurra a anterior). */
+.group-day-block {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Data grudada no topo some quando a rolagem para (fica só enquanto rola). */
+.group-day span {
+  transition: opacity 0.25s;
+}
+
+.group-chat-body:not(.is-scrolling) .group-day.is-floating span {
+  opacity: 0;
+}
+
+/*
+ * A bolha nunca passa da largura da coluna. Antes, a citação de uma resposta (uma linha só, com
+ * "…") esticava a bolha até o tamanho do texto inteiro: no celular ela saía da tela pela esquerda
+ * e cortava o começo das linhas da mensagem.
+ */
+.group-bubble {
+  max-width: 100%;
+}
+
+.group-quote {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.group-quote span {
+  max-width: 100%;
 }

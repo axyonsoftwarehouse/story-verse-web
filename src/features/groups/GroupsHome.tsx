@@ -23,7 +23,6 @@ import { useGroupsGate } from "./groupHelpers";
 import { SuggestionsStrip } from "../social/PeopleParts";
 import "../social/social.css";
 import { TransitionLink } from "../../components/TransitionLink";
-import { PageFoot } from "../../components/PageFoot";
 
 type Tab = "mine" | "explore";
 
@@ -251,7 +250,6 @@ export function GroupsHome() {
           onSaved={(g) => navigate(`/grupos/${g.id}`)}
         />
       ) : null}
-      <PageFoot />
     </div>
   );
 }

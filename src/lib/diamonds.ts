@@ -146,7 +146,11 @@ export function setAutoFreezeEnabled(on: boolean) {
 }
 
 /** Prêmios possíveis da roleta (o sorteio é no banco; isto é só o desenho das fatias). */
-export const SPIN_SEGMENTS = [1, 5, 2, 10, 1, 3, 2, 20] as const;
+/**
+ * Fatias da roleta, no sentido horário a partir do topo. Os mesmos prêmios que o servidor sorteia
+ * (spin_daily_wheel, V48 na API): 5 · 10 · 15 · 25 · 50 · 100 (o 100 é o prêmio raro).
+ */
+export const SPIN_SEGMENTS = [5, 25, 10, 50, 5, 15, 10, 100] as const;
 
 export type SpinResult = { prize: number; is_new: boolean; balance: number };
 
