@@ -4061,3 +4061,156 @@ button.group-rp-character small {
 .group-quote span {
   max-width: 100%;
 }
+
+/* ------------------------------ Gravar áudio ------------------------------ */
+
+/* Velocidade do áudio na conversa: 1× · 1,5× · 2×. */
+.group-audio-rate {
+  flex-shrink: 0;
+  min-width: 2.3rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.group-audio-rate.is-on {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+}
+
+.group-audio {
+  width: min(17rem, 66vw);
+}
+
+/* Campo vazio: o botão de enviar vira microfone. */
+.group-send.is-mic {
+  animation: group-mic-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes group-mic-in {
+  from {
+    transform: scale(0.6) rotate(-20deg);
+  }
+}
+
+/* Barra de gravação no lugar do campo de texto. */
+.group-recording {
+  align-items: center;
+  gap: 0.45rem;
+  animation: group-rec-in 0.22s ease-out;
+}
+
+@keyframes group-rec-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.group-recording-live {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  height: 2.9rem;
+  padding: 0 0.9rem 0 0.75rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.group-recording-live.is-preview {
+  padding-left: 0.35rem;
+}
+
+.group-recording-live.is-preview .group-audio-play {
+  width: 2.1rem;
+  height: 2.1rem;
+}
+
+.group-recording-dot {
+  flex-shrink: 0;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #e5484d;
+  box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.6);
+  animation: group-rec-dot 1.2s ease-out infinite;
+}
+
+@keyframes group-rec-dot {
+  70% {
+    box-shadow: 0 0 0 7px rgba(229, 72, 77, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(229, 72, 77, 0);
+  }
+}
+
+.group-recording-time {
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nível da voz ao vivo: barrinhas que andam da direita para a esquerda. */
+.group-recording-bars {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  height: 1.6rem;
+  overflow: hidden;
+}
+
+.group-recording-bars > span {
+  flex: 0 0 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: center;
+  transition: transform 0.08s linear;
+}
+
+.group-recording-limit {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.group-recording-trash {
+  color: var(--muted);
+}
+
+@media (hover: hover) {
+  .group-recording-trash:hover {
+    color: #e5484d;
+  }
+}
+
+.group-recording-square {
+  display: block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.15rem;
+  background: currentColor;
+}
+
+@media (max-width: 420px) {
+  .group-recording-limit {
+    display: none;
+  }
+}
