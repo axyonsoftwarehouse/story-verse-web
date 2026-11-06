@@ -1204,10 +1204,6 @@
     gap: 0.4rem;
   }
 
-  .status {
-    display: none;
-  }
-
   .about-dialog {
     max-height: 94dvh;
     border-radius: 18px;
@@ -2739,10 +2735,6 @@
 
 
 
-  .home-nav-actions .status {
-    display: none;
-  }
-
   .home-nav-actions {
     flex: 1 1 auto;
     flex-wrap: wrap;
@@ -3885,7 +3877,6 @@
 
 /* A aba Comunidade aumentou o topo: encurta os rotulos antes de apertar os outros botoes. */
 @media (max-width: 1000px) {
-  .home-nav-actions .status,
   .online-label {
     display: none;
   }
@@ -11304,8 +11295,7 @@ button.ranking-diamonds {
 
 /* Topo cheio em qualquer largura (useNavCrowded mede): os botões menos usados vão para o "Mais",
    como nas telas estreitas, em vez de o bloco transbordar por cima da marca. */
-.home-nav-main.is-crowded .home-nav-actions .nav-secondary,
-.home-nav-main.is-crowded .home-nav-actions .status {
+.home-nav-main.is-crowded .home-nav-actions .nav-secondary {
   display: none;
 }
 
@@ -11313,16 +11303,27 @@ button.ranking-diamonds {
   display: inline-grid;
 }
 
-/* O selo "IA ativa" não espreme em duas linhas: some quando a barra fica cheia. */
+/* O selo "IA ativa" fica sempre no topo (a equipe usa para saber se a IA está no ar) e não espreme
+   em duas linhas. Se nem com o "Mais" a barra cabe (is-tight), fica só a bolinha; o texto continua
+   para leitores de tela e no title. */
 .home-nav-actions .status {
   flex-shrink: 0;
   white-space: nowrap;
 }
 
-@media (max-width: 1360px) {
-  .home-nav-actions .status {
-    display: none;
-  }
+.home-nav-main.is-tight .home-nav-actions .status {
+  gap: 0;
+  padding: 0.25rem;
+  border-color: transparent;
+}
+
+.home-nav-main.is-tight .home-nav-actions .status-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Aviso no começo da conversa com o personagem: ficção feita por IA, não uma pessoa real. */
