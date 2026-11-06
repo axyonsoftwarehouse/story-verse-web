@@ -1,39 +1,52 @@
 import { useLayoutEffect, useState } from "react";
 
-const CROWDED = "is-crowded";
+/**
+ * Quanto o topo precisa encolher para os botões caberem ao lado da marca:
+ *  - "full": tudo cabe;
+ *  - "crowded": os botões menos usados vão para o menu "Mais" (como nas telas estreitas);
+ *  - "tight": nem assim cabe, e o selo "IA ativa" fica só com a bolinha (o texto continua
+ *    para leitores de tela e no title). O selo nunca some: a equipe usa para saber se a IA está no ar.
+ */
+export type NavFit = "full" | "crowded" | "tight";
+
+const CLASSES = ["is-crowded", "is-tight"] as const;
 
 /**
- * Diz se os botões do topo não cabem ao lado da marca. O bloco de ações não quebra linha e fica
- * alinhado à direita, então quando sobrava botão (conta de admin, app não instalado...) ele
- * transbordava para a esquerda e cobria "Storyverse". Com `true`, o CSS recolhe os botões menos
- * usados no menu "Mais", o mesmo das telas estreitas.
+ * O bloco de ações não quebra linha e fica alinhado à direita, então quando sobrava botão (conta de
+ * admin, app não instalado...) ele transbordava para a esquerda e cobria "Storyverse".
  *
- * A medida é sempre feita com a barra completa (tira a classe compacta e o alinhamento à direita
- * só durante a leitura, no mesmo passo, sem pintar), para não ficar alternando entre os dois modos.
+ * Cada nível é medido de verdade (aplica a classe e lê a largura, tudo no mesmo passo, sem pintar),
+ * então o resultado não fica alternando entre os modos.
  * Devolve um ref de callback: o topo some no leitor e volta como outro elemento.
  */
-export function useNavCrowded(): [(el: HTMLElement | null) => void, boolean] {
+export function useNavCrowded(): [(el: HTMLElement | null) => void, NavFit] {
   const [nav, setNav] = useState<HTMLElement | null>(null);
-  const [crowded, setCrowded] = useState(false);
+  const [fit, setFit] = useState<NavFit>("full");
 
   useLayoutEffect(() => {
     const actions = nav?.querySelector<HTMLElement>(".home-nav-actions");
     if (!nav || !actions) {
-      setCrowded(false);
+      setFit("full");
       return;
     }
 
+    const overflows = () => actions.scrollWidth > actions.clientWidth + 1;
+
     const measure = () => {
-      const wasCrowded = nav.classList.contains(CROWDED);
-      nav.classList.remove(CROWDED);
+      const had = CLASSES.filter((c) => nav.classList.contains(c));
       const justify = actions.style.justifyContent;
       // Alinhado à direita, o que transborda vai para a esquerda e não entra no scrollWidth.
       actions.style.justifyContent = "flex-start";
-      const needed = actions.scrollWidth;
-      const available = actions.clientWidth;
+      nav.classList.remove(...CLASSES);
+      let next: NavFit = "full";
+      if (overflows()) {
+        nav.classList.add("is-crowded");
+        next = overflows() ? "tight" : "crowded";
+      }
+      nav.classList.remove(...CLASSES);
+      nav.classList.add(...had);
       actions.style.justifyContent = justify;
-      if (wasCrowded) nav.classList.add(CROWDED);
-      setCrowded(needed > available + 1);
+      setFit(next);
     };
 
     measure();
@@ -52,5 +65,5 @@ export function useNavCrowded(): [(el: HTMLElement | null) => void, boolean] {
     };
   }, [nav]);
 
-  return [setNav, crowded];
+  return [setNav, fit];
 }

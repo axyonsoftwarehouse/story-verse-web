@@ -6527,7 +6527,7 @@ export function App() {
   useEffect(() => installCoverTilt(), []);
   useReveal(homeRef, ".shelf, .steps", [book, dataEpoch, canRead, homeTick, communityBooks.length, catalogNew.length]);
   const [navScrolled, setNavScrolled] = useState(false);
-  const [navRef, navCrowded] = useNavCrowded();
+  const [navRef, navFit] = useNavCrowded();
   useEffect(() => {
     if (book) return;
     // Margem entre ligar e desligar: perto do limite a barra não fica alternando.
@@ -7993,7 +7993,7 @@ export function App() {
             onCancel={() => setPasswordReset(false)}
           />
         ) : null}
-        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navCrowded ? "is-crowded" : ""}`}>
+        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navFit !== "full" ? "is-crowded" : ""} ${navFit === "tight" ? "is-tight" : ""}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
             <span className="wordmark-text">Storyverse</span>
@@ -8008,7 +8008,7 @@ export function App() {
             ) : null}
             <span className="status" title="Mostra se o chat usa IA em tempo real ou respostas de demonstração.">
               <span className="status-dot" aria-hidden="true" />
-              {providerLabel}
+              <span className="status-label">{providerLabel}</span>
             </span>
             <div className="nav-secondary">
             {!installed ? (
