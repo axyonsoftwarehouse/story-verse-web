@@ -50,6 +50,26 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
 
   useEffect(() => load(), [load, activity]);
 
+  // Chegou aviso novo: o sino balança (como um sininho de verdade) e o número dá um pulo.
+  const lastBadge = useRef(0);
+  const badgeNow = unread + groups.filter((g) => !g.muted && Number(g.unread) > 0).length;
+  useEffect(() => {
+    if (badgeNow > lastBadge.current && lastBadge.current >= 0) {
+      button.current?.querySelector("svg")?.animate?.(
+        [
+          { transform: "rotate(0)" },
+          { transform: "rotate(18deg)" },
+          { transform: "rotate(-15deg)" },
+          { transform: "rotate(10deg)" },
+          { transform: "rotate(-6deg)" },
+          { transform: "rotate(0)" },
+        ],
+        { duration: 750, easing: "ease-out" },
+      );
+    }
+    lastBadge.current = badgeNow;
+  }, [badgeNow]);
+
   const newGroups = groups.filter(
     (g) => !g.muted && Number(g.unread) > 0 && (cleared[g.id] === undefined || Number(g.last_message_id ?? 0) > cleared[g.id]),
   );
@@ -125,7 +145,11 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
         title="Notificações"
       >
         {BELL}
-        {badge > 0 ? <span className="nav-bell-badge">{badge > 99 ? "99+" : badge}</span> : null}
+        {badge > 0 ? (
+          <span className="nav-bell-badge" key={badge}>
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ) : null}
       </button>
       {open
         ? createPortal(

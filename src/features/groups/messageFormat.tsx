@@ -3,8 +3,15 @@ import { FORMAT_MARK } from "../../lib/groups";
 
 const TAG = { "*": "strong", _: "em", "~": "s" } as const;
 
+/**
+ * Espaços "que não quebram" (vêm de texto colado do Word/Docs) viram espaço comum: senão a frase
+ * inteira vira uma palavra só e, no celular, a linha quebra no meio das palavras.
+ */
+const STICKY_SPACES = /[\u00a0\u2007\u202f]/g;
+
 /** Texto da mensagem com *negrito*, _itálico_ e ~riscado~ (regras em {@link FORMAT_MARK}). */
-export function formatMessage(text: string): ReactNode[] {
+export function formatMessage(raw: string): ReactNode[] {
+  const text = raw.replace(STICKY_SPACES, " ");
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;

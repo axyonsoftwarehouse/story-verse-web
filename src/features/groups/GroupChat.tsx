@@ -333,9 +333,22 @@ export function GroupChat() {
     if (mirrorRef.current) mirrorRef.current.scrollTop = el.scrollTop;
   }, [input]);
 
+  /** Data grudada no topo: aparece enquanto rola e some ~1 s depois de parar (como no WhatsApp). */
+  const scrollIdle = useRef(0);
+  function markFloatingDays(el: HTMLElement) {
+    const top = el.getBoundingClientRect().top;
+    for (const block of el.querySelectorAll<HTMLElement>(".group-day-block")) {
+      block.firstElementChild?.classList.toggle("is-floating", block.getBoundingClientRect().top < top - 1);
+    }
+    el.classList.add("is-scrolling");
+    window.clearTimeout(scrollIdle.current);
+    scrollIdle.current = window.setTimeout(() => el.classList.remove("is-scrolling"), 1100);
+  }
+
   function onScroll() {
     const el = listRef.current;
     if (!el) return;
+    markFloatingDays(el);
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     setAtBottom(stickToBottom.current);
     if (stickToBottom.current) setNewBelow(0);
@@ -753,14 +766,25 @@ export function GroupChat() {
                     {loadingOlder ? "Carregando…" : "Mensagens anteriores"}
                   </button>
                 ) : loaded ? (
-                  <div className="group-chat-start">
+                  <div className={`group-chat-start ${roleplay && group.rp_premise ? "has-scene" : ""}`}>
                     <GroupAvatar id={group.id} name={group.name} photo={group.photo_url} size="md" />
                     <strong>{group.name}</strong>
                     {roleplay ? <span className="group-rp-badge">🎭 Roleplay</span> : null}
-                    <span className="group-chat-start-desc">{roleplay ? group.rp_premise : (group.description ?? "Este é o começo da conversa.")}</span>
+                    {roleplay && group.rp_premise ? (
+                      <RoleplayScene text={group.rp_premise} />
+                    ) : (
+                      <span className="group-chat-start-desc">{group.description ?? "Este é o começo da conversa."}</span>
+                    )}
                   </div>
                 ) : null}
-                {shown.map((m, i) => {
+                {dayBlocks(shown).map((day) => (
+                  // Um bloco por dia: o selo da data só gruda enquanto o dia está na tela e o do
+                  // dia seguinte empurra o anterior (antes todos grudavam juntos, um por cima do outro).
+                  <section className="group-day-block" key={day.key}>
+                    <div className="group-day">
+                      <span>{day.label}</span>
+                    </div>
+                {day.items.map(({ m, i }) => {
                   const narration = m.kind === "narrator";
                   const mine = !narration && m.author_id === me;
                   const prev = shown[i - 1];
@@ -776,11 +800,6 @@ export function GroupChat() {
                   const total = m.reactions.reduce((n, r) => n + r.count, 0);
                   return (
                     <Fragment key={m.client_id ?? m.id}>
-                      {newDay ? (
-                        <div className="group-day">
-                          <span>{dayLabel(m.created_at)}</span>
-                        </div>
-                      ) : null}
                       {narration ? (
                         <div className={`group-msg is-narration ${grouped ? "is-grouped" : ""} ${fresh ? "is-new" : ""}`} data-mid={m.id}>
                           {grouped ? (
@@ -918,6 +937,8 @@ export function GroupChat() {
                     </Fragment>
                   );
                 })}
+                  </section>
+                ))}
                 {typingIds.length > 0 ? (
                   <div className="group-msg group-typing" aria-label={typingText} style={{ "--hue": hueOf(typingIds[0]) } as CSSProperties}>
                     <PersonFace
@@ -1059,7 +1080,7 @@ export function GroupChat() {
                           .catch((err: unknown) => setError(message(err)));
                       }}
                       aria-label="Chamar o narrador"
-                      title="Narrar"
+                      title="Narrar (ou escreva “narrador” na mensagem)"
                     >
                       <span aria-hidden="true">🎭</span>
                     </button>
@@ -1251,4 +1272,35 @@ function StatusTicks({ status }: { status: MessageStatus }) {
       )}
     </span>
   );
+}
+
+/** Cena de abertura do roleplay (a premissa) com quebras de linha e *ações*; longa, abre num toque. */
+function RoleplayScene({ text }: { text: string }) {
+  const long = text.length > 320 || text.split(/\n/).length > 6;
+  const [open, setOpen] = useState(!long);
+  return (
+    <div className={`group-scene ${open ? "is-open" : ""}`}>
+      <span className="group-scene-label">Cena de abertura</span>
+      <div className="group-scene-text" id="group-scene-text">
+        {formatMessage(text)}
+      </div>
+      {long ? (
+        <button type="button" className="group-text-btn group-scene-toggle" aria-expanded={open} aria-controls="group-scene-text" onClick={() => setOpen((v) => !v)}>
+          {open ? "Mostrar menos" : "Ler a cena inteira"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Mensagens em blocos por dia (na ordem), cada um com o rótulo da data. */
+function dayBlocks<T extends { id: number | string; created_at: string }>(list: T[]) {
+  const out: { key: string; label: string; items: { m: T; i: number }[] }[] = [];
+  list.forEach((m, i) => {
+    const label = dayLabel(m.created_at);
+    const last = out[out.length - 1];
+    if (last && last.label === label) last.items.push({ m, i });
+    else out.push({ key: `${label}-${m.id}`, label, items: [{ m, i }] });
+  });
+  return out;
 }

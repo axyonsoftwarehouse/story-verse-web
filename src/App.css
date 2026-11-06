@@ -8483,11 +8483,32 @@ button.identity-card {
 }
 
 /* Frase do dia: citação em letra de livro; tocar revela de qual livro é. */
+/* Frase do dia: bloco próprio, com respiro e um fio dourado em cima e embaixo (não gruda na estante). */
 .daily-quote {
+  position: relative;
   max-width: 44rem;
-  margin: 0 auto 2.2rem;
-  padding: 0.4rem 0.5rem;
+  margin: 3.2rem auto 2.8rem;
+  padding: 1.8rem 0.5rem 1.6rem;
   text-align: center;
+}
+
+.daily-quote::before,
+.daily-quote::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: min(60%, 18rem);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.45), transparent);
+  transform: translateX(-50%);
+}
+
+.daily-quote::before {
+  top: 0;
+}
+
+.daily-quote::after {
+  bottom: 0;
 }
 
 .daily-quote blockquote {
@@ -9103,22 +9124,50 @@ button.ranking-diamonds {
 
 .spin-wheel-wrap {
   position: relative;
-  width: min(72vw, 260px);
+  width: min(76vw, 290px);
   aspect-ratio: 1;
+  margin-top: 0.4rem;
+}
+
+/* Brilho atrás da roda: respira parado, acelera girando e explode em raios no prêmio. */
+.spin-glow {
+  position: absolute;
+  inset: -14%;
+  z-index: -1;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, rgba(var(--accent-rgb), 0.16) 0deg 8deg, transparent 8deg 22.5deg),
+    radial-gradient(circle, rgba(var(--accent-rgb), 0.28), transparent 62%);
+  -webkit-mask-image: radial-gradient(circle, #000 35%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 35%, transparent 70%);
+  opacity: 0.5;
+  animation: spin-rays 24s linear infinite;
+  transition: opacity 0.4s;
+}
+
+.spin-wheel-wrap.is-spinning .spin-glow {
+  opacity: 0.85;
+  animation-duration: 6s;
+}
+
+.spin-wheel-wrap.has-winner .spin-glow {
+  opacity: 1;
+  animation: spin-rays 10s linear infinite, spin-burst 0.9s var(--ease-out) both;
 }
 
 .spin-pointer {
   position: absolute;
-  z-index: 1;
-  top: -6px;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-top: 20px solid var(--accent);
-  border-right: 12px solid transparent;
-  border-left: 12px solid transparent;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
-  transform: translateX(-50%);
+  z-index: 2;
+  top: -14px;
+  left: calc(50% - 14px);
+  width: 28px;
+  height: 36px;
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.55));
+  transform-origin: 50% 30%;
+}
+
+.spin-pointer svg {
+  display: block;
 }
 
 .spin-wheel {
@@ -9126,46 +9175,139 @@ button.ranking-diamonds {
   height: 100%;
   border-radius: 50%;
   box-shadow:
-    0 0 0 4px rgba(var(--accent-rgb), 0.35),
-    0 18px 40px -12px rgba(0, 0, 0, 0.6);
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 22px 50px -14px rgba(0, 0, 0, 0.75),
+    0 0 40px -6px rgba(var(--accent-rgb), 0.35);
 }
 
 .spin-wheel.is-spinning {
-  transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 1);
+  transition: transform 5.2s cubic-bezier(0.13, 0.83, 0.17, 1);
 }
 
-.spin-slice.is-a {
-  fill: #2a231c;
-}
-
-.spin-slice.is-b {
-  fill: #3a3027;
-}
-
-.spin-slice.is-big {
-  fill: #4b3b22;
-}
-
+/* Faixas de prêmio: cada uma com sua pedra. */
 .spin-slice {
-  stroke: rgba(var(--accent-rgb), 0.35);
-  stroke-width: 0.8;
+  stroke: none;
+  transition: filter 0.3s;
+}
+
+.spin-slice.is-t5 {
+  fill: #3a2a1a;
+}
+
+.spin-slice.is-t10 {
+  fill: #6a4320;
+}
+
+.spin-slice.is-t15 {
+  fill: #1f5242;
+}
+
+.spin-slice.is-t25 {
+  fill: #23406e;
+}
+
+.spin-slice.is-t50 {
+  fill: #6e2342;
+}
+
+.spin-slice.is-t100 {
+  fill: url(#spin-jackpot);
+}
+
+.spin-divider {
+  stroke: rgba(243, 207, 131, 0.55);
+  stroke-width: 1;
 }
 
 .spin-label {
-  fill: var(--text);
+  fill: #fff6e6;
   font-family: var(--font-read);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 2.5px;
 }
 
-.spin-hub {
-  fill: var(--bg-deep);
-  stroke: var(--accent);
-  stroke-width: 2;
+.spin-label.is-big {
+  font-size: 21px;
 }
 
-.spin-hub-dot {
-  fill: var(--accent);
+.spin-slice.is-t100 + g .spin-label {
+  fill: #2a1a06;
+  stroke: rgba(255, 240, 200, 0.5);
+}
+
+.spin-gem {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
+
+/* Valor e diamante lado a lado; o diamante fica fora do dourado brilhante do prêmio grande. */
+.spin-prize-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.spin-prize-gem {
+  font-size: 1.9rem;
+  animation: spin-prize-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.08s both;
+}
+
+/* Luzinhas do aro: piscam alternadas; girando, correm mais rápido. */
+.spin-bulb {
+  fill: #fff2c8;
+  filter: drop-shadow(0 0 2px rgba(255, 220, 140, 0.9));
+  animation: spin-bulb 1.4s steps(1) infinite;
+}
+
+.spin-bulb.is-b {
+  animation-delay: 0.7s;
+}
+
+.spin-wheel-wrap.is-spinning .spin-bulb {
+  animation-duration: 0.32s;
+}
+
+.spin-wheel-wrap.is-spinning .spin-bulb.is-b {
+  animation-delay: 0.16s;
+}
+
+/* Fatia sorteada acende e as outras escurecem um pouco. */
+.spin-wheel-wrap.has-winner .spin-seg:not(.is-winner) .spin-slice {
+  filter: brightness(0.55) saturate(0.7);
+}
+
+.spin-seg.is-winner .spin-slice {
+  animation: spin-winner 0.9s ease-in-out 3;
+}
+
+@keyframes spin-rays {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-burst {
+  0% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes spin-bulb {
+  50% {
+    fill: #6b5530;
+    filter: none;
+  }
+}
+
+@keyframes spin-winner {
+  50% {
+    filter: brightness(1.45) saturate(1.2);
+  }
 }
 
 .spin-foot {
@@ -9177,16 +9319,65 @@ button.ranking-diamonds {
   margin-top: 1.3rem;
 }
 
+/* "Girar" pulsa de leve enquanto espera o toque. */
 .spin-go {
-  min-width: 10rem;
+  min-width: 11rem;
+  min-height: 2.9rem;
+  font-size: 1.02rem;
+  animation: spin-go-pulse 2.2s ease-in-out infinite;
+}
+
+.spin-go:disabled {
+  animation: none;
+}
+
+@keyframes spin-go-pulse {
+  50% {
+    box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.12), 0 10px 30px -8px rgba(var(--accent-deep-rgb, var(--accent-rgb)), 0.6);
+  }
+}
+
+.spin-jackpot-label {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  animation: rise 0.4s var(--ease-out) both;
 }
 
 .spin-prize {
   color: var(--accent-2);
   font-family: var(--font-read);
-  font-size: 2.2rem;
+  font-size: 2.4rem;
   font-weight: 600;
-  animation: rise 0.4s var(--ease-out) both;
+  animation: spin-prize-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 50 ou 100: dourado brilhando. */
+.spin-prize.is-jackpot {
+  background: linear-gradient(100deg, #f6d27c 20%, #fff6dc 45%, #e4b86a 60%, #f6d27c 80%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 2.9rem;
+  animation:
+    spin-prize-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    spin-shine 1.8s linear 0.5s infinite;
+}
+
+@keyframes spin-prize-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes spin-shine {
+  to {
+    background-position: -220% 0;
+  }
 }
 
 .spin-balance {
@@ -11197,12 +11388,158 @@ html.vt-route-back::view-transition-new(root) {
   }
 }
 
-/* Rodapé das telas internas (PageFoot): mais perto do conteúdo e sem o espaço grande da home. */
-.page-foot {
-  margin-top: 3rem;
-  padding-top: 1.4rem;
+/* Telas internas sem rodapé: um respiro no fim para o último item não colar na borda. */
+.groups-page,
+.shelf-page {
+  padding-bottom: 3rem;
 }
 
-.page-foot .foot-brand p {
-  font-size: 0.82rem;
+/* ======================= Vida no ambiente (mágico/literário) ======================= */
+
+/* Poeira dourada atrás do topo da home (visitante e logado); o conteúdo fica por cima. */
+.hero,
+.welcome {
+  position: relative;
+  isolation: isolate;
+  --dust: var(--accent-rgb);
+}
+
+.gold-dust {
+  position: absolute;
+  z-index: -1;
+  /* Dentro da largura do topo: passar das laterais criaria rolagem de lado no celular. */
+  inset: -12% 0 -8%;
+  width: 100%;
+  height: 120%;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, #000 40%, transparent 85%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, #000 40%, transparent 85%);
+}
+
+/* Luz de vela seguindo o cursor no topo (só com mouse; JS põe --gx/--gy). */
+.hero::before,
+.welcome::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -10% 0;
+  background: radial-gradient(420px circle at var(--gx, 30%) var(--gy, 40%), rgba(var(--accent-rgb), 0.11), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.6s;
+  pointer-events: none;
+}
+
+.hero.is-lit::before,
+.welcome.is-lit::before {
+  opacity: 1;
+}
+
+/* O dourado do título ganha um brilho que passa devagar, como luz em letra de ouro. */
+.hero-title em {
+  background-size: 220% 100%;
+  animation: title-gleam 7s ease-in-out 1.2s infinite;
+}
+
+@keyframes title-gleam {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+
+/* A página de exemplo flutua de leve, como se respirasse. */
+.hero-demo {
+  animation:
+    rise 0.9s 0.1s var(--ease-out) both,
+    hero-float 7s 1.4s ease-in-out infinite;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-0.4deg);
+  }
+}
+
+/* Cartões: uma luz morna acompanha o cursor por cima (só com mouse). */
+.group-card,
+.people-row,
+.badge-card,
+.shelf-card,
+.person-badge,
+.book-carousel .book,
+.glow-card {
+  position: relative;
+}
+
+.group-card::after,
+.people-row::after,
+.badge-card::after,
+.shelf-card::after,
+.person-badge::after,
+.book-carousel .book::after,
+.glow-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(220px circle at var(--gx, 50%) var(--gy, 50%), rgba(var(--accent-rgb), 0.13), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.35s;
+  pointer-events: none;
+}
+
+.is-lit::after {
+  opacity: 1;
+}
+
+/* A borda acende junto, na mesma cor da luz. */
+.group-card.is-lit,
+.people-row.is-lit,
+.badge-card.is-lit,
+.shelf-card.is-lit,
+.person-badge.is-lit {
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+/* Toque nos botões: uma onda que se espalha do ponto tocado. */
+.sv-ripple {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sv-ripple > span {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 250, 235, 0.55), rgba(255, 250, 235, 0.15) 45%, rgba(255, 250, 235, 0) 70%);
+  transform: scale(0);
+  animation: sv-ripple 0.6s ease-out forwards;
+}
+
+@keyframes sv-ripple {
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Número novo no sino e nos grupos: dá um pulo ao mudar. */
+.nav-bell-badge,
+.nav-groups-badge {
+  animation: badge-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.4);
+  }
 }

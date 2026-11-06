@@ -23,7 +23,6 @@ import { prefersReducedMotion, useAnimatedNumber } from "../../lib/motion";
 import { FollowButton, PeopleBlocked, PeopleEmpty, PeopleList, RelationBadge, SuggestionsStrip } from "./PeopleParts";
 import { TransitionLink } from "../../components/TransitionLink";
 import { useTransitionBack } from "../../lib/useTransitionBack";
-import { PageFoot } from "../../components/PageFoot";
 
 type ListTab = "seguidores" | "seguindo";
 
@@ -236,7 +235,6 @@ export function PersonProfilePage() {
         }
       />
       {profile.is_me ? <SuggestionsStrip me={me} skipFollowers={list === "seguidores"} /> : null}
-      <PageFoot />
     </div>
   );
 }

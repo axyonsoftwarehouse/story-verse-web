@@ -1093,7 +1093,9 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  align-self: center;
+  /* No fim da bolha (perto da hora), não no meio de uma cena longa. */
+  align-self: flex-end;
+  margin-bottom: 0.15rem;
   width: 1.9rem;
   height: 1.9rem;
   padding: 0;
@@ -3969,4 +3971,93 @@ button.group-rp-character small {
   60% {
     transform: translateY(-3px) scale(1.15);
   }
+}
+
+/*
+ * Cena de abertura do roleplay: escrita no PC numa caixa grande, precisa caber bem no celular.
+ * Cartão largo, texto à esquerda com as quebras de linha da autora e, se for longa, recolhida
+ * com um degradê até tocar em "Ler a cena inteira".
+ */
+.group-chat-page .group-chat-start.has-scene {
+  max-width: min(34rem, 100%);
+  width: 100%;
+  padding: 0.85rem 1rem 0.8rem;
+}
+
+.group-scene {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: 0.35rem;
+  text-align: left;
+}
+
+.group-scene-label {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.group-scene-text {
+  max-height: 9.6em;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-read);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent);
+}
+
+.group-scene.is-open .group-scene-text {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.group-scene-toggle {
+  justify-self: start;
+}
+
+/* TAB no começo da linha (texto do PC) não vira um buraco de 8 espaços no celular. */
+.group-text {
+  tab-size: 2;
+}
+
+/* Um bloco por dia: a data gruda só dentro do próprio dia (o dia seguinte empurra a anterior). */
+.group-day-block {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Data grudada no topo some quando a rolagem para (fica só enquanto rola). */
+.group-day span {
+  transition: opacity 0.25s;
+}
+
+.group-chat-body:not(.is-scrolling) .group-day.is-floating span {
+  opacity: 0;
+}
+
+/*
+ * A bolha nunca passa da largura da coluna. Antes, a citação de uma resposta (uma linha só, com
+ * "…") esticava a bolha até o tamanho do texto inteiro: no celular ela saía da tela pela esquerda
+ * e cortava o começo das linhas da mensagem.
+ */
+.group-bubble {
+  max-width: 100%;
+}
+
+.group-quote {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.group-quote span {
+  max-width: 100%;
 }
