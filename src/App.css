@@ -11393,3 +11393,153 @@ html.vt-route-back::view-transition-new(root) {
 .shelf-page {
   padding-bottom: 3rem;
 }
+
+/* ======================= Vida no ambiente (mágico/literário) ======================= */
+
+/* Poeira dourada atrás do topo da home (visitante e logado); o conteúdo fica por cima. */
+.hero,
+.welcome {
+  position: relative;
+  isolation: isolate;
+  --dust: var(--accent-rgb);
+}
+
+.gold-dust {
+  position: absolute;
+  z-index: -1;
+  /* Dentro da largura do topo: passar das laterais criaria rolagem de lado no celular. */
+  inset: -12% 0 -8%;
+  width: 100%;
+  height: 120%;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, #000 40%, transparent 85%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, #000 40%, transparent 85%);
+}
+
+/* Luz de vela seguindo o cursor no topo (só com mouse; JS põe --gx/--gy). */
+.hero::before,
+.welcome::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -10% 0;
+  background: radial-gradient(420px circle at var(--gx, 30%) var(--gy, 40%), rgba(var(--accent-rgb), 0.11), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.6s;
+  pointer-events: none;
+}
+
+.hero.is-lit::before,
+.welcome.is-lit::before {
+  opacity: 1;
+}
+
+/* O dourado do título ganha um brilho que passa devagar, como luz em letra de ouro. */
+.hero-title em {
+  background-size: 220% 100%;
+  animation: title-gleam 7s ease-in-out 1.2s infinite;
+}
+
+@keyframes title-gleam {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+
+/* A página de exemplo flutua de leve, como se respirasse. */
+.hero-demo {
+  animation:
+    rise 0.9s 0.1s var(--ease-out) both,
+    hero-float 7s 1.4s ease-in-out infinite;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-0.4deg);
+  }
+}
+
+/* Cartões: uma luz morna acompanha o cursor por cima (só com mouse). */
+.group-card,
+.people-row,
+.badge-card,
+.shelf-card,
+.person-badge,
+.book-carousel .book,
+.glow-card {
+  position: relative;
+}
+
+.group-card::after,
+.people-row::after,
+.badge-card::after,
+.shelf-card::after,
+.person-badge::after,
+.book-carousel .book::after,
+.glow-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(220px circle at var(--gx, 50%) var(--gy, 50%), rgba(var(--accent-rgb), 0.13), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.35s;
+  pointer-events: none;
+}
+
+.is-lit::after {
+  opacity: 1;
+}
+
+/* A borda acende junto, na mesma cor da luz. */
+.group-card.is-lit,
+.people-row.is-lit,
+.badge-card.is-lit,
+.shelf-card.is-lit,
+.person-badge.is-lit {
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+/* Toque nos botões: uma onda que se espalha do ponto tocado. */
+.sv-ripple {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sv-ripple > span {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 250, 235, 0.55), rgba(255, 250, 235, 0.15) 45%, rgba(255, 250, 235, 0) 70%);
+  transform: scale(0);
+  animation: sv-ripple 0.6s ease-out forwards;
+}
+
+@keyframes sv-ripple {
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Número novo no sino e nos grupos: dá um pulo ao mudar. */
+.nav-bell-badge,
+.nav-groups-badge {
+  animation: badge-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.4);
+  }
+}
