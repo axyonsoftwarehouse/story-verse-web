@@ -545,7 +545,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     actions.push({
       key: "backup",
       count: backupLate ? 1 : 0,
-      label: backupLate ? "backup atrasado (mais de 26 h)" : "backup em dia",
+      // "Em dia" só quando existe backup: sem nenhum registro, o rótulo diz o que realmente acontece.
+      label: backupLate
+        ? "backup atrasado (mais de 26 h)"
+        : overview.backup.finishedAt
+          ? "backup em dia"
+          : "sem backup registrado",
     });
   }
 
