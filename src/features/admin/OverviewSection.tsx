@@ -357,11 +357,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     {},
   );
 
-  // A sessão é recriada em cada refresh do token: sem esta chave o painel pedia a visão geral duas vezes na carga.
+  // A sessão é recriada em cada refresh do token (e o token muda): a chave é a identidade, não o token,
+  // senão o painel pede a visão geral duas vezes na mesma carga.
   const overviewKey = useRef("");
 
   useEffect(() => {
-    const key = `${session.access_token ?? ""}|${superadmin}|${today}`;
+    const key = `${session.user?.id ?? ""}|${superadmin}|${today}`;
     if (overviewKey.current === key) return;
     overviewKey.current = key;
     let alive = true;
