@@ -11302,6 +11302,17 @@ button.ranking-diamonds {
   }
 }
 
+/* Topo cheio em qualquer largura (useNavCrowded mede): os botões menos usados vão para o "Mais",
+   como nas telas estreitas, em vez de o bloco transbordar por cima da marca. */
+.home-nav-main.is-crowded .home-nav-actions .nav-secondary,
+.home-nav-main.is-crowded .home-nav-actions .status {
+  display: none;
+}
+
+.home-nav-main.is-crowded .home-nav-actions .nav-more {
+  display: inline-grid;
+}
+
 /* O selo "IA ativa" não espreme em duas linhas: some quando a barra fica cheia. */
 .home-nav-actions .status {
   flex-shrink: 0;
