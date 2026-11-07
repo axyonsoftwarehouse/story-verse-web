@@ -349,6 +349,48 @@
   color: var(--on-accent);
 }
 
+/* Esqueleto do painel: mostra a estrutura antes dos números chegarem (cartão NB-04). */
+.admin-skeleton {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.admin-skeleton .page-status {
+  justify-content: flex-start;
+}
+
+.admin-skeleton-bar {
+  display: block;
+  height: 0.85rem;
+  border-radius: 0.5rem;
+  background: rgba(128, 128, 128, 0.25);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.admin-skeleton-bar.is-short {
+  width: 55%;
+}
+
+.admin-skeleton-tile {
+  display: grid;
+  gap: 0.5rem;
+  min-height: 4.5rem;
+  align-content: center;
+}
+
+.admin-skeleton-card {
+  display: grid;
+  gap: 0.6rem;
+  min-height: 7rem;
+  align-content: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton-bar {
+    animation: none;
+  }
+}
+
 .admin-dashboard {
   display: grid;
   gap: 0.9rem;

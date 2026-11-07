@@ -264,6 +264,9 @@ describe("OverviewSection", () => {
     expect(await screen.findByText(/Sentry não configurado\./)).toBeInTheDocument();
     expect(screen.getByText("backup · sem backup registrado")).toBeInTheDocument();
     expect(screen.queryByText("Atrasado")).toBeNull();
+    // Sem backup nenhum, o resumo também não pode dizer que está em dia.
+    expect(screen.queryByText("backup em dia")).toBeNull();
+    expect(screen.getAllByText(/sem backup registrado/).length).toBeGreaterThan(0);
   });
 
   it("moderador vê só as ações, sem métricas de negócio", async () => {
@@ -283,5 +286,42 @@ describe("OverviewSection", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Falha na visão geral."),
     );
+  });
+
+  it("mostra o cabeçalho e o esqueleto enquanto a visão geral não chega", async () => {
+    let liberar: (value: AdminOverview) => void = () => undefined;
+    vi.mocked(getOverview).mockReturnValue(
+      new Promise<AdminOverview>((resolve) => {
+        liberar = resolve;
+      }),
+    );
+    renderSection(["superadmin"]);
+
+    // Sem a visão geral, a tela não fica em branco: título e estrutura já aparecem.
+    expect(screen.getByRole("heading", { name: "Visão geral" })).toBeInTheDocument();
+    expect(screen.getByText("Carregando…")).toBeInTheDocument();
+
+    liberar(overview);
+    expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
+  });
+
+  it("não repete a visão geral quando o token é renovado na mesma carga", async () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <OverviewSection session={session} roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
+
+    // O refresh da sessão troca o token, mas é o mesmo usuário: não pode pedir de novo.
+    const outraSessao = { ...session, access_token: "token-renovado" } as SupabaseSession;
+    rerender(
+      <MemoryRouter>
+        <OverviewSection session={outraSessao} roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Precisa de ação")).toBeInTheDocument());
+    expect(getOverview).toHaveBeenCalledTimes(1);
   });
 });

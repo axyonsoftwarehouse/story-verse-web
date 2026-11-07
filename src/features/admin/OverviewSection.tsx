@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { SupabaseSession } from "../../lib/auth";
 import {
@@ -307,6 +307,35 @@ function TopBooksCard({ data }: { data: AdminTopBook[] | "error" | undefined }) 
   );
 }
 
+/** Esqueleto do painel: aparece antes da visão geral chegar, no lugar do spinner central. */
+function OverviewSkeleton() {
+  return (
+    <div className="admin-skeleton" aria-busy="true">
+      <div className="page-status">
+        <span className="spinner" aria-hidden="true" />
+        Carregando…
+      </div>
+      <div className="admin-kpis">
+        {["a", "b", "c", "d"].map((key) => (
+          <div className="admin-kpi admin-skeleton-tile" key={key}>
+            <span className="admin-skeleton-bar" />
+            <span className="admin-skeleton-bar is-short" />
+          </div>
+        ))}
+      </div>
+      <div className="dash-tiles">
+        {["a", "b"].map((key) => (
+          <article className="dash-card admin-skeleton-card" key={key}>
+            <span className="admin-skeleton-bar is-short" />
+            <span className="admin-skeleton-bar" />
+            <span className="admin-skeleton-bar" />
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function OverviewSection({ session, roles }: { session: SupabaseSession; roles: string[] }) {
   const superadmin = isSuperadmin(roles);
   const [today] = useState(() => isoDate(new Date()));
@@ -328,7 +357,14 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     {},
   );
 
+  // A sessão é recriada em cada refresh do token (e o token muda): a chave é a identidade, não o token,
+  // senão o painel pede a visão geral duas vezes na mesma carga.
+  const overviewKey = useRef("");
+
   useEffect(() => {
+    const key = `${session.user?.id ?? ""}|${superadmin}|${today}`;
+    if (overviewKey.current === key) return;
+    overviewKey.current = key;
     let alive = true;
     setError("");
     getOverview(session)
@@ -336,7 +372,10 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
         if (alive) setOverview(result);
       })
       .catch((err) => {
-        if (alive) setError(message(err));
+        if (alive) {
+          overviewKey.current = "";
+          setError(message(err));
+        }
       });
     if (superadmin) {
       // Cada bloco carrega sozinho: se o financeiro ou o ranking falhar, o resto continua.
@@ -465,7 +504,19 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     );
   }
 
-  if (!overview) return <Spinner label="Carregando…" />;
+  if (!overview) {
+    return (
+      <section className="shelf admin-overview admin-dashboard admin-home">
+        <div className="shelf-head">
+          <div>
+            <h1>Visão geral</h1>
+            <p className="muted">Atualizado a cada 5 minutos.</p>
+          </div>
+        </div>
+        <OverviewSkeleton />
+      </section>
+    );
+  }
 
   const actions: ActionItem[] = [];
   if (overview.moderation) {
@@ -494,7 +545,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     actions.push({
       key: "backup",
       count: backupLate ? 1 : 0,
-      label: backupLate ? "backup atrasado (mais de 26 h)" : "backup em dia",
+      // "Em dia" só quando existe backup: sem nenhum registro, o rótulo diz o que realmente acontece.
+      label: backupLate
+        ? "backup atrasado (mais de 26 h)"
+        : overview.backup.finishedAt
+          ? "backup em dia"
+          : "sem backup registrado",
     });
   }
 
