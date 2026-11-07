@@ -267,6 +267,21 @@ describe("OverviewSection", () => {
     // Sem backup nenhum, o resumo também não pode dizer que está em dia.
     expect(screen.queryByText("backup em dia")).toBeNull();
     expect(screen.getAllByText(/sem backup registrado/).length).toBeGreaterThan(0);
+    // Nem o ✓ verde de "em dia": o item fica neutro.
+    const item = screen.getByText("sem backup registrado", { selector: ".admin-action-label" }).closest("li");
+    expect(item).toHaveClass("is-neutral");
+    expect(item?.querySelector('[aria-label="nenhum"]')).toBeNull();
+  });
+
+  it("itens zerados dizem que não há pendência em vez de repetir o rótulo", async () => {
+    vi.mocked(getOverview).mockResolvedValue({
+      ...overview,
+      moderation: { pendingSubmissions: 0, openReports: 0 },
+    });
+    renderSection(["moderator"]);
+
+    expect(await screen.findByText("nenhum envio esperando revisão")).toBeInTheDocument();
+    expect(screen.queryByText("envios esperando revisão")).toBeNull();
   });
 
   it("moderador vê só as ações, sem métricas de negócio", async () => {
@@ -322,6 +337,31 @@ describe("OverviewSection", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Precisa de ação")).toBeInTheDocument());
+    expect(getOverview).toHaveBeenCalledTimes(1);
+  });
+
+  it("não perde a visão geral quando o token é renovado com ela ainda carregando", async () => {
+    let liberar: (value: AdminOverview) => void = () => undefined;
+    vi.mocked(getOverview).mockReturnValue(
+      new Promise<AdminOverview>((resolve) => {
+        liberar = resolve;
+      }),
+    );
+    const { rerender } = render(
+      <MemoryRouter>
+        <OverviewSection session={session} roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+    // O refresh chega antes da resposta (no dev, o StrictMode faz o mesmo ao montar duas vezes).
+    const outraSessao = { ...session, access_token: "token-renovado" } as SupabaseSession;
+    rerender(
+      <MemoryRouter>
+        <OverviewSection session={outraSessao} roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+    liberar(overview);
+
+    expect(await screen.findByText("Precisa de ação")).toBeInTheDocument();
     expect(getOverview).toHaveBeenCalledTimes(1);
   });
 });

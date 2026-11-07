@@ -130,6 +130,36 @@ describe("sincronização da estante", () => {
     expect(s.shelfEntry("gb:55752")).toMatchObject({ local: false, version: 1, pending: {} });
   });
 
+  it("livro importado com capa data: sobe sem capa (a API recusa endereço acima de 500)", async () => {
+    const s = await load();
+    // Importado: source "local" e chave local:<id numérico>.
+    const imported = { ...dom, id: "local-1700000000", source: "local", gutenbergId: 1700000000, coverUrl: `data:image/jpeg;base64,${"A".repeat(4000)}` } as Ebook;
+    s.recordOpened(imported);
+    const api = fakeApi();
+    expect(await s.syncShelf(session)).toBe(true);
+    const put = api.calls.find((c) => c.method === "PUT");
+    expect(put?.body).toMatchObject({ coverUrl: null });
+    expect(s.shelfEntries().some((e) => e.local === false && e.title === "Dom Casmurro")).toBe(true);
+  });
+
+  it("entrada antiga já guardada com capa enorme também sobe sem a capa", async () => {
+    const s = await load();
+    s.recordOpened({ ...dom, coverUrl: `https://example.test/${"x".repeat(600)}.jpg` } as Ebook);
+    const api = fakeApi();
+    expect(await s.syncShelf(session)).toBe(true);
+    expect(api.calls.find((c) => c.method === "PUT")?.body).toMatchObject({ coverUrl: null });
+  });
+
+  it("capa com endereço normal continua indo", async () => {
+    const s = await load();
+    s.recordOpened({ ...dom, coverUrl: "https://www.gutenberg.org/cache/epub/55752/pg55752.cover.medium.jpg" } as Ebook);
+    const api = fakeApi();
+    await s.syncShelf(session);
+    expect(api.calls.find((c) => c.method === "PUT")?.body).toMatchObject({
+      coverUrl: "https://www.gutenberg.org/cache/epub/55752/pg55752.cover.medium.jpg",
+    });
+  });
+
   it("muda só os campos pendentes com PATCH", async () => {
     const api = fakeApi({ "gb:55752": serverEntry({}) });
     const s = await load();

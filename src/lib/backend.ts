@@ -12,6 +12,8 @@ export const apiEnabled = apiBaseUrl.length > 0;
  * nesse caso a sessão guardada continua valendo no aparelho e a renovação é tentada depois.
  */
 export class AuthNetworkError extends Error {
+  /** Esperado (rede do aparelho): a telemetria não abre issue no Sentry. */
+  readonly expected = true;
   constructor(message: string, readonly code?: string) {
     super(message);
   }
@@ -21,7 +23,10 @@ export class AuthNetworkError extends Error {
  * A sessão mudou ou foi encerrada em outra aba. Diferente de falha de rede: não é transitória,
  * então não deve ser tratada como "offline" nem tentar de novo com o token antigo.
  */
-export class AuthSessionError extends Error {}
+export class AuthSessionError extends Error {
+  /** Esperado (sessão vencida ou encerrada): a telemetria não abre issue no Sentry. */
+  readonly expected = true;
+}
 
 /**
  * Resposta 4xx da API (fora 401/429). Continua sendo um `Error` com a mensagem do servidor; quem

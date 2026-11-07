@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseSession } from "../../lib/auth";
 import {
@@ -63,7 +63,14 @@ describe("BillingSection", () => {
     expect(screen.getByText("le***@example.com")).toBeInTheDocument();
     expect(screen.getByText("Assinatura ativa")).toBeInTheDocument();
 
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
     fireEvent.click(screen.getByRole("button", { name: "Abrir" }));
     expect(await screen.findByText("sub_123")).toBeInTheDocument();
+    // O detalhe abre embaixo da lista: a tela vai até ele, senão o clique parece não fazer nada.
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    // Status da fatura traduzido, não o código do Stripe.
+    expect(screen.getByText("Paga")).toBeInTheDocument();
+    expect(screen.queryByText("paid")).toBeNull();
   });
 });

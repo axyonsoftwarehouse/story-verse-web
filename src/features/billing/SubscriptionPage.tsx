@@ -80,6 +80,11 @@ export function SubscriptionPage() {
   const pixDays = status?.pixDays ?? 30;
   // Pix soma dias para quem já pagou com Pix e é a saída para quem está no teste sem cartão.
   const offerPix = Boolean(status?.pixAvailable) && (pix || trial);
+  // Cobrança pendente com acesso já cortado: quem resolve é o cartão no portal, não um checkout novo
+  // (que criaria uma segunda assinatura no Stripe).
+  const fixCard = pastDue && !active && Boolean(status?.portalAvailable);
+  const accessEnded =
+    !active && Boolean(status?.accessUntil) && new Date(status!.accessUntil!).getTime() < Date.now();
 
   return (
     <div className="home">
@@ -134,7 +139,7 @@ export function SubscriptionPage() {
                 <dd>{pix ? `Pix — ${pixDays} dias` : status?.plan || "Storyverse"}</dd>
               </div>
               <div>
-                <dt>Acesso até</dt>
+                <dt>{accessEnded ? "Acesso terminou em" : "Acesso até"}</dt>
                 <dd>{billingDate(status?.accessUntil)}</dd>
               </div>
               {trial ? (
@@ -163,13 +168,19 @@ export function SubscriptionPage() {
                 {pixDays} dias ao que você já tem.
               </p>
             ) : null}
-            {pastDue ? (
+            {pastDue && active ? (
               <p className="billing-hint is-warning">
                 Pagamento pendente. O acesso continua por alguns dias; atualize o cartão no portal
                 para não perder a assinatura.
               </p>
             ) : null}
-            {!active && !trial ? (
+            {pastDue && !active ? (
+              <p className="billing-hint is-warning">
+                Pagamento pendente e o acesso está suspenso. Atualize o cartão no portal do Stripe
+                para reativar a assinatura; seus livros, progresso e conversas continuam guardados.
+              </p>
+            ) : null}
+            {!active && !trial && !pastDue ? (
               <p className="billing-hint">
                 Para voltar a ler, assine o plano mensal. Seus livros, progresso e conversas
                 continuam guardados.
@@ -192,7 +203,12 @@ export function SubscriptionPage() {
                   {busy === "portal" ? "Abrindo portal…" : "Gerenciar assinatura"}
                 </button>
               ) : null}
-              {!active ? (
+              {fixCard ? (
+                <button type="button" className="btn btn-primary" onClick={() => void open("portal")} disabled={busy !== null}>
+                  {busy === "portal" ? "Abrindo portal…" : "Atualizar cartão"}
+                </button>
+              ) : null}
+              {!active && !fixCard ? (
                 <Link className="btn btn-primary" to="/assinar">
                   Assinar agora
                 </Link>
@@ -204,7 +220,7 @@ export function SubscriptionPage() {
               ) : null}
             </div>
 
-            {status?.portalAvailable && !active ? (
+            {status?.portalAvailable && !active && !fixCard ? (
               <p className="muted">
                 Já tem cadastro no Stripe?{" "}
                 <button type="button" className="link-btn" onClick={() => void open("portal")} disabled={busy !== null}>

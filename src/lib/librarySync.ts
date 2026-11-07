@@ -56,15 +56,30 @@ const WRITABLE = [
   "language",
 ] as const;
 
+/** Limite da API (`LibraryRules`: coverUrl até 500 caracteres). */
+const MAX_COVER_URL = 500;
+
+/**
+ * Capa que pode subir para a nuvem. Livro importado guarda a capa como `data:` (a imagem inteira
+ * no texto): a API recusava com 400 e, como a entrada voltava a cada abertura do livro, o erro se
+ * repetia sem fim. Aqui no aparelho a capa continua; na nuvem a entrada vai sem ela.
+ */
+export function shelfCoverForCloud(url: string | null | undefined): string | null {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:") || url.length > MAX_COVER_URL) return null;
+  return url;
+}
+
 function fullBody(entry: ShelfEntry, baseUpdatedAt: string | null): ShelfWrite {
   const body: Record<string, unknown> = { baseUpdatedAt };
   for (const field of WRITABLE) body[field] = entry[field];
+  body.coverUrl = shelfCoverForCloud(entry.coverUrl);
   return body as ShelfWrite;
 }
 
 function pendingBody(pending: ShelfPending, baseUpdatedAt: string | null): ShelfWrite {
   const { auto: _auto, ...values } = pending;
   void _auto;
+  if ("coverUrl" in values) values.coverUrl = shelfCoverForCloud(values.coverUrl);
   return { ...values, baseUpdatedAt };
 }
 

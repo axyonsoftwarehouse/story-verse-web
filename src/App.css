@@ -48,6 +48,22 @@
   }
 }
 
+/* Ação destrutiva (sair, apagar, sancionar): fundo de perigo com texto escuro.
+   Só trocar a cor do texto deixava rosa sobre o dourado do .btn-primary (contraste ~1,5:1). */
+.btn-primary.is-danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #2b1010;
+  box-shadow: 0 8px 28px -10px rgba(232, 168, 168, 0.45);
+}
+
+@media (hover: hover) {
+  .btn-primary.is-danger:hover:not(:disabled) {
+    filter: brightness(1.06);
+    box-shadow: 0 12px 34px -10px rgba(232, 168, 168, 0.55);
+  }
+}
+
 .btn-lg {
   padding: 0.85rem 1.6rem;
   font-size: 1rem;

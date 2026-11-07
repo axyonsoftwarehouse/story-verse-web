@@ -690,6 +690,11 @@ function LangBadge({ book }: { book: Ebook }) {
 }
 
 const Icon = {
+  logout: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  ),
   chat: (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" />
@@ -6322,6 +6327,22 @@ export function App() {
   const authSessionRef = useRef(authSession);
   authSessionRef.current = authSession;
 
+  const { confirm: confirmApp, dialog: appConfirmDialog } = useConfirm();
+
+  /** "Sair da conta" do menu ⋯: mesma confirmação dos Ajustes e da tela de assinatura. */
+  async function askLogout() {
+    if (
+      await confirmApp({
+        title: "Sair da conta?",
+        message: "Você precisará entrar de novo para continuar lendo neste aparelho.",
+        confirmLabel: "Sair",
+        danger: true,
+      })
+    ) {
+      void logout();
+    }
+  }
+
   async function logout() {
     if (!authSession || authActionLoading) return;
     setAuthActionLoading(true);
@@ -8073,6 +8094,7 @@ export function App() {
                 ...(groupsOn && authUser ? [{ key: "people", label: "Pessoas", icon: Icon.chat, to: "/pessoas" }] : []),
                 ...(canRead ? [{ key: "import", label: "Importar livro", icon: Icon.upload, onClick: () => requestImport() }] : []),
                 ...(staffOn ? [{ key: "admin", label: "Painel admin", icon: Icon.settings, to: "/admin" }] : []),
+                ...(authUser ? [{ key: "logout", label: "Sair da conta", icon: Icon.logout, onClick: () => void askLogout() }] : []),
               ] satisfies NavMoreItem[]}
             />
             {!authEnabled ? null : authUser ? (
@@ -8104,6 +8126,7 @@ export function App() {
           </div>
         ) : null}
 
+        {appConfirmDialog}
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
         {spinOpen && authSession ? (
           <DailySpinModal
