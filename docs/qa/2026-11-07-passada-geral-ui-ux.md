@@ -146,3 +146,37 @@ sem erros (só os 4 avisos que já existiam) e `vite build` ok.
 - Os 404 no console vêm da busca dos personagens na Wikipédia (`/page/summary/Isaura_(personagem)`),
   não de falha do app.
 - Nenhum dado foi alterado no QA além de uma mensagem no chat da Isaura com `qa-admin`.
+
+## Re-teste no QA (07/11/2026, depois do deploy)
+
+- **Publicado no QA:** story-verse-web#202 (merge `8189eab`) e story-verse-api#118 (merge `454c583`),
+  pelos workflows "Deploy QA (VPS)" e "Deploy API QA (VPS)". Bundle novo confirmado (`index-Bq1mpnTw`).
+- **Produção ainda não tem as correções:** nenhuma das duas `main` contém os merges. O
+  "Deploy API (VPS)" disparado à mão na `develop` sempre publica a `main` (`ref: main`) e por isso
+  republicou a versão antiga.
+
+| Defeito | Re-teste | Conta |
+|---|---|---|
+| BUG-027 | ✅ "Sair" do diálogo com fundo `rgb(232,168,168)` e texto `rgb(43,16,16)` | qa-suporte |
+| BUG-032 | ✅ "Sair da conta" no menu ⋯; a tela de bloqueio pede confirmação | qa-suporte, qa-leitor |
+| BUG-031 | ✅ marca no topo, "Atualizar cartão", "acesso terminou em 02 de nov." | qa-leitor |
+| BUG-028 | ✅ "acesso está suspenso", "Acesso terminou em", "Atualizar cartão" como botão principal, sem "Assinar agora" | qa-leitor |
+| BUG-008 / BUG-030 | ✅ "nenhum envio esperando revisão"; backup com estado neutro | qa-admin |
+| BUG-033 | ✅ visão geral carrega com uma única chamada a `/admin/overview` | qa-admin |
+| BUG-029 | ✅ nenhum código cru nas 50 últimas ações; "Gráfico do financeiro consultado" | qa-admin |
+| BUG-034 | ✅ "Conta consultada · equipe (bb8f13f0)" | qa-admin |
+| BUG-035 / BUG-036 | ✅ detalhe visível e com foco após "Abrir"; "Fatura: Em aberto" | qa-admin |
+| BUG-037 | ✅ Auditoria e Importações com 375/375 px (sem rolagem lateral) | qa-admin |
+
+**Sentry depois do deploy no QA:** nenhum `AsyncRequestTimeoutException` nem "Failed to fetch" (antes
+eram 9 e 7 eventos no dia). As issues de ruído do QA foram resolvidas; as de produção ficaram
+"resolvida na próxima release" (ou na release seguinte à última vista), para não voltarem como
+regressão enquanto a `main` não recebe as correções.
+
+**Pendências achadas no re-teste:**
+- O 402 do paywall ("Assinatura necessária.") e os 401 de "Sessão inválida"/"Não autenticado" ainda
+  vão ao Sentry como erro (não eram cobertos pela correção). Sugestão: tratar 401/402/403 esperados
+  como `expected` no `ApiHttpError`.
+- `deploy-api.yml`: um disparo manual na `develop` publica a `main`, mas grava `SENTRY_RELEASE` com o
+  SHA da `develop` (`github.sha`). Hoje a produção reporta release `454c583` rodando o código antigo.
+  O release deve vir do commit que foi publicado.
