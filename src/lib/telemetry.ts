@@ -157,20 +157,46 @@ function detailOf(error: unknown): string | undefined {
   return error instanceof Error ? error.stack : undefined;
 }
 
+/**
+ * Falha que acontece no aparelho de quem usa e não é defeito do app: sem internet, tempo esgotado,
+ * pedido cancelado, sessão expirada. Erros do app marcam isso com `expected: true`
+ * (AuthNetworkError, AuthSessionError); o resto é reconhecido pelo tipo/mensagem do navegador.
+ */
+export function isExpectedFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if ((error as { expected?: unknown }).expected === true) return true;
+  if (error.name === "AbortError" || error.name === "TimeoutError") return true;
+  return (
+    error instanceof TypeError &&
+    /failed to fetch|networkerror|load failed|network request failed/i.test(error.message)
+  );
+}
+
 export function captureError(kind: string, error: unknown, context?: Record<string, unknown>): void {
   const safeContext = context ? sanitizeTelemetry(context) : undefined;
+  const message = messageOf(error);
   push({
     at: Date.now(),
     level: "error",
     kind,
-    message: messageOf(error),
+    message,
     detail: detailOf(error),
     context: safeContext,
   });
-  if (sentryEnabled) {
-    const exception = error instanceof Error ? error : new Error(messageOf(error));
-    Sentry.captureException(exception, { tags: { kind }, extra: safeContext });
+  if (!sentryEnabled) return;
+  if (isExpectedFailure(error)) {
+    // Fica como contexto do próximo erro real; como issue, enchia o Sentry (e o e-mail) de ruído.
+    Sentry.addBreadcrumb({ category: kind, message, level: "warning", data: safeContext });
+    return;
   }
+  const exception = error instanceof Error ? error : new Error(message);
+  Sentry.captureException(exception, {
+    tags: { kind },
+    extra: safeContext,
+    // Sem source maps, o grupo padrão usa o nome do arquivo minificado, que muda a cada deploy:
+    // o mesmo erro virava issue nova (e e-mail novo) em toda versão.
+    fingerprint: [kind, message],
+  });
 }
 
 export function captureEvent(

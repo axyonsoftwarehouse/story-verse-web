@@ -46,7 +46,8 @@ export async function rpc<T>(
     if (m.includes("could not find the function") || m.includes("does not exist") || res.status === 404) {
       throw new Error(`${opts.feature} ainda não foi configurado no Supabase.`);
     }
-    if (res.status === 401) throw new Error("Sua sessão expirou. Entre de novo.");
+    // Sessão vencida não é defeito: `expected` evita issue no Sentry se alguém registrar o erro.
+    if (res.status === 401) throw Object.assign(new Error("Sua sessão expirou. Entre de novo."), { expected: true });
     throw new Error(message);
   }
   const text = await res.text();
