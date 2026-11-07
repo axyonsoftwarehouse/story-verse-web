@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { SupabaseSession } from "../../lib/auth";
 import {
   brlFromCents,
@@ -14,6 +14,20 @@ function message(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+const INVOICE_STATUS: Record<string, string> = {
+  draft: "Rascunho",
+  open: "Em aberto",
+  paid: "Paga",
+  uncollectible: "Incobrável",
+  void: "Anulada",
+};
+
+/** Status da última fatura em português; código desconhecido aparece como veio. */
+function invoiceStatusLabel(status: string | null | undefined): string {
+  if (!status) return "—";
+  return INVOICE_STATUS[status] ?? status;
+}
+
 export function BillingSection({ session }: { session: SupabaseSession }) {
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [rows, setRows] = useState<AdminBillingSubscription[] | null>(null);
@@ -23,6 +37,15 @@ export function BillingSection({ session }: { session: SupabaseSession }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // O detalhe abre embaixo da lista: leva a tela até ele e põe o foco no título (senão, clicar
+  // "Abrir" na primeira linha parecia não fazer nada).
+  useEffect(() => {
+    if (!detail) return;
+    detailRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    detailRef.current?.focus({ preventScroll: true });
+  }, [detail]);
 
   useEffect(() => {
     let alive = true;
@@ -165,7 +188,7 @@ export function BillingSection({ session }: { session: SupabaseSession }) {
       )}
 
       {detail ? (
-        <div className="profile-card billing-detail-card">
+        <div ref={detailRef} tabIndex={-1} className="profile-card billing-detail-card" role="region" aria-label="Detalhe da assinatura">
           <div className="admin-audit-head">
             <h3>{detail.emailMasked}</h3>
             <button type="button" className="btn" onClick={() => setDetail(null)}>
@@ -189,7 +212,7 @@ export function BillingSection({ session }: { session: SupabaseSession }) {
             </div>
             <div>
               <dt>Fatura</dt>
-              <dd>{detail.latest_invoice_status || "—"}</dd>
+              <dd>{invoiceStatusLabel(detail.latest_invoice_status)}</dd>
             </div>
             <div>
               <dt>Cancelamento</dt>

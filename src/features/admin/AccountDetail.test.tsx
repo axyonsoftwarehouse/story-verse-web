@@ -165,6 +165,22 @@ describe("AccountDetail", () => {
     });
     renderDetail(["superadmin"]);
     expect(await screen.findByText("Últimas ações")).toBeInTheDocument();
-    expect(await screen.findByText("feature.set")).toBeInTheDocument();
+    expect(await screen.findByText("Feature alterada")).toBeInTheDocument();
+    expect(screen.getByText(/^Admin ·/)).toBeInTheDocument();
+  });
+
+  it("ação feita pela equipe não aparece como script na VPS quando a API não manda o nome", async () => {
+    vi.mocked(getUser).mockResolvedValue({
+      ...detail,
+      recentAudit: [
+        { action: "user.view", actorId: "2107494f-4f3a-4dba-be6a-05e76223ff4a", createdAt: "2026-01-01T00:00:00Z" },
+        { action: "user.view", actorId: null, createdAt: "2026-01-01T00:00:00Z" },
+      ],
+      sanctions: [],
+    });
+    renderDetail(["superadmin"]);
+    expect(await screen.findAllByText("Conta consultada")).toHaveLength(2);
+    expect(screen.getByText(/^equipe \(2107494f\) ·/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^script na VPS ·/)).toHaveLength(1);
   });
 });
