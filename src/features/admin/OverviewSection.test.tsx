@@ -324,4 +324,25 @@ describe("OverviewSection", () => {
     await waitFor(() => expect(screen.getByText("Precisa de ação")).toBeInTheDocument());
     expect(getOverview).toHaveBeenCalledTimes(1);
   });
+
+  it("segura os blocos até a visão geral responder", async () => {
+    let liberar: (value: AdminOverview) => void = () => undefined;
+    vi.mocked(getOverview).mockReturnValue(
+      new Promise<AdminOverview>((resolve) => {
+        liberar = resolve;
+      }),
+    );
+    renderSection(["superadmin"]);
+
+    await waitFor(() => expect(getOverview).toHaveBeenCalled());
+    // Enquanto a visão geral não chega, nada mais sai: no QA as outras chamadas entravam na frente dela.
+    expect(getMetricsOverview).not.toHaveBeenCalled();
+    expect(getBillingSummary).not.toHaveBeenCalled();
+    expect(fetchRanking).not.toHaveBeenCalled();
+    expect(getHealth).not.toHaveBeenCalled();
+
+    liberar(overview);
+    await waitFor(() => expect(getBillingSummary).toHaveBeenCalled());
+    expect(fetchRanking).toHaveBeenCalled();
+  });
 });

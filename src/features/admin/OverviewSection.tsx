@@ -341,6 +341,8 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const [today] = useState(() => isoDate(new Date()));
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
+  // Falso até a visão geral responder: os blocos abaixo esperam ela para não competir na fila.
+  const [overviewReady, setOverviewReady] = useState(false);
   const [period, setPeriod] = useState<PeriodKey>("7d");
   const [trend, setTrend] = useState<TrendMetric>("activeReaders");
   const [pairs, setPairs] = useState<Partial<Record<PeriodKey, Pair>>>({});
@@ -367,17 +369,9 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     overviewKey.current = key;
     let alive = true;
     setError("");
-    getOverview(session)
-      .then((result) => {
-        if (alive) setOverview(result);
-      })
-      .catch((err) => {
-        if (alive) {
-          overviewKey.current = "";
-          setError(message(err));
-        }
-      });
-    if (superadmin) {
+    // A visão geral vem primeiro e sozinha: é ela que destrava a tela e, no contêiner de QA
+    // (0,5 CPU), as outras chamadas disparadas no mesmo instante entram na fila na frente dela.
+    const carregarBlocos = () => {
       // Cada bloco carrega sozinho: se o financeiro ou o ranking falhar, o resto continua.
       const seriesRange = rangeEnding(today, SERIES_DAYS);
       getReadingSeries(session, seriesRange, "day")
@@ -413,7 +407,20 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
         .catch(() => {
           if (alive) setRanking([]);
         });
-    }
+    };
+    getOverview(session)
+      .then((result) => {
+        if (!alive) return;
+        setOverview(result);
+        setOverviewReady(true);
+        if (superadmin) carregarBlocos();
+      })
+      .catch((err) => {
+        if (!alive) return;
+        overviewKey.current = "";
+        setOverviewReady(true);
+        setError(message(err));
+      });
     return () => {
       alive = false;
     };
@@ -422,7 +429,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
   const loadedPair = Boolean(pairs[period]);
 
   useEffect(() => {
-    if (!superadmin || loadedPair) return;
+    if (!superadmin || !overviewReady || loadedPair) return;
     let alive = true;
     setPairError("");
     const days = PERIODS.find((item) => item.key === period)?.days ?? 7;
@@ -440,13 +447,13 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     return () => {
       alive = false;
     };
-  }, [session, superadmin, today, period, loadedPair]);
+  }, [session, superadmin, today, period, loadedPair, overviewReady]);
 
   const healthPeriod = PERIODS.find((item) => item.key === period)?.health ?? "7d";
   const loadedHealth = Boolean(health[healthPeriod]);
 
   useEffect(() => {
-    if (!superadmin || loadedHealth) return;
+    if (!superadmin || !overviewReady || loadedHealth) return;
     let alive = true;
     getHealth(session, healthPeriod)
       .then((result) => {
@@ -458,12 +465,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     return () => {
       alive = false;
     };
-  }, [session, superadmin, healthPeriod, loadedHealth]);
+  }, [session, superadmin, healthPeriod, loadedHealth, overviewReady]);
 
   const loadedTraffic = Boolean(traffic[period]);
 
   useEffect(() => {
-    if (!superadmin || loadedTraffic) return;
+    if (!superadmin || !overviewReady || loadedTraffic) return;
     let alive = true;
     const days = PERIODS.find((item) => item.key === period)?.days ?? 7;
     getTraffic(session, periodRanges(today, days).current)
@@ -476,12 +483,12 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     return () => {
       alive = false;
     };
-  }, [session, superadmin, today, period, loadedTraffic]);
+  }, [session, superadmin, today, period, loadedTraffic, overviewReady]);
 
   const loadedTopBooks = Boolean(topBooks[period]);
 
   useEffect(() => {
-    if (!superadmin || loadedTopBooks) return;
+    if (!superadmin || !overviewReady || loadedTopBooks) return;
     let alive = true;
     const days = PERIODS.find((item) => item.key === period)?.days ?? 7;
     getTopBooks(session, periodRanges(today, days).current)
@@ -494,7 +501,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     return () => {
       alive = false;
     };
-  }, [session, superadmin, today, period, loadedTopBooks]);
+  }, [session, superadmin, today, period, loadedTopBooks, overviewReady]);
 
   if (error) {
     return (
