@@ -37,7 +37,8 @@ export type AudioEdition = {
   totalDurationSeconds: number;
   chapterCount: number;
   coverUrl: string | null;
-  freeChapterIndex: number;
+  /** Capítulo aberto sem conta; null quando a edição não tem amostra (S4). */
+  freeChapterIndex: number | null;
   requiresSubscription: boolean;
   chapters: AudioChapter[];
 };

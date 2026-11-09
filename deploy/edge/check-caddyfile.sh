@@ -46,5 +46,7 @@ for host in storyverse.2.29.42.104.sslip.io qa.storyverse.2.29.42.104.sslip.io; 
   hasnt "$host" 'vercel' "$host: CSP sem domínios da Vercel"
   has "$host" '"/openlibrary/works/*"' "$host: proxy da Open Library liberando a ficha da obra"
   hasnt "$host" '"/openlibrary/*"' "$host: proxy da Open Library sem caminho aberto"
+  # O gravador de áudio dos grupos usa getUserMedia: microphone=() negava sem nem pedir permissão.
+  has "$host" 'microphone=(self)' "$host: Permissions-Policy libera o microfone para o próprio site"
 done
 echo "OK"
