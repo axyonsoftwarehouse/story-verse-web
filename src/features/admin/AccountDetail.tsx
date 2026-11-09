@@ -19,6 +19,7 @@ import { applySanction, revokeSanction, type AdminSanction, type SanctionKind } 
 import { isSuperadmin } from "./adminSections";
 import { SanctionDialog } from "./SanctionDialog";
 import { FreeAccessCard } from "./FreeAccessCard";
+import { actionLabel } from "./auditFormat";
 
 const SANCTION_LABEL: Record<SanctionKind, string> = {
   warning: "Aviso",
@@ -31,6 +32,16 @@ const ROLE_LABEL: Record<string, string> = {
   moderator: "Moderador",
   support: "Suporte",
 };
+
+/**
+ * Quem fez a ação. O detalhe da conta traz só `actorId` (sem nome): sem ator é script na VPS; com
+ * ator e sem nome é alguém da equipe, mostrado pelo começo do id para dar para cruzar na Auditoria.
+ */
+function recentActor(entry: Record<string, unknown>): string {
+  if (typeof entry.actorName === "string" && entry.actorName) return entry.actorName;
+  if (typeof entry.actorId === "string" && entry.actorId) return `equipe (${entry.actorId.slice(0, 8)})`;
+  return "script na VPS";
+}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível carregar a conta.";
@@ -438,9 +449,9 @@ export function AccountDetail({
             <ul className="admin-audit-list">
               {detail.recentAudit.map((entry, index) => (
                 <li key={index}>
-                  <strong>{typeof entry.action === "string" ? entry.action : "ação"}</strong>
+                  <strong>{typeof entry.action === "string" ? actionLabel(entry.action) : "ação"}</strong>
                   <span className="muted">
-                    {typeof entry.actorName === "string" ? entry.actorName : "script na VPS"} ·{" "}
+                    {recentActor(entry)} ·{" "}
                     {typeof entry.createdAt === "string" ? when(entry.createdAt) : ""}
                   </span>
                 </li>

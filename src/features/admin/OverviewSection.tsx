@@ -119,7 +119,17 @@ function Pending({ endpoint }: { endpoint: string }) {
   );
 }
 
-type ActionItem = { key: string; count: number; label: string; to?: string; cta?: string };
+type ActionItem = {
+  key: string;
+  count: number;
+  label: string;
+  /** Texto quando não há pendência ("nenhum envio…"); sem ele, o rótulo leria como se houvesse. */
+  emptyLabel?: string;
+  /** Situação desconhecida (ex.: nenhum backup registrado): nem pendência nem ✓ de "em dia". */
+  neutral?: boolean;
+  to?: string;
+  cta?: string;
+};
 
 function ActionStrip({ items }: { items: ActionItem[] }) {
   if (items.length === 0) return null;
@@ -134,17 +144,21 @@ function ActionStrip({ items }: { items: ActionItem[] }) {
       </div>
       <ul className="admin-action-list">
         {items.map((item) => (
-          <li key={item.key} className={item.count > 0 ? "is-open" : undefined}>
+          <li key={item.key} className={item.count > 0 ? "is-open" : item.neutral ? "is-neutral" : undefined}>
             <strong className="admin-action-count">
               {item.count > 0 ? (
                 number(item.count)
+              ) : item.neutral ? (
+                <span aria-label="sem informação">—</span>
               ) : (
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-label="nenhum">
                   <path d="M5 12.5l4.5 4.5L19 7.5" />
                 </svg>
               )}
             </strong>
-            <span className="admin-action-label">{item.label}</span>
+            <span className="admin-action-label">
+              {item.count === 0 && item.emptyLabel ? item.emptyLabel : item.label}
+            </span>
             {item.to && item.count > 0 ? (
               <Link className="admin-action-cta" to={item.to}>
                 {item.cta ?? "abrir"}
@@ -365,14 +379,17 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     const key = `${session.user?.id ?? ""}|${superadmin}|${today}`;
     if (overviewKey.current === key) return;
     overviewKey.current = key;
-    let alive = true;
+    // Vale enquanto a chave for esta. Uma flag presa ao efeito não serve: num refresh de token (ou no
+    // StrictMode) a limpeza roda, o efeito volta com a mesma chave e retorna cedo, e a resposta
+    // que ainda estava a caminho era descartada; a tela ficava em "Carregando…".
+    const current = () => overviewKey.current === key;
     setError("");
     getOverview(session)
       .then((result) => {
-        if (alive) setOverview(result);
+        if (current()) setOverview(result);
       })
       .catch((err) => {
-        if (alive) {
+        if (current()) {
           overviewKey.current = "";
           setError(message(err));
         }
@@ -382,41 +399,38 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       const seriesRange = rangeEnding(today, SERIES_DAYS);
       getReadingSeries(session, seriesRange, "day")
         .then((points) => {
-          if (alive) setSeries(fillDays(points, seriesRange));
+          if (current()) setSeries(fillDays(points, seriesRange));
         })
         .catch(() => {
-          if (alive) setSeries([]);
+          if (current()) setSeries([]);
         });
       getMetricsRetention(session, rangeEnding(today, RETENTION_DAYS))
         .then((rows) => {
-          if (alive) setRetention(rows);
+          if (current()) setRetention(rows);
         })
         .catch(() => {
-          if (alive) setRetention([]);
+          if (current()) setRetention([]);
         });
       getBillingSummary(session)
         .then((summary) => {
-          if (alive) setBilling(summary);
+          if (current()) setBilling(summary);
         })
         .catch(() => undefined);
       getBillingSeries(session, rangeEnding(today, TREND_DAYS), "day")
         .then((points) => {
-          if (alive) setBillingSeries(points);
+          if (current()) setBillingSeries(points);
         })
         .catch(() => {
-          if (alive) setBillingSeries([]);
+          if (current()) setBillingSeries([]);
         });
       fetchRanking(session, 0, 10)
         .then((rows) => {
-          if (alive) setRanking(rows);
+          if (current()) setRanking(rows);
         })
         .catch(() => {
-          if (alive) setRanking([]);
+          if (current()) setRanking([]);
         });
     }
-    return () => {
-      alive = false;
-    };
   }, [session, superadmin, today]);
 
   const loadedPair = Boolean(pairs[period]);
@@ -525,6 +539,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
         key: "submissions",
         count: overview.moderation.pendingSubmissions,
         label: "envios esperando revisão",
+        emptyLabel: "nenhum envio esperando revisão",
         to: "/admin/acervo/envios",
         cta: "revisar",
       },
@@ -535,6 +550,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
       key: "past_due",
       count: billing.past_due,
       label: "assinaturas com pagamento pendente",
+      emptyLabel: "nenhuma assinatura com pagamento pendente",
       to: "/admin/financeiro",
       cta: "ver financeiro",
     });
@@ -545,6 +561,7 @@ export function OverviewSection({ session, roles }: { session: SupabaseSession; 
     actions.push({
       key: "backup",
       count: backupLate ? 1 : 0,
+      neutral: !overview.backup.finishedAt,
       // "Em dia" só quando existe backup: sem nenhum registro, o rótulo diz o que realmente acontece.
       label: backupLate
         ? "backup atrasado (mais de 26 h)"

@@ -78,6 +78,35 @@ describe("SubscriptionPage", () => {
     expect(screen.queryByRole("link", { name: "Ir para o início" })).toBeNull();
   });
 
+  it("pagamento pendente ainda com acesso avisa que o acesso continua", async () => {
+    authState.status = { ...active, status: "past_due", active: true };
+    renderPage();
+    expect(await screen.findByText(/O acesso continua por alguns dias/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gerenciar assinatura" })).toBeInTheDocument();
+  });
+
+  it("pagamento pendente sem acesso manda atualizar o cartão, não assinar de novo", async () => {
+    authState.status = {
+      ...active,
+      status: "past_due",
+      active: false,
+      accessUntil: "2026-11-02T00:00:00Z",
+    };
+    renderPage();
+    expect(await screen.findByText(/acesso está suspenso/)).toBeInTheDocument();
+    expect(screen.queryByText(/O acesso continua/)).toBeNull();
+    expect(screen.getByText("Acesso terminou em")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Atualizar cartão" })).toHaveClass("btn-primary");
+    expect(screen.queryByRole("link", { name: "Assinar agora" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Abrir portal" })).toBeNull();
+  });
+
+  it("pagamento pendente sem portal ainda oferece assinar", async () => {
+    authState.status = { ...active, status: "past_due", active: false, portalAvailable: false };
+    renderPage();
+    expect(await screen.findByRole("link", { name: "Assinar agora" })).toBeInTheDocument();
+  });
+
   it("mostra o período pago com Pix e oferece somar mais dias", async () => {
     authState.status = {
       ...active,

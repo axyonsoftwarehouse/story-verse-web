@@ -1,6 +1,6 @@
 # QA — painel de resultados
 
-Última atualização: 2026-10-25.
+Última atualização: 2026-11-07.
 
 > **Como usar:** o Hermes acrescenta uma linha em **Rodadas** e uma linha por defeito novo em
 > **Defeitos abertos**. Nós mudamos o status para `em correção`/`corrigido` e preenchemos `Correção`.
@@ -23,18 +23,31 @@
 | 2026-10-25 | Assinatura (BILL) e PWA, recusa, reembolso, disputa e cancelamento | [`billing`](2026-10-25-billing.md) | Aprovado: 01–06, P-01, **cobrança real** de R$ 9,90, dunning completo e os três caminhos que exigem aprovação humana | 6 corrigidos (financeiro 500, CORS, 3 no webhook/RLS, cancelamento imediato) |
 | 2026-10-25 | Fórum: spoiler na resposta e aceite da equipe | [`forum-spoiler`](2026-10-25-forum-spoiler.md) | Aprovado | 2 melhorias entregues + 1 aviso na tela |
 | 2026-10-25 | Onboarding (e-mail), backup/restore, portal, carga e a11y | [`onboarding-e-operacao`](2026-10-25-onboarding-e-operacao.md) | Aprovado no que foi possível; Stripe exige aprovação humana para recusa/reembolso/cancelamento | Mailpit no QA + 1 correção de `.env` |
+| 2026-11-07 | Passada geral de UI/UX (desktop e celular, 5 papéis) | [`passada-geral-ui-ux`](2026-11-07-passada-geral-ui-ux.md) | Aprovado com ressalvas | 2 médios, 4 baixos, BUG-008 atualizado (+ BUG-033 a 037 achados na correção e na verificação do admin); leitores bloqueados pelo paywall no QA |
+| 2026-11-07 | Re-teste das correções da passada geral (PR #202 e API #118 no QA) | [`passada-geral-ui-ux`](2026-11-07-passada-geral-ui-ux.md#re-teste-no-qa-07112026-depois-do-deploy) | Aprovado | 12/12 re-testados; Sentry do QA sem timeout de SSE nem "Failed to fetch" após o deploy |
 
 ## Defeitos abertos
 
 | ID | Sev. | Prio. | Área | Defeito | Origem | Status | Correção | Cartão |
 |---|---|---|---|---|---|---|---|---|
 | **BUG-007** | Obs. | P2 | Admin | Visão geral leva ~5–9 s para sair de “Carregando…” no QA (container 0,5 CPU). | NB-04 (nivel2-admin) | aberto (monitorar) | — | — |
-| **BUG-008** | Obs. | P2 | Admin | Cartão de backup mostra “Backup atrasado” com “—” quando não há backup configurado no QA. | NB-05 (nivel2-admin) | aberto (observar) | — | — |
 
 ## Defeitos corrigidos
 
 | ID | Severidade | Área | Defeito | Correção | Verificação |
 |---|---|---|---|---|---|
+| **BUG-008** | Baixo | Admin | Sem backup no QA: rótulo corrigido para “sem backup registrado” (#198), mas o ícone continua o ✓ verde de “em dia”. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-027** | Médio | Acessibilidade | Botão de confirmação destrutiva (`btn-primary is-danger`) com texto rosa sobre dourado, contraste ~1,5:1. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-028** | Médio | Assinatura | `/conta/assinatura` em `past_due` sem acesso diz “o acesso continua por alguns dias” e oferece “Assinar agora” em vez do portal. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-029** | Baixo | Admin | Auditoria mostra ações cruas sem rótulo: `billing.series` e `catalog.audio.*` (audiolivros). | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-030** | Baixo | Admin | “✓ envios esperando revisão” com zero envios lê como pendência. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-031** | Baixo | Assinatura | Tela de bloqueio com o rótulo colado no topo e sem logo/cabeçalho. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-032** | Baixo | Navegação | “Sair da conta” só em Avatar → Ajustes → fim da página; na tela de bloqueio sai sem confirmar. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-033** | Médio | Admin | Visão geral presa em “Carregando…” quando o token é renovado com ela ainda carregando (e sempre no dev, pelo StrictMode); regressão do #200. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-034** | Médio | Admin | Detalhe da conta: “Últimas ações” mostra o código cru (`user.view`) e atribui ações da equipe a “script na VPS” (a API manda só `actorId`). | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-035** | Baixo | Admin | Financeiro: o detalhe da assinatura abre embaixo da lista, fora da tela, sem rolar até ele. | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-036** | Baixo | Admin | Financeiro: “Fatura” mostra o status cru do Stripe (`open`, `paid`). | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
+| **BUG-037** | Baixo | Admin | Celular: Auditoria e Acervo → Importações rolam para o lado (cartões e campo de arquivo mais largos que a tela). | PR [#202](https://github.com/axyonsoftwarehouse/story-verse-web/pull/202) | Re-testado em 07/11/2026 ([passada-geral-ui-ux](2026-11-07-passada-geral-ui-ux.md)) |
 | **BUG-010** | Médio | Home | Capa do cartão “Pronto para voltar” estourava o quadro de 62 px. | PR [#63](https://github.com/axyonsoftwarehouse/story-verse-web/pull/63) (`ccf6952`) | Re-testado em 24/10/2026 ([biblioteca](2026-10-24-biblioteca.md)) |
 | **BUG-011** | Médio | Importação | Título de capítulo EPUB perdia a primeira letra (`Coelho` → `oelho`). | PR [#63](https://github.com/axyonsoftwarehouse/story-verse-web/pull/63) (`ccf6952`) | Re-testado em 24/10/2026 ([biblioteca](2026-10-24-biblioteca.md)) |
 | **BUG-012** | Baixo | Plataforma | Sem indicador de modo offline. | PR [#63](https://github.com/axyonsoftwarehouse/story-verse-web/pull/63) (`ccf6952`) | Re-testado em 24/10/2026 ([biblioteca](2026-10-24-biblioteca.md)) |
