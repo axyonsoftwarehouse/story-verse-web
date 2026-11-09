@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectPlatform, micProblem, micSteps } from "./micPermission";
+import { detectPlatform, micAllowedByPolicy, micProblem, micSteps } from "./micPermission";
 
 const UA = {
   iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
@@ -27,6 +27,22 @@ describe("microfone", () => {
     expect(micProblem(new DOMException("x", "NotReadableError"))).toBe("busy");
     expect(micProblem(new DOMException("x", "SecurityError"))).toBe("insecure");
     expect(micProblem(new Error("qualquer"))).toBe("blocked");
+  });
+
+  it("separa microfone proibido pela política do servidor de bloqueio pela pessoa", () => {
+    const negado = new DOMException("x", "NotAllowedError");
+    expect(micProblem(negado, false)).toBe("policy");
+    expect(micProblem(negado, true)).toBe("blocked");
+    expect(micProblem(negado, null)).toBe("blocked");
+    expect(micProblem(new DOMException("x", "NotFoundError"), false)).toBe("missing");
+  });
+
+  it("lê a política do documento quando o navegador informa", () => {
+    const doc = (allowed: boolean) => ({ featurePolicy: { allowsFeature: (f: string) => f === "microphone" && allowed } });
+    expect(micAllowedByPolicy(doc(true))).toBe(true);
+    expect(micAllowedByPolicy(doc(false))).toBe(false);
+    expect(micAllowedByPolicy({})).toBeNull();
+    expect(micAllowedByPolicy(undefined)).toBeNull();
   });
 
   it("todo aparelho tem passos", () => {
