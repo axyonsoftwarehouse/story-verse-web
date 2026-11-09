@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiHttpError, AuthSessionError } from "../../lib/backend";
+import { loginHref } from "../../lib/loginReturn";
 import {
   fetchAudioManifest,
   fetchAudioProgress,
@@ -66,6 +67,8 @@ export function AudiobookPage() {
   const [loading, setLoading] = useState(true);
   const [loadingStream, setLoadingStream] = useState(false);
   const [error, setError] = useState("");
+  /** Capítulo escolhido exige conta e a pessoa não entrou: mostra o convite, não um erro. */
+  const [needsLogin, setNeedsLogin] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const positionRef = useRef(0);
   const chapterRef = useRef(1);
@@ -203,11 +206,13 @@ export function AudiobookPage() {
       setStream(null);
       setPosition(0);
       positionRef.current = 0;
-      setError("Entre na sua conta para ouvir os demais capítulos.");
+      setError("");
+      setNeedsLogin(true);
       return;
     }
     setLoadingStream(true);
     setError("");
+    setNeedsLogin(false);
     try {
       const data = await fetchAudioStream(
         bookKey,
@@ -227,7 +232,7 @@ export function AudiobookPage() {
       stopAudio();
       setStream(null);
       if (err instanceof AuthSessionError) {
-        setError("Entre na sua conta para ouvir este capítulo.");
+        setNeedsLogin(true);
       } else if (err instanceof ApiHttpError && err.status === 402) {
         setError("Assinatura necessária para ouvir este capítulo.");
       } else {
@@ -467,9 +472,20 @@ export function AudiobookPage() {
                   {error}
                 </p>
               ) : null}
-              {!session && chapterIndex >= 2 ? (
+              {needsLogin && !session ? (
+                <div className="audiobook-login" role="status">
+                  <p>
+                    {edition.chapters.some((item) => item.free)
+                      ? "Este capítulo é para assinantes. Entre na sua conta para continuar ouvindo."
+                      : "Este audiolivro é para assinantes. Entre na sua conta para ouvir."}
+                  </p>
+                  <Link className="btn btn-primary" to={loginHref(`/ouvir/${encodeURIComponent(bookKey)}`)}>
+                    Entrar para ouvir
+                  </Link>
+                </div>
+              ) : !session && edition.chapters.some((item) => item.free) && edition.chapters.some((item) => !item.free) ? (
                 <p className="muted audiobook-note">
-                  Entre na sua conta para ouvir os capítulos depois do primeiro.
+                  O primeiro capítulo é aberto. Entre na sua conta para ouvir os demais.
                 </p>
               ) : null}
             </div>

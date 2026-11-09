@@ -1,4 +1,5 @@
 import { userStorage } from "./lib/dataOwner";
+import { safeLoginReturn } from "./lib/loginReturn";
 import {
   useCallback,
   useDeferredValue,
@@ -6075,13 +6076,11 @@ export function App() {
     window.location.pathname === "/confirmar-email" || window.location.pathname === "/redefinir-senha";
   const billingBlocked =
     BILLING_UI_ENABLED && !authScreen && Boolean(authUser) && subscription !== undefined && !subscription.active;
-  /** Voltou do login pedindo /assinar ou /conta/assinatura: continua de onde parou. */
+  /** Voltou do login pedindo uma página conhecida (assinatura, audiolivro): continua de onde parou. */
   useEffect(() => {
     if (!authUser) return;
-    const retorno = new URLSearchParams(window.location.search).get("retorno");
-    if (retorno === "/assinar" || retorno === "/conta/assinatura") {
-      window.location.assign(retorno);
-    }
+    const retorno = safeLoginReturn(new URLSearchParams(window.location.search).get("retorno"));
+    if (retorno) window.location.assign(retorno);
   }, [authUser]);
   const shelfOn = hasFeature(capabilities, "library");
   const canModerate = (capabilities?.roles ?? []).some(

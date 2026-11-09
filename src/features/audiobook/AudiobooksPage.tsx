@@ -41,7 +41,7 @@ export function AudiobooksPage() {
           <div>
             <span className="eyebrow">Ouvir</span>
             <h1>Audiolivros</h1>
-            <p>Histórias narradas para ouvir no celular ou no computador. O primeiro capítulo é aberto.</p>
+            <p>Histórias narradas para ouvir no celular ou no computador. Nos audiolivros com vários capítulos, o primeiro é aberto para ouvir sem conta.</p>
           </div>
         </div>
 

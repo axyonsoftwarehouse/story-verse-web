@@ -132,6 +132,21 @@
   font-size: 0.82rem;
 }
 
+.audiobook-login {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  background: var(--surface-deep, #101010);
+}
+
+.audiobook-login p {
+  margin: 0;
+  flex: 1 1 14rem;
+}
+
 .audiobook-chapters {
   margin-top: 1.4rem;
 }
