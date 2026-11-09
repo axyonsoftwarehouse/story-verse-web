@@ -33,4 +33,9 @@ describe("LegalPage", () => {
     renderDoc("cancelamento");
     expect(screen.getByText(/Até 7 dias depois da primeira cobrança/)).toBeTruthy();
   });
+
+  it("termos avisam que excluir a conta cancela a assinatura (S5)", () => {
+    renderDoc("termos");
+    expect(screen.getByText(/cancela a assinatura no cartão, se houver/)).toBeTruthy();
+  });
 });

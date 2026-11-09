@@ -4484,7 +4484,7 @@ function ProfilePage({
   async function removeAccount(e: React.FormEvent) {
     e.preventDefault();
     if (!deletePassword) return setAccountError("Informe sua senha para excluir a conta.");
-    if (!window.confirm("Excluir permanentemente a conta, os livros importados, as conversas e os arquivos? Não dá para desfazer.")) return;
+    if (!window.confirm("Excluir permanentemente a conta, os livros importados, as conversas e os arquivos? A assinatura no cartão, se houver, será cancelada. Não dá para desfazer.")) return;
     setAccountBusy("delete");
     setAccountError("");
     setAccountOk("");
