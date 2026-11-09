@@ -45,13 +45,33 @@ export function watchMicPermission(onChange: (state: MicState) => void): () => v
 }
 
 /** Por que o microfone não abriu, a partir do erro do getUserMedia. */
-export type MicProblem = "blocked" | "missing" | "busy" | "insecure" | "unsupported";
+export type MicProblem = "blocked" | "policy" | "missing" | "busy" | "insecure" | "unsupported";
 
-export function micProblem(error: unknown): MicProblem {
+type FeaturePolicyDoc = { featurePolicy?: { allowsFeature(feature: string): boolean } };
+
+/**
+ * O cabeçalho `Permissions-Policy` do servidor libera o microfone para esta página? Só o Chrome e
+ * derivados informam (`document.featurePolicy`); nos outros, `null`.
+ */
+export function micAllowedByPolicy(doc: unknown = typeof document === "undefined" ? undefined : document): boolean | null {
+  try {
+    const policy = (doc as FeaturePolicyDoc | undefined)?.featurePolicy;
+    return policy ? policy.allowsFeature("microphone") : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Com o microfone proibido pela política do servidor, o navegador nega sem mostrar o pedido e o
+ * passo a passo de configurações não resolve: aí o problema é "policy", não "blocked".
+ */
+export function micProblem(error: unknown, allowedByPolicy: boolean | null = micAllowedByPolicy()): MicProblem {
   const name = error instanceof DOMException || error instanceof Error ? error.name : "";
   if (name === "NotFoundError" || name === "OverconstrainedError" || name === "DevicesNotFoundError") return "missing";
   if (name === "NotReadableError" || name === "AbortError" || name === "TrackStartError") return "busy";
   if (name === "SecurityError") return "insecure";
+  if (allowedByPolicy === false) return "policy";
   return "blocked";
 }
 
@@ -64,6 +84,8 @@ export function micProblemText(problem: Exclude<MicProblem, "blocked">): string 
       return "O microfone está sendo usado por outro app (chamada, gravador…). Feche e tente de novo.";
     case "insecure":
       return "Gravar áudio só funciona no endereço seguro do Storyverse (https).";
+    case "policy":
+      return "A gravação de áudio está desligada no Storyverse no momento. Não é nada no seu aparelho; tente mais tarde.";
     default:
       return "Este navegador não grava áudio.";
   }
