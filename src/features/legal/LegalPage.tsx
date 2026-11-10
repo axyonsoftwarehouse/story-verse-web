@@ -100,8 +100,8 @@ function Terms() {
       <h2>7. Encerramento da conta</h2>
       <p>
         Você pode excluir sua conta em Perfil › Ajustes › Conta. A exclusão apaga seus dados como descrito
-        na <Link to="/privacidade">Política de privacidade</Link>. Excluir a conta não cancela sozinho uma
-        assinatura no cartão: cancele antes pelo portal do Stripe.
+        na <Link to="/privacidade">Política de privacidade</Link> e cancela a assinatura no cartão, se houver.
+        Se o cancelamento falhar, nada é apagado e a exclusão pode ser tentada de novo.
       </p>
 
       <h2>8. Mudanças nestes termos</h2>
