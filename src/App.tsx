@@ -283,7 +283,7 @@ import {
   warmUpLocalTranslator,
   type TranslationEngine,
 } from "./lib/translate";
-import { LEGAL_HOLDER } from "./features/legal/holder";
+import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
 import "./App.css";
 
 type Msg = ChatMsg;
@@ -8571,7 +8571,7 @@ export function App() {
             <span>
               Desenvolvido por <strong>Axyon Software House</strong>
               <span className="home-credit-sep" aria-hidden="true"> · </span>
-              <span className="home-credit-holder">{LEGAL_HOLDER}</span>
+              <span className="home-credit-holder">{LEGAL_HOLDER_NAME}</span>
             </span>
           </div>
         </footer>
