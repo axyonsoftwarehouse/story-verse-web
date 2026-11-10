@@ -12,3 +12,17 @@ describe("telemetry credentials", () => {
     expect(sanitizeTelemetry("failed access_token=abc&refresh_token=xyz")).not.toMatch(/abc|xyz/);
   });
 });
+
+describe("respostas esperadas da API (S10)", () => {
+  it("401, 402 e 403 não viram issue; 400, 409 e 500 viram", async () => {
+    const { ApiHttpError } = await import("./backend");
+    const { isExpectedFailure } = await import("./telemetry");
+    const erro = (status: number) => new ApiHttpError("x", status, undefined, {});
+    expect(isExpectedFailure(erro(401))).toBe(true);
+    expect(isExpectedFailure(erro(402))).toBe(true);
+    expect(isExpectedFailure(erro(403))).toBe(true);
+    expect(isExpectedFailure(erro(400))).toBe(false);
+    expect(isExpectedFailure(erro(409))).toBe(false);
+    expect(isExpectedFailure(erro(500))).toBe(false);
+  });
+});
