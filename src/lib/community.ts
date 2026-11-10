@@ -1,6 +1,6 @@
 import type { Ebook } from "../data/types";
 import { AuthNetworkError, supabaseConfig, type SupabaseSession } from "./auth";
-import { apiBaseUrl, apiEnabled, apiFetch, apiRequest } from "./backend";
+import { ApiHttpError, apiBaseUrl, apiEnabled, apiFetch, apiRequest } from "./backend";
 import { castFromNames } from "./cast";
 import { dataUrlToBlob, uploadBookCover } from "./profileMedia";
 
@@ -39,7 +39,8 @@ export function rightsLabel(r: Rights): string {
 
 export type Submission = {
   id: string;
-  user_id: string;
+  /** Ausente na estante pública (S9): só em "mine" e na moderação. */
+  user_id?: string;
   submitter_name: string | null;
   title: string;
   author: string | null;
@@ -47,7 +48,8 @@ export type Submission = {
   rights: Rights;
   rights_note: string | null;
   characters: string | null;
-  text_path: string;
+  /** Ausente na estante pública (S9): o texto aprovado é pedido por id. */
+  text_path?: string;
   char_count: number | null;
   status: "pending" | "approved" | "rejected";
   review_note: string | null;
@@ -124,7 +126,8 @@ export function submissionToEbook(s: Submission): Ebook {
     genre: "Da comunidade",
     textLanguage: s.language,
     source: "community",
-    communityPath: s.text_path,
+    communityId: s.id,
+    ...(s.text_path ? { communityPath: s.text_path } : {}),
     ...(s.cover_url ? { coverUrl: s.cover_url } : {}),
     ...(s.reviewed_at ? { publishedAt: s.reviewed_at } : {}),
     ...(characters.length > 0 ? { characters } : {}),
@@ -463,7 +466,9 @@ export async function deleteSubmission(session: SupabaseSession, s: Submission):
     return;
   }
   await sb(`/rest/v1/book_submissions?id=eq.${s.id}`, { method: "DELETE", session });
-  await sb(`/storage/v1/object/${BUCKET}/${encodePath(s.text_path)}`, { method: "DELETE", session }).catch(() => {});
+  if (s.text_path) {
+    await sb(`/storage/v1/object/${BUCKET}/${encodePath(s.text_path)}`, { method: "DELETE", session }).catch(() => {});
+  }
   const cover = uploadedCoverPath(s.cover_url);
   if (cover) await sb(`/storage/v1/object/profile-media/${encodePath(cover)}`, { method: "DELETE", session }).catch(() => {});
   approvedCache = null;
@@ -482,6 +487,36 @@ export async function fetchCommunityText(session: SupabaseSession | null, path: 
   }
   const res = await sb(`/storage/v1/object/authenticated/${BUCKET}/${encodePath(path)}`, { session });
   return res.text();
+}
+
+/** Id do envio de um livro da comunidade: o campo novo ou o `cm-<id>` de livros salvos antes dele. */
+export function communityIdOf(book: Pick<Ebook, "id" | "communityId">): string | null {
+  if (book.communityId) return book.communityId;
+  const id = String(book.id);
+  return id.startsWith("cm-") ? id.slice(3) : null;
+}
+
+/**
+ * Texto de um livro da comunidade. Pede por id (o caminho no armazenamento fica no servidor, S9);
+ * se a API ainda não tiver essa rota (404) e o livro tiver o caminho guardado, usa o caminho.
+ */
+export async function fetchCommunityBookText(
+  session: SupabaseSession | null,
+  book: Pick<Ebook, "id" | "communityId" | "communityPath">,
+): Promise<string> {
+  const id = communityIdOf(book);
+  if (apiEnabled && id) {
+    const res = await apiFetch(`/api/v1/community/submissions/${encodeURIComponent(id)}/text`, {
+      accessToken: session?.access_token,
+    });
+    if (res.ok) return res.text();
+    if (!(res.status === 404 && book.communityPath)) {
+      const payload = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      throw new ApiHttpError(payload.error ?? payload.message ?? `Erro ${res.status}`, res.status, undefined, payload);
+    }
+  }
+  if (!book.communityPath) throw new Error("Texto do livro indisponível.");
+  return fetchCommunityText(session, book.communityPath);
 }
 
 /** Dias que um livro aprovado fica em "Novidades". */

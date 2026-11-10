@@ -104,7 +104,8 @@ import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadB
 import {
   approvedCommunityBooks,
   deleteSubmission,
-  fetchCommunityText,
+  communityIdOf,
+  fetchCommunityBookText,
   isNewCommunityBook,
   listSubmissions,
   matchesCommunitySearch,
@@ -6760,9 +6761,10 @@ export function App() {
 
     (isLocalBook(book)
       ? loadLocalBookText(book.gutenbergId)
-      : book.source === "community" && book.communityPath
-        ? withOfflineCopy(`community:${book.communityPath}`, () =>
-            fetchCommunityText(authSessionRef.current, book.communityPath!),
+      : book.source === "community" && (book.communityPath || communityIdOf(book))
+        ? // A chave pelo caminho preserva as cópias offline gravadas antes do S9.
+          withOfflineCopy(`community:${book.communityPath ?? communityIdOf(book)}`, () =>
+            fetchCommunityBookText(authSessionRef.current, book),
           )
         : book.source === "catalog" && book.catalogKey
           ? withOfflineCopy(`catalog:${book.catalogKey}`, () =>
