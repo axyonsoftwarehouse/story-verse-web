@@ -44,15 +44,46 @@ storyverse.2.29.42.104.sslip.io {
     }
 
     # proxies públicos (mesmos destinos do vite.config.ts, que faz o papel em dev)
-    handle /gutenberg-search* {
+    # Gutenberg: só a busca, o texto e a capa que o app pede. O proxy aberto servia qualquer
+    # caminho como 'self' e transformava a VPS num proxy público do gutenberg.org.
+    handle /gutenberg-search {
         rewrite * /ebooks/search.opds/
         reverse_proxy https://www.gutenberg.org
     }
-    handle_path /gutenberg/* {
-        reverse_proxy https://www.gutenberg.org
+    @gutenberg-text path_regexp gutenbergText ^/gutenberg/cache/epub/[0-9]+/pg[0-9]+\.txt$
+    handle @gutenberg-text {
+        uri strip_prefix /gutenberg
+        reverse_proxy https://www.gutenberg.org {
+            header_down Content-Type "text/plain; charset=utf-8"
+        }
     }
-    handle_path /gutenberg-mirror/* {
-        reverse_proxy https://aleph.pglaf.org
+    @gutenberg-cover path_regexp gutenbergCover ^/gutenberg/cache/epub/[0-9]+/pg[0-9]+\.cover\.medium\.jpg$
+    handle @gutenberg-cover {
+        uri strip_prefix /gutenberg
+        reverse_proxy https://www.gutenberg.org {
+            header_down Content-Type "image/jpeg"
+        }
+    }
+    @gutenberg-mirror-text path_regexp gutenbergMirrorText ^/gutenberg-mirror/cache/epub/[0-9]+/pg[0-9]+\.txt$
+    handle @gutenberg-mirror-text {
+        uri strip_prefix /gutenberg-mirror
+        reverse_proxy https://aleph.pglaf.org {
+            header_down Content-Type "text/plain; charset=utf-8"
+        }
+    }
+    @gutenberg-mirror-cover path_regexp gutenbergMirrorCover ^/gutenberg-mirror/cache/epub/[0-9]+/pg[0-9]+\.cover\.medium\.jpg$
+    handle @gutenberg-mirror-cover {
+        uri strip_prefix /gutenberg-mirror
+        reverse_proxy https://aleph.pglaf.org {
+            header_down Content-Type "image/jpeg"
+        }
+    }
+    # Fora dessa lista, 404 em vez de cair no SPA (que responderia 200 com HTML).
+    handle /gutenberg/* {
+        respond 404
+    }
+    handle /gutenberg-mirror/* {
+        respond 404
     }
     # Open Library: só a busca, a ficha da obra (resumo no catálogo) e as capas que o app usa.
     # O proxy aberto servia qualquer caminho como 'self', e a API deles aceita JSONP (?callback=) — um <script src="/openlibrary/…">
@@ -127,15 +158,46 @@ qa.storyverse.2.29.42.104.sslip.io {
     }
 
     # proxies públicos (mesmos destinos do vite.config.ts, que faz o papel em dev)
-    handle /gutenberg-search* {
+    # Gutenberg: só a busca, o texto e a capa que o app pede. O proxy aberto servia qualquer
+    # caminho como 'self' e transformava a VPS num proxy público do gutenberg.org.
+    handle /gutenberg-search {
         rewrite * /ebooks/search.opds/
         reverse_proxy https://www.gutenberg.org
     }
-    handle_path /gutenberg/* {
-        reverse_proxy https://www.gutenberg.org
+    @gutenberg-text path_regexp gutenbergText ^/gutenberg/cache/epub/[0-9]+/pg[0-9]+\.txt$
+    handle @gutenberg-text {
+        uri strip_prefix /gutenberg
+        reverse_proxy https://www.gutenberg.org {
+            header_down Content-Type "text/plain; charset=utf-8"
+        }
     }
-    handle_path /gutenberg-mirror/* {
-        reverse_proxy https://aleph.pglaf.org
+    @gutenberg-cover path_regexp gutenbergCover ^/gutenberg/cache/epub/[0-9]+/pg[0-9]+\.cover\.medium\.jpg$
+    handle @gutenberg-cover {
+        uri strip_prefix /gutenberg
+        reverse_proxy https://www.gutenberg.org {
+            header_down Content-Type "image/jpeg"
+        }
+    }
+    @gutenberg-mirror-text path_regexp gutenbergMirrorText ^/gutenberg-mirror/cache/epub/[0-9]+/pg[0-9]+\.txt$
+    handle @gutenberg-mirror-text {
+        uri strip_prefix /gutenberg-mirror
+        reverse_proxy https://aleph.pglaf.org {
+            header_down Content-Type "text/plain; charset=utf-8"
+        }
+    }
+    @gutenberg-mirror-cover path_regexp gutenbergMirrorCover ^/gutenberg-mirror/cache/epub/[0-9]+/pg[0-9]+\.cover\.medium\.jpg$
+    handle @gutenberg-mirror-cover {
+        uri strip_prefix /gutenberg-mirror
+        reverse_proxy https://aleph.pglaf.org {
+            header_down Content-Type "image/jpeg"
+        }
+    }
+    # Fora dessa lista, 404 em vez de cair no SPA (que responderia 200 com HTML).
+    handle /gutenberg/* {
+        respond 404
+    }
+    handle /gutenberg-mirror/* {
+        respond 404
     }
     # Open Library: só a busca, a ficha da obra (resumo no catálogo) e as capas que o app usa.
     # O proxy aberto servia qualquer caminho como 'self', e a API deles aceita JSONP (?callback=) — um <script src="/openlibrary/…">
