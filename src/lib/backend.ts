@@ -41,6 +41,14 @@ export class ApiHttpError extends Error {
   ) {
     super(message);
   }
+
+  /**
+   * 401/402/403 são respostas esperadas (sem conta, sem assinatura, sem permissão): a tela mostra
+   * o convite certo e a telemetria não abre issue no Sentry (S10 da revisão de 09/11/2026).
+   */
+  get expected(): boolean {
+    return this.status === 401 || this.status === 402 || this.status === 403;
+  }
 }
 
 type ApiInit = { method?: string; body?: unknown; accessToken?: string; keepalive?: boolean; timeoutMs?: number };
