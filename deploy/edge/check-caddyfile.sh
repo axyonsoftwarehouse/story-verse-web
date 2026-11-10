@@ -49,4 +49,12 @@ for host in storyverse.2.29.42.104.sslip.io qa.storyverse.2.29.42.104.sslip.io; 
   # O gravador de áudio dos grupos usa getUserMedia: microphone=() negava sem nem pedir permissão.
   has "$host" 'microphone=(self)' "$host: Permissions-Policy libera o microfone para o próprio site"
 done
+# Gutenberg: só a busca, o texto e a capa que o app pede. O proxy aberto servia qualquer caminho
+# como 'self' e transformava a VPS num relay público do gutenberg.org (S8 da revisão de 09/11).
+file_has() { grep -qF -- "$1" "$file" || { echo "FALHOU: $2" >&2; exit 1; }; }
+file_hasnt() { if grep -qF -- "$1" "$file"; then echo "FALHOU: $2" >&2; exit 1; fi; }
+file_hasnt 'handle_path /gutenberg/*' "proxy do Gutenberg sem caminho aberto"
+file_hasnt 'handle_path /gutenberg-mirror/*' "proxy do espelho do Gutenberg sem caminho aberto"
+file_has 'path_regexp gutenbergText' "proxy do Gutenberg só para o texto do app"
+file_has 'Content-Type "text/plain; charset=utf-8"' "texto do Gutenberg com Content-Type fixo"
 echo "OK"
