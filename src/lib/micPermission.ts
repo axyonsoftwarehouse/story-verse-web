@@ -141,8 +141,9 @@ export function micSteps(platform: Platform): string[] {
       ];
     default:
       return [
-        "Clique no ícone à esquerda do endereço (🔒 ou ⚙️), no topo do navegador.",
+        "Clique no ícone à esquerda do endereço do site, no topo da janela (o do desenho acima).",
         "Em **Microfone**, troque para **Permitir**.",
+        "Não apareceu **Microfone**? Clique em **Configurações do site** e libere lá.",
       ];
   }
 }

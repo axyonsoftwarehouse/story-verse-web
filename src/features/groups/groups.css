@@ -4384,13 +4384,18 @@ button.group-rp-character small {
 }
 
 /* No computador: seta apontando o ícone ao lado do endereço, no topo do navegador. */
+/*
+ * Seta para o ícone de permissões do navegador. Ele fica à esquerda do endereço, depois dos botões
+ * voltar/avançar/recarregar (~140 px da borda no Chrome, Edge e Firefox). Antes a seta ficava no
+ * canto (18 px) apontando na diagonal, para longe do ícone (cartão do microfone no Trello).
+ */
 .mic-help-pointer {
   position: fixed;
-  top: 6px;
-  left: 18px;
+  top: 4px;
+  left: 128px;
   display: flex;
   align-items: flex-start;
-  gap: 0.3rem;
+  gap: 0.45rem;
   color: var(--accent);
   font-size: 0.85rem;
   font-weight: 700;
@@ -4409,6 +4414,71 @@ button.group-rp-character small {
 
 @keyframes mic-help-point {
   50% {
-    transform: translate(-4px, -4px);
+    transform: translateY(-5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-help-pointer {
+    animation: none;
+  }
+}
+
+/* Barra de endereço desenhada: mostra qual ícone clicar, sem depender da posição na tela. */
+.mic-help-bar {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin: 0.1rem 0 0;
+}
+
+.mic-help-bar-url {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 300px;
+  padding: 0.35rem 0.9rem 0.35rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.mic-help-bar-target {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+  animation: mic-help-ring 1.6s ease-in-out infinite;
+}
+
+.mic-help-bar-host {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mic-help-bar figcaption {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+@keyframes mic-help-ring {
+  50% {
+    box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-help-bar-target {
+    animation: none;
   }
 }
