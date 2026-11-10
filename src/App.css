@@ -1312,11 +1312,17 @@
   cursor: not-allowed;
 }
 
+/*
+ * Texto dentro do botão redondo (A−, A+, velocidade "1,1x", EN/PT): centralizado na caixa, sem
+ * empurrar com padding. Antes o conteúdo se alinhava pela linha de base e descia 0,45rem: o "A"
+ * ficava ~2 px abaixo do centro e o "1,1x" acima (cartão "Melhorar alinhamento dos controles de
+ * leitura" no Trello).
+ */
 .text-btn {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  padding-top: 0.45rem;
+  line-height: 1;
   font-family: var(--font-read);
   font-weight: 600;
   font-size: 0.95rem;
@@ -1324,6 +1330,7 @@
 
 .text-btn small {
   font-size: 0.7em;
+  line-height: 1;
 }
 
 .translate-btn {
@@ -1397,6 +1404,7 @@
   font-family: var(--font-ui);
   font-size: 0.92rem;
   font-weight: 700;
+  line-height: 1;
 }
 
 .reader-settings {
@@ -2866,7 +2874,8 @@
 .rate-btn {
   width: auto;
   min-width: 44px;
-  padding: 0 0.5rem;
+  /* Números não têm descendente: 1 px embaixo compensa e deixa o "1,1x" no centro óptico. */
+  padding: 0 0.5rem 1px;
   font-family: var(--font-ui);
   font-size: 0.75rem;
   font-weight: 700;
