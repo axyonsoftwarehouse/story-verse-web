@@ -4889,6 +4889,29 @@
   overflow-wrap: anywhere;
 }
 
+/* Biografia: texto da pessoa, com as quebras de linha que ela escreveu. */
+.profile-id .profile-bio {
+  max-width: 36rem;
+  margin: 0.15rem 0 0.45rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.profile-bio-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.1rem 0 0.4rem;
+  font-size: 0.85rem;
+}
+
+.profile-bio-add svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .profile-device-note {
   margin: 0.6rem 0 2.5rem;
   color: var(--muted);
@@ -5495,6 +5518,47 @@
   font-family: var(--font-read);
   font-size: 1.15rem;
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.edit-profile-bio {
+  position: relative;
+}
+
+.edit-profile-name textarea {
+  width: 100%;
+  min-height: 5.4rem;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.edit-profile-name textarea:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+
+.edit-profile-name textarea[aria-invalid="true"] {
+  border-color: var(--danger, #e5484d);
+}
+
+.edit-profile-bio small {
+  justify-self: end;
+  margin-top: -0.15rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-profile-bio small.is-over {
+  color: var(--danger, #e5484d);
 }
 
 .edit-profile-name input:focus {

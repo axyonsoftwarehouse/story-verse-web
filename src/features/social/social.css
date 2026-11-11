@@ -221,6 +221,22 @@
   line-height: 1.15;
 }
 
+.person-bio {
+  max-width: 34rem;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+@media (max-width: 560px) {
+  .person-bio {
+    margin-inline: auto;
+  }
+}
+
 .person-hero-meta {
   display: flex;
   flex-wrap: wrap;
