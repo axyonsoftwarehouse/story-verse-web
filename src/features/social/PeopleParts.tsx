@@ -13,9 +13,17 @@ export function RelationBadge({ person }: { person: Pick<Person, "is_following" 
   return null;
 }
 
+const CLOCK = (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+
 /**
  * Seguir / deixar de seguir, com resposta imediata (volta atrás se a API recusar). Deixar de
- * seguir uma conexão pede confirmação: a pessoa perde o selo de conexão.
+ * seguir uma conexão pede confirmação: a pessoa perde o selo de conexão. Perfil privado: seguir
+ * vira "Pedido enviado", e tocar de novo cancela o pedido.
  */
 export function FollowButton({
   person,
@@ -33,16 +41,19 @@ export function FollowButton({
   const [burst, setBurst] = useState(0);
   const [error, setError] = useState("");
   const relation = relationOf(person);
-  const on = person.is_following;
+  const requested = relation === "requested";
+  const on = person.is_following || requested;
 
   async function toggle() {
     if (busy) return;
-    if (on && relation === "connection" && !window.confirm(`Deixar de seguir ${person.name}? Vocês deixam de ser conexão.`)) return;
+    if (person.is_following && relation === "connection" && !window.confirm(`Deixar de seguir ${person.name}? Vocês deixam de ser conexão.`)) return;
+    if (person.is_following && person.is_private && !window.confirm(`Deixar de seguir ${person.name}? O perfil é privado: para voltar a ver, você vai precisar pedir de novo.`)) return;
     setBusy(true);
     setError("");
     const before = person;
-    if (!on && celebrate) setBurst((n) => n + 1);
-    onChange({ ...person, is_following: !on });
+    if (!on && celebrate && !person.is_private) setBurst((n) => n + 1);
+    // Perfil privado vira pedido; o resto segue na hora.
+    onChange(on ? { ...person, is_following: false, requested: false } : person.is_private ? { ...person, requested: true } : { ...person, is_following: true });
     try {
       const next = on ? await unfollow(person.id) : await follow(person.id);
       onChange({ ...person, ...next });
@@ -65,13 +76,21 @@ export function FollowButton({
       ) : null}
       <button
         type="button"
-        className={`btn people-follow ${on ? "is-on" : "btn-primary"} ${compact ? "is-compact" : ""} ${burst > 0 && on ? "is-celebrating" : ""}`}
+        className={`btn people-follow ${on ? "is-on" : "btn-primary"} ${requested ? "is-requested" : ""} ${compact ? "is-compact" : ""} ${burst > 0 && on ? "is-celebrating" : ""}`}
         onClick={() => void toggle()}
         disabled={busy}
         aria-pressed={on}
-        aria-label={on ? `Deixar de seguir ${person.name}` : `Seguir ${person.name}`}
+        aria-label={
+          requested
+            ? `Cancelar o pedido para seguir ${person.name}`
+            : on
+              ? `Deixar de seguir ${person.name}`
+              : person.is_private
+                ? `Pedir para seguir ${person.name}`
+                : `Seguir ${person.name}`
+        }
       >
-        {on ? GIcon.check : GIcon.plus}
+        {requested ? CLOCK : on ? GIcon.check : GIcon.plus}
         <span className="people-follow-label">{followLabel(relation)}</span>
       </button>
       {error ? (
@@ -90,12 +109,15 @@ export function PersonRow({
   detail,
   onChange,
   extra,
+  follow = true,
 }: {
   person: Person;
   me: string;
   detail?: string | null;
   onChange: (next: Person) => void;
   extra?: React.ReactNode;
+  /** Botão de seguir na linha (a lista de pedidos usa só Aceitar/Recusar). */
+  follow?: boolean;
 }) {
   return (
     <div className="people-row">
@@ -112,7 +134,7 @@ export function PersonRow({
           </span>
         </span>
       </TransitionLink>
-      {person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
+      {follow && person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
       {extra}
     </div>
   );
@@ -129,6 +151,7 @@ export function PeopleList({
   detail,
   extra,
   reloadKey,
+  follow = true,
 }: {
   load: (offset: number) => Promise<Person[]>;
   me: string;
@@ -136,6 +159,7 @@ export function PeopleList({
   detail?: (p: Person) => string | null;
   extra?: (p: Person, remove: () => void) => React.ReactNode;
   reloadKey?: string;
+  follow?: boolean;
 }) {
   const [items, setItems] = useState<Person[] | null>(null);
   const [more, setMore] = useState(false);
@@ -195,6 +219,7 @@ export function PeopleList({
               me={me}
               detail={detail?.(p)}
               onChange={update}
+              follow={follow}
               extra={extra?.(p, () => setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null))}
             />
           </li>

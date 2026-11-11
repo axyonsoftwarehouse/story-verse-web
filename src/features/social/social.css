@@ -1084,3 +1084,91 @@ button.person-stat.is-on {
     scroll-snap-align: start;
   }
 }
+
+/* ---- Perfil privado e pedidos para seguir ---- */
+
+.people-badge.is-private {
+  gap: 0.25rem;
+}
+
+.people-badge.is-private svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Pedido enviado: discreto como "Seguindo", com o tom de quem espera resposta. */
+.people-follow.is-requested {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.person-privacy {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.person-requests-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.person-requests-link svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+@media (hover: hover) {
+  .person-requests-link:hover {
+    background: rgba(var(--accent-rgb), 0.2);
+  }
+}
+
+.person-privacy-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.people-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 1px;
+}
+
+.people-request-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.people-request-actions .btn.is-compact {
+  min-height: 34px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.people-request-actions .people-follow-error {
+  flex-basis: 100%;
+}
