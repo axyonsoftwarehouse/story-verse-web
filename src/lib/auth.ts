@@ -620,10 +620,13 @@ export async function updatePassword(
   await authRequest("user", { password }, session.access_token, "PUT");
 }
 
-/** Nome e avatar do perfil (ficam em user_metadata na conta; o avatar é só um id, sem imagem). */
+/**
+ * Nome, avatar e biografia do perfil (ficam em user_metadata na conta; o avatar é só um id, sem
+ * imagem). Biografia vazia apaga; ausente mantém.
+ */
 export async function updateProfileData(
   session: SupabaseSession,
-  data: { name?: string; avatar?: string | null; photo?: string | null; cover?: string | null },
+  data: { name?: string; avatar?: string | null; photo?: string | null; cover?: string | null; bio?: string },
 ): Promise<SupabaseSession> {
   if (apiEnabled) {
     const user = await apiRequest<ApiUser>("/api/v1/auth/profile", {

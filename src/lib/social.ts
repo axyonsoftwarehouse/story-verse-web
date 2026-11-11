@@ -40,6 +40,8 @@ export type ProfileStats = { totalMinutes?: number; bestStreak?: number; finishe
 export type PersonProfile = Person & {
   is_me: boolean;
   member_since: string;
+  /** Biografia que a pessoa escreveu (até 160 caracteres e 4 linhas). */
+  bio?: string | null;
   followers: number;
   following: number;
   /** Quantas pessoas seguem e são seguidas de volta por este perfil. */

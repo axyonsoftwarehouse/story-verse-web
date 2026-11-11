@@ -121,6 +121,7 @@ export function PersonProfilePage() {
             {profile.name}
             {profile.is_me ? <small className="people-you"> (você)</small> : null}
           </h1>
+          {profile.bio ? <p className="person-bio">{profile.bio}</p> : null}
           <p className="person-hero-meta">
             <RelationBadge person={profile} />
             <span>

@@ -285,6 +285,7 @@ import {
   type TranslationEngine,
 } from "./lib/translate";
 import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
+import { BIO_MAX, bioLength, bioProblem, normalizeBio } from "./lib/profileBio";
 import "./App.css";
 
 type Msg = ChatMsg;
@@ -1730,7 +1731,7 @@ function PersonAvatar({
 /** Rascunho de uma imagem do perfil: a salva, uma nova (ainda não enviada) ou removida. */
 type ImageDraft = { url: string | null; blob: Blob | null };
 
-/** Janela "Editar perfil": capa, foto, nome e avatar, com prévia e salvar na própria janela. */
+/** Janela "Editar perfil": capa, foto, nome, biografia e avatar, com prévia e salvar na própria janela. */
 function EditProfileModal({
   session,
   onSaved,
@@ -1744,7 +1745,9 @@ function EditProfileModal({
   const savedAvatar = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
   const savedPhoto = metaString(session.user, "photo");
   const savedCover = metaString(session.user, "cover");
+  const savedBio = metaString(session.user, "bio") ?? "";
   const [name, setName] = useState(savedName);
+  const [bio, setBio] = useState(savedBio);
   const [avatar, setAvatar] = useState<string | null>(savedAvatar);
   const [photo, setPhoto] = useState<ImageDraft>({ url: savedPhoto, blob: null });
   const [cover, setCover] = useState<ImageDraft>({ url: savedCover, blob: null });
@@ -1752,8 +1755,11 @@ function EditProfileModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const trimmed = name.trim().slice(0, 60);
+  const cleanBio = normalizeBio(bio);
+  const bioError = bioProblem(cleanBio);
   const changed =
     trimmed !== savedName ||
+    cleanBio !== savedBio ||
     avatar !== savedAvatar ||
     photo.blob !== null ||
     photo.url !== savedPhoto ||
@@ -1800,6 +1806,7 @@ function EditProfileModal({
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!trimmed) return setError("Informe um nome.");
+    if (bioError) return setError(bioError);
     if (!changed) return onClose();
     setSaving(true);
     setError("");
@@ -1811,7 +1818,7 @@ function EditProfileModal({
       };
       const photoUrl = await imageUrl("avatar", photo, savedPhoto);
       const coverUrl = await imageUrl("cover", cover, savedCover);
-      onSaved(await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl }));
+      onSaved(await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl, bio: cleanBio }));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
@@ -1870,6 +1877,23 @@ function EditProfileModal({
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" disabled={saving} />
         </label>
 
+        <label className="edit-profile-name edit-profile-bio">
+          <span>Biografia</span>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            rows={3}
+            maxLength={BIO_MAX * 2}
+            placeholder="Conte um pouco sobre você e o que gosta de ler"
+            aria-describedby="edit-profile-bio-count"
+            aria-invalid={bioError ? true : undefined}
+            disabled={saving}
+          />
+          <small id="edit-profile-bio-count" className={bioError ? "is-over" : undefined} aria-live="polite">
+            {bioError ?? `${bioLength(cleanBio)}/${BIO_MAX}`}
+          </small>
+        </label>
+
         <span className="edit-profile-label">Avatar</span>
         <div className="avatar-grid" role="radiogroup" aria-label="Avatares">
           <button
@@ -1906,7 +1930,7 @@ function EditProfileModal({
           <button type="button" className="btn" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !changed}>
+          <button type="submit" className="btn btn-primary" disabled={busy || !changed || Boolean(bioError)}>
             {saving ? "Salvando…" : "Salvar"}
           </button>
         </div>
@@ -4557,6 +4581,14 @@ function ProfilePage({
         <div className="profile-id">
           <h1>{name}</h1>
           {allBadges ? <span className="legend-seal">🏆 Lenda da leitura</span> : null}
+          {metaString(user, "bio") ? (
+            <p className="profile-bio">{metaString(user, "bio")}</p>
+          ) : (
+            <button type="button" className="inline-link profile-bio-add" onClick={() => setEditOpen(true)}>
+              {Icon.pencil}
+              Adicionar biografia
+            </button>
+          )}
           {since ? <p>Lendo no Storyverse desde {since}</p> : null}
         </div>
       </header>
