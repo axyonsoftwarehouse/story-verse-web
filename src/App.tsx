@@ -104,7 +104,8 @@ import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadB
 import {
   approvedCommunityBooks,
   deleteSubmission,
-  fetchCommunityText,
+  communityIdOf,
+  fetchCommunityBookText,
   isNewCommunityBook,
   listSubmissions,
   matchesCommunitySearch,
@@ -283,7 +284,7 @@ import {
   warmUpLocalTranslator,
   type TranslationEngine,
 } from "./lib/translate";
-import { LEGAL_HOLDER } from "./features/legal/holder";
+import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
 import "./App.css";
 
 type Msg = ChatMsg;
@@ -6760,9 +6761,10 @@ export function App() {
 
     (isLocalBook(book)
       ? loadLocalBookText(book.gutenbergId)
-      : book.source === "community" && book.communityPath
-        ? withOfflineCopy(`community:${book.communityPath}`, () =>
-            fetchCommunityText(authSessionRef.current, book.communityPath!),
+      : book.source === "community" && (book.communityPath || communityIdOf(book))
+        ? // A chave pelo caminho preserva as cópias offline gravadas antes do S9.
+          withOfflineCopy(`community:${book.communityPath ?? communityIdOf(book)}`, () =>
+            fetchCommunityBookText(authSessionRef.current, book),
           )
         : book.source === "catalog" && book.catalogKey
           ? withOfflineCopy(`catalog:${book.catalogKey}`, () =>
@@ -8571,7 +8573,7 @@ export function App() {
             <span>
               Desenvolvido por <strong>Axyon Software House</strong>
               <span className="home-credit-sep" aria-hidden="true"> · </span>
-              <span className="home-credit-holder">{LEGAL_HOLDER}</span>
+              <span className="home-credit-holder">{LEGAL_HOLDER_NAME}</span>
             </span>
           </div>
         </footer>

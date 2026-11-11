@@ -43,8 +43,10 @@ export type Ebook = {
    * "catalog": catálogo público curado; o texto vem de `/api/v1/catalog/books/{key}/text`.
    */
   source?: "gutenberg" | "local" | "community" | "catalog";
-  /** Caminho do texto no Storage do Supabase (livros da comunidade). */
+  /** Caminho do texto no armazenamento (livros da comunidade salvos antes do S9 e moderação). */
   communityPath?: string;
+  /** Id do envio (livros da comunidade): o texto é pedido por id. */
+  communityId?: string;
   /** Chave do livro no catálogo público (`cat:<uuid>`). */
   catalogKey?: string;
   /** Quando o admin aprovou (livros da comunidade): até 7 dias depois aparece em "Novidades". */

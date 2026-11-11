@@ -73,6 +73,11 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
+      # Cota de IA. Sem estas linhas o .env não chega ao container e o teto global fica em 0
+      # (sem teto). Produção usa AI_DAILY_GLOBAL_LIMIT=500 desde 10/11/2026 (revisão 09/11, S10).
+      AI_DAILY_MESSAGE_LIMIT: ${AI_DAILY_MESSAGE_LIMIT:-50}
+      AI_DAILY_GLOBAL_LIMIT: ${AI_DAILY_GLOBAL_LIMIT:-0}
+      AI_PER_MINUTE_LIMIT: ${AI_PER_MINUTE_LIMIT:-6}
       # Assinatura (Stripe, modo real). Desligada por padrão: com BILLING_ENABLED=false a API
       # não cobra nem mostra paywall, mesmo com as chaves no .env.
       BILLING_ENABLED: ${BILLING_ENABLED:-false}

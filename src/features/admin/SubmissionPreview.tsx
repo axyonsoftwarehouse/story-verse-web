@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { SupabaseSession } from "../../lib/auth";
-import { fetchCommunityText, type Submission } from "../../lib/community";
+import { fetchCommunityBookText, type Submission } from "../../lib/community";
 
 const PREVIEW_CHARS = 30_000;
 
@@ -21,7 +21,11 @@ export function SubmissionPreview({
     let alive = true;
     setText(null);
     setError("");
-    fetchCommunityText(session, submission.text_path)
+    fetchCommunityBookText(session, {
+      id: `cm-${submission.id}`,
+      communityId: submission.id,
+      communityPath: submission.text_path,
+    })
       .then((result) => {
         if (alive) setText(result);
       })
@@ -31,7 +35,7 @@ export function SubmissionPreview({
     return () => {
       alive = false;
     };
-  }, [session, submission.text_path]);
+  }, [session, submission.id, submission.text_path]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
