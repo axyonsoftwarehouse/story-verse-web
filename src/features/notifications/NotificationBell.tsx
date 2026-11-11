@@ -18,8 +18,17 @@ function describe(n: AppNotification): { text: string; quote: string | null } {
   if (n.kind === "reply") return { text: `${n.actor_name} respondeu sua mensagem em ${n.group_name}`, quote };
   if (n.kind === "reaction") return { text: `${n.actor_name} reagiu ${n.emoji ?? ""} à sua mensagem em ${n.group_name}`, quote };
   if (n.kind === "follow") return { text: `${n.actor_name} começou a seguir você`, quote: null };
+  if (n.kind === "follow_request") return { text: `${n.actor_name} pediu para seguir você`, quote: null };
+  if (n.kind === "follow_accepted") return { text: `${n.actor_name} aceitou seu pedido para seguir`, quote: null };
   if (n.kind === "member_added") return { text: `${n.actor_name} adicionou você ao grupo ${n.group_name}`, quote: null };
   return { text: `${n.actor_name} entrou no grupo ${n.group_name}`, quote: null };
+}
+
+/** Para onde o aviso leva: pedido vai para a lista de pedidos; avisos de pessoa, para o perfil. */
+function notificationPath(n: AppNotification): string {
+  if (n.kind === "follow_request") return "/pessoas?aba=pedidos";
+  if (n.kind === "follow" || n.kind === "follow_accepted" || !n.group_id) return `/pessoas/${n.actor_id}`;
+  return `/grupos/${n.group_id}`;
 }
 
 /**
@@ -207,7 +216,7 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                         const { text, quote } = describe(n);
                         return (
                           <li key={n.id}>
-                            <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(n.kind === "follow" || !n.group_id ? `/pessoas/${n.actor_id}` : `/grupos/${n.group_id}`)}>
+                            <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(notificationPath(n))}>
                               <PersonFace id={n.actor_id} name={n.actor_name} avatar={n.actor_avatar} photo={n.actor_photo} size="sm" />
                               <span className="notif-text">
                                 <strong>{text}</strong>
