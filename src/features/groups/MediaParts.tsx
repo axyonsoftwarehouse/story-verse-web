@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { clock, mediaUrl } from "../../lib/chatMedia";
+import { mediaUrl } from "../../lib/chatMedia";
 import type { GroupMessage } from "../../lib/groups";
+import { AudioPlayer } from "./AudioPlayer";
 import { GIcon } from "./groupIcons";
 
 /** Endereço local da foto/áudio: a cópia do aparelho ou baixada agora; `null` = expirou. */
@@ -77,97 +78,9 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
   );
 }
 
-/** Áudio na conversa: tocar/pausar, barra de progresso (toque para pular) e tempo. */
+/** Áudio na conversa: o tocador com forma de onda; some quando o arquivo expirou. */
 export function ChatAudio({ message: m }: { message: GroupMessage }) {
   const { url, loading } = useMedia(m);
-  const audio = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [at, setAt] = useState(0);
-  /** Velocidade: 1× → 1,5× → 2× (narração longa no roleplay). */
-  const [rate, setRate] = useState(1);
-  const duration = (m.media_duration_ms ?? 0) / 1000;
-
-  useEffect(() => {
-    const el = audio.current;
-    if (!el) return;
-    const onTime = () => setAt(el.currentTime);
-    const onEnd = () => {
-      setPlaying(false);
-      setAt(0);
-    };
-    const onPause = () => setPlaying(false);
-    const onPlay = () => {
-      // Um áudio por vez, como no WhatsApp.
-      document.querySelectorAll<HTMLAudioElement>("audio.group-audio-el").forEach((other) => other !== el && other.pause());
-      setPlaying(true);
-    };
-    el.addEventListener("timeupdate", onTime);
-    el.addEventListener("ended", onEnd);
-    el.addEventListener("pause", onPause);
-    el.addEventListener("play", onPlay);
-    return () => {
-      el.removeEventListener("timeupdate", onTime);
-      el.removeEventListener("ended", onEnd);
-      el.removeEventListener("pause", onPause);
-      el.removeEventListener("play", onPlay);
-    };
-  }, [url]);
-
   if (!url && !loading) return <Expired kind="audio" />;
-  const total = duration || audio.current?.duration || 0;
-  const progress = total > 0 ? Math.min(100, (at / total) * 100) : 0;
-
-  return (
-    <span className="group-audio">
-      <button
-        type="button"
-        className="group-audio-play"
-        disabled={!url}
-        onClick={() => {
-          const el = audio.current;
-          if (!el) return;
-          if (el.paused) void el.play().catch(() => setPlaying(false));
-          else el.pause();
-        }}
-        aria-label={playing ? "Pausar o áudio" : "Tocar o áudio"}
-      >
-        {playing ? GIcon.pause : GIcon.play}
-      </button>
-      <span
-        className="group-audio-track"
-        role="slider"
-        tabIndex={0}
-        aria-label="Posição do áudio"
-        aria-valuemin={0}
-        aria-valuemax={Math.round(total)}
-        aria-valuenow={Math.round(at)}
-        onClick={(e) => {
-          const el = audio.current;
-          if (!el || !total) return;
-          const box = e.currentTarget.getBoundingClientRect();
-          el.currentTime = Math.max(0, Math.min(total, ((e.clientX - box.left) / box.width) * total));
-          setAt(el.currentTime);
-        }}
-      >
-        <span style={{ width: `${progress}%` }} />
-        <i style={{ left: `${progress}%` }} />
-      </span>
-      <small className="group-audio-time">{clock((playing || at > 0 ? at : total) * 1000)}</small>
-      <button
-        type="button"
-        className={`group-audio-rate ${rate !== 1 ? "is-on" : ""}`}
-        disabled={!url}
-        onClick={() => {
-          const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1;
-          setRate(next);
-          if (audio.current) audio.current.playbackRate = next;
-        }}
-        aria-label={`Velocidade ${String(rate).replace(".", ",")}x. Toque para mudar`}
-        title="Velocidade"
-      >
-        {String(rate).replace(".", ",")}×
-      </button>
-      {url ? <audio ref={audio} className="group-audio-el" src={url} preload="metadata" onLoadedMetadata={(e) => (e.currentTarget.playbackRate = rate)} /> : null}
-    </span>
-  );
+  return <AudioPlayer url={url} loading={loading} durationMs={m.media_duration_ms ?? 0} seed={m.id} label="áudio da mensagem" />;
 }
