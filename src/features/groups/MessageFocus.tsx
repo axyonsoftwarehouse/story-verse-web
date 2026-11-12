@@ -17,10 +17,12 @@ export function MessageFocus({
   mine,
   hideText,
   canDelete,
+  canEdit = false,
   onClose,
   onReact,
   onReply,
   onCopy,
+  onEdit,
   onDelete,
   onReport,
 }: {
@@ -31,10 +33,13 @@ export function MessageFocus({
   /** Spoiler ainda escondido para quem está vendo: não mostra o texto no destaque. */
   hideText: boolean;
   canDelete: boolean;
+  /** Roleplay: a própria mensagem de texto, ainda no prazo. */
+  canEdit?: boolean;
   onClose: () => void;
   onReact: (emoji: string) => void;
   onReply: () => void;
   onCopy: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
   onReport: () => void;
 }) {
@@ -94,7 +99,10 @@ export function MessageFocus({
         <div className="group-focus-bubble" style={{ "--hue": hueOf(m.author_id) } as CSSProperties}>
           {!mine ? <span className="group-author" style={{ color: `hsl(${hueOf(m.author_id)} 55% 70%)` }}>{m.author_name}</span> : null}
           <span className="group-text">{hideText ? "🙈 Spoiler" : m.body ? formatMessage(m.body) : m.media_kind === "image" ? "📷 Foto" : "🎤 Áudio"}</span>
-          <span className="group-meta">{messageTime(m.created_at)}</span>
+          <span className="group-meta">
+            {m.edited_at ? <span className="group-edited">editada · </span> : null}
+            {messageTime(m.created_at)}
+          </span>
         </div>
 
         {total > 0 ? (
@@ -127,6 +135,11 @@ export function MessageFocus({
           {!hideText && m.body ? (
             <button type="button" role="menuitem" onClick={onCopy}>
               Copiar {GIcon.copy}
+            </button>
+          ) : null}
+          {canEdit && onEdit ? (
+            <button type="button" role="menuitem" onClick={onEdit}>
+              Editar {GIcon.pencil}
             </button>
           ) : null}
           {!mine ? (

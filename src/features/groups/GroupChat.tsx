@@ -19,7 +19,9 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { useStoredSession } from "../auth/useStoredSession";
 import {
   applyReaction,
+  canEditMessage,
   deleteMessage,
+  editMessage,
   getGroup,
   joinGroup,
   listMessages,
@@ -136,6 +138,10 @@ export function GroupChat() {
   const [spoilerOn, setSpoilerOn] = useState(false);
   const [spoiler, setSpoiler] = useState("");
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
+  /** Roleplay: mensagem minha sendo corrigida (o texto dela vai para o campo). */
+  const [editing, setEditing] = useState<GroupMessage | null>(null);
+  /** O que estava sendo escrito antes de começar a editar (volta ao cancelar). */
+  const draftBeforeEdit = useRef("");
   const [infoOpen, setInfoOpen] = useState(false);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
   const [menuFor, setMenuFor] = useState<{ message: GroupMessage; anchor: DOMRect } | null>(null);
@@ -225,6 +231,9 @@ export function GroupChat() {
             if (!stickToBottom.current && !messagesRef.current.some((m) => m.id === event.data.id)) setNewBelow((n) => n + 1);
             if (g) notifyGroupMessage(event.data, g.name, g.muted);
           }
+        } else if (event.type === "message_edited" && event.data.group_id === id) {
+          const edited = event.data;
+          setMessages((cur) => cur.map((m) => (m.id === edited.id ? { ...m, body: edited.body, edited_at: edited.edited_at } : m)));
         } else if (event.type === "message_deleted" && event.data.groupId === id) {
           setMessages((cur) => cur.map((m) => (m.id === event.data.id ? { ...m, deleted: true, body: null } : m)));
         } else if (event.type === "reaction" && event.data.groupId === id) {
@@ -484,10 +493,52 @@ export function GroupChat() {
   }
 
 
+  function startEdit(m: GroupMessage) {
+    setMenuFor(null);
+    if (!editing) draftBeforeEdit.current = input;
+    setEditing(m);
+    setReplyTo(null);
+    setSpoilerOn(false);
+    setInput(m.body ?? "");
+    window.setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setInput(draftBeforeEdit.current);
+    draftBeforeEdit.current = "";
+  }
+
+  /** Salva a correção: aparece na hora e volta atrás se a API recusar. */
+  async function saveEdit(m: GroupMessage, text: string) {
+    const before = { body: m.body, edited_at: m.edited_at ?? null };
+    setEditing(null);
+    setInput(draftBeforeEdit.current);
+    draftBeforeEdit.current = "";
+    if (text === m.body) return;
+    setMessages((cur) => cur.map((x) => (x.id === m.id ? { ...x, body: text, edited_at: new Date().toISOString() } : x)));
+    try {
+      const saved = await editMessage(m.id, text);
+      setMessages((cur) => cur.map((x) => (x.id === m.id ? { ...x, body: saved.body, edited_at: saved.edited_at } : x)));
+    } catch (err) {
+      setMessages((cur) => cur.map((x) => (x.id === m.id ? { ...x, ...before } : x)));
+      setError(message(err));
+    }
+  }
+
   function submit(e?: FormEvent) {
     e?.preventDefault();
     const text = input.trim();
     if (!text || !session) return;
+    if (editing) {
+      void saveEdit(editing, text);
+      return;
+    }
     const draft: GroupMessage = {
       id: Number.MAX_SAFE_INTEGER,
       group_id: id,
@@ -524,6 +575,11 @@ export function GroupChat() {
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape" && editing) {
+      e.preventDefault();
+      cancelEdit();
+      return;
+    }
     // Enter quebra a linha (como no WhatsApp do celular); Ctrl+Enter (ou ⌘+Enter) envia pelo teclado.
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -912,6 +968,7 @@ export function GroupChat() {
                                 </button>
                               ) : (
                                 <>
+                                  {m.edited_at && !m.deleted ? <span className="group-edited">editada · </span> : null}
                                   {m.pending ? "enviando…" : messageTime(m.created_at)}
                                   {mine ? <StatusTicks status={messageStatus(m, group.members ?? [], me)} /> : null}
                                 </>
@@ -998,6 +1055,17 @@ export function GroupChat() {
 
           <form className="group-composer" onSubmit={submit}>
             <div className="group-composer-inner">
+              {editing ? (
+                <div className="group-replying group-editing">
+                  {GIcon.pencil}
+                  <span>
+                    <strong>Editando mensagem</strong> {messagePreview(editing, 70)}
+                  </span>
+                  <button type="button" className="group-icon-btn" aria-label="Cancelar edição" onClick={cancelEdit}>
+                    {GIcon.close}
+                  </button>
+                </div>
+              ) : null}
               {replyTo ? (
                 <div className="group-replying">
                   {GIcon.reply}
@@ -1127,13 +1195,18 @@ export function GroupChat() {
                   </button>
                 </div>
                 {/* Campo vazio: o botão vira microfone (como no WhatsApp). */}
-                {!input.trim() && canRecord && !spoilerOn ? (
+                {!input.trim() && canRecord && !spoilerOn && !editing ? (
                   <button type="button" className="group-send is-mic" onClick={() => setRecording(true)} aria-label="Gravar áudio" title="Gravar áudio">
                     {GIcon.mic}
                   </button>
                 ) : (
-                  <button type="submit" className="group-send" disabled={!input.trim() || (spoilerOn && !spoiler)} aria-label="Enviar">
-                    {GIcon.send}
+                  <button
+                    type="submit"
+                    className="group-send"
+                    disabled={!input.trim() || (spoilerOn && !spoiler)}
+                    aria-label={editing ? "Salvar edição" : "Enviar"}
+                  >
+                    {editing ? GIcon.check : GIcon.send}
                   </button>
                 )}
               </div>
@@ -1154,6 +1227,8 @@ export function GroupChat() {
             menuFor.message.spoiler_chapter !== null && menuFor.message.author_id !== me && chapter <= menuFor.message.spoiler_chapter && !revealed.has(menuFor.message.id)
           }
           canDelete={menuFor.message.author_id === me || manager}
+          canEdit={canEditMessage(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message, me, roleplay)}
+          onEdit={() => startEdit(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message)}
           onClose={() => setMenuFor(null)}
           onReact={(emoji) => void toggleReaction(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message, emoji)}
           onReply={() => {
