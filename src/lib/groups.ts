@@ -174,8 +174,34 @@ export const myGroups = () => call<Group[]>("/api/v1/groups");
 export const publicGroups = (opts: { q?: string; book?: string } = {}) =>
   call<Group[]>(`/api/v1/groups${q({ scope: "public", q: opts.q, book: opts.book })}`);
 export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
-/** Quem administra adiciona uma pessoa pelo e-mail da conta dela. */
-export const addMemberByEmail = (id: string, email: string) => call<Group>(`/api/v1/groups/${id}/members`, { method: "POST", body: { email } });
+/** Pessoa achada para convidar: diz se já está no grupo ou se já tem convite esperando. */
+export type InviteCandidate = { id: string; name: string; avatar: string; photo?: string | null; is_member: boolean; invited: boolean };
+/** Convite esperando resposta, visto por quem administra o grupo. */
+export type PendingInvite = { user_id: string; name: string; avatar: string; photo?: string | null; invited_by_name: string; created_at: string };
+/** Convite que a conta recebeu. */
+export type ReceivedInvite = {
+  group_id: string;
+  group_name: string;
+  group_photo: string | null;
+  visibility: "public" | "private";
+  mode: "chat" | "roleplay";
+  book_title: string | null;
+  member_count: number;
+  invited_by: string;
+  invited_by_name: string;
+  invited_by_avatar: string;
+  invited_by_photo?: string | null;
+  created_at: string;
+};
+
+/** Quem administra procura pelo nome (ou e-mail exato) quem convidar. Menos de 2 letras: lista vazia. */
+export const inviteCandidates = (id: string, query: string) => call<InviteCandidate[]>(`/api/v1/groups/${id}/invite-candidates${q({ q: query })}`);
+export const groupInvites = (id: string) => call<PendingInvite[]>(`/api/v1/groups/${id}/invites`);
+export const invitePerson = (id: string, userId: string) => call<PendingInvite[]>(`/api/v1/groups/${id}/invites`, { method: "POST", body: { userId } });
+export const cancelInvite = (id: string, userId: string) => call<void>(`/api/v1/groups/${id}/invites/${userId}`, { method: "DELETE" });
+export const myInvites = () => call<ReceivedInvite[]>("/api/v1/groups/invites");
+export const acceptInvite = (groupId: string) => call<Group>(`/api/v1/groups/invites/${groupId}/accept`, { method: "POST" });
+export const declineInvite = (groupId: string) => call<void>(`/api/v1/groups/invites/${groupId}`, { method: "DELETE" });
 /** Roleplay: encerra e transforma a história em livro (só o dono; a IA escreve em segundo plano). */
 export const startRoleplayBook = (id: string) => call<RoleplayBook>(`/api/v1/groups/${id}/book`, { method: "POST" });
 /** Roleplay: o livro da história (status e texto). 404 enquanto não foi encomendado. */
