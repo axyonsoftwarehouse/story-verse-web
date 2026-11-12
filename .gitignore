@@ -11,3 +11,6 @@ supabase/.temp
 .claude/
 .dependency-resolve/
 qa-runs/
+
+# Mockups do brainstorming (superpowers)
+.superpowers/
