@@ -4597,3 +4597,175 @@ button.group-rp-character small {
 .group-edited {
   font-style: italic;
 }
+
+/* ==========================================================================
+ * Convites para grupos: quem administra procura pelo nome e convida; quem recebe aceita ou
+ * recusa no topo de "Meus grupos".
+ * ========================================================================== */
+
+.group-invite-people .btn.is-compact,
+.groups-invite-actions .btn.is-compact {
+  min-height: 0;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.group-invite-hint {
+  color: var(--muted);
+}
+
+.group-invite-subtitle {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.group-invite-list {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-invite-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.35rem 0;
+}
+
+.group-invite-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.group-invite-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.group-invite-state {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.group-invite-state.is-sent {
+  color: var(--accent);
+}
+
+.group-invite-state svg {
+  width: 14px;
+  height: 14px;
+}
+
+.group-invite-list .group-text-btn {
+  flex-shrink: 0;
+}
+
+.groups-invites {
+  margin: 0 0 1rem;
+}
+
+.groups-invites-title {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.groups-invites-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groups-invite-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 1rem 0.8rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.groups-invite-body {
+  display: grid;
+  flex: 1;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.groups-invite-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groups-invite-from {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.groups-invite-from > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groups-invite-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted);
+}
+
+.groups-invite-meta svg {
+  width: 13px;
+  height: 13px;
+}
+
+.groups-invite-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+
+@media (max-width: 520px) {
+  .groups-invite-card {
+    flex-wrap: wrap;
+  }
+
+  .groups-invite-actions {
+    width: 100%;
+  }
+
+  .groups-invite-actions .btn {
+    flex: 1;
+  }
+}
