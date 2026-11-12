@@ -100,6 +100,8 @@ export type GroupMessage = {
   deleted: boolean;
   hidden: boolean;
   reactions: Reaction[];
+  /** Roleplay: quando o autor corrigiu o texto pela última vez ("editada"). */
+  edited_at?: string | null;
   /** Foto ou áudio. O arquivo vence em 24 h no servidor; cada celular guarda a própria cópia. */
   media_kind?: MediaKind | null;
   /** "narrator": fala do narrador (IA) num roleplay. */
@@ -305,6 +307,29 @@ export const sendMessage = (
   id: string,
   body: { body: string; clientId: string; spoilerChapter?: number | null; replyTo?: number | null },
 ) => call<GroupMessage>(`/api/v1/groups/${id}/messages`, { method: "POST", body });
+/** Roleplay: quanto tempo depois de enviar ainda dá para editar (a API confere o mesmo). */
+export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Dá para editar a mensagem? Só no roleplay, a própria mensagem de texto (não do narrador, nem
+ * foto ou áudio), já gravada e até 24 h depois. Denúncia e livro pronto a API recusa.
+ */
+export function canEditMessage(m: GroupMessage, me: string, roleplay: boolean, now = Date.now()): boolean {
+  return (
+    roleplay &&
+    m.author_id === me &&
+    m.kind !== "narrator" &&
+    !m.media_kind &&
+    Boolean(m.body) &&
+    !m.deleted &&
+    !m.pending &&
+    !m.failed &&
+    now - new Date(m.created_at).getTime() < EDIT_WINDOW_MS
+  );
+}
+
+export const editMessage = (messageId: number, body: string) =>
+  call<GroupMessage>(`/api/v1/groups/messages/${messageId}`, { method: "PATCH", body: { body } });
 export const deleteMessage = (messageId: number) =>
   call<void>(`/api/v1/groups/messages/${messageId}`, { method: "DELETE" });
 export const react = (messageId: number, emoji: string, add: boolean) =>
@@ -333,6 +358,7 @@ export type StreamEvent =
   | { type: "ready" }
   | { type: "message"; data: GroupMessage }
   | { type: "message_deleted"; data: { groupId: string; id: number } }
+  | { type: "message_edited"; data: GroupMessage }
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
   | { type: "group"; data: { groupId: string; type: string; userId?: string } }
   | { type: "typing"; data: { groupId: string; userId: string } }

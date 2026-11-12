@@ -4588,3 +4588,12 @@ button.group-rp-character small {
     animation: none;
   }
 }
+
+/* ==========================================================================
+ * Roleplay: editar a própria mensagem. A barra "Editando" usa o visual da resposta; a
+ * mensagem corrigida mostra "editada" junto da hora.
+ * ========================================================================== */
+
+.group-edited {
+  font-style: italic;
+}
