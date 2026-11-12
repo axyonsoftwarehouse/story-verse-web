@@ -20,13 +20,16 @@ function describe(n: AppNotification): { text: string; quote: string | null } {
   if (n.kind === "follow") return { text: `${n.actor_name} começou a seguir você`, quote: null };
   if (n.kind === "follow_request") return { text: `${n.actor_name} pediu para seguir você`, quote: null };
   if (n.kind === "follow_accepted") return { text: `${n.actor_name} aceitou seu pedido para seguir`, quote: null };
+  if (n.kind === "group_invite") return { text: `${n.actor_name} convidou você para o grupo ${n.group_name}`, quote: null };
   if (n.kind === "member_added") return { text: `${n.actor_name} adicionou você ao grupo ${n.group_name}`, quote: null };
   return { text: `${n.actor_name} entrou no grupo ${n.group_name}`, quote: null };
 }
 
-/** Para onde o aviso leva: pedido vai para a lista de pedidos; avisos de pessoa, para o perfil. */
+/** Para onde o aviso leva: pedido vai para a lista de pedidos, convite para os grupos; avisos de pessoa, para o perfil. */
 function notificationPath(n: AppNotification): string {
   if (n.kind === "follow_request") return "/pessoas?aba=pedidos";
+  // Convite: a resposta fica no topo de "Meus grupos" (o grupo ainda não abre).
+  if (n.kind === "group_invite") return "/grupos";
   if (n.kind === "follow" || n.kind === "follow_accepted" || !n.group_id) return `/pessoas/${n.actor_id}`;
   return `/grupos/${n.group_id}`;
 }
