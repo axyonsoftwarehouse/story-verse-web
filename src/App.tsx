@@ -16,7 +16,7 @@ import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
 import { RouteLoading, ShopPage } from "./lazyRoutes";
 import { ReaderCount } from "./components/ReaderCount";
-import { ApiHttpError } from "./lib/backend";
+import { ApiHttpError, apiEnabled } from "./lib/backend";
 import { disablePush } from "./lib/push";
 import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
@@ -78,8 +78,8 @@ import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
 import { GoldDust } from "./components/GoldDust";
 import { publishShowcase } from "./lib/social";
-import type { Cosmetics } from "./lib/shop";
-import { ownProfileCover, useOwnProfileExtras } from "./features/shop/useOwnProfileExtras";
+import { equipShopItem, type Cosmetics } from "./lib/shop";
+import { clearOwnShopCover, ownProfileCover, useOwnProfileExtras } from "./features/shop/useOwnProfileExtras";
 import { FaceFrame } from "./features/groups/GroupParts";
 import { PersonName } from "./features/shop/PersonName";
 import { BadgeShelf } from "./features/shop/BadgeShelf";
@@ -1751,7 +1751,7 @@ export function PersonAvatar({
 type ImageDraft = { url: string | null; blob: Blob | null };
 
 /** Janela "Editar perfil": capa, foto, nome, biografia e avatar, com prévia e salvar na própria janela. */
-function EditProfileModal({
+export function EditProfileModal({
   session,
   onSaved,
   onClose,
@@ -1837,7 +1837,17 @@ function EditProfileModal({
       };
       const photoUrl = await imageUrl("avatar", photo, savedPhoto);
       const coverUrl = await imageUrl("cover", cover, savedCover);
-      onSaved(await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl, bio: cleanBio }));
+      const saved = await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl, bio: cleanBio });
+      // Capa enviada nova: a comprada sai de cena para a enviada aparecer (a pessoa pode reequipar a comprada na loja).
+      if (apiEnabled && cover.blob) {
+        try {
+          await equipShopItem(session, "cover", null);
+          clearOwnShopCover(session.user.id);
+        } catch {
+          /* o perfil já foi salvo; a capa comprada continua equipada */
+        }
+      }
+      onSaved(saved);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");

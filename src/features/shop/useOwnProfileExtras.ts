@@ -8,6 +8,19 @@ type State = { loaded: boolean; extras: OwnProfileExtras | null };
 
 /** Último resultado por conta: reabrir o perfil não pisca a capa enquanto busca de novo. */
 const cache = new Map<string, OwnProfileExtras>();
+const listeners = new Set<(userId: string, extras: OwnProfileExtras) => void>();
+
+/**
+ * A pessoa enviou uma capa própria e a comprada foi desequipada: tira a capa comprada do que está
+ * guardado e avisa os perfis abertos, para a enviada aparecer sem piscar a comprada de novo.
+ */
+export function clearOwnShopCover(userId: string): void {
+  const current = cache.get(userId);
+  if (!current) return;
+  const next: OwnProfileExtras = { ...current, shop_cover: null };
+  cache.set(userId, next);
+  listeners.forEach((listener) => listener(userId, next));
+}
 
 /**
  * Enfeites da loja do próprio perfil (moldura, insígnia, cor, capa comprada e estante), do mesmo
@@ -19,6 +32,10 @@ export function useOwnProfileExtras(userId: string): State {
   useEffect(() => {
     if (!apiEnabled) return;
     let alive = true;
+    const listener = (id: string, extras: OwnProfileExtras) => {
+      if (id === userId && alive) setState({ loaded: true, extras });
+    };
+    listeners.add(listener);
     getPerson(userId)
       .then((p) => {
         const extras: OwnProfileExtras = { cosmetics: p.cosmetics, shop_cover: p.shop_cover, badge_shelf: p.badge_shelf };
@@ -30,6 +47,7 @@ export function useOwnProfileExtras(userId: string): State {
       });
     return () => {
       alive = false;
+      listeners.delete(listener);
     };
   }, [userId]);
   return state;

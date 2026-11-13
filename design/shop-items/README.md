@@ -23,7 +23,7 @@ Regras de desenho:
 
 ## Itens
 
-A tabela abaixo é a fonte da migração V56 (Task 4). `image_url`/`animated_url` usam `-` quando vazios;
+A tabela abaixo é a fonte da migração `V57__shop_first_batch.sql` da API (Task 4). `image_url`/`animated_url` usam `-` quando vazios;
 `colors` é a lista de cores separadas por vírgula (só para `name_color`). O teste
 `src/features/shop/firstBatch.test.ts` confere esta tabela e os arquivos.
 

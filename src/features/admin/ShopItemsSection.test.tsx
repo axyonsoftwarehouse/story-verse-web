@@ -118,6 +118,15 @@ describe("ShopItemsSection", () => {
     );
   });
 
+  it("o aviso de contraste nunca arredonda para cima até o mínimo (4,46 não vira 4,5)", async () => {
+    const dialog = await openNewItem();
+    fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "name_color" } });
+    fireEvent.change(within(dialog).getByLabelText("Cor 1"), { target: { value: "#7d7d7d" } });
+    const alert = within(dialog).getByRole("alert");
+    expect(alert).toHaveTextContent("4,46:1");
+    expect(alert).not.toHaveTextContent("4,5:1; mínimo");
+  });
+
   it("cor sem contraste mostra aviso e bloqueia Salvar", async () => {
     const dialog = await openNewItem();
     fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "name_color" } });

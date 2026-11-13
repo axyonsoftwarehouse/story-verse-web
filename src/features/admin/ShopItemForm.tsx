@@ -409,7 +409,7 @@ export function ShopItemForm({
                       <div className="auth-error" role="alert">
                         {lowContrast.map((color) => (
                           <p key={color}>
-                            {color} tem pouco contraste com o fundo escuro ({worstNameContrast(color).toFixed(1).replace(".", ",")}:1;
+                            {color} tem pouco contraste com o fundo escuro ({(Math.floor(worstNameContrast(color) * 100) / 100).toFixed(2).replace(".", ",")}:1;
                             mínimo 4,5:1). Escolha uma cor mais clara.
                           </p>
                         ))}
