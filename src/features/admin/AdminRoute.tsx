@@ -17,6 +17,7 @@ import { GroupReports } from "./GroupReports";
 import { MetricsSection } from "./MetricsSection";
 import { OverviewSection } from "./OverviewSection";
 import { SanctionsSection } from "./SanctionsSection";
+import { ShopItemsSection } from "./ShopItemsSection";
 import { SiteSection } from "./SiteSection";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
 import "./admin.css";
@@ -308,6 +309,14 @@ export function AdminRoute() {
               element={
                 <RequireSection id="billing" roles={allowed}>
                   <BillingSection session={session} />
+                </RequireSection>
+              }
+            />
+            <Route
+              path="loja"
+              element={
+                <RequireSection id="shop" roles={allowed}>
+                  <ShopItemsSection session={session} />
                 </RequireSection>
               }
             />

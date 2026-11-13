@@ -21,6 +21,7 @@ describe("seções do admin", () => {
       "metrics",
       "site",
       "billing",
+      "shop",
       "audit",
     ]);
     expect(visibleSections(["support", "moderator"]).map((s) => s.id)).toEqual([
