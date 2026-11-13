@@ -35,8 +35,6 @@ export function PersonFace({
   animate?: boolean;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
-  const frame = cosmetics?.frame ?? null;
-  const frameSrc = frame ? shopAssetUrl(animate && frame.animated && !prefersReducedMotion() ? frame.animated : frame.image) : "";
   const def = findAvatar(avatar);
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
   const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`) || photo.startsWith("blob:")) && broken !== photo);
@@ -49,10 +47,20 @@ export function PersonFace({
       ) : (
         (name.trim().charAt(0) || "?").toUpperCase()
       )}
-      {frameSrc ? <img className="face-frame" src={frameSrc} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+      <FaceFrame cosmetics={cosmetics} animate={animate} />
       {online ? <span className="group-online" /> : null}
     </span>
   );
+}
+
+/**
+ * Moldura comprada desenhada sobre um rosto redondo (o pai precisa de `position: relative`; ver
+ * cosmetics.css). A animada só toca com `animate` e sem "reduzir movimento".
+ */
+export function FaceFrame({ cosmetics, animate = false }: { cosmetics?: Cosmetics | null; animate?: boolean }) {
+  const frame = cosmetics?.frame ?? null;
+  const src = frame ? shopAssetUrl(animate && frame.animated && !prefersReducedMotion() ? frame.animated : frame.image) : "";
+  return src ? <img className="face-frame" src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null;
 }
 
 /** Foto do grupo; sem foto (ou se não carregar), a inicial num degradê com a cor do grupo. */

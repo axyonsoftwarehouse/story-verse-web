@@ -2,6 +2,7 @@ import type { SupabaseSession } from "./auth";
 import { recentReadingPages } from "./readingPages";
 import { recentReadingSeconds } from "./readingStats";
 import { rpc } from "./rpc";
+import type { Cosmetics } from "./shop";
 
 /**
  * Ranking semanal de leitores (Supabase): o app envia os minutos lidos por dia e o banco soma a
@@ -17,6 +18,8 @@ export type RankEntry = {
   photo: string | null;
   minutes: number;
   is_me: boolean | null;
+  /** Moldura, insígnia e cor de nome equipadas na loja. */
+  cosmetics?: Cosmetics | null;
 };
 
 export type WeeklyAward = { week_start: string; place: 1 | 2 | 3; minutes: number; diamonds: number };

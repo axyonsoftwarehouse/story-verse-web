@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { PersonFace } from "../groups/GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "../groups/groupIcons";
 import { errorText, follow, followLabel, PEOPLE_PAGE, peopleSuggestions, relationOf, unfollow, type Person, type PersonProfile } from "../../lib/social";
 import { TransitionLink } from "../../components/TransitionLink";
@@ -122,10 +123,10 @@ export function PersonRow({
   return (
     <div className="people-row">
       <TransitionLink className="people-row-main" to={`/pessoas/${person.id}`}>
-        <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} />
+        <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} cosmetics={person.cosmetics} />
         <span className="people-row-text">
           <strong>
-            {person.name}
+            <PersonName name={person.name} cosmetics={person.cosmetics} />
             {person.id === me ? <small className="people-you"> (você)</small> : null}
           </strong>
           <span className="people-row-meta">
@@ -331,8 +332,10 @@ export function SuggestionsStrip({
           {shown.map((p, i) => (
             <li key={p.id} className="people-strip-card" style={{ "--i": i } as React.CSSProperties}>
               <TransitionLink className="people-strip-person" to={`/pessoas/${p.id}`}>
-                <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} />
-                <strong>{p.name}</strong>
+                <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} cosmetics={p.cosmetics} />
+                <strong>
+                  <PersonName name={p.name} cosmetics={p.cosmetics} />
+                </strong>
                 <small>
                   {p.follows_me
                     ? "Segue você"

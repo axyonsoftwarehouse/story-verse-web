@@ -16,7 +16,7 @@ import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
 import { RouteLoading, ShopPage } from "./lazyRoutes";
 import { ReaderCount } from "./components/ReaderCount";
-import { ApiHttpError } from "./lib/backend";
+import { ApiHttpError, apiEnabled } from "./lib/backend";
 import { disablePush } from "./lib/push";
 import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
@@ -77,7 +77,11 @@ import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
 import { GoldDust } from "./components/GoldDust";
-import { publishShowcase } from "./lib/social";
+import { getPerson, publishShowcase, type PersonProfile } from "./lib/social";
+import { profileCoverUrl, type Cosmetics } from "./lib/shop";
+import { FaceFrame } from "./features/groups/GroupParts";
+import { PersonName } from "./features/shop/PersonName";
+import { BadgeShelf } from "./features/shop/BadgeShelf";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
 import { useNavCrowded } from "./lib/useNavCrowded";
@@ -1683,7 +1687,7 @@ function metaString(user: SupabaseUser, key: string): string | null {
 }
 
 /** Foto enviada, senão o avatar pronto, senão a inicial do nome sobre a cor da conta. */
-function UserAvatar({ user, className }: { user: SupabaseUser; className: string }) {
+function UserAvatar({ user, className, cosmetics, animate }: { user: SupabaseUser; className: string; cosmetics?: Cosmetics | null; animate?: boolean }) {
   return (
     <PersonAvatar
       id={user.id}
@@ -1691,6 +1695,8 @@ function UserAvatar({ user, className }: { user: SupabaseUser; className: string
       avatar={user.user_metadata?.avatar}
       photo={metaString(user, "photo")}
       className={className}
+      cosmetics={cosmetics}
+      animate={animate}
     />
   );
 }
@@ -1702,30 +1708,40 @@ function PersonAvatar({
   avatar: avatarId,
   photo,
   className,
+  cosmetics,
+  animate = false,
 }: {
   id: string;
   name: string;
   avatar: unknown;
   photo: string | null;
   className: string;
+  /** Moldura da loja sobre o rosto (ver cosmetics.css: `.has-frame`). */
+  cosmetics?: Cosmetics | null;
+  /** Moldura animada: só no perfil. */
+  animate?: boolean;
 }) {
   const avatar = findAvatar(avatarId);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [photo]);
+  const framed = cosmetics?.frame ? " has-frame" : "";
+  const frame = <FaceFrame cosmetics={cosmetics} animate={animate} />;
   if (photo && !broken) {
     return (
-      <span className={`${className} has-photo`} aria-hidden="true">
+      <span className={`${className} has-photo${framed}`} aria-hidden="true">
         <img src={photo} alt="" loading="lazy" onError={() => setBroken(true)} />
+        {frame}
       </span>
     );
   }
   return (
     <span
-      className={`${className} ${avatar ? "has-art" : ""}`}
+      className={`${className} ${avatar ? "has-art" : ""}${framed}`}
       style={{ "--c": avatar?.color ?? profileColor(id) } as React.CSSProperties}
       aria-hidden="true"
     >
       {avatar ? <AvatarArt avatar={avatar} /> : name.charAt(0).toUpperCase()}
+      {frame}
     </span>
   );
 }
@@ -3513,12 +3529,14 @@ function RankingPage({
                     {e ? (
                       <>
                         <span className="podium-avatar" data-gift-to={e.user_id}>
-                          <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" />
+                          <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" cosmetics={e.cosmetics} />
                           <span className="podium-medal" aria-hidden="true">
                             {PLACE_MEDALS[place as 1 | 2 | 3]}
                           </span>
                         </span>
-                        <strong className="podium-name">{e.is_me ? "Você" : e.name}</strong>
+                        <strong className="podium-name">
+                          <PersonName name={e.is_me ? "Você" : e.name} cosmetics={e.cosmetics} />
+                        </strong>
                         <span className="podium-minutes">{formatMinutes(e.minutes)}</span>
                         {!e.is_me && profile && current ? (
                           <button
@@ -3636,7 +3654,7 @@ function RankingPage({
   );
 }
 
-function RankingRow({
+export function RankingRow({
   entry,
   giftsReceived,
   onGift,
@@ -3648,8 +3666,10 @@ function RankingRow({
   return (
     <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`} data-gift-to={entry.user_id}>
       <span className="ranking-place">{ordinal(entry.place)}</span>
-      <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" />
-      <span className="ranking-name">{entry.is_me ? `${entry.name} (você)` : entry.name}</span>
+      <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" cosmetics={entry.cosmetics} />
+      <span className="ranking-name">
+        <PersonName name={entry.is_me ? `${entry.name} (você)` : entry.name} cosmetics={entry.cosmetics} />
+      </span>
       <span className="ranking-actions">
         {giftsReceived > 0 ? (
           <span className="gift-count" title="Presentes recebidos nesta semana">
@@ -4277,6 +4297,25 @@ function ProfilePage({
   onOpenShelf?: () => void;
 }) {
   const user = session.user;
+  /**
+   * Enfeites da loja (moldura, insígnia, cor, capa comprada e estante): vêm do mesmo perfil público
+   * que os outros veem. Sem a API ou sem a liberação da comunidade, o perfil fica como antes.
+   */
+  const [shopProfile, setShopProfile] = useState<Pick<PersonProfile, "cosmetics" | "shop_cover" | "badge_shelf"> | null>(null);
+  useEffect(() => {
+    if (!apiEnabled) return;
+    let alive = true;
+    getPerson(user.id)
+      .then((p) => alive && setShopProfile(p))
+      .catch(() => {
+        // Enfeite: sem os dados da loja, fica a capa enviada e o avatar sem moldura.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user.id]);
+  // A foto de capa enviada vem da sessão (atualiza na hora ao editar); a comprada, do perfil.
+  const coverUrl = profileCoverUrl(shopProfile?.shop_cover, metaString(user, "cover"));
   const [diamonds, setDiamonds] = useState<number | null>(null);
   const [giftSummary, setGiftSummary] = useState<GiftSummary | null>(null);
   const [receivedGifts, setReceivedGifts] = useState<ReceivedGift[]>([]);
@@ -4596,23 +4635,25 @@ function ProfilePage({
       <>
 
       <header
-        className={`profile-hero ${metaString(user, "cover") ? "has-cover" : ""}`}
+        className={`profile-hero ${coverUrl ? "has-cover" : ""}`}
       >
         {/* Capa: faixa dentro do cartão (fora da borda), que se dissolve no fundo. */}
-        {metaString(user, "cover") ? (
+        {coverUrl ? (
           <div
             className="profile-cover"
-            style={{ backgroundImage: `url("${metaString(user, "cover")}")` } as React.CSSProperties}
+            style={{ backgroundImage: `url("${coverUrl}")` } as React.CSSProperties}
             aria-hidden="true"
           />
         ) : null}
         <div className="profile-hero-glow" style={{ "--c": chosenAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
         <button type="button" className="profile-avatar-btn" onClick={() => setEditOpen(true)} aria-label="Editar perfil">
-          <UserAvatar user={user} className="profile-avatar" />
+          <UserAvatar user={user} className="profile-avatar" cosmetics={shopProfile?.cosmetics} animate />
           <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
         </button>
         <div className="profile-id">
-          <h1>{name}</h1>
+          <h1>
+            <PersonName name={name} cosmetics={shopProfile?.cosmetics} />
+          </h1>
           {allBadges ? <span className="legend-seal">🏆 Lenda da leitura</span> : null}
           {metaString(user, "bio") ? (
             <p className="profile-bio">{metaString(user, "bio")}</p>
@@ -4697,6 +4738,16 @@ function ProfilePage({
           </div>
         ) : null}
       </section>
+
+      {shopProfile?.badge_shelf?.length ? (
+        <section className="shelf">
+          <div className="shelf-head">
+            <h2>Insígnias</h2>
+            <p>As insígnias da loja que você tem.</p>
+          </div>
+          <BadgeShelf items={shopProfile.badge_shelf} />
+        </section>
+      ) : null}
 
       <section className="shelf">
         <div className="shelf-head">

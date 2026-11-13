@@ -13,7 +13,7 @@ describe("PersonName", () => {
     const label = container.querySelector(".person-name-text");
     expect(label?.textContent).toBe(name);
     const badge = screen.getByAltText("Estrela") as HTMLImageElement;
-    expect(badge.className).toContain("person-badge");
+    expect(badge.className).toContain("person-name-badge");
     expect(badge.getAttribute("src")).toBe(`${window.location.origin}/shop/b-estrela.png`);
     expect(label?.nextElementSibling).toBe(badge);
   });

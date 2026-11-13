@@ -220,7 +220,7 @@ export function NotificationBell({ groups, activity }: { groups: Group[]; activi
                         return (
                           <li key={n.id}>
                             <button type="button" className={`notif-item ${n.read ? "" : "is-new"}`} onClick={() => go(notificationPath(n))}>
-                              <PersonFace id={n.actor_id} name={n.actor_name} avatar={n.actor_avatar} photo={n.actor_photo} size="sm" />
+                              <PersonFace id={n.actor_id} name={n.actor_name} avatar={n.actor_avatar} photo={n.actor_photo} size="sm" cosmetics={n.actor_cosmetics} />
                               <span className="notif-text">
                                 <strong>{text}</strong>
                                 {quote ? <small>“{quote}”</small> : null}

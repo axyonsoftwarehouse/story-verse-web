@@ -88,6 +88,17 @@ export function shopAssetUrl(url: string): string {
   return "";
 }
 
+/**
+ * Capa que o perfil mostra: a comprada (equipada) vence a foto enviada. Devolve um endereço seguro
+ * para `url("...")`, ou null sem capa.
+ */
+export function profileCoverUrl(shopCover: string | null | undefined, cover: string | null | undefined): string | null {
+  const bought = shopCover ? shopAssetUrl(shopCover) : "";
+  if (bought) return bought;
+  if (typeof cover === "string" && /^(https?:\/\/|blob:)/i.test(cover) && !/["\\\s]/.test(cover)) return cover;
+  return null;
+}
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 /** Estilo do nome com a cor comprada: uma cor lisa ou um degradê no texto. */

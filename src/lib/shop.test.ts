@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const rpc = vi.fn();
 vi.mock("./rpc", () => ({ rpc: (...a: unknown[]) => rpc(...a) }));
 
-import { buyShopItem, contrastRatio, equipShopItem, fetchShopCatalog, nameColorStyle, shopAssetUrl } from "./shop";
+import { buyShopItem, contrastRatio, equipShopItem, fetchShopCatalog, nameColorStyle, profileCoverUrl, shopAssetUrl } from "./shop";
 
 const session = {
   access_token: "t",
@@ -26,6 +26,23 @@ describe("shopAssetUrl", () => {
     expect(shopAssetUrl("//evil.test/a.png")).toBe("");
     expect(shopAssetUrl("http://x.test/a.png")).toBe("");
     expect(shopAssetUrl("/other.png")).toBe("");
+  });
+});
+
+describe("profileCoverUrl", () => {
+  it("a capa comprada vence a enviada", () => {
+    expect(profileCoverUrl("/shop/c-mar.webp", "https://cdn.example.com/c.jpg")).toBe(`${window.location.origin}/shop/c-mar.webp`);
+  });
+
+  it("sem capa comprada (ou com caminho inválido) usa a enviada", () => {
+    expect(profileCoverUrl(null, "https://cdn.example.com/c.jpg")).toBe("https://cdn.example.com/c.jpg");
+    expect(profileCoverUrl("javascript:x", "https://cdn.example.com/c.jpg")).toBe("https://cdn.example.com/c.jpg");
+  });
+
+  it("descarta endereço que quebraria o url() do CSS", () => {
+    expect(profileCoverUrl(null, 'https://x.com/a"); background: red')).toBeNull();
+    expect(profileCoverUrl(null, "data:image/png;base64,AAA")).toBeNull();
+    expect(profileCoverUrl(null, null)).toBeNull();
   });
 });
 

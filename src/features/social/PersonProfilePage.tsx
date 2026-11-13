@@ -7,6 +7,9 @@ import { useStoredSession } from "../auth/useStoredSession";
 import { hueOf, useGroupsGate } from "../groups/groupHelpers";
 import { GIcon } from "../groups/groupIcons";
 import { PersonFace } from "../groups/GroupParts";
+import { BadgeShelf } from "../shop/BadgeShelf";
+import { PersonName } from "../shop/PersonName";
+import { profileCoverUrl } from "../../lib/shop";
 import {
   booksOf,
   countLabel,
@@ -108,19 +111,24 @@ export function PersonProfilePage() {
     { key: "following", value: profile.following, label: "seguindo", tab: locked ? undefined : "seguindo" },
     { key: "connections", value: profile.connections, label: profile.connections === 1 ? "conexão" : "conexões" },
   ];
+  /** Capa e insígnias só com o conteúdo visível (a API também não manda quando está fechado). */
+  const contentVisible = profile.content_visible !== false;
+  const cover = contentVisible ? profileCoverUrl(profile.shop_cover, profile.cover) : null;
+  const shelf = contentVisible ? (profile.badge_shelf ?? []) : [];
 
   return (
     <div className="home groups-page people-page person-page" style={{ "--person-hue": hueOf(profile.id) } as CSSProperties}>
       {back}
 
-      <section className="person-hero">
+      <section className={`person-hero ${cover ? "has-cover" : ""}`}>
+        {cover ? <span className="person-cover" style={{ backgroundImage: `url("${cover}")` }} aria-hidden="true" /> : null}
         <span className="person-hero-glow" aria-hidden="true" />
         <span className="person-avatar">
-          <PersonFace id={profile.id} name={profile.name} avatar={profile.avatar} photo={profile.photo} size="lg" />
+          <PersonFace id={profile.id} name={profile.name} avatar={profile.avatar} photo={profile.photo} size="lg" cosmetics={profile.cosmetics} animate />
         </span>
         <div className="person-hero-text">
           <h1>
-            {profile.name}
+            <PersonName name={profile.name} cosmetics={profile.cosmetics} />
             {profile.is_me ? <small className="people-you"> (você)</small> : null}
           </h1>
           {profile.bio ? <p className="person-bio">{profile.bio}</p> : null}
@@ -236,6 +244,15 @@ export function PersonProfilePage() {
           <GiftsSection profile={profile} />
         </>
       )}
+
+      {shelf.length > 0 ? (
+        <section className="person-section" style={{ "--i": 5 } as CSSProperties}>
+          <h2 className="person-section-title">
+            Insígnias <small>{shelf.length}</small>
+          </h2>
+          <BadgeShelf items={shelf} />
+        </section>
+      ) : null}
 
       {locked ? null : (
         <>

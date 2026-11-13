@@ -357,6 +357,37 @@ button.person-stat.is-on {
   pointer-events: none;
 }
 
+/* Capa (comprada ou enviada): faixa no topo do cartão que se dissolve no fundo, como no perfil próprio. */
+.person-hero.has-cover {
+  padding-top: clamp(120px, 16vw, 170px);
+}
+
+.person-cover {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: -1;
+  height: clamp(150px, 20vw, 210px);
+  background-position: center;
+  background-size: cover;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  pointer-events: none;
+}
+
+.person-hero.has-cover .person-hero-glow {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .person-hero.has-cover {
+    padding-top: 96px;
+  }
+
+  .person-cover {
+    height: 150px;
+  }
+}
+
 /* Anel girando em volta do rosto. */
 .person-avatar {
   position: relative;

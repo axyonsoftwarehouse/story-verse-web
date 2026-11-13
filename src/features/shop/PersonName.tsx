@@ -11,7 +11,7 @@ export function PersonName({ name, cosmetics, className }: { name: string; cosme
         {name}
       </span>
       {badge && badgeSrc ? (
-        <img className="person-badge" src={badgeSrc} alt={badge.name} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+        <img className="person-name-badge" src={badgeSrc} alt={badge.name} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
       ) : null}
     </span>
   );

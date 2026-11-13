@@ -17,6 +17,7 @@ import { GroupForm } from "./GroupForm";
 import { RoleplayBookCard } from "./RoleplayBookCard";
 import { InvitePeople } from "./InvitePeople";
 import { GroupAvatar, PersonFace } from "./GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "./groupIcons";
 import { TransitionLink } from "../../components/TransitionLink";
 
@@ -253,17 +254,21 @@ export function GroupInfo({
                     photo={m.rp_character ? m.rp_photo : m.photo}
                     size="sm"
                     online={m.online && m.user_id !== me}
+                    cosmetics={m.cosmetics}
                   />
                   <span className="group-member-name">
                     {m.rp_character ? (
                       <>
-                        {m.rp_character} <small className="group-author-player">· {m.user_id === me ? `${m.name} (você)` : m.name}</small>
+                        {m.rp_character}{" "}
+                        <small className="group-author-player">
+                          · <PersonName name={m.user_id === me ? `${m.name} (você)` : m.name} cosmetics={m.cosmetics} />
+                        </small>
                       </>
                     ) : m.user_id === me ? (
-                      `${m.name} (você)`
+                      <PersonName name={`${m.name} (você)`} cosmetics={m.cosmetics} />
                     ) : (
                       <TransitionLink className="group-member-link" to={`/pessoas/${m.user_id}`} title={`Ver o perfil de ${m.name}`}>
-                        {m.name}
+                        <PersonName name={m.name} cosmetics={m.cosmetics} />
                       </TransitionLink>
                     )}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}

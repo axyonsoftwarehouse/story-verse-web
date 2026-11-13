@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { acceptInvite, declineInvite, type Group, type ReceivedInvite } from "../../lib/groups";
 import { GroupAvatar, PersonFace } from "./GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "./groupIcons";
 
 function message(error: unknown): string {
@@ -80,9 +81,19 @@ function InviteCard({ invite, onAccepted, onGone }: { invite: ReceivedInvite; on
           ) : null}
         </strong>
         <span className="groups-invite-from">
-          <PersonFace id={invite.invited_by} name={invite.invited_by_name} avatar={invite.invited_by_avatar} photo={invite.invited_by_photo} size="sm" />
+          <PersonFace
+            id={invite.invited_by}
+            name={invite.invited_by_name}
+            avatar={invite.invited_by_avatar}
+            photo={invite.invited_by_photo}
+            size="sm"
+            cosmetics={invite.invited_by_cosmetics}
+          />
           <span>
-            <strong>{invite.invited_by_name}</strong> convidou você
+            <strong>
+              <PersonName name={invite.invited_by_name} cosmetics={invite.invited_by_cosmetics} />
+            </strong>{" "}
+            convidou você
           </span>
         </span>
         <small className="groups-invite-meta">
