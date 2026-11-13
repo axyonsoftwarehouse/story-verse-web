@@ -75,22 +75,27 @@ export async function equipShopItem(
   category: ShopCategory,
   itemId: string | null,
 ): Promise<Cosmetics> {
-  return call<Cosmetics>(session, "equip_shop_item", { category, item: itemId });
+  const result = await call<Cosmetics>(session, "equip_shop_item", { category, item: itemId });
+  if (!result) throw new Error("Não foi possível equipar o item.");
+  return result;
 }
 
 /** Caminho `/shop/...` vira absoluto na origem do app; https passa igual; o resto é descartado. */
 export function shopAssetUrl(url: string): string {
-  if (url.startsWith("/") && !url.startsWith("//") && !url.includes("\\")) return `${window.location.origin}${url}`;
+  if (/^\/shop\/[A-Za-z0-9._-]+$/.test(url)) return `${window.location.origin}${url}`;
   if (/^https:\/\//i.test(url)) return url;
   return "";
 }
 
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
 /** Estilo do nome com a cor comprada: uma cor lisa ou um degradê no texto. */
 export function nameColorStyle(colors: string[] | null): CSSProperties | undefined {
-  if (!colors || colors.length === 0) return undefined;
-  if (colors.length === 1) return { color: colors[0] };
+  const valid = (colors ?? []).filter((c) => typeof c === "string" && HEX_COLOR.test(c)).slice(0, 3);
+  if (valid.length === 0) return undefined;
+  if (valid.length === 1) return { color: valid[0] };
   return {
-    backgroundImage: `linear-gradient(90deg, ${colors.join(", ")})`,
+    backgroundImage: `linear-gradient(90deg, ${valid.join(", ")})`,
     backgroundClip: "text",
     WebkitBackgroundClip: "text",
     color: "transparent",
@@ -98,6 +103,7 @@ export function nameColorStyle(colors: string[] | null): CSSProperties | undefin
 }
 
 function luminance(hex: string): number {
+  if (!HEX_COLOR.test(hex)) throw new Error(`Cor inválida: ${hex}`);
   const n = parseInt(hex.replace("#", ""), 16);
   const lin = (c: number) => {
     const v = c / 255;

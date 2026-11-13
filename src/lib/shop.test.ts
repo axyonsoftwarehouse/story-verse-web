@@ -25,6 +25,7 @@ describe("shopAssetUrl", () => {
     expect(shopAssetUrl("javascript:alert(1)")).toBe("");
     expect(shopAssetUrl("//evil.test/a.png")).toBe("");
     expect(shopAssetUrl("http://x.test/a.png")).toBe("");
+    expect(shopAssetUrl("/other.png")).toBe("");
   });
 });
 
@@ -41,7 +42,26 @@ describe("nameColorStyle", () => {
   });
 });
 
+describe("nameColorStyle validação", () => {
+  it("descarta entradas inválidas", () => {
+    expect(nameColorStyle(["red), url(//x)"])).toBeUndefined();
+    expect(nameColorStyle(["#fff;x"])).toBeUndefined();
+  });
+  it("usa no máximo três cores", () => {
+    const s = nameColorStyle(["#111111", "#222222", "#333333", "#444444"])!;
+    expect(s.backgroundImage).not.toContain("#444444");
+    expect(s.backgroundImage).toContain("#333333");
+  });
+  it("mistura mantém só as válidas", () => {
+    expect(nameColorStyle(["bad", "#abcdef"])).toEqual({ color: "#abcdef" });
+  });
+});
+
 describe("contrastRatio", () => {
+  it("rejeita cor inválida", () => {
+    expect(() => contrastRatio("red", "#000000")).toThrow();
+    expect(() => contrastRatio("#fff", "#000000")).toThrow();
+  });
   it("preto no branco é 21", () => expect(contrastRatio("#ffffff", "#000000")).toBeCloseTo(21, 1));
   it("igual é 1", () => expect(contrastRatio("#336699", "#336699")).toBeCloseTo(1, 5));
 });
@@ -61,6 +81,10 @@ describe("cliente da loja", () => {
     rpc.mockResolvedValue({ frame: null, badge: null, name_color: null });
     await equipShopItem(session, "frame", null);
     expect(rpc).toHaveBeenCalledWith(session, "equip_shop_item", { category: "frame", item: null }, { feature: "A loja" });
+  });
+  it("equipar sem resposta falha", async () => {
+    rpc.mockResolvedValue(null);
+    await expect(equipShopItem(session, "frame", "x")).rejects.toThrow();
   });
   it("catálogo nulo vira lista vazia", async () => {
     rpc.mockResolvedValue(null);
