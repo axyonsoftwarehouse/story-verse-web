@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c8f2da"/>
+      <stop offset="0.5" stop-color="#6fcf9f"/>
+      <stop offset="1" stop-color="#2f8a5e"/>
+    </linearGradient>
+  </defs>
+  <!-- faixa escura que separa a foto do anel (r 190–202) -->
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#14110e" stroke-width="12"/>
+  <!-- anel (r 202–238) -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#metal)" stroke-width="36"/>
+  <circle cx="256" cy="256" r="204" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="3"/>
+  <circle cx="256" cy="256" r="236.5" fill="none" stroke="#0b0907" stroke-opacity="0.45" stroke-width="3"/>
+</svg>
