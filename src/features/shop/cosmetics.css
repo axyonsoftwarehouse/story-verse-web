@@ -1,0 +1,35 @@
+/* Moldura: o furo da arte ocupa 74% do lado (raio 37%), então o quadro tem rosto / 0,74 e fica centrado. */
+.group-face .face-frame {
+  position: absolute;
+  inset: -17.57%;
+  width: 135.14%;
+  height: 135.14%;
+  max-width: none;
+  border-radius: 0;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.person-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.person-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-badge {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+}

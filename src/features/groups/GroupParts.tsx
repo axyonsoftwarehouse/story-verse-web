@@ -4,6 +4,9 @@ import { AvatarArt, findAvatar } from "../../avatars";
 import { apiBaseUrl } from "../../lib/backend";
 import { GIcon } from "./groupIcons";
 import { hueOf } from "./groupHelpers";
+import { prefersReducedMotion } from "../../lib/motion";
+import { shopAssetUrl, type Cosmetics } from "../../lib/shop";
+import "../shop/cosmetics.css";
 import "./faces.css";
 
 /**
@@ -17,6 +20,8 @@ export function PersonFace({
   photo,
   size = "md",
   online = false,
+  cosmetics,
+  animate = false,
 }: {
   id: string;
   name: string;
@@ -24,8 +29,14 @@ export function PersonFace({
   photo?: string | null;
   size?: "sm" | "md" | "lg";
   online?: boolean;
+  /** Enfeites comprados na loja; a moldura é desenhada sobre o rosto, sem mexer na caixa do avatar. */
+  cosmetics?: Cosmetics | null;
+  /** Só aqui a moldura animada pode tocar (e ainda assim respeitando "reduzir movimento"). */
+  animate?: boolean;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
+  const frame = cosmetics?.frame ?? null;
+  const frameSrc = frame ? shopAssetUrl(animate && frame.animated && !prefersReducedMotion() ? frame.animated : frame.image) : "";
   const def = findAvatar(avatar);
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
   const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`) || photo.startsWith("blob:")) && broken !== photo);
@@ -38,6 +49,7 @@ export function PersonFace({
       ) : (
         (name.trim().charAt(0) || "?").toUpperCase()
       )}
+      {frameSrc ? <img className="face-frame" src={frameSrc} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
       {online ? <span className="group-online" /> : null}
     </span>
   );
