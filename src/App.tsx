@@ -16,7 +16,7 @@ import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
 import { RouteLoading, ShopPage } from "./lazyRoutes";
 import { ReaderCount } from "./components/ReaderCount";
-import { ApiHttpError, apiEnabled } from "./lib/backend";
+import { ApiHttpError } from "./lib/backend";
 import { disablePush } from "./lib/push";
 import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
 import { AVATARS, AvatarArt, findAvatar } from "./avatars";
@@ -77,8 +77,9 @@ import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
 import { GROUPS_AVAILABLE, PENDING_INVITE_KEY } from "./lib/groups";
 import { GoldDust } from "./components/GoldDust";
-import { getPerson, publishShowcase, type PersonProfile } from "./lib/social";
-import { profileCoverUrl, type Cosmetics } from "./lib/shop";
+import { publishShowcase } from "./lib/social";
+import type { Cosmetics } from "./lib/shop";
+import { ownProfileCover, useOwnProfileExtras } from "./features/shop/useOwnProfileExtras";
 import { FaceFrame } from "./features/groups/GroupParts";
 import { PersonName } from "./features/shop/PersonName";
 import { BadgeShelf } from "./features/shop/BadgeShelf";
@@ -1702,7 +1703,7 @@ function UserAvatar({ user, className, cosmetics, animate }: { user: SupabaseUse
 }
 
 /** O mesmo avatar para quem não é a conta atual (ex.: leitores do ranking). */
-function PersonAvatar({
+export function PersonAvatar({
   id,
   name,
   avatar: avatarId,
@@ -4297,25 +4298,10 @@ function ProfilePage({
   onOpenShelf?: () => void;
 }) {
   const user = session.user;
-  /**
-   * Enfeites da loja (moldura, insígnia, cor, capa comprada e estante): vêm do mesmo perfil público
-   * que os outros veem. Sem a API ou sem a liberação da comunidade, o perfil fica como antes.
-   */
-  const [shopProfile, setShopProfile] = useState<Pick<PersonProfile, "cosmetics" | "shop_cover" | "badge_shelf"> | null>(null);
-  useEffect(() => {
-    if (!apiEnabled) return;
-    let alive = true;
-    getPerson(user.id)
-      .then((p) => alive && setShopProfile(p))
-      .catch(() => {
-        // Enfeite: sem os dados da loja, fica a capa enviada e o avatar sem moldura.
-      });
-    return () => {
-      alive = false;
-    };
-  }, [user.id]);
-  // A foto de capa enviada vem da sessão (atualiza na hora ao editar); a comprada, do perfil.
-  const coverUrl = profileCoverUrl(shopProfile?.shop_cover, metaString(user, "cover"));
+  // Enfeites da loja; a foto de capa enviada vem da sessão (atualiza na hora ao editar).
+  const shopState = useOwnProfileExtras(user.id);
+  const shopProfile = shopState.extras;
+  const cover = ownProfileCover(shopState, metaString(user, "cover"));
   const [diamonds, setDiamonds] = useState<number | null>(null);
   const [giftSummary, setGiftSummary] = useState<GiftSummary | null>(null);
   const [receivedGifts, setReceivedGifts] = useState<ReceivedGift[]>([]);
@@ -4635,13 +4621,13 @@ function ProfilePage({
       <>
 
       <header
-        className={`profile-hero ${coverUrl ? "has-cover" : ""}`}
+        className={`profile-hero ${cover.reserve ? "has-cover" : ""}`}
       >
         {/* Capa: faixa dentro do cartão (fora da borda), que se dissolve no fundo. */}
-        {coverUrl ? (
+        {cover.url ? (
           <div
             className="profile-cover"
-            style={{ backgroundImage: `url("${coverUrl}")` } as React.CSSProperties}
+            style={{ backgroundImage: `url("${cover.url}")` } as React.CSSProperties}
             aria-hidden="true"
           />
         ) : null}

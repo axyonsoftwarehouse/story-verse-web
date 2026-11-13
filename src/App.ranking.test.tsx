@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { RankingRow } from "./App";
+import { PersonAvatar, RankingRow } from "./App";
 import { nameColorStyle } from "./lib/shop";
 
 describe("RankingRow com enfeites", () => {
@@ -31,5 +31,27 @@ describe("RankingRow com enfeites", () => {
     expect(text.style.backgroundImage).toContain("linear-gradient");
     // Fora do perfil a moldura fica parada.
     expect(container.querySelector(".ranking-face img.face-frame")?.getAttribute("src")).toBe(`${window.location.origin}/shop/f-ouro.png`);
+  });
+});
+
+describe("PersonAvatar com moldura (perfil próprio e ranking)", () => {
+  it("ganha has-frame e a moldura só quando há moldura", () => {
+    const framed = render(
+      <PersonAvatar
+        id="eu"
+        name="Eu"
+        avatar={null}
+        photo={null}
+        className="profile-avatar"
+        cosmetics={{ frame: { image: "/shop/f-ouro.png", animated: null, tier: "rare" }, badge: null, name_color: null }}
+        animate
+      />,
+    ).container.firstElementChild as HTMLElement;
+    expect(framed.classList.contains("has-frame")).toBe(true);
+    expect(framed.querySelector("img.face-frame")).not.toBeNull();
+
+    const plain = render(<PersonAvatar id="eu" name="Eu" avatar={null} photo={null} className="profile-avatar" />).container.firstElementChild as HTMLElement;
+    expect(plain.classList.contains("has-frame")).toBe(false);
+    expect(plain.querySelector("img.face-frame")).toBeNull();
   });
 });

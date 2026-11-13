@@ -66,7 +66,9 @@ function renderProfile(profile: PersonProfile) {
 const coverOf = (container: HTMLElement) => (container.querySelector(".person-cover") as HTMLElement | null)?.style.backgroundImage ?? null;
 
 describe("PersonProfilePage: capa, insígnias e moldura", () => {
-  beforeEach(() => getPerson.mockReset());
+  beforeEach(() => {
+    getPerson.mockReset();
+  });
 
   it("capa comprada vence a enviada", async () => {
     const { container } = renderProfile({ ...base, shop_cover: "/shop/c-mar.webp", cover: "https://cdn.example.com/u1/cover.jpg" });

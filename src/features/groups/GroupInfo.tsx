@@ -254,15 +254,13 @@ export function GroupInfo({
                     photo={m.rp_character ? m.rp_photo : m.photo}
                     size="sm"
                     online={m.online && m.user_id !== me}
-                    cosmetics={m.cosmetics}
+                    // Roleplay: quem aparece como personagem fica sem enfeites (imersão).
+                    cosmetics={m.rp_character ? null : m.cosmetics}
                   />
                   <span className="group-member-name">
                     {m.rp_character ? (
                       <>
-                        {m.rp_character}{" "}
-                        <small className="group-author-player">
-                          · <PersonName name={m.user_id === me ? `${m.name} (você)` : m.name} cosmetics={m.cosmetics} />
-                        </small>
+                        {m.rp_character} <small className="group-author-player">· {m.user_id === me ? `${m.name} (você)` : m.name}</small>
                       </>
                     ) : m.user_id === me ? (
                       <PersonName name={`${m.name} (você)`} cosmetics={m.cosmetics} />
