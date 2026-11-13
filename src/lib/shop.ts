@@ -47,7 +47,8 @@ export type BuyShopResult = { balance: number; item_id: string; duplicate: boole
 const call = <T>(session: SupabaseSession, name: string, args: object = {}) =>
   rpc<T>(session, name, args, { feature: "A loja" });
 
-function newRef(): string {
+/** Um `ref` por intenção de compra: gerado ao abrir a confirmação, reusado se a rede falhar. */
+export function newRef(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }

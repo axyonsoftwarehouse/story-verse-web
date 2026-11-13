@@ -9,10 +9,12 @@ import {
   useMemo,
   useRef,
   useState,
+  Suspense,
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useConfirm } from "./components/ConfirmDialog";
+import { RouteLoading, ShopPage } from "./lazyRoutes";
 import { ReaderCount } from "./components/ReaderCount";
 import { ApiHttpError } from "./lib/backend";
 import { disablePush } from "./lib/push";
@@ -2894,6 +2896,7 @@ function DiamondShopPage({
   const [packs, setPacks] = useState<AiPack[]>([]);
   const [quota, setQuota] = useState<AiQuota | null>(null);
   const [buyingPack, setBuyingPack] = useState<string | null>(null);
+  const [itemsOpen, setItemsOpen] = useState(false);
   const shownBalance = useAnimatedNumber(wallet ? wallet.balance : null);
 
   const load = useCallback(() => {
@@ -2961,6 +2964,21 @@ function DiamondShopPage({
   const short = wallet ? Math.max(0, cost - wallet.balance) : 0;
   const shown = showAll ? history : history?.slice(0, 5);
 
+  if (itemsOpen) {
+    return (
+      <Suspense fallback={<RouteLoading />}>
+        <ShopPage
+          session={session}
+          onBalance={(balance) => setWallet((w) => (w ? { ...w, balance } : w))}
+          onClose={() => {
+            setItemsOpen(false);
+            void load();
+          }}
+        />
+      </Suspense>
+    );
+  }
+
   return (
     <div className="home profile shop">
       {spinOpen ? (
@@ -2999,6 +3017,21 @@ function DiamondShopPage({
         </div>
       ) : wallet ? (
         <>
+          <section className="shop-card" aria-label="Loja de itens">
+            <div className="shop-card-row">
+              <span className="shop-card-icon" aria-hidden="true">
+                🛍️
+              </span>
+              <span className="shop-card-title">
+                <strong>Loja de itens</strong>
+                <span>Molduras, insígnias, capas e cores de nome</span>
+              </span>
+              <button type="button" className="btn btn-primary" onClick={() => setItemsOpen(true)}>
+                Abrir
+              </button>
+            </div>
+          </section>
+
           <section className="shop-card" aria-label="Roleta diária">
             <div className="shop-card-row">
               <span className="shop-card-icon" aria-hidden="true">

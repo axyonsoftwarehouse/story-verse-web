@@ -52,6 +52,10 @@ export const AudiobookPage = lazy(() =>
   })),
 );
 
+export const ShopPage = lazy(() =>
+  loadRoute(() => import("./features/shop/ShopPage")).then((m) => ({ default: m.ShopPage })),
+);
+
 export const LegalPage = lazy(() =>
   loadRoute(() => import("./features/legal/LegalPage")).then((m) => ({ default: m.LegalPage })),
 );
