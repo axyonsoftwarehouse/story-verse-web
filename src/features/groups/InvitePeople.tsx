@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { cancelInvite, groupInvites, inviteCandidates, invitePerson, type InviteCandidate, type PendingInvite } from "../../lib/groups";
 import { PersonFace } from "./GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "./groupIcons";
 
 /** Busca começa com 2 letras; espera a pessoa parar de digitar. */
@@ -121,8 +122,10 @@ export function InvitePeople({ groupId }: { groupId: string }) {
             <ul className="group-invite-list" aria-label="Pessoas encontradas">
               {results.map((p) => (
                 <li key={p.id}>
-                  <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" />
-                  <span className="group-invite-name">{p.name}</span>
+                  <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" cosmetics={p.cosmetics} />
+                  <span className="group-invite-name">
+                    <PersonName name={p.name} cosmetics={p.cosmetics} />
+                  </span>
                   {p.is_member ? (
                     <small className="group-invite-state">No grupo</small>
                   ) : p.invited ? (
@@ -152,9 +155,9 @@ export function InvitePeople({ groupId }: { groupId: string }) {
             <ul className="group-invite-list" aria-label="Convites esperando resposta">
               {pending.map((p) => (
                 <li key={p.user_id}>
-                  <PersonFace id={p.user_id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" />
+                  <PersonFace id={p.user_id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" cosmetics={p.cosmetics} />
                   <span className="group-invite-name">
-                    {p.name}
+                    <PersonName name={p.name} cosmetics={p.cosmetics} />
                     <small>convite de {p.invited_by_name}</small>
                   </span>
                   <button

@@ -2435,3 +2435,308 @@ a.admin-user-row:hover {
   color: var(--accent, var(--muted));
   font-weight: 500;
 }
+
+/* Loja de itens */
+
+.shop-row {
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+}
+
+.shop-row-thumb {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #14110e;
+  font-size: 0.65rem;
+  text-align: center;
+}
+
+.shop-row-thumb.is-cover {
+  aspect-ratio: 3 / 1;
+  align-self: center;
+}
+
+.shop-row-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.shop-row-thumb.is-cover img {
+  object-fit: cover;
+}
+
+.shop-row-thumb.is-name span {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.shop-row-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.shop-item-dialog {
+  width: min(980px, 96vw);
+}
+
+.shop-item-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.shop-field-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.shop-upload-title {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.shop-visual {
+  gap: 0.8rem;
+}
+
+.shop-upload {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.shop-upload-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.shop-upload-cover .shop-upload-row {
+  grid-template-columns: 132px minmax(0, 1fr);
+}
+
+.shop-upload-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: #14110e;
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-align: center;
+}
+
+.shop-upload-cover .shop-upload-thumb {
+  aspect-ratio: 3 / 1;
+}
+
+.shop-upload-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.shop-upload-cover .shop-upload-thumb img {
+  object-fit: cover;
+}
+
+.shop-upload-actions {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.shop-upload-actions .btn {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.shop-upload-actions input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.shop-upload .auth-error,
+.shop-colors .auth-error {
+  margin: 0;
+}
+
+.shop-colors {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.shop-colors .auth-error p {
+  margin: 0;
+}
+
+.shop-color-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.shop-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.shop-color input[type="color"] {
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.shop-color code {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.shop-more summary {
+  cursor: pointer;
+}
+
+.shop-more > .catalog-form-grid {
+  margin-top: 0.6rem;
+}
+
+.shop-item-preview {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* Mesmo fundo escuro do perfil, onde a cor do nome precisa ser legível. */
+  background: #14110e;
+  color: #f7ecd8;
+  text-align: center;
+}
+
+/* O fundo da prévia é sempre escuro, também no tema claro. */
+.shop-item-preview .muted,
+.shop-item-preview .shop-field-hint,
+.shop-item-preview > .shop-upload-title {
+  color: rgba(247, 236, 216, 0.66);
+}
+
+.shop-item-preview > .shop-upload-title {
+  align-self: flex-start;
+}
+
+.shop-preview-profile {
+  display: grid;
+  place-items: center;
+  padding: 1.1rem;
+}
+
+.shop-preview-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.shop-preview-banner {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  margin-bottom: 3.6rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(120deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-2-rgb), 0.16));
+  font-size: 0.75rem;
+}
+
+.shop-preview-banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.shop-preview-banner-face {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 50%);
+}
+
+.shop-preview-banner-face .group-face {
+  box-shadow: 0 0 0 3px #14110e;
+}
+
+.shop-preview-chat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: #0e1612;
+  text-align: left;
+}
+
+.shop-preview-chat-text {
+  display: grid;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.shop-preview-chat-text .muted {
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .shop-item-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shop-item-preview {
+    position: static;
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .shop-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .shop-row-thumb {
+    width: 56px;
+  }
+
+  .shop-item-dialog .catalog-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -51,6 +51,7 @@ import {
 } from "../../lib/groups";
 import { GroupInfo } from "./GroupInfo";
 import { GroupAvatar, GroupsBlocked, PersonFace } from "./GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "./groupIcons";
 import { chatBackground, dayLabel, hueOf, isJumboEmoji, myChapter, useGroupsGate } from "./groupHelpers";
 import { formatDraft, formatMessage } from "./messageFormat";
@@ -722,6 +723,15 @@ export function GroupChat() {
   /** Roleplay: o personagem da pessoa (nome e foto), que aparece no lugar dela. */
   const characterOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_character : null);
   const characterPhotoOf = (userId: string) => (roleplay ? group?.members?.find((x) => x.user_id === userId)?.rp_photo : null);
+  /**
+   * Enfeites da loja na conversa: só no chat comum. No roleplay a mensagem é do personagem (ou do
+   * narrador) e fica sem moldura, insígnia e cor, mesmo que algum dado traga os enfeites. Mensagem
+   * que chegou ao vivo sem `author_cosmetics` usa os dos membros já carregados.
+   */
+  const messageCosmeticsOf = (m: GroupMessage) =>
+    roleplay || characterOf(m.author_id) || m.kind === "narrator"
+      ? null
+      : (m.author_cosmetics ?? group?.members?.find((x) => x.user_id === m.author_id)?.cosmetics ?? null);
   const typingText = typingLabel(typingNames);
   const wallpaper = chatBackground(group?.background);
 
@@ -915,6 +925,7 @@ export function GroupChat() {
                               photo={characterPhotoOf(m.author_id) ?? (characterOf(m.author_id) ? null : (m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo))}
                               size="sm"
                               online={online.has(m.author_id)}
+                              cosmetics={messageCosmeticsOf(m)}
                             /> : null}
                         <div className="group-bubble-wrap">
                           <div
@@ -933,7 +944,7 @@ export function GroupChat() {
                                     {characterOf(m.author_id)} <small className="group-author-player">· {m.author_name}</small>
                                   </>
                                 ) : (
-                                  m.author_name
+                                  <PersonName name={m.author_name} cosmetics={messageCosmeticsOf(m)} />
                                 )}
                               </span>
                             ) : null}
@@ -1022,6 +1033,7 @@ export function GroupChat() {
                       photo={characterPhotoOf(typingIds[0]) ?? (characterOf(typingIds[0]) ? null : group.members?.find((m) => m.user_id === typingIds[0])?.photo)}
                       size="sm"
                       online
+                      cosmetics={roleplay ? null : group.members?.find((m) => m.user_id === typingIds[0])?.cosmetics}
                     />
                     <div className="group-bubble">
                       <span className="group-typing-dots" aria-hidden="true">

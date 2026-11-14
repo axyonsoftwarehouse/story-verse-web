@@ -20,6 +20,24 @@ describe("AdminNav", () => {
     expect(screen.queryByRole("link", { name: "Contas" })).toBeNull();
   });
 
+  it("Loja só aparece para o superadmin", () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <AdminNav roles={["moderator", "support"]} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("link", { name: "Loja" })).toBeNull();
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/admin/loja"]}>
+        <AdminNav roles={["superadmin"]} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Loja" })).toHaveAttribute("href", "/admin/loja");
+    expect(screen.getByRole("link", { name: "Loja" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("mostra o contador de pendências só quando há algo", () => {
     render(
       <MemoryRouter initialEntries={["/admin"]}>

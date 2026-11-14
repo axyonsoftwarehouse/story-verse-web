@@ -8,6 +8,7 @@ export type AdminSectionId =
   | "metrics"
   | "site"
   | "billing"
+  | "shop"
   | "audit";
 
 export type AdminSection = {
@@ -26,6 +27,7 @@ const SECTIONS: AdminSection[] = [
   { id: "metrics", path: "/admin/metricas", label: "Métricas" },
   { id: "site", path: "/admin/site", label: "Site" },
   { id: "billing", path: "/admin/financeiro", label: "Financeiro" },
+  { id: "shop", path: "/admin/loja", label: "Loja" },
   { id: "audit", path: "/admin/auditoria", label: "Auditoria" },
 ];
 
@@ -49,7 +51,7 @@ export function visibleSections(roles: string[]): AdminSection[] {
   if (!isStaff(roles)) return [];
   return SECTIONS.filter((section) => {
     if (section.id === "accounts") return canSeeAccounts(roles);
-    if (["features", "audit", "billing", "metrics", "site"].includes(section.id)) {
+    if (["features", "audit", "billing", "shop", "metrics", "site"].includes(section.id)) {
       return isSuperadmin(roles);
     }
     if (section.id === "catalog") return canModerate(roles);

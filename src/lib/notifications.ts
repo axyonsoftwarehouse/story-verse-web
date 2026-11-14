@@ -1,6 +1,7 @@
 import { refreshAuthSession } from "./auth";
 import { apiEnabled, apiRequest } from "./backend";
 import type { MediaKind } from "./groups";
+import type { Cosmetics } from "./shop";
 
 /** Aviso do sininho: responderam, reagiram, entrou alguém num grupo da conta ou começou a seguir. */
 export type AppNotification = {
@@ -17,6 +18,7 @@ export type AppNotification = {
   actor_name: string;
   actor_avatar: string;
   actor_photo: string | null;
+  actor_cosmetics?: Cosmetics | null;
   message_body: string | null;
   message_media_kind: MediaKind | null;
 };

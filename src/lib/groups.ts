@@ -1,6 +1,7 @@
 import { refreshAuthSession } from "./auth";
 import { apiBaseUrl, apiEnabled, apiRequest, AuthSessionError } from "./backend";
 import type { RoleplayBook } from "./roleplayBook";
+import type { Cosmetics } from "./shop";
 
 /**
  * Grupos com chat (docs/SPEC_GRUPOS.md). Só existem na API própria. Cada chamada pega um token
@@ -39,6 +40,8 @@ export type GroupMember = {
   /** Roleplay: o personagem que a pessoa interpreta. */
   rp_character?: string | null;
   rp_photo?: string | null;
+  /** Enfeites da loja (aparecem na lista de membros, inclusive no roleplay). */
+  cosmetics?: Cosmetics | null;
   last_read_id?: number;
   progress_percent: number | null;
   book_status: string | null;
@@ -92,6 +95,8 @@ export type GroupMessage = {
   author_name: string;
   author_avatar: string;
   author_photo?: string | null;
+  /** Enfeites do autor; a API manda null no narrador e em todo grupo de roleplay. */
+  author_cosmetics?: Cosmetics | null;
   body: string | null;
   spoiler_chapter: number | null;
   reply_to: number | null;
@@ -177,9 +182,9 @@ export const publicGroups = (opts: { q?: string; book?: string } = {}) =>
   call<Group[]>(`/api/v1/groups${q({ scope: "public", q: opts.q, book: opts.book })}`);
 export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
 /** Pessoa achada para convidar: diz se já está no grupo ou se já tem convite esperando. */
-export type InviteCandidate = { id: string; name: string; avatar: string; photo?: string | null; is_member: boolean; invited: boolean };
+export type InviteCandidate = { id: string; name: string; avatar: string; photo?: string | null; cosmetics?: Cosmetics | null; is_member: boolean; invited: boolean };
 /** Convite esperando resposta, visto por quem administra o grupo. */
-export type PendingInvite = { user_id: string; name: string; avatar: string; photo?: string | null; invited_by_name: string; created_at: string };
+export type PendingInvite = { user_id: string; name: string; avatar: string; photo?: string | null; cosmetics?: Cosmetics | null; invited_by_name: string; created_at: string };
 /** Convite que a conta recebeu. */
 export type ReceivedInvite = {
   group_id: string;
@@ -193,6 +198,7 @@ export type ReceivedInvite = {
   invited_by_name: string;
   invited_by_avatar: string;
   invited_by_photo?: string | null;
+  invited_by_cosmetics?: Cosmetics | null;
   created_at: string;
 };
 

@@ -1,5 +1,6 @@
 import { refreshAuthSession } from "./auth";
 import { apiEnabled, apiRequest, AuthSessionError } from "./backend";
+import type { Cosmetics } from "./shop";
 
 /**
  * Rede social: seguir perfis. Seguir é de mão única; quando as duas pessoas se seguem, viram
@@ -24,6 +25,8 @@ export type Person = {
   since?: string;
   /** Nas sugestões: quantos grupos as duas dividem. */
   groups_in_common?: number;
+  /** Moldura, insígnia e cor de nome equipadas na loja. */
+  cosmetics?: Cosmetics | null;
 };
 
 export type ProfileBook = {
@@ -39,6 +42,8 @@ export type ProfileBook = {
 
 export type ProfileBadge = { id: string; emoji: string; title: string; description?: string };
 export type ProfileGift = { gift_id: string; name: string; icon: string; rarity: "common" | "rare" | "epic"; total: number };
+/** Insígnia da loja na estante do perfil. */
+export type ShelfBadge = { id: string; name: string; image: string };
 export type ProfileStats = { totalMinutes?: number; bestStreak?: number; finishedBooks?: number; messagesSent?: number };
 
 export type PersonProfile = Person & {
@@ -66,6 +71,12 @@ export type PersonProfile = Person & {
   /** Quantas conquistas existem (para "6 de 17"). 0: o app da pessoa ainda não publicou. */
   badges_total: number;
   stats: ProfileStats;
+  /** Capa comprada equipada (só quando `content_visible`). */
+  shop_cover?: string | null;
+  /** Foto de capa enviada pela pessoa (só quando `content_visible`). */
+  cover?: string | null;
+  /** Insígnias da loja que a pessoa tem (só quando `content_visible`). */
+  badge_shelf?: ShelfBadge[];
 };
 
 export type Relation = "self" | "connection" | "following" | "requested" | "follows_me" | "none";
