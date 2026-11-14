@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { BadgeIcon, GiftIcon } from "./components/badgeIcons";
 import { useConfirm } from "./components/ConfirmDialog";
 import { RouteLoading, ShopPage } from "./lazyRoutes";
 import { ReaderCount } from "./components/ReaderCount";
@@ -3636,7 +3637,7 @@ function RankingPage({
                   disabled={giftBusy !== null || (profile?.diamonds ?? 0) < gift.price}
                 >
                   <span className="gift-option-icon" aria-hidden="true">
-                    {gift.icon}
+                    <GiftIcon id={gift.id} emoji={gift.icon} size={24} />
                   </span>
                   <strong>{gift.name}</strong>
                   <span>{gift.price} 💎</span>
@@ -3803,7 +3804,7 @@ function AchievementToast({ achievement, onDone }: { achievement: Achievement; o
   return createPortal(
     <div className="achievement-toast" role="status" onClick={leave}>
       <span className="achievement-toast-medal" aria-hidden="true" ref={medal}>
-        {achievement.emoji}
+        <BadgeIcon id={achievement.id} size={22} />
       </span>
       <span>
         <small>Conquista desbloqueada</small>
@@ -4777,7 +4778,7 @@ function ProfilePage({
                 style={{ "--i": i } as React.CSSProperties}
               >
                 <span className="badge-medal" aria-hidden="true">
-                  {b.emoji}
+                  <BadgeIcon id={b.id} size={30} />
                 </span>
                 <strong>{b.title}</strong>
                 <span className="badge-desc">{b.description}</span>
@@ -4857,7 +4858,7 @@ function ProfilePage({
             {receivedGifts.map((gift, index) => (
               <li key={`${gift.gift_id}-${gift.created_at}-${index}`}>
                 <span className="gift-received-icon" aria-hidden="true">
-                  {gift.icon}
+                  <GiftIcon id={gift.gift_id} emoji={gift.icon} size={22} />
                 </span>
                 <span>
                   <strong>{gift.name}</strong>
