@@ -3528,17 +3528,21 @@
     padding-bottom: 0.5rem;
   }
 
-  /* Sugestões numa fileira só, com rolagem para o lado. */
+  /*
+   * Sugestões quebram linha também nas telas baixas. Antes eram uma fileira só, com rolagem
+   * escondida (`scrollbar-width: none`): o segundo chip aparecia cortado na borda e nada
+   * indicava que dava para arrastar — é o caso de notebook 1366×768 a 125% de zoom (altura
+   * útil abaixo de 640 px) e de celular deitado. Cartão "corte horizontal nas sugestões".
+   */
   .suggestions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
     padding-bottom: 0.5rem;
-    scrollbar-width: none;
   }
 
+  /* Chip mais largo que a linha quebra o texto dentro dele, em vez de sair pela borda. */
   .suggestion {
-    flex-shrink: 0;
-    white-space: nowrap;
+    max-width: 100%;
+    white-space: normal;
   }
 
   .composer {
