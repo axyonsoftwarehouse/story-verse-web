@@ -40,3 +40,38 @@ describe("PersonRow com enfeites da loja", () => {
     expect(container.textContent).toContain("Ana");
   });
 });
+
+describe("PersonRow com capa do perfil", () => {
+  it("desenha a faixa 3:1 com a capa da loja e o rosto por cima", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <PersonRow person={{ ...person, shop_cover: "/shop/capa-noite-estrelada.webp" }} me="eu" onChange={() => {}} />
+      </MemoryRouter>,
+    );
+    expect((container.querySelector(".people-row") as HTMLElement).className).toContain("has-cover");
+    const img = container.querySelector(".people-row-cover img") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe(`${window.location.origin}/shop/capa-noite-estrelada.webp`);
+    expect(img.getAttribute("loading")).toBe("lazy");
+    expect(container.querySelector(".people-row-body")).not.toBeNull();
+  });
+
+  it("usa a capa enviada quando não há item da loja", () => {
+    const enviada = "https://api.example.test/api/v1/storage/public/profile-media/u1/cover.png";
+    const { container } = render(
+      <MemoryRouter>
+        <PersonRow person={{ ...person, cover: enviada }} me="eu" onChange={() => {}} />
+      </MemoryRouter>,
+    );
+    expect((container.querySelector(".people-row-cover img") as HTMLImageElement).getAttribute("src")).toBe(enviada);
+  });
+
+  it("sem capa (ou perfil privado), o card fica sem faixa", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <PersonRow person={person} me="eu" onChange={() => {}} />
+      </MemoryRouter>,
+    );
+    expect((container.querySelector(".people-row") as HTMLElement).className).not.toContain("has-cover");
+    expect(container.querySelector(".people-row-cover")).toBeNull();
+  });
+});

@@ -13,6 +13,13 @@ export type Person = {
   avatar: string;
   /** Foto do perfil (só arquivo do Storage da própria pessoa; a API filtra). */
   photo: string | null;
+  /**
+   * Capa do perfil para o card das listas: `shop_cover` é a comprada (caminho relativo, resolvido
+   * pelo site) e `cover` a enviada (URL absoluta, validada pela API). Vazio em perfil privado de
+   * quem não segue. Quem monta o endereço final é `profileCoverUrl`.
+   */
+  shop_cover?: string | null;
+  cover?: string | null;
   /** A conta logada segue esta pessoa. */
   is_following: boolean;
   /** Esta pessoa segue a conta logada. */

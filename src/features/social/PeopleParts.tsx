@@ -4,6 +4,7 @@ import { PersonFace } from "../groups/GroupParts";
 import { PersonName } from "../shop/PersonName";
 import { GIcon } from "../groups/groupIcons";
 import { errorText, follow, followLabel, PEOPLE_PAGE, peopleSuggestions, relationOf, unfollow, type Person, type PersonProfile } from "../../lib/social";
+import { profileCoverUrl } from "../../lib/shop";
 import { TransitionLink } from "../../components/TransitionLink";
 
 /** Selo ao lado do nome: "Conexão" (as duas se seguem) ou "Segue você". */
@@ -120,23 +121,32 @@ export function PersonRow({
   /** Botão de seguir na linha (a lista de pedidos usa só Aceitar/Recusar). */
   follow?: boolean;
 }) {
+  const cover = profileCoverUrl(person.shop_cover, person.cover);
   return (
-    <div className="people-row">
-      <TransitionLink className="people-row-main" to={`/pessoas/${person.id}`}>
-        <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} cosmetics={person.cosmetics} />
-        <span className="people-row-text">
-          <strong>
-            <PersonName name={person.name} cosmetics={person.cosmetics} />
-            {person.id === me ? <small className="people-you"> (você)</small> : null}
-          </strong>
-          <span className="people-row-meta">
-            <RelationBadge person={person} />
-            {detail ? <span>{detail}</span> : null}
-          </span>
+    <div className={`people-row ${cover ? "has-cover" : ""}`}>
+      {/* Faixa da capa (3:1) no topo do card; sem capa o card fica como sempre foi. */}
+      {cover ? (
+        <span className="people-row-cover" aria-hidden="true">
+          <img src={cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
         </span>
-      </TransitionLink>
-      {follow && person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
-      {extra}
+      ) : null}
+      <div className="people-row-body">
+        <TransitionLink className="people-row-main" to={`/pessoas/${person.id}`}>
+          <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} cosmetics={person.cosmetics} />
+          <span className="people-row-text">
+            <strong>
+              <PersonName name={person.name} cosmetics={person.cosmetics} />
+              {person.id === me ? <small className="people-you"> (você)</small> : null}
+            </strong>
+            <span className="people-row-meta">
+              <RelationBadge person={person} />
+              {detail ? <span>{detail}</span> : null}
+            </span>
+          </span>
+        </TransitionLink>
+        {follow && person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
+        {extra}
+      </div>
     </div>
   );
 }
