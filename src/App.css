@@ -8687,6 +8687,36 @@ button.identity-card {
   animation: badge-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--i) * 45ms + 0.15s) both;
 }
 
+/*
+ * Ícones vetoriais das conquistas e dos presentes (cartão "Substituir emojis nativos por ícones").
+ * No medalhão dourado o traço é escuro (contraste); no bloqueado fica acinzentado, e o `grayscale`
+ * do próprio `.badge-medal` cuida do resto.
+ */
+.badge-medal svg,
+.achievement-toast-medal svg,
+.person-badge-medal svg,
+.person-gift-icon svg,
+.gift-option-icon svg,
+.gift-received-icon svg {
+  display: block;
+}
+
+.badge-medal svg {
+  color: var(--muted);
+}
+
+.badge-card.is-unlocked .badge-medal svg,
+.achievement-toast-medal svg {
+  color: var(--on-accent);
+}
+
+.person-badge-medal svg,
+.person-gift-icon svg,
+.gift-option-icon svg,
+.gift-received-icon svg {
+  color: var(--accent);
+}
+
 .badge-card strong {
   font-family: var(--font-read);
   font-size: 0.95rem;

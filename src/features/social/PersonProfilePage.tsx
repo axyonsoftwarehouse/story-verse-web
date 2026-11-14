@@ -9,6 +9,7 @@ import { GIcon } from "../groups/groupIcons";
 import { PersonFace } from "../groups/GroupParts";
 import { BadgeShelf } from "../shop/BadgeShelf";
 import { PersonName } from "../shop/PersonName";
+import { BadgeIcon, GiftIcon } from "../../components/badgeIcons";
 import { profileCoverUrl } from "../../lib/shop";
 import {
   booksOf,
@@ -552,7 +553,7 @@ function BadgesSection({ profile, first }: { profile: PersonProfile; first: stri
         {shown.map((b, i) => (
           <li key={b.id} className="person-badge" style={{ "--i": i } as CSSProperties} title={b.description ?? b.title}>
             <span className="person-badge-medal" aria-hidden="true">
-              {b.emoji}
+              <BadgeIcon id={b.id} size={24} />
             </span>
             <strong>{b.title}</strong>
             {b.description ? <small>{b.description}</small> : null}
@@ -583,7 +584,7 @@ function GiftsSection({ profile }: { profile: PersonProfile }) {
         {gifts.map((g, i) => (
           <li key={g.gift_id} className={`person-gift is-${g.rarity}`} style={{ "--i": i } as CSSProperties} title={g.name}>
             <span className="person-gift-icon" aria-hidden="true">
-              {g.icon}
+              <GiftIcon id={g.gift_id} emoji={g.icon} size={18} />
             </span>
             <span>
               <strong>{g.name}</strong>
