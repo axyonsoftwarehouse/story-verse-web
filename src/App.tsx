@@ -8141,10 +8141,6 @@ export function App() {
                 <span className="online-label">{onlineCount === 1 ? "online" : "online agora"}</span>
               </span>
             ) : null}
-            <span className="status" title="Mostra se o chat usa IA em tempo real ou respostas de demonstração.">
-              <span className="status-dot" aria-hidden="true" />
-              <span className="status-label">{providerLabel}</span>
-            </span>
             <div className="nav-secondary">
             {!installed ? (
               <button
