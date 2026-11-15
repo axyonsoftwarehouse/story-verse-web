@@ -28,7 +28,6 @@ import {
   narratorCharacter,
   detectProvider,
   fetchAiQuota,
-  providerDisplayLabel,
   refreshAiQuota,
   USER_MESSAGE_MAX_CHARS,
   type AiQuota,
