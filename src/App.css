@@ -178,6 +178,14 @@
   letter-spacing: -0.01em;
 }
 
+.home-nav.is-tight .status-label {
+  display: none;
+}
+
+.home-nav.is-tight .status {
+  padding: 0.45rem;
+}
+
 .wordmark-mark {
   width: 30px;
   height: 30px;
