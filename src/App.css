@@ -179,11 +179,11 @@
 }
 
 .home-nav.is-tight .status-label {
-  display: none;
+  display: none !important;
 }
 
 .home-nav.is-tight .status {
-  padding: 0.45rem;
+  padding: 0.45rem !important;
 }
 
 .wordmark-mark {
