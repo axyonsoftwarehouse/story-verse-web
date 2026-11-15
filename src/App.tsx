@@ -8128,7 +8128,7 @@ export function App() {
             onCancel={() => setPasswordReset(false)}
           />
         ) : null}
-        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navFit !== "full" ? "is-crowded" : ""} ${navFit === "tight" ? "is-tight" : ""}`}>
+        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navFit !== "full" ? "is-crowded" : "is-crowded"}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
             <span className="wordmark-text">Storyverse</span>
