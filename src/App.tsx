@@ -7261,8 +7261,6 @@ export function App() {
     el.scrollTop = el.scrollHeight;
   }, [messages, activeCharId, loading, chatOpen]);
 
-  const providerLabel = providerDisplayLabel();
-
   const chapters = useMemo(() => (fullText ? splitIntoChapters(fullText) : []), [fullText]);
   const currentChapter = chapters[chapterIndex] ?? chapters[0];
   leavingTitleRef.current = book && loadState === "ready" ? book.title : null;
