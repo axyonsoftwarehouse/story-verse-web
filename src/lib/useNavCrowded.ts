@@ -22,11 +22,18 @@ export function useNavCrowded(): [(el: HTMLElement | null) => void, NavFit] {
       const justify = actions.style.justifyContent;
       actions.style.justifyContent = "flex-start";
       nav.classList.remove(...CLASSES);
+      
       let next: NavFit = "full";
       if (overflows()) {
         nav.classList.add("is-crowded");
-        next = overflows() ? "tight" : "crowded";
+        if (overflows()) {
+          nav.classList.add("is-tight");
+          next = "tight";
+        } else {
+          next = "crowded";
+        }
       }
+
       nav.classList.remove(...CLASSES);
       nav.classList.add(...had);
       actions.style.justifyContent = justify;
