@@ -1,6 +1,7 @@
 import { refreshAuthSession } from "./auth";
 import { apiBaseUrl, apiEnabled, apiRequest, AuthSessionError } from "./backend";
 import type { RoleplayBook } from "./roleplayBook";
+import type { Cosmetics } from "./shop";
 
 /**
  * Grupos com chat (docs/SPEC_GRUPOS.md). Só existem na API própria. Cada chamada pega um token
@@ -39,6 +40,8 @@ export type GroupMember = {
   /** Roleplay: o personagem que a pessoa interpreta. */
   rp_character?: string | null;
   rp_photo?: string | null;
+  /** Enfeites da loja (aparecem na lista de membros, inclusive no roleplay). */
+  cosmetics?: Cosmetics | null;
   last_read_id?: number;
   progress_percent: number | null;
   book_status: string | null;
@@ -92,6 +95,8 @@ export type GroupMessage = {
   author_name: string;
   author_avatar: string;
   author_photo?: string | null;
+  /** Enfeites do autor; a API manda null no narrador e em todo grupo de roleplay. */
+  author_cosmetics?: Cosmetics | null;
   body: string | null;
   spoiler_chapter: number | null;
   reply_to: number | null;
@@ -100,6 +105,8 @@ export type GroupMessage = {
   deleted: boolean;
   hidden: boolean;
   reactions: Reaction[];
+  /** Roleplay: quando o autor corrigiu o texto pela última vez ("editada"). */
+  edited_at?: string | null;
   /** Foto ou áudio. O arquivo vence em 24 h no servidor; cada celular guarda a própria cópia. */
   media_kind?: MediaKind | null;
   /** "narrator": fala do narrador (IA) num roleplay. */
@@ -174,8 +181,35 @@ export const myGroups = () => call<Group[]>("/api/v1/groups");
 export const publicGroups = (opts: { q?: string; book?: string } = {}) =>
   call<Group[]>(`/api/v1/groups${q({ scope: "public", q: opts.q, book: opts.book })}`);
 export const getGroup = (id: string) => call<Group>(`/api/v1/groups/${id}`);
-/** Quem administra adiciona uma pessoa pelo e-mail da conta dela. */
-export const addMemberByEmail = (id: string, email: string) => call<Group>(`/api/v1/groups/${id}/members`, { method: "POST", body: { email } });
+/** Pessoa achada para convidar: diz se já está no grupo ou se já tem convite esperando. */
+export type InviteCandidate = { id: string; name: string; avatar: string; photo?: string | null; cosmetics?: Cosmetics | null; is_member: boolean; invited: boolean };
+/** Convite esperando resposta, visto por quem administra o grupo. */
+export type PendingInvite = { user_id: string; name: string; avatar: string; photo?: string | null; cosmetics?: Cosmetics | null; invited_by_name: string; created_at: string };
+/** Convite que a conta recebeu. */
+export type ReceivedInvite = {
+  group_id: string;
+  group_name: string;
+  group_photo: string | null;
+  visibility: "public" | "private";
+  mode: "chat" | "roleplay";
+  book_title: string | null;
+  member_count: number;
+  invited_by: string;
+  invited_by_name: string;
+  invited_by_avatar: string;
+  invited_by_photo?: string | null;
+  invited_by_cosmetics?: Cosmetics | null;
+  created_at: string;
+};
+
+/** Quem administra procura pelo nome (ou e-mail exato) quem convidar. Menos de 2 letras: lista vazia. */
+export const inviteCandidates = (id: string, query: string) => call<InviteCandidate[]>(`/api/v1/groups/${id}/invite-candidates${q({ q: query })}`);
+export const groupInvites = (id: string) => call<PendingInvite[]>(`/api/v1/groups/${id}/invites`);
+export const invitePerson = (id: string, userId: string) => call<PendingInvite[]>(`/api/v1/groups/${id}/invites`, { method: "POST", body: { userId } });
+export const cancelInvite = (id: string, userId: string) => call<void>(`/api/v1/groups/${id}/invites/${userId}`, { method: "DELETE" });
+export const myInvites = () => call<ReceivedInvite[]>("/api/v1/groups/invites");
+export const acceptInvite = (groupId: string) => call<Group>(`/api/v1/groups/invites/${groupId}/accept`, { method: "POST" });
+export const declineInvite = (groupId: string) => call<void>(`/api/v1/groups/invites/${groupId}`, { method: "DELETE" });
 /** Roleplay: encerra e transforma a história em livro (só o dono; a IA escreve em segundo plano). */
 export const startRoleplayBook = (id: string) => call<RoleplayBook>(`/api/v1/groups/${id}/book`, { method: "POST" });
 /** Roleplay: o livro da história (status e texto). 404 enquanto não foi encomendado. */
@@ -305,6 +339,29 @@ export const sendMessage = (
   id: string,
   body: { body: string; clientId: string; spoilerChapter?: number | null; replyTo?: number | null },
 ) => call<GroupMessage>(`/api/v1/groups/${id}/messages`, { method: "POST", body });
+/** Roleplay: quanto tempo depois de enviar ainda dá para editar (a API confere o mesmo). */
+export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Dá para editar a mensagem? Só no roleplay, a própria mensagem de texto (não do narrador, nem
+ * foto ou áudio), já gravada e até 24 h depois. Denúncia e livro pronto a API recusa.
+ */
+export function canEditMessage(m: GroupMessage, me: string, roleplay: boolean, now = Date.now()): boolean {
+  return (
+    roleplay &&
+    m.author_id === me &&
+    m.kind !== "narrator" &&
+    !m.media_kind &&
+    Boolean(m.body) &&
+    !m.deleted &&
+    !m.pending &&
+    !m.failed &&
+    now - new Date(m.created_at).getTime() < EDIT_WINDOW_MS
+  );
+}
+
+export const editMessage = (messageId: number, body: string) =>
+  call<GroupMessage>(`/api/v1/groups/messages/${messageId}`, { method: "PATCH", body: { body } });
 export const deleteMessage = (messageId: number) =>
   call<void>(`/api/v1/groups/messages/${messageId}`, { method: "DELETE" });
 export const react = (messageId: number, emoji: string, add: boolean) =>
@@ -333,6 +390,7 @@ export type StreamEvent =
   | { type: "ready" }
   | { type: "message"; data: GroupMessage }
   | { type: "message_deleted"; data: { groupId: string; id: number } }
+  | { type: "message_edited"; data: GroupMessage }
   | { type: "reaction"; data: { groupId: string; messageId: number; emoji: string; userId: string; added: boolean } }
   | { type: "group"; data: { groupId: string; type: string; userId?: string } }
   | { type: "typing"; data: { groupId: string; userId: string } }

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbe7b4"/>
+      <stop offset="0.5" stop-color="#e4b86a"/>
+      <stop offset="1" stop-color="#c48a3a"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#2b1d0c" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <!-- espinhos da nuca -->
+    <path d="M58 182 L28 172 L60 156 L30 136 L66 128 L44 102 L84 104 Z" fill="#c48a3a"/>
+    <!-- cabeça de perfil, olhando para a direita -->
+    <path d="M48 250 C52 196 60 150 86 112 L58 26 L120 88 C142 78 168 80 186 92 C206 98 228 106 246 122 C250 132 246 140 236 144 L190 150 L232 166 C228 180 214 188 196 188 L150 186 C140 206 136 228 136 250 Z" fill="url(#ouro)"/>
+    <path d="M150 150 L190 150" fill="none" stroke-width="7"/>
+  </g>
+  <path d="M146 112 Q166 100 182 116 Q164 126 146 112 Z" fill="#2b1d0c"/>
+  <circle cx="226" cy="122" r="5" fill="#2b1d0c"/>
+</svg>

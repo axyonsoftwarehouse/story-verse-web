@@ -11,6 +11,7 @@ import {
 import { useStoredSession } from "../auth/useStoredSession";
 import { useSubscription } from "./useSubscription";
 import "./billing.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 const DEFAULT_PLAN: SubscriptionPlan = {
   id: "storyverse",
@@ -67,16 +68,11 @@ export function SubscribePage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/">
-          Voltar
+      <SiteTopBar>
+        <Link className="btn nav-login" to="/conta/assinatura">
+          Minha assinatura
         </Link>
-        {session ? (
-          <Link className="btn" to="/conta/assinatura">
-            Minha assinatura
-          </Link>
-        ) : null}
-      </nav>
+      </SiteTopBar>
 
       <section className="shelf billing-hero">
         <div className="shelf-head">
@@ -98,7 +94,7 @@ export function SubscribePage() {
           <div className="billing-plan-head">
             <span className="eyebrow">Plano {plan.name}</span>
             <strong>{price}</strong>
-            <span className="muted">Cancele quando quiser pelo portal do Stripe.</span>
+            <span className="muted">Cancele quando quiser, em Minha assinatura.</span>
           </div>
           <ul className="billing-features">
             <li>Todo o acervo curado e a biblioteca pública</li>
@@ -166,8 +162,8 @@ export function SubscribePage() {
         </div>
 
         <p className="billing-fineprint">
-          Pagamento pelo Stripe, no cartão ou no Pix. Nenhum dado de cartão ou do banco passa pelo Storyverse. O acesso é
-          validado no servidor; cancelar mantém o acesso até o fim do período já pago. Ao assinar, você
+          Pagamento pelo Stripe, no cartão ou no Pix. Nenhum dado de cartão ou do banco passa pelo Storyverse. Se cancelar,
+          o acesso continua até o fim do período já pago. Ao assinar, você
           concorda com os <Link to="/termos">Termos de uso</Link> e a{" "}
           <Link to="/cancelamento">política de cancelamento e reembolso</Link>.
         </p>

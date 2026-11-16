@@ -7,7 +7,7 @@ import {
   catalogErrorMessage,
   catalogMetadataProblem,
   catalogRightsLabel,
-  catalogRightsProblem,
+  rightsNoteProblem,
   catalogSourceLabel,
   catalogStatusLabel,
   catalogStatusTone,
@@ -135,7 +135,9 @@ export function CatalogBookPage({
 
   async function save() {
     if (!book) return;
-    const problem = catalogMetadataProblem(form) || catalogRightsProblem(form);
+    // A justificativa é cobrada ao publicar (V1); salvar um rascunho ou corrigir um livro já
+    // publicado não depende dela.
+    const problem = catalogMetadataProblem(form);
     if (problem) {
       setError(problem);
       setMessage("");
@@ -158,6 +160,11 @@ export function CatalogBookPage({
 
   async function changeStatus(action: "publish" | "hide" | "archive") {
     if (!book) return;
+    if (action === "publish" && rightsNoteProblem(book.rights_note)) {
+      setError(`${rightsNoteProblem(book.rights_note)} Escreva a justificativa e salve antes de publicar.`);
+      setMessage("");
+      return;
+    }
     if (
       action === "publish" &&
       !(await confirm({

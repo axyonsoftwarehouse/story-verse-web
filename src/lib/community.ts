@@ -280,18 +280,27 @@ export async function reviewSubmission(
   status: "approved" | "rejected",
   note?: string,
   coverUrl?: string | null,
+  /** V1: justificativa de quem aprova (fonte, ano de morte do autor ou licença). */
+  rightsNote?: string,
 ): Promise<Submission> {
+  const rights = rightsNote?.trim().slice(0, 500);
   if (apiEnabled) {
     const row = await apiRequest<Submission>(`/api/v1/community/submissions/${id}`, {
       method: "PATCH",
       accessToken: session.access_token,
-      body: { status, review_note: note?.trim().slice(0, 500) || null, ...(coverUrl ? { cover_url: coverUrl } : {}) },
+      body: {
+        status,
+        review_note: note?.trim().slice(0, 500) || null,
+        ...(coverUrl ? { cover_url: coverUrl } : {}),
+        ...(rights ? { rights_note: rights } : {}),
+      },
     });
     approvedCache = null;
     return row;
   }
   const fields: Record<string, unknown> = { status, review_note: note?.trim().slice(0, 500) || null, reviewed_at: new Date().toISOString() };
   if (coverUrl) fields.cover_url = coverUrl;
+  if (rights) fields.rights_note = rights;
   const send = (body: Record<string, unknown>) =>
     sb(`/rest/v1/book_submissions?id=eq.${id}`, {
       method: "PATCH",
@@ -339,6 +348,38 @@ async function dropObject(session: SupabaseSession | null, bucket: string, path:
     return;
   }
   await sb(`/storage/v1/object/${bucket}/${encodePath(path)}`, { method: "DELETE", session }).catch(() => {});
+}
+
+/**
+ * Moderação corrige título e autor de um envio, em análise ou já publicado (U1). A API confere a
+ * regra de submissionMetadata.ts e atualiza a cópia do livro no catálogo.
+ */
+export async function updateSubmissionDetails(
+  session: SupabaseSession,
+  id: string,
+  details: { title: string; author: string },
+): Promise<Submission> {
+  const body = { title: details.title.trim().slice(0, 120), author: details.author.trim().slice(0, 120) };
+  let row: Submission;
+  if (apiEnabled) {
+    row = await apiRequest<Submission>(`/api/v1/community/submissions/${id}`, {
+      method: "PATCH",
+      accessToken: session.access_token,
+      body,
+    });
+  } else {
+    const res = await sb(`/rest/v1/book_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify(body),
+    });
+    const rows = (await res.json()) as Submission[];
+    if (!rows[0]) throw new Error("Envio não encontrado.");
+    row = rows[0];
+  }
+  approvedCache = null;
+  return row;
 }
 
 /**

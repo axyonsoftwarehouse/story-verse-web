@@ -1,11 +1,20 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import "./legal.css";
 import { LEGAL_HOLDER } from "./holder";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 export type LegalDoc = "termos" | "privacidade" | "cancelamento";
 
 export const LEGAL_CONTACT = "axyonsoftwarehouse@gmail.com";
-const UPDATED_AT = "28 de outubro de 2026";
+const UPDATED_AT: Record<LegalDoc, string> = {
+  termos: "16 de novembro de 2026",
+  privacidade: "28 de outubro de 2026",
+  cancelamento: "28 de outubro de 2026",
+};
+
+/** Âncora da seção de denúncia de direito autoral nos Termos (V1); a página do livro aponta para cá. */
+const COPYRIGHT_ANCHOR = "direitos-autorais";
 
 const TITLES: Record<LegalDoc, string> = {
   termos: "Termos de uso",
@@ -114,6 +123,22 @@ function Terms() {
       <p>
         Estes termos seguem a lei brasileira, incluindo o Código de Defesa do Consumidor. Fica eleito o foro
         do seu domicílio.
+      </p>
+
+      <h2 id={COPYRIGHT_ANCHOR}>10. Direitos autorais e denúncias</h2>
+      <p>
+        Se você é autor, editora ou representa quem tem os direitos de uma obra disponível no Storyverse e
+        não autorizou a publicação, escreva para <Contact /> com:
+      </p>
+      <ul>
+        <li>seu nome e, se for o caso, a empresa que representa;</li>
+        <li>o título da obra e o endereço da página dela no Storyverse;</li>
+        <li>como você detém os direitos (contrato, registro ou outra comprovação).</li>
+      </ul>
+      <p>
+        A obra sai da biblioteca pública enquanto analisamos o pedido, e respondemos pelo mesmo e-mail.
+        Envios da comunidade que violem direitos são removidos, e a conta de quem enviou pode ser advertida
+        ou suspensa, como descrito em Comunidade.
       </p>
     </>
   );
@@ -274,18 +299,20 @@ const BODIES: Record<LegalDoc, () => React.JSX.Element> = {
 
 export function LegalPage({ doc }: { doc: LegalDoc }) {
   const Body = BODIES[doc];
+  const { hash } = useLocation();
+  // O roteador não rola até a âncora sozinho (ex.: /termos#direitos-autorais vindo de um livro).
+  useEffect(() => {
+    if (!hash) return;
+    document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
+  }, [hash, doc]);
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/">
-          Voltar
-        </Link>
-      </nav>
+      <SiteTopBar />
       <article className="shelf legal-page">
         <div className="shelf-head">
           <span className="eyebrow">Storyverse</span>
           <h1>{TITLES[doc]}</h1>
-          <p className="muted">Atualizado em {UPDATED_AT}.</p>
+          <p className="muted">Atualizado em {UPDATED_AT[doc]}.</p>
         </div>
         <div className="legal-body">
           <Body />

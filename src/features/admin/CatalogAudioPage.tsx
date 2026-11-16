@@ -33,12 +33,14 @@ import {
   catalogRightsLabel,
   fetchCatalogText,
   getCatalogBook,
+  rightsNoteProblem,
   type AdminCatalogBook,
   type CatalogRights,
 } from "../../lib/adminCatalog";
 import { splitIntoChapters, type StoryChapter } from "../../lib/chapters";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { isSuperadmin } from "./adminSections";
+import { PublicDomainHint } from "./CatalogFields";
 
 type EditionForm = {
   language: "pt" | "en";
@@ -67,7 +69,8 @@ function emptyForm(book: AdminCatalogBook | null): EditionForm {
     sourceUrl: "",
     rights: book?.rights ?? "public_domain",
     rightsNote: book?.rights_note ?? "",
-    licenseNote: "LibriVox · domínio público",
+    // Vazio: o padrão "LibriVox · domínio público" acabava salvo em obra que não era (U7).
+    licenseNote: "",
     textMapping: "pending",
   };
 }
@@ -226,8 +229,10 @@ export function CatalogAudioPage({
 
   async function saveEdition() {
     if (!book) return;
-    if (form.rights !== "public_domain" && form.rightsNote.trim().length < 3) {
-      setError("Explique por que este áudio pode ser publicado.");
+    // V1: vale também para "domínio público". A LibriVox grava obras livres nos EUA; no Brasil
+    // o texto pode continuar protegido (ex.: autor morto há menos de 70 anos).
+    if (rightsNoteProblem(form.rightsNote)) {
+      setError(rightsNoteProblem(form.rightsNote));
       setMessage("");
       return;
     }
@@ -702,7 +707,7 @@ export function CatalogAudioPage({
               </label>
 
               <label className="catalog-field is-wide">
-                Justificativa dos direitos
+                Justificativa dos direitos *
                 <textarea
                   value={form.rightsNote}
                   onChange={(event) =>
@@ -711,9 +716,10 @@ export function CatalogAudioPage({
                   rows={2}
                   maxLength={500}
                   disabled={disabled}
-                  placeholder="Ex.: gravação da LibriVox em domínio público"
+                  placeholder="Ex.: LibriVox; Machado de Assis morreu em 1908"
                 />
               </label>
+              {form.rights === "public_domain" ? <PublicDomainHint /> : null}
 
               <label className="catalog-field is-wide">
                 Licença e atribuição

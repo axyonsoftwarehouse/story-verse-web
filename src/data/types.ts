@@ -49,7 +49,7 @@ export type Ebook = {
   communityId?: string;
   /** Chave do livro no catálogo público (`cat:<uuid>`). */
   catalogKey?: string;
-  /** Quando o admin aprovou (livros da comunidade): até 7 dias depois aparece em "Novidades". */
+  /** Quando o admin aprovou (livros da comunidade): até 7 dias depois ganha o selo "Novo". */
   publishedAt?: string;
   /** Livro importado que também foi enviado ao acervo: id do envio (a capa de lá segue a daqui). */
   submissionId?: string;

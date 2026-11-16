@@ -12,6 +12,7 @@ import {
 import { ReaderCount } from "../../components/ReaderCount";
 import { CatalogCover } from "./CatalogCover";
 import "./catalog.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 function CatalogCard({ book }: { book: CatalogBook }) {
   const ebook = catalogBookToEbook(book);
@@ -163,18 +164,14 @@ export function PublicLibraryPage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/">
-          Voltar
-        </Link>
-      </nav>
+      <SiteTopBar />
 
       <section className="shelf library-hero">
         <div className="shelf-head">
           <span className="eyebrow">Biblioteca pública</span>
           <h1>Leia, converse e guarde na sua estante.</h1>
           <p>
-            Clássicos e obras livres escolhidos pela curadoria do Storyverse. Os metadados são
+            Livros escolhidos pela curadoria do Storyverse e enviados por leitores. Os metadados são
             abertos; para ler e conversar com os personagens, entre na sua conta.
           </p>
         </div>
@@ -357,7 +354,7 @@ export function PublicLibraryPage() {
 
       <footer className="home-foot">
         <p>
-          Textos em domínio público e obras livres.{" "}
+          Livros da curadoria do Storyverse e da comunidade.{" "}
           <Link to="/">Voltar para a home</Link>
         </p>
       </footer>

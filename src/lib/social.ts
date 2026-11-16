@@ -1,5 +1,6 @@
 import { refreshAuthSession } from "./auth";
 import { apiEnabled, apiRequest, AuthSessionError } from "./backend";
+import type { Cosmetics } from "./shop";
 
 /**
  * Rede social: seguir perfis. Seguir é de mão única; quando as duas pessoas se seguem, viram
@@ -14,16 +15,29 @@ export type Person = {
   avatar: string;
   /** Foto do perfil (só arquivo do Storage da própria pessoa; a API filtra). */
   photo: string | null;
-  /** Paleta do perfil público (padrão: dourado). */
-  profile_theme: ProfileThemeId;
+  /** Paleta do perfil público (padrão: dourado). Ausente até a API enviar. */
+  profile_theme?: ProfileThemeId | null;
+  /**
+   * Capa do perfil para o card das listas: `shop_cover` é a comprada (caminho relativo, resolvido
+   * pelo site) e `cover` a enviada (URL absoluta, validada pela API). Vazio em perfil privado de
+   * quem não segue. Quem monta o endereço final é `profileCoverUrl`.
+   */
+  shop_cover?: string | null;
+  cover?: string | null;
   /** A conta logada segue esta pessoa. */
   is_following: boolean;
   /** Esta pessoa segue a conta logada. */
   follows_me: boolean;
+  /** Perfil privado: seguir vira pedido, e leituras e listas ficam para quem segue. */
+  is_private?: boolean;
+  /** A conta logada pediu para seguir e a pessoa ainda não respondeu. */
+  requested?: boolean;
   /** Nas listas: desde quando segue / é seguida. */
   since?: string;
   /** Nas sugestões: quantos grupos as duas dividem. */
   groups_in_common?: number;
+  /** Moldura, insígnia e cor de nome equipadas na loja. */
+  cosmetics?: Cosmetics | null;
 };
 
 export type ProfileBook = {
@@ -39,11 +53,19 @@ export type ProfileBook = {
 
 export type ProfileBadge = { id: string; emoji: string; title: string; description?: string };
 export type ProfileGift = { gift_id: string; name: string; icon: string; rarity: "common" | "rare" | "epic"; total: number };
+/** Insígnia da loja na estante do perfil. */
+export type ShelfBadge = { id: string; name: string; image: string };
 export type ProfileStats = { totalMinutes?: number; bestStreak?: number; finishedBooks?: number; messagesSent?: number };
 
 export type PersonProfile = Person & {
   is_me: boolean;
   member_since: string;
+  /** Biografia que a pessoa escreveu (até 160 caracteres e 4 linhas). */
+  bio?: string | null;
+  /** A conta logada vê leituras e listas (é ela, o perfil é público ou ela segue). */
+  content_visible?: boolean;
+  /** Só no próprio perfil: pedidos para seguir esperando resposta. */
+  pending_requests?: number;
   followers: number;
   following: number;
   /** Quantas pessoas seguem e são seguidas de volta por este perfil. */
@@ -60,15 +82,22 @@ export type PersonProfile = Person & {
   /** Quantas conquistas existem (para "6 de 17"). 0: o app da pessoa ainda não publicou. */
   badges_total: number;
   stats: ProfileStats;
+  /** Capa comprada equipada (só quando `content_visible`). */
+  shop_cover?: string | null;
+  /** Foto de capa enviada pela pessoa (só quando `content_visible`). */
+  cover?: string | null;
+  /** Insígnias da loja que a pessoa tem (só quando `content_visible`). */
+  badge_shelf?: ShelfBadge[];
 };
 
-export type Relation = "self" | "connection" | "following" | "follows_me" | "none";
+export type Relation = "self" | "connection" | "following" | "requested" | "follows_me" | "none";
 
 /** Como a conta logada se relaciona com a pessoa (rótulo do botão e do selo). */
-export function relationOf(p: Pick<Person, "is_following" | "follows_me"> & { is_me?: boolean }): Relation {
+export function relationOf(p: Pick<Person, "is_following" | "follows_me" | "requested"> & { is_me?: boolean }): Relation {
   if (p.is_me) return "self";
   if (p.is_following && p.follows_me) return "connection";
   if (p.is_following) return "following";
+  if (p.requested) return "requested";
   if (p.follows_me) return "follows_me";
   return "none";
 }
@@ -80,6 +109,8 @@ export function followLabel(relation: Relation): string {
       return "Conectados";
     case "following":
       return "Seguindo";
+    case "requested":
+      return "Pedido enviado";
     case "follows_me":
       return "Seguir de volta";
     default:
@@ -128,8 +159,19 @@ export const unfollow = (userId: string) => call<PersonProfile>(`/api/v1/social/
 export const removeFollower = (userId: string) => call<void>(`/api/v1/social/me/followers/${id(userId)}`, { method: "DELETE" });
 export const booksOf = (userId: string, offset = 0) =>
   call<ProfileBook[]>(`/api/v1/social/people/${id(userId)}/books?limit=24&offset=${offset}`);
-export const setShowReading = (showReading: boolean) =>
-  call<{ show_reading: boolean }>("/api/v1/social/me/privacy", { method: "PUT", body: { showReading } });
+export type Privacy = { show_reading: boolean; is_private: boolean; accepted_requests: number };
+/** Mostrar as leituras e/ou perfil privado (manda só o que mudou). */
+export const setPrivacy = (body: { showReading?: boolean; private?: boolean }) =>
+  call<Privacy>("/api/v1/social/me/privacy", { method: "PUT", body });
+export const setShowReading = (showReading: boolean) => setPrivacy({ showReading });
+
+/** Pedidos para seguir que a conta recebeu (perfil privado). */
+export const followRequests = (offset = 0) =>
+  call<Person[]>(`/api/v1/social/me/follow-requests?limit=${PEOPLE_PAGE}&offset=${offset}`);
+export const acceptFollowRequest = (userId: string) =>
+  call<void>(`/api/v1/social/me/follow-requests/${id(userId)}`, { method: "PUT" });
+export const declineFollowRequest = (userId: string) =>
+  call<void>(`/api/v1/social/me/follow-requests/${id(userId)}`, { method: "DELETE" });
 
 type ShowcaseBadge = { id: string; emoji: string; title: string; description: string; unlocked: boolean };
 

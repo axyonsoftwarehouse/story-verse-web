@@ -7,6 +7,10 @@ import { useStoredSession } from "../auth/useStoredSession";
 import { hueOf, useGroupsGate } from "../groups/groupHelpers";
 import { GIcon } from "../groups/groupIcons";
 import { PersonFace } from "../groups/GroupParts";
+import { BadgeShelf } from "../shop/BadgeShelf";
+import { PersonName } from "../shop/PersonName";
+import { BadgeIcon, GiftIcon } from "../../components/badgeIcons";
+import { profileCoverUrl } from "../../lib/shop";
 import {
   booksOf,
   countLabel,
@@ -15,7 +19,7 @@ import {
   followingOf,
   getPerson,
   memberSince,
-  setShowReading,
+  setPrivacy,
   type PersonProfile,
   type ProfileBook,
 } from "../../lib/social";
@@ -98,16 +102,22 @@ export function PersonProfilePage() {
   }
 
   const first = firstName(profile.name);
+  /** Perfil privado que a conta não segue: leituras e rede ficam fechadas. */
+  const locked = !profile.is_me && Boolean(profile.is_private) && profile.content_visible === false;
   const showList = (tab: ListTab) => {
     setParams(tab === "seguidores" ? {} : { lista: tab }, { replace: true });
     networkRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
   };
   const theme = normalizeProfileTheme(profile.profile_theme);
   const stats: { key: string; value: number; label: string; tab?: ListTab }[] = [
-    { key: "followers", value: profile.followers, label: profile.followers === 1 ? "seguidor" : "seguidores", tab: "seguidores" },
-    { key: "following", value: profile.following, label: "seguindo", tab: "seguindo" },
+    { key: "followers", value: profile.followers, label: profile.followers === 1 ? "seguidor" : "seguidores", tab: locked ? undefined : "seguidores" },
+    { key: "following", value: profile.following, label: "seguindo", tab: locked ? undefined : "seguindo" },
     { key: "connections", value: profile.connections, label: profile.connections === 1 ? "conexão" : "conexões" },
   ];
+  /** Capa e insígnias só com o conteúdo visível (a API também não manda quando está fechado). */
+  const contentVisible = profile.content_visible !== false;
+  const cover = contentVisible ? profileCoverUrl(profile.shop_cover, profile.cover) : null;
+  const shelf = contentVisible ? (profile.badge_shelf ?? []) : [];
 
   return (
     <div
@@ -117,18 +127,25 @@ export function PersonProfilePage() {
     >
       {back}
 
-      <section className="person-hero">
+      <section className={`person-hero ${cover ? "has-cover" : ""}`}>
+        {cover ? <span className="person-cover" style={{ backgroundImage: `url("${cover}")` }} aria-hidden="true" /> : null}
         <span className="person-hero-glow" aria-hidden="true" />
         <span className="person-avatar">
-          <PersonFace id={profile.id} name={profile.name} avatar={profile.avatar} photo={profile.photo} size="lg" />
+          <PersonFace id={profile.id} name={profile.name} avatar={profile.avatar} photo={profile.photo} size="lg" cosmetics={profile.cosmetics} animate />
         </span>
         <div className="person-hero-text">
           <h1>
-            {profile.name}
+            <PersonName name={profile.name} cosmetics={profile.cosmetics} />
             {profile.is_me ? <small className="people-you"> (você)</small> : null}
           </h1>
+          {profile.bio ? <p className="person-bio">{profile.bio}</p> : null}
           <p className="person-hero-meta">
             <RelationBadge person={profile} />
+            {profile.is_private ? (
+              <span className="people-badge is-private" title="Só quem segue vê as leituras e a rede">
+                {GIcon.lock} Privado
+              </span>
+            ) : null}
             <span>
               {memberSince(profile.member_since)}
               {!profile.is_me && profile.groups_in_common > 0
@@ -154,6 +171,9 @@ export function PersonProfilePage() {
                     ...cur,
                     is_following: next.is_following,
                     follows_me: next.follows_me,
+                    requested: next.requested ?? false,
+                    // Deixar de seguir um perfil privado fecha as leituras e a rede de novo.
+                    content_visible: !cur.is_private || next.is_following,
                     followers: "followers" in next ? next.followers : cur.followers,
                     connections: "connections" in next ? next.connections : cur.connections,
                   };
@@ -197,9 +217,23 @@ export function PersonProfilePage() {
         </dl>
       </section>
 
-      {profile.is_me ? <PrivacySwitch profile={profile} onChange={(show) => setProfile((cur) => (cur ? { ...cur, show_reading: show } : cur))} /> : null}
+      {profile.is_me ? <PrivacySettings profile={profile} onChange={(patch) => setProfile((cur) => (cur ? { ...cur, ...patch } : cur))} /> : null}
 
-      {profile.reading_hidden ? (
+      {locked ? (
+        <section className="person-section person-hidden is-private" style={{ "--i": 1 } as CSSProperties}>
+          <span className="person-hidden-icon" aria-hidden="true">
+            {GIcon.lock}
+          </span>
+          <div>
+            <strong>Este perfil é privado</strong>
+            <p>
+              {profile.requested
+                ? `Seu pedido está esperando ${first} responder. Quando for aceito, você vê as leituras, conquistas e a rede.`
+                : `Siga ${first} para ver as leituras, conquistas e a rede. ${first} precisa aceitar o pedido.`}
+            </p>
+          </div>
+        </section>
+      ) : profile.reading_hidden ? (
         <section className="person-section person-hidden" style={{ "--i": 1 } as CSSProperties}>
           <span className="person-hidden-icon" aria-hidden="true">
             {GIcon.lock}
@@ -218,40 +252,64 @@ export function PersonProfilePage() {
         </>
       )}
 
-      <h2 className="people-section-title person-network-title" ref={networkRef}>
-        Rede
-      </h2>
-      <div className="segmented groups-tabs people-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={list === "seguidores"} className={list === "seguidores" ? "is-on" : ""} onClick={() => showList("seguidores")}>
-          {profile.is_me ? "Seus seguidores" : `Seguem ${first}`}
-        </button>
-        <button type="button" role="tab" aria-selected={list === "seguindo"} className={list === "seguindo" ? "is-on" : ""} onClick={() => showList("seguindo")}>
-          {profile.is_me ? "Você segue" : `${first} segue`}
-        </button>
-      </div>
-      <PeopleList
-        reloadKey={`${profile.id}-${list}`}
-        load={(offset) => (list === "seguidores" ? followersOf(profile.id, offset) : followingOf(profile.id, offset))}
-        me={me}
-        empty={
-          <PeopleEmpty
-            icon={list === "seguidores" ? GIcon.users : GIcon.userPlus}
-            title={list === "seguidores" ? "Ninguém segue este perfil ainda" : "Este perfil ainda não segue ninguém"}
+      {shelf.length > 0 ? (
+        <section className="person-section" style={{ "--i": 5 } as CSSProperties}>
+          <h2 className="person-section-title">
+            Insígnias <small>{shelf.length}</small>
+          </h2>
+          <BadgeShelf items={shelf} />
+        </section>
+      ) : null}
+
+      {locked ? null : (
+        <>
+          <h2 className="people-section-title person-network-title" ref={networkRef}>
+            Rede
+          </h2>
+          <div className="segmented groups-tabs people-tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={list === "seguidores"} className={list === "seguidores" ? "is-on" : ""} onClick={() => showList("seguidores")}>
+              {profile.is_me ? "Seus seguidores" : `Seguem ${first}`}
+            </button>
+            <button type="button" role="tab" aria-selected={list === "seguindo"} className={list === "seguindo" ? "is-on" : ""} onClick={() => showList("seguindo")}>
+              {profile.is_me ? "Você segue" : `${first} segue`}
+            </button>
+          </div>
+          <PeopleList
+            reloadKey={`${profile.id}-${list}`}
+            load={(offset) => (list === "seguidores" ? followersOf(profile.id, offset) : followingOf(profile.id, offset))}
+            me={me}
+            empty={
+              <PeopleEmpty
+                icon={list === "seguidores" ? GIcon.users : GIcon.userPlus}
+                title={list === "seguidores" ? "Ninguém segue este perfil ainda" : "Este perfil ainda não segue ninguém"}
+              />
+            }
           />
-        }
-      />
+        </>
+      )}
       {profile.is_me ? <SuggestionsStrip me={me} skipFollowers={list === "seguidores"} /> : null}
     </div>
   );
 }
 
-/** Próprio perfil: escolher se os outros veem leituras, conquistas e presentes. */
-function PrivacySwitch({ profile, onChange }: { profile: PersonProfile; onChange: (show: boolean) => void }) {
+/** Uma chave do próprio perfil, salva na hora (quem chama volta atrás se a API recusar). */
+function Toggle({
+  on,
+  title,
+  onText,
+  offText,
+  save,
+}: {
+  on: boolean;
+  title: string;
+  onText: string;
+  offText: string;
+  save: (next: boolean) => Promise<void>;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const on = profile.show_reading;
   return (
-    <section className="person-section person-privacy" style={{ "--i": 0 } as CSSProperties}>
+    <>
       <label className="person-switch">
         <input
           type="checkbox"
@@ -259,27 +317,88 @@ function PrivacySwitch({ profile, onChange }: { profile: PersonProfile; onChange
           checked={on}
           disabled={busy}
           onChange={(e) => {
-            const next = e.target.checked;
             setBusy(true);
             setError("");
-            onChange(next);
-            void setShowReading(next)
-              .catch((err: unknown) => {
-                onChange(!next);
-                setError(errorText(err, "Não foi possível salvar agora."));
-              })
+            void save(e.target.checked)
+              .catch((err: unknown) => setError(errorText(err, "Não foi possível salvar agora.")))
               .finally(() => setBusy(false));
           }}
         />
         <span className="person-switch-track" aria-hidden="true" />
         <span className="person-switch-text">
-          <strong>Mostrar minhas leituras no perfil</strong>
-          <small>{on ? "Quem abre seu perfil vê seus livros, conquistas e presentes." : "Só você vê seus livros, conquistas e presentes."}</small>
+          <strong>{title}</strong>
+          <small>{on ? onText : offText}</small>
         </span>
       </label>
       {error ? (
         <p className="auth-error" role="alert">
           {error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** Próprio perfil: mostrar as leituras, perfil privado e os pedidos para seguir esperando. */
+function PrivacySettings({ profile, onChange }: { profile: PersonProfile; onChange: (patch: Partial<PersonProfile>) => void }) {
+  const isPrivate = Boolean(profile.is_private);
+  const pending = profile.pending_requests ?? 0;
+  const [note, setNote] = useState("");
+  return (
+    <section className="person-section person-privacy" style={{ "--i": 0 } as CSSProperties}>
+      <Toggle
+        on={profile.show_reading}
+        title="Mostrar minhas leituras no perfil"
+        onText={isPrivate ? "Quem segue você vê seus livros, conquistas e presentes." : "Quem abre seu perfil vê seus livros, conquistas e presentes."}
+        offText="Só você vê seus livros, conquistas e presentes."
+        save={async (next) => {
+          onChange({ show_reading: next });
+          try {
+            await setPrivacy({ showReading: next });
+          } catch (err) {
+            onChange({ show_reading: !next });
+            throw err;
+          }
+        }}
+      />
+      <Toggle
+        on={isPrivate}
+        title="Perfil privado"
+        onText="Para seguir você, a pessoa pede e você aceita. Leituras e rede ficam só para quem segue."
+        offText="Qualquer leitor pode seguir você e ver suas leituras e sua rede."
+        save={async (next) => {
+          if (
+            !next &&
+            pending > 0 &&
+            !window.confirm(`Deixar o perfil público? ${countLabel(pending, "pedido que está esperando vai ser aceito", "pedidos que estão esperando vão ser aceitos")}.`)
+          ) {
+            return;
+          }
+          setNote("");
+          onChange({ is_private: next });
+          try {
+            const saved = await setPrivacy({ private: next });
+            onChange({
+              is_private: saved.is_private,
+              pending_requests: saved.is_private ? pending : 0,
+              followers: profile.followers + saved.accepted_requests,
+            });
+            if (saved.accepted_requests > 0) setNote(`${countLabel(saved.accepted_requests, "pedido aceito", "pedidos aceitos")}.`);
+          } catch (err) {
+            onChange({ is_private: !next });
+            throw err;
+          }
+        }}
+      />
+      {pending > 0 ? (
+        <Link className="person-requests-link" to="/pessoas?aba=pedidos">
+          {GIcon.userPlus}
+          <span>{countLabel(pending, "pedido para seguir", "pedidos para seguir")} esperando resposta</span>
+        </Link>
+      ) : null}
+      {note ? (
+        <p className="person-privacy-note" role="status">
+          {note}
         </p>
       ) : null}
     </section>
@@ -440,7 +559,7 @@ function BadgesSection({ profile, first }: { profile: PersonProfile; first: stri
         {shown.map((b, i) => (
           <li key={b.id} className="person-badge" style={{ "--i": i } as CSSProperties} title={b.description ?? b.title}>
             <span className="person-badge-medal" aria-hidden="true">
-              {b.emoji}
+              <BadgeIcon id={b.id} size={24} />
             </span>
             <strong>{b.title}</strong>
             {b.description ? <small>{b.description}</small> : null}
@@ -471,7 +590,7 @@ function GiftsSection({ profile }: { profile: PersonProfile }) {
         {gifts.map((g, i) => (
           <li key={g.gift_id} className={`person-gift is-${g.rarity}`} style={{ "--i": i } as CSSProperties} title={g.name}>
             <span className="person-gift-icon" aria-hidden="true">
-              {g.icon}
+              <GiftIcon id={g.gift_id} emoji={g.icon} size={18} />
             </span>
             <span>
               <strong>{g.name}</strong>

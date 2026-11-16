@@ -27,7 +27,7 @@ export type DiamondReason =
   | "adjustment"
   | "gift_sent";
 
-export type DiamondEntry = { amount: number; balance_after: number; reason: DiamondReason; ref: string; created_at: string };
+export type DiamondEntry = { amount: number; balance_after: number; reason: DiamondReason; ref: string; created_at: string; item_name?: string | null };
 
 const call = <T>(session: SupabaseSession, name: string, args: object = {}) =>
   rpc<T>(session, name, args, { feature: "A loja de diamantes" });
@@ -61,7 +61,7 @@ export function diamondEntryLabel(e: DiamondEntry): string {
     case "gift_sent":
       return "Presente enviado";
     case "purchase":
-      return "Compra de diamantes";
+      return e.item_name ? `Compra: ${e.item_name}` : "Compra na loja";
     default:
       return "Ajuste";
   }

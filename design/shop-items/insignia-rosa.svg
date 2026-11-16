@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbe7b4"/>
+      <stop offset="0.5" stop-color="#e4b86a"/>
+      <stop offset="1" stop-color="#c48a3a"/>
+    </linearGradient>
+  </defs>
+  <defs>
+    <linearGradient id="petala" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbc6d9"/>
+      <stop offset="1" stop-color="#e07a9e"/>
+    </linearGradient>
+    <linearGradient id="folha" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a6e8c4"/>
+      <stop offset="1" stop-color="#3e9a6c"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#2b1d0c" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M128 160 C126 190 124 216 128 248" fill="none" stroke="#2f8a5e" stroke-width="14"/>
+    <path d="M126 206 C96 176 60 186 46 206 C70 226 104 226 126 206 Z" fill="url(#folha)"/>
+    <path d="M130 186 C160 156 196 164 212 182 C190 204 154 206 130 186 Z" fill="url(#folha)"/>
+    <path d="M128 168 C76 168 44 136 52 86 C60 46 92 22 128 30 C164 22 196 46 204 86 C212 136 180 168 128 168 Z" fill="url(#petala)"/>
+    <path d="M128 72 C150 72 160 92 150 108 C138 126 108 120 104 100 C100 80 118 64 140 64 M86 92 C88 128 110 146 140 146 C170 146 186 120 180 92" fill="none" stroke="#8a2e50" stroke-width="8"/>
+  </g>
+</svg>

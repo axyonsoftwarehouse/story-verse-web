@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { clock, recordingMime } from "../../lib/chatMedia";
 import { micPermission, micProblem, micProblemText } from "../../lib/micPermission";
 import { haptic, prefersReducedMotion } from "../../lib/motion";
+import { AudioPlayer } from "./AudioPlayer";
 import { GIcon } from "./groupIcons";
 
 /** No máximo 2 minutos (o servidor aceita até 2:05); chegando lá, para e abre a revisão. */
@@ -200,45 +201,11 @@ export function AudioRecorder({
   );
 }
 
-/** Ouvir o que gravou: tocar/pausar, barra e tempo. */
+/** Ouvir o que gravou, no mesmo tocador das mensagens. */
 function AudioPreview({ take }: { take: Take }) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [at, setAt] = useState(0);
-  const total = take.durationMs / 1000;
-  const progress = total > 0 ? Math.min(100, (at / total) * 100) : 0;
   return (
     <span className="group-recording-live is-preview">
-      <button
-        type="button"
-        className="group-audio-play"
-        onClick={() => {
-          const el = audio.current;
-          if (!el) return;
-          if (el.paused) void el.play().catch(() => setPlaying(false));
-          else el.pause();
-        }}
-        aria-label={playing ? "Pausar" : "Ouvir o áudio"}
-      >
-        {playing ? GIcon.pause : GIcon.play}
-      </button>
-      <span className="group-audio-track" aria-hidden="true">
-        <span style={{ width: `${progress}%` }} />
-        <i style={{ left: `${progress}%` }} />
-      </span>
-      <small className="group-audio-time">{clock((playing || at > 0 ? at : total) * 1000)}</small>
-      <audio
-        ref={audio}
-        src={take.url}
-        preload="metadata"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
-          setPlaying(false);
-          setAt(0);
-        }}
-        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-      />
+      <AudioPlayer url={take.url} durationMs={take.durationMs} seed={take.durationMs} speed={false} label="o áudio gravado" />
     </span>
   );
 }

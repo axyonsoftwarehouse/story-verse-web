@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbe7b4"/>
+      <stop offset="0.5" stop-color="#e4b86a"/>
+      <stop offset="1" stop-color="#c48a3a"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(-45 128 128)" stroke="#2b1d0c" stroke-width="9" stroke-linejoin="round">
+    <path d="M88 106 L262 106 L262 150 L244 150 L244 202 L212 202 L212 150 L198 150 L198 188 L170 188 L170 150 L88 150 Z" fill="url(#ouro)"/>
+    <path fill-rule="evenodd" d="M44 66 A62 62 0 1 1 43.99 66Z M44 104 A24 24 0 1 0 44.01 104Z" fill="url(#ouro)"/>
+  </g>
+</svg>

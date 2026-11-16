@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LEGAL_CONTACT, LegalPage, type LegalDoc } from "./LegalPage";
 
 function renderDoc(doc: LegalDoc) {
@@ -37,5 +37,19 @@ describe("LegalPage", () => {
   it("termos avisam que excluir a conta cancela a assinatura (S5)", () => {
     renderDoc("termos");
     expect(screen.getByText(/cancela a assinatura no cartão, se houver/)).toBeTruthy();
+  });
+
+  it("termos têm o canal de denúncia de direito autoral, com âncora (V1)", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <MemoryRouter initialEntries={["/termos#direitos-autorais"]}>
+        <LegalPage doc="termos" />
+      </MemoryRouter>,
+    );
+    const heading = screen.getByRole("heading", { name: /Direitos autorais e denúncias/ });
+    expect(heading.id).toBe("direitos-autorais");
+    expect(screen.getByText(/sai da biblioteca pública enquanto analisamos/)).toBeTruthy();
+    expect(scroll).toHaveBeenCalled();
   });
 });

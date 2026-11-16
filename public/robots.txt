@@ -1,0 +1,5 @@
+# Sem este arquivo, o fallback da SPA devolvia o index.html em /robots.txt.
+# O QA e o admin já mandam "X-Robots-Tag: noindex" pelo Caddy.
+User-agent: *
+Disallow: /admin
+Disallow: /conta
