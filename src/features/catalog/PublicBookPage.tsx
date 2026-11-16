@@ -16,6 +16,7 @@ import { useAccountFeatures } from "../auth/useAccountFeatures";
 import { useStoredSession } from "../auth/useStoredSession";
 import { CatalogCover } from "./CatalogCover";
 import "./catalog.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 type ShelfState = "unknown" | "checking" | "off" | "on" | "busy";
 
@@ -140,11 +141,7 @@ export function PublicBookPage() {
   if (!book) {
     return (
       <div className="home">
-        <nav className="home-nav profile-nav">
-          <Link className="btn" to="/biblioteca">
-            Voltar
-          </Link>
-        </nav>
+        <SiteTopBar back={{ to: "/biblioteca", label: "Biblioteca" }} />
         <section className="shelf">
           <p className="auth-error" role="alert">
             {error || "Livro não encontrado."}
@@ -169,11 +166,7 @@ export function PublicBookPage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/biblioteca">
-          Voltar
-        </Link>
-      </nav>
+      <SiteTopBar back={{ to: "/biblioteca", label: "Biblioteca" }} />
 
       <section className="shelf catalog-book-detail">
         <div className="catalog-book-layout">

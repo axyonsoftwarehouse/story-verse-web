@@ -12,6 +12,7 @@ import {
 import { ReaderCount } from "../../components/ReaderCount";
 import { CatalogCover } from "./CatalogCover";
 import "./catalog.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 function CatalogCard({ book }: { book: CatalogBook }) {
   const ebook = catalogBookToEbook(book);
@@ -163,11 +164,7 @@ export function PublicLibraryPage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/">
-          Voltar
-        </Link>
-      </nav>
+      <SiteTopBar />
 
       <section className="shelf library-hero">
         <div className="shelf-head">

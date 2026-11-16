@@ -16,6 +16,7 @@ import {
 } from "../../lib/publicAudiobooks";
 import { useStoredSession } from "../auth/useStoredSession";
 import "./audiobook.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
 const LOCAL_PREFIX = "storyverse:audio:";
@@ -355,11 +356,7 @@ export function AudiobookPage() {
   if (!manifest || !edition) {
     return (
       <div className="home">
-        <nav className="home-nav profile-nav">
-          <Link className="btn" to="/ouvir">
-            Voltar
-          </Link>
-        </nav>
+        <SiteTopBar back={{ to: "/ouvir", label: "Audiolivros" }} />
         <section className="shelf">
           <p className="auth-error" role="alert">
             {error || "Este livro ainda não tem audiolivro publicado."}
@@ -378,11 +375,7 @@ export function AudiobookPage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to={`/biblioteca/${encodeURIComponent(bookKey)}`}>
-          Voltar ao livro
-        </Link>
-      </nav>
+      <SiteTopBar back={{ to: `/biblioteca/${encodeURIComponent(bookKey)}`, label: "Voltar ao livro" }} />
 
       <section className="shelf audiobook-page">
         <div className="audiobook-layout">

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import "./legal.css";
 import { LEGAL_HOLDER } from "./holder";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 export type LegalDoc = "termos" | "privacidade" | "cancelamento";
 
@@ -276,11 +277,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
   const Body = BODIES[doc];
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/">
-          Voltar
-        </Link>
-      </nav>
+      <SiteTopBar />
       <article className="shelf legal-page">
         <div className="shelf-head">
           <span className="eyebrow">Storyverse</span>
