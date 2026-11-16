@@ -37,7 +37,6 @@ import {
   characterReply,
   detectProvider,
   refreshAiQuota,
-  USER_MESSAGE_MAX_CHARS,
   type ChatTurn,
 } from "./lib/ai";
 import { knownCast, loadCast } from "./lib/cast";
@@ -45,7 +44,6 @@ import {
   characterTalks,
   loadChat,
   saveChat,
-  type ChatMsg,
 } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
@@ -72,7 +70,6 @@ import {
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
 import { isStaff } from "./features/admin/adminSections";
-import { BookStatusControl } from "./features/library/BookStatusControl";
 import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
@@ -121,7 +118,6 @@ import {
   loadHighlights,
   MAX_HIGHLIGHT_CHARS,
   saveHighlights,
-  splitByHighlights,
   type Highlight,
 } from "./lib/highlights";
 import { splitIntoChapters } from "./lib/chapters";
@@ -175,7 +171,6 @@ import { useAppInstall, useUpdateReady } from "./lib/pwa";
 import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
   listVoices,
-  RATE_OPTIONS,
   saveRate,
   savedRate,
   savedVoiceUri,
@@ -217,7 +212,7 @@ import {
 import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
 import "./App.css";
 import { installNudgeReady, noteBookOpened, noteVisit } from "./lib/installNudge";
-import { FONT_SIZES, PREFS_KEY, NightLight, NIGHT_LIGHT_LABELS, loadPrefs } from "./lib/readingPrefs";
+import { FONT_SIZES, PREFS_KEY, loadPrefs } from "./lib/readingPrefs";
 import { shortNameOf } from "./lib/characterName";
 import { displayNameOf } from "./lib/userMeta";
 import { savedLabel } from "./lib/streakLabels";
@@ -234,177 +229,23 @@ import { Explore, LangBadge } from "./features/home/Explore";
 import { SHELVES } from "./data/shelves";
 import { MyBooks } from "./features/home/MyBooks";
 import { CelebrationOverlay, type Celebration } from "./features/home/CelebrationOverlay";
-import { PrivacyNote } from "./components/PrivacyNote";
-import { IMAGE_MARKER, withoutImageMarkers } from "./lib/imageMarkers";
-
-type Msg = ChatMsg;
+import { withoutImageMarkers } from "./lib/imageMarkers";
+import { searchBook, toBlocks, type BookSearchHit } from "./features/reader/bookText";
+import { initialThreadsFor, listNames, uid, type Msg } from "./features/chat/chatHelpers";
+import { VoicePanel } from "./features/reader/VoicePanel";
+import { SelectionToolbar } from "./features/reader/SelectionToolbar";
+import { WordCard } from "./features/reader/WordCard";
+import { BookSearchDialog } from "./features/reader/BookSearchDialog";
+import { HighlightsDialog } from "./features/reader/HighlightsDialog";
+import { ChatPanel } from "./features/chat/ChatPanel";
+import { ReaderBar } from "./features/reader/ReaderBar";
+import { ChapterText } from "./features/reader/ChapterText";
 
 const EMPTY_THREAD: Msg[] = [];
 /** Capítulo sem tradução carregada: a mesma referência sempre, para não refazer o texto da tela. */
 const NO_TRANSLATIONS: Record<number, (string | null)[]> = {};
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-
-function uid() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function initialThreadsFor(cast: StoryCharacter[]): Record<string, Msg[]> {
-  const initial: Record<string, Msg[]> = {};
-  for (const c of cast) {
-    initial[c.id] = [
-      {
-        id: uid(),
-        role: "assistant",
-        text:
-          c.greeting ??
-          `Olá! Eu sou ${c.name}. Vamos ler juntos? Pode me perguntar o que quiser sobre a história.`,
-      },
-    ];
-  }
-  return initial;
-}
-
-/** Toque (celular): o menu da seleção vai abaixo do trecho, longe do menu nativo do sistema. */
-function coarsePointer(): boolean {
-  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-}
-
-function listNames(names: string[]): string {
-  if (names.length <= 1) return names.join("");
-  return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
-}
-
-function suggestionsFor(c: StoryCharacter): string[] {
-  return [
-    `Quem é você de verdade, ${shortNameOf(c)}?`,
-    "O que está sentindo agora?",
-    "O que acha do que acabou de acontecer?",
-  ];
-}
-
-type Block = { kind: "heading" | "p" | "image"; text: string };
-
-/** Termina como frase (ponto, interrogação, aspas de fecho…): o parágrafo não continua no próximo. */
-const ENDS_SENTENCE = /[.!?…:;"»”)\]]$/;
-/** Títulos de seção de verdade: "Capítulo 3", "PARTE II", "Prólogo", numeral romano sozinho. */
-const SECTION_WORD =
-  /^(cap[ií]tulo|chapter|parte|part|livro|book|pr[oó]logo|prologue|ep[ií]logo|epilogue|pref[aá]cio|preface|introdu[cç][aã]o|introduction|ato|act|cena|scene)\b/i;
-const ROMAN_ALONE = /^[IVXLC]{1,9}\.?$/;
-
-function isHeading(p: string, next: string | undefined): boolean {
-  if (p.startsWith("—") || p.startsWith("-") || p.length > 90) return false;
-  if (SECTION_WORD.test(p) || ROMAN_ALONE.test(p)) return true;
-  // Todo em maiúsculas ("O RETRATO", "A SCANDAL IN BOHEMIA").
-  const letters = p.replace(/[^\p{L}]/gu, "");
-  if (letters.length >= 3 && p === p.toUpperCase() && !/[!?]$/.test(p)) return true;
-  // Linha curta com cara de título: começa em maiúscula, poucas palavras, sem pontuação final,
-  // e o parágrafo seguinte começa de novo (não é continuação da mesma frase).
-  const words = p.split(/\s+/).length;
-  return (
-    p.length <= 50 &&
-    words <= 8 &&
-    /^[\p{Lu}\d"“«]/u.test(p) &&
-    !/[,.!?…:;"»”)\-—]$/.test(p) &&
-    (next === undefined || /^[\p{Lu}\d"“«—-]/u.test(next))
-  );
-}
-
-/**
- * Os .txt do Gutenberg quebram as linhas a cada ~70 caracteres e separam parágrafos por
- * linha em branco: cada bloco vira um parágrafo. PDFs e EPUBs às vezes quebram uma frase no meio
- * ("…encontrei no trem da" + "Central um rapaz…"): esses pedaços voltam a ser um parágrafo só.
- * Só vira subtítulo (em destaque) o que é mesmo título de seção.
- */
-type BookSearchHit = {
-  chapterIndex: number;
-  chapterLabel: string;
-  paragraph: number;
-  start: number;
-  before: string;
-  match: string;
-  after: string;
-};
-
-/** Até 60 trechos onde o termo aparece (sem diferenciar maiúsculas nem acentos). */
-function searchBook(
-  blocksByChapter: Block[][],
-  chapters: { label: string }[],
-  term: string,
-): { hits: BookSearchHit[]; total: number } {
-  const plainText = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const needle = plainText(term.trim());
-  if (needle.length < 2) return { hits: [], total: 0 };
-  const hits: BookSearchHit[] = [];
-  let total = 0;
-  blocksByChapter.forEach((blocks, chapterIndex) => {
-    blocks.forEach((b, paragraph) => {
-      if (b.kind === "image") return;
-      const text = b.text.replace(/_/g, "");
-      // A normalização mantém o tamanho do texto (só tira os acentos combinados depois de NFD).
-      const hay = plainText(text);
-      let at = hay.indexOf(needle);
-      while (at !== -1) {
-        total++;
-        if (hits.length < 60) {
-          const from = Math.max(0, at - 50);
-          const to = Math.min(text.length, at + needle.length + 70);
-          hits.push({
-            chapterIndex,
-            chapterLabel: chapters[chapterIndex]?.label ?? "",
-            paragraph,
-            start: at,
-            before: `${from > 0 ? "…" : ""}${text.slice(from, at)}`,
-            match: text.slice(at, at + needle.length),
-            after: `${text.slice(at + needle.length, to)}${to < text.length ? "…" : ""}`,
-          });
-        }
-        at = hay.indexOf(needle, at + needle.length);
-      }
-    });
-  });
-  return { hits, total };
-}
-
-function toBlocks(text: string, skipHeadline?: string): Block[] {
-  // Ignora o "(1/2)" que o app acrescenta quando divide um capítulo longo em partes.
-  const norm = (s: string) =>
-    s.toUpperCase().replace(/\s*\(\d+\/\d+\)$/, "").replace(/\s+/g, " ").replace(/[\].\s]+$/, "");
-  const raw = text
-    .replace(/\r\n/g, "\n")
-    .split(/\n[ \t]*\n/)
-    .map((p) => p.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-  // O título do capítulo já aparece no topo: não repete ("Capítulo I" + "I" logo abaixo).
-  if (skipHeadline && raw[0]) {
-    const label = norm(skipHeadline);
-    const first = norm(raw[0]);
-    if (first === label || (ROMAN_ALONE.test(raw[0]) && label.endsWith(` ${first}`))) raw.shift();
-  }
-
-  // Junta pedaços de frase: sem pontuação no fim e o próximo começando em minúscula.
-  const paras: string[] = [];
-  for (const p of raw) {
-    const prev = paras[paras.length - 1];
-    if (prev && !IMAGE_MARKER.test(prev) && !IMAGE_MARKER.test(p) && !ENDS_SENTENCE.test(prev) && /^\p{Ll}/u.test(p)) {
-      paras[paras.length - 1] = `${prev.replace(/-$/, "")}${prev.endsWith("-") ? "" : " "}${p}`;
-    } else {
-      paras.push(p);
-    }
-  }
-
-  return paras.map((p, i) => {
-    const img = p.match(IMAGE_MARKER);
-    if (img) return { kind: "image", text: img[1] };
-    return { kind: isHeading(p, paras[i + 1]) ? "heading" : "p", text: p };
-  });
-}
-
-/** O Gutenberg marca itálico como _assim_. */
-function withItalics(text: string): React.ReactNode {
-  const parts = text.split(/_([^_]+)_/);
-  return parts.length === 1 ? text : parts.map((p, i) => (i % 2 === 1 ? <em key={i}>{p}</em> : p));
-}
 
 /** Aviso na tela inicial: a sequência quebrou (oferta) ou foi salva com diamantes. */
 function FreezeNudge({
@@ -3721,272 +3562,42 @@ export function App() {
       ) : null}
       {/* Por cima de tudo, sem pegar cliques: tira o azul da tela para ler à noite. */}
       {prefs.nightLight ? <div className={`night-light night-light-${prefs.nightLight}`} aria-hidden="true" /> : null}
-      <header className="reader-bar">
-        {goalFlash !== null ? (
-          <div key={goalFlash} className="goal-flash" role="status">
-            <span className="goal-flash-line" aria-hidden="true" />
-            <span className="goal-flash-sparks" aria-hidden="true">
-              {Array.from({ length: 8 }, (_, i) => (
-                <i key={i} style={{ "--i": i } as React.CSSProperties} />
-              ))}
-            </span>
-            <span className="goal-flash-pill">🎯 Meta do dia cumprida!</span>
-          </div>
-        ) : null}
-        <button type="button" className="icon-btn" onClick={leaveBook} aria-label="Voltar para a estante">
-          {Icon.back}
-        </button>
-        <div className="reader-title">
-          <strong>{book.title}</strong>
-          <span>
-            {book.author}
-            {currentChapter ? ` · ${currentChapter.label}` : ""}
-          </span>
-          {readingHere !== null && readingHere > 1 ? (
-            <span className="reading-here" role="status">
-              <span className="online-dot" aria-hidden="true" />
-              você e mais {readingHere - 1} {readingHere - 1 === 1 ? "pessoa lendo" : "pessoas lendo"} agora
-            </span>
-          ) : null}
-        </div>
-
-        {chapters.length > 1 ? (
-          <div className="chapter-nav">
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={chapterIndex <= 0}
-              onClick={() => setChapterIndex((i) => Math.max(0, i - 1))}
-              aria-label="Capítulo anterior"
-            >
-              {Icon.back}
-            </button>
-            <select
-              className="chapter-select"
-              value={chapterIndex}
-              onChange={(e) => setChapterIndex(Number(e.target.value))}
-              aria-label="Escolher capítulo"
-            >
-              {chapters.map((ch, i) => (
-                <option key={ch.index} value={i}>
-                  {ch.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!hasNextChapter}
-              onClick={() => setChapterIndex((i) => Math.min(chapters.length - 1, i + 1))}
-              aria-label="Próximo capítulo"
-            >
-              {Icon.next}
-            </button>
-          </div>
-        ) : null}
-
-        <div className="reader-tools">
-          {canSpeak && ready ? (
-            <>
-              {speaking ? (
-                <button
-                  type="button"
-                  className={`icon-btn text-btn rate-btn ${voicePanelOpen ? "is-active" : ""}`}
-                  onClick={() => setVoicePanelOpen((v) => !v)}
-                  aria-expanded={voicePanelOpen}
-                  aria-label={`Voz e velocidade (${speechRate}x)`}
-                  title="Voz e velocidade"
-                >
-                  {String(speechRate).replace(".", ",")}x
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className={`icon-btn ${speaking ? "is-active" : ""}`}
-                onClick={() => (speaking ? stopSpeaking() : listenAloud())}
-                aria-pressed={speaking}
-                aria-label={speaking ? "Parar a leitura em voz alta" : "Ouvir o capítulo em voz alta"}
-                title={speaking ? "Parar" : "Ouvir em voz alta"}
-              >
-                {speaking ? Icon.stop : Icon.speaker}
-              </button>
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Buscar no livro"
-            title="Buscar no livro"
-            disabled={!ready}
-          >
-            {Icon.search}
-          </button>
-          {shelfOn ? (
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => setShelfPanelOpen(true)}
-              aria-label="Na estante"
-              title="Na estante: status, nota e resenha"
-            >
-              {Icon.book}
-            </button>
-          ) : null}
-          {shelfOn && shelfPanelOpen ? <BookStatusControl book={book} onClose={() => setShelfPanelOpen(false)} /> : null}
-          <button
-            type="button"
-            className="icon-btn marks-btn"
-            onClick={() => setHighlightsOpen(true)}
-            aria-label={`Marcações (${highlights.length})`}
-            title="Marcações e citações"
-          >
-            {Icon.bookmark}
-            {highlights.length > 0 ? <span className="badge">{highlights.length}</span> : null}
-          </button>
-          {canTranslate ? (
-            <button
-              type="button"
-              className={`icon-btn text-btn translate-btn ${translateOn ? "is-active" : ""}`}
-              onClick={() => void toggleTranslation()}
-              aria-pressed={translateOn}
-              aria-label={translateOn ? "Ver o texto original em inglês" : "Traduzir para o português"}
-              title={translateOn ? "Ver o original em inglês" : "Traduzir para o português"}
-            >
-              {translateOn ? "PT" : "EN"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="icon-btn text-btn"
-            disabled={prefs.fontStep <= 0}
-            onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep - 1 }))}
-            aria-label="Diminuir letra"
-          >
-            A<small>−</small>
-          </button>
-          <button
-            type="button"
-            className="icon-btn text-btn"
-            disabled={prefs.fontStep >= FONT_SIZES.length - 1}
-            onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep + 1 }))}
-            aria-label="Aumentar letra"
-          >
-            A<small>+</small>
-          </button>
-          <button
-            type="button"
-            className="icon-btn reader-theme-btn"
-            onClick={() => setPrefs((p) => ({ ...p, theme: p.theme === "night" ? "sepia" : "night" }))}
-            aria-label={prefs.theme === "night" ? "Mudar para modo sépia" : "Mudar para modo noturno"}
-          >
-            {prefs.theme === "night" ? Icon.sun : Icon.moon}
-          </button>
-          <button
-            type="button"
-            className={`icon-btn night-light-btn ${prefs.nightLight ? "is-on" : ""}`}
-            onClick={() => setPrefs((p) => ({ ...p, nightLight: ((p.nightLight + 1) % 3) as NightLight }))}
-            aria-label={`Luz noturna: ${NIGHT_LIGHT_LABELS[prefs.nightLight]}. Toque para mudar.`}
-            title={`Luz noturna: ${NIGHT_LIGHT_LABELS[prefs.nightLight]}`}
-          >
-            {Icon.nightLight}
-            {prefs.nightLight ? <span className="night-light-level" aria-hidden="true">{prefs.nightLight}</span> : null}
-          </button>
-          <button
-            type="button"
-            className="icon-btn reader-settings-btn"
-            onClick={() => setReaderSettingsOpen((open) => !open)}
-            aria-expanded={readerSettingsOpen}
-            aria-label="Ajustes de leitura"
-            title="Ajustes de leitura"
-          >
-            Aa
-          </button>
-        </div>
-
-        {readerSettingsOpen ? (
-          <div className="reader-settings" role="dialog" aria-label="Ajustes de leitura">
-            <div className="reader-settings-head">
-              <strong>Ajustes de leitura</strong>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setReaderSettingsOpen(false)}
-                aria-label="Fechar ajustes"
-              >
-                {Icon.close}
-              </button>
-            </div>
-            <div className="reader-settings-row">
-              <span>Tamanho da letra</span>
-              <div className="reader-settings-actions">
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={prefs.fontStep <= 0}
-                  onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep - 1 }))}
-                  aria-label="Diminuir letra"
-                >
-                  A−
-                </button>
-                <strong>{Math.round(FONT_SIZES[prefs.fontStep] * 16)}px</strong>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={prefs.fontStep >= FONT_SIZES.length - 1}
-                  onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep + 1 }))}
-                  aria-label="Aumentar letra"
-                >
-                  A+
-                </button>
-              </div>
-            </div>
-            <div className="reader-settings-row">
-              <span>Tema</span>
-              <div className="segmented">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.theme === "night"}
-                  className={prefs.theme === "night" ? "is-on" : ""}
-                  onClick={() => setPrefs((p) => ({ ...p, theme: "night" }))}
-                >
-                  Noturno
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.theme === "sepia"}
-                  className={prefs.theme === "sepia" ? "is-on" : ""}
-                  onClick={() => setPrefs((p) => ({ ...p, theme: "sepia" }))}
-                >
-                  Sépia
-                </button>
-              </div>
-            </div>
-            <div className="reader-settings-row">
-              <span>Luz noturna</span>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setPrefs((p) => ({ ...p, nightLight: ((p.nightLight + 1) % 3) as NightLight }))}
-              >
-                {NIGHT_LIGHT_LABELS[prefs.nightLight]}
-              </button>
-            </div>
-            <div className="reader-settings-row">
-              <span>Tela cheia</span>
-              <button type="button" className="btn" onClick={() => void toggleReadingFullscreen()}>
-                {isFullscreen || immersive ? "Sair" : "Entrar"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="progress" aria-hidden="true">
-          <span style={{ width: `${readingProgressPct}%` }} />
-        </div>
-      </header>
+      <ReaderBar
+        book={book}
+        canSpeak={canSpeak}
+        canTranslate={canTranslate}
+        chapterIndex={chapterIndex}
+        chapters={chapters}
+        currentChapter={currentChapter}
+        goalFlash={goalFlash}
+        hasNextChapter={hasNextChapter}
+        highlights={highlights}
+        immersive={immersive}
+        isFullscreen={isFullscreen}
+        leaveBook={leaveBook}
+        listenAloud={listenAloud}
+        prefs={prefs}
+        readerSettingsOpen={readerSettingsOpen}
+        readingHere={readingHere}
+        readingProgressPct={readingProgressPct}
+        ready={ready}
+        setChapterIndex={setChapterIndex}
+        setHighlightsOpen={setHighlightsOpen}
+        setPrefs={setPrefs}
+        setReaderSettingsOpen={setReaderSettingsOpen}
+        setSearchOpen={setSearchOpen}
+        setShelfPanelOpen={setShelfPanelOpen}
+        setVoicePanelOpen={setVoicePanelOpen}
+        shelfOn={shelfOn}
+        shelfPanelOpen={shelfPanelOpen}
+        speaking={speaking}
+        speechRate={speechRate}
+        stopSpeaking={stopSpeaking}
+        toggleReadingFullscreen={toggleReadingFullscreen}
+        toggleTranslation={toggleTranslation}
+        translateOn={translateOn}
+        voicePanelOpen={voicePanelOpen}
+      />
 
       <div className="reader-layout">
         <main
@@ -4012,447 +3623,91 @@ export function App() {
           ) : null}
 
           {ready && currentChapter ? (
-            <article
-              key={chapterIndex}
-              className={`prose from-${chapterDirRef.current}`}
-              aria-label="Texto do capítulo"
-              onMouseUp={handleSelection}
-              onTouchEnd={handleSelection}
-              onKeyUp={handleSelection}
-              onPointerDown={() => (lastActivityRef.current = Date.now())}
-            >
-              <header className="chapter-head">
-                <span>
-                  {chapterIndex + 1} de {chapters.length}
-                </span>
-                <h1>{currentChapter.label}</h1>
-                <span className="chapter-ornament" aria-hidden="true">
-                  ✦
-                </span>
-              </header>
-
-              {translateOn ? (
-                <div className="translate-note" role="status">
-                  {failedChunks.length > 0 ? (
-                    <>
-                      Parte deste capítulo não pôde ser traduzida agora.{" "}
-                      <button
-                        type="button"
-                        className="link-btn"
-                        onClick={() => {
-                          if (engine === "local") warmUpLocalTranslator();
-                          setFailedChunks([]);
-                        }}
-                      >
-                        Tentar de novo
-                      </button>
-                    </>
-                  ) : translatingChunk !== null && !translations[visibleChunk?.chunk ?? 0] ? (
-                    "Traduzindo este trecho…"
-                  ) : (
-                    "Tradução automática. Pode conter imprecisões."
-                  )}
-                </div>
-              ) : null}
-
-              {blocks.map((b, i) => {
-                const c = chunkOfBlock[i];
-                if (b.kind === "image") {
-                  const src = bookImages[b.text];
-                  return src ? (
-                    <figure key={i} className="prose-figure" data-chunk={c} data-block={i}>
-                      <img src={src} alt="Ilustração do livro" loading="lazy" />
-                    </figure>
-                  ) : null;
-                }
-                const pending = translateOn && !translations[c];
-                const here = highlights.filter((h) => h.chapterIndex === chapterIndex && h.paragraph === i);
-                const marks = here.map((h) => h.text);
-                // Acabou de marcar: o trecho é pintado como caneta passando (só esse, só agora).
-                const fresh = new Set(here.filter((h) => Date.now() - h.createdAt < 4000).map((h) => h.text));
-                // Com destaque, o itálico (_assim_) sai: o trecho marcado precisa bater com o texto.
-                const text =
-                  marks.length > 0
-                    ? splitByHighlights(shownTexts[i].replace(/_/g, ""), marks).map((piece, k) =>
-                        piece.marked ? (
-                          <mark key={k} className={fresh.has(piece.text) ? "is-new" : undefined}>
-                            {piece.text}
-                          </mark>
-                        ) : (
-                          piece.text
-                        ),
-                      )
-                    : withItalics(shownTexts[i]);
-                const className =
-                  [
-                    i === dropCapIndex ? "dropcap" : "",
-                    pending ? "is-translating" : "",
-                    speakingBlock === i ? "is-speaking" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || undefined;
-                return b.kind === "heading" ? (
-                  <h2 key={i} data-chunk={c} data-block={i} className={className}>
-                    {text}
-                  </h2>
-                ) : (
-                  <p key={i} data-chunk={c} data-block={i} className={className}>
-                    {text}
-                  </p>
-                );
-              })}
-
-              <footer className="chapter-end">
-                {chapterDone?.key === chapterKey ? (
-                  <div className="chapter-done" role="status">
-                    <svg className="chapter-done-check" viewBox="0 0 52 52" aria-hidden="true">
-                      <circle cx="26" cy="26" r="23" />
-                      <path d="M15 27 l7.5 7.5 L37.5 19" />
-                    </svg>
-                    <strong>{chapterDone.label} concluído</strong>
-                    <div className="chapter-done-bar" aria-hidden="true">
-                      <span style={{ width: `${(chapterDone.done / chapterDone.total) * 100}%` }} />
-                    </div>
-                    <small>
-                      {chapterDone.done} de {chapterDone.total} capítulos ·{" "}
-                      {chapterDone.total - chapterDone.done === 1
-                        ? "falta 1"
-                        : `faltam ${chapterDone.total - chapterDone.done}`}
-                    </small>
-                  </div>
-                ) : null}
-                {hasNextChapter ? (
-                  <button
-                    type="button"
-                    className={`btn btn-primary btn-lg ${chapterDone?.key === chapterKey ? "is-ready" : ""}`}
-                    onClick={() => setChapterIndex((i) => i + 1)}
-                  >
-                    Próximo capítulo {Icon.next}
-                  </button>
-                ) : (
-                  <p className="the-end">Fim — mas a conversa continua ao lado.</p>
-                )}
-                {isLocalBook(book) ? (
-                  <span className="source-link">Livro importado · {authSession ? "guardado na sua conta" : "guardado só neste aparelho"}</span>
-                ) : book.source === "community" ? (
-                  <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
-                ) : book.source === "catalog" && book.catalogKey ? (
-                  <Link className="source-link" to={`/biblioteca/${encodeURIComponent(book.catalogKey)}`}>
-                    Livro da biblioteca pública · ver a ficha do livro
-                  </Link>
-                ) : (
-                  <a
-                    className="source-link"
-                    href={`https://www.gutenberg.org/ebooks/${book.gutenbergId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Ver esta obra no Project Gutenberg ↗
-                  </a>
-                )}
-              </footer>
-            </article>
+            <ChapterText
+              authSession={authSession}
+              blocks={blocks}
+              book={book}
+              bookImages={bookImages}
+              chapterDirRef={chapterDirRef}
+              chapterDone={chapterDone}
+              chapterIndex={chapterIndex}
+              chapterKey={chapterKey}
+              chapters={chapters}
+              chunkOfBlock={chunkOfBlock}
+              currentChapter={currentChapter}
+              dropCapIndex={dropCapIndex}
+              engine={engine}
+              failedChunks={failedChunks}
+              handleSelection={handleSelection}
+              hasNextChapter={hasNextChapter}
+              highlights={highlights}
+              lastActivityRef={lastActivityRef}
+              setChapterIndex={setChapterIndex}
+              setFailedChunks={setFailedChunks}
+              shownTexts={shownTexts}
+              speakingBlock={speakingBlock}
+              translateOn={translateOn}
+              translatingChunk={translatingChunk}
+              translations={translations}
+              visibleChunk={visibleChunk}
+            />
           ) : null}
         </main>
 
         {voicePanelOpen && speaking ? (
-          <>
-            <div className="voice-backdrop" onClick={() => setVoicePanelOpen(false)} />
-            <div className="voice-panel" role="dialog" aria-label="Voz e velocidade">
-              <div className="voice-panel-head">
-                <strong>Voz e velocidade</strong>
-                <button type="button" className="icon-btn" onClick={() => setVoicePanelOpen(false)} aria-label="Fechar">
-                  {Icon.close}
-                </button>
-              </div>
-
-              <span className="voice-label">Velocidade</span>
-              <div className="voice-rates" role="group" aria-label="Velocidade">
-                {RATE_OPTIONS.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={r === speechRate ? "active" : undefined}
-                    aria-pressed={r === speechRate}
-                    onClick={() => chooseRate(r)}
-                  >
-                    {String(r).replace(".", ",")}x
-                  </button>
-                ))}
-              </div>
-
-              <span className="voice-label">Voz</span>
-              {naturalVoiceSupported() && missingNatural.length > 0 ? (
-                <div className="voice-natural">
-                  {storedNatural?.length ? (
-                    <>
-                      <strong>✨ Mais vozes naturais</strong>
-                      <span>Cada uma baixa uma vez (cerca de 60 MB) e fica guardada aqui; prefira usar o Wi-Fi.</span>
-                    </>
-                  ) : (
-                    <>
-                      <strong>✨ Voz natural</strong>
-                      <span>
-                        Bem mais humana que as vozes do aparelho. Escolha uma: ela baixa uma vez (cerca de 60 MB) e
-                        fica guardada aqui; prefira usar o Wi-Fi.
-                      </span>
-                    </>
-                  )}
-                  <ul className="voice-natural-options">
-                    {missingNatural.map((v) => (
-                      <li key={v.id}>
-                        <span className="voice-natural-name">{v.name}</span>
-                        {naturalDownload?.id === v.id ? (
-                          <span className="voice-natural-progress">
-                            <span
-                              className="voice-natural-bar"
-                              role="progressbar"
-                              aria-label={`Baixando a voz ${v.name}`}
-                              aria-valuenow={naturalDownload.pct}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                            >
-                              <span style={{ width: `${Math.max(3, naturalDownload.pct)}%` }} />
-                            </span>
-                            <small>{naturalDownload.pct}%</small>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            disabled={naturalDownload !== null}
-                            aria-label={`Baixar a voz ${v.name}`}
-                            onClick={() => void getNaturalVoice(v.id)}
-                          >
-                            {naturalError === v.id ? "Tentar de novo" : "Baixar"}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {naturalError ? <small>Não deu para baixar agora. Confira a internet e tente de novo.</small> : null}
-                  {!storedNatural?.length && !naturalDownload ? (
-                    <button type="button" className="link-btn voice-natural-later" onClick={declineNaturalVoice}>
-                      Agora não
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-              {voices.length === 0 ? (
-                <p className="voice-tip">Procurando as vozes deste aparelho…</p>
-              ) : (
-                <ul className="voice-list">
-                  {voices.map((v) => (
-                    <li key={v.uri}>
-                      <button
-                        type="button"
-                        className={v.uri === voiceUri ? "active" : undefined}
-                        aria-pressed={v.uri === voiceUri}
-                        onClick={() => chooseVoice(v.uri)}
-                      >
-                        <span>{v.label}</span>
-                        {v.natural ? <em>natural</em> : null}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {voices.length > 0 && !voices.some((v) => v.natural) ? (
-                <p className="voice-tip">
-                  Este aparelho só tem vozes simples. Para uma voz quase humana, grátis: abra o Storyverse no{" "}
-                  <strong>Microsoft Edge</strong> (vozes Francisca e Antônio) ou, no iPhone, baixe uma voz{" "}
-                  <strong>Aprimorada</strong> em Ajustes › Acessibilidade › Conteúdo Falado › Vozes.
-                </p>
-              ) : null}
-            </div>
-          </>
+          <VoicePanel
+            chooseRate={chooseRate}
+            chooseVoice={chooseVoice}
+            declineNaturalVoice={declineNaturalVoice}
+            getNaturalVoice={getNaturalVoice}
+            missingNatural={missingNatural}
+            naturalDownload={naturalDownload}
+            naturalError={naturalError}
+            setVoicePanelOpen={setVoicePanelOpen}
+            speechRate={speechRate}
+            storedNatural={storedNatural}
+            voices={voices}
+            voiceUri={voiceUri}
+          />
         ) : null}
 
         {selection ? (
-          <div
-            className="sel-toolbar"
-            role="toolbar"
-            aria-label="Ações do trecho selecionado"
-            style={{
-              // Metade da largura do menu (~180 px) + margem, para não sair da tela.
-              left: Math.min(Math.max(selection.x, 190), window.innerWidth - 190),
-              top: coarsePointer() || selection.top < 90 ? selection.bottom + 12 : selection.top - 54,
-            }}
-            // Clicar no menu não pode desfazer a seleção antes do clique.
-            onMouseDown={(e) => e.preventDefault()}
-            onPointerDown={(e) => e.preventDefault()}
-          >
-            <button type="button" onClick={addHighlight}>
-              {Icon.bookmark} Marcar
-            </button>
-            {selection.word ? (
-              <button type="button" onClick={showMeaning}>
-                {Icon.book} Significado
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                const text = selection.text;
-                clearSelection();
-                shareQuote(text, currentChapter?.label);
-              }}
-            >
-              {Icon.share} Compartilhar
-            </button>
-          </div>
+          <SelectionToolbar
+            addHighlight={addHighlight}
+            clearSelection={clearSelection}
+            currentChapter={currentChapter}
+            selection={selection}
+            shareQuote={shareQuote}
+            showMeaning={showMeaning}
+          />
         ) : null}
 
         {wordCard ? (
-          <div
-            className="word-card"
-            role="dialog"
-            aria-label={`Significado de ${wordCard.word}`}
-            style={{
-              left: Math.min(Math.max(wordCard.x, 176), window.innerWidth - 176),
-              top: Math.min(wordCard.y + 12, window.innerHeight - 240),
-            }}
-          >
-            <div className="word-card-head">
-              <strong>{wordCard.word}</strong>
-              {wordCard.info?.kind ? <em>{wordCard.info.kind}</em> : null}
-              <button type="button" className="icon-btn" onClick={() => setWordCard(null)} aria-label="Fechar">
-                {Icon.close}
-              </button>
-            </div>
-            {!wordCard.info ? (
-              <p className="word-card-muted">Procurando…</p>
-            ) : (
-              <>
-                {wordCard.info.translation ? (
-                  <p className="word-card-translation">
-                    <span>Em português:</span> {wordCard.info.translation}
-                  </p>
-                ) : null}
-                {wordCard.info.definitions.length > 0 ? (
-                  <ol>
-                    {wordCard.info.definitions.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ol>
-                ) : !wordCard.info.translation ? (
-                  <p className="word-card-muted">Não encontramos esta palavra no dicionário.</p>
-                ) : null}
-                {wordCard.info.source ? (
-                  <a className="word-card-source" href={wordCard.info.source.url} target="_blank" rel="noreferrer">
-                    {wordCard.info.source.label} ↗
-                  </a>
-                ) : null}
-              </>
-            )}
-          </div>
+          <WordCard
+            setWordCard={setWordCard}
+            wordCard={wordCard}
+          />
         ) : null}
 
         {searchOpen ? (
-          <div className="import-overlay" onClick={() => setSearchOpen(false)}>
-            <div
-              className="import-panel marks-panel search-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="search-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="import-head">
-                <h3 id="search-title">Buscar no livro</h3>
-                <button type="button" className="icon-btn" onClick={() => setSearchOpen(false)} aria-label="Fechar">
-                  {Icon.close}
-                </button>
-              </div>
-              <label className="search-field">
-                {Icon.search}
-                <input
-                  type="search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Uma palavra ou um nome"
-                  aria-label="O que buscar no livro"
-                  autoFocus
-                />
-              </label>
-              {deferredTerm.trim().length < 2 ? (
-                <>
-                  <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
-                  <PrivacyNote details="O livro já está aberto aqui, então a busca roda no seu aparelho: o que você digita não vai para a internet nem fica salvo.">
-                    Busca privada: acontece só neste aparelho.
-                  </PrivacyNote>
-                </>
-              ) : searchResults.hits.length === 0 ? (
-                <p className="import-note">Nada encontrado para “{deferredTerm.trim()}”.</p>
-              ) : (
-                <>
-                  <p className="search-count">
-                    {searchResults.total} {searchResults.total === 1 ? "trecho" : "trechos"}
-                    {searchResults.total > searchResults.hits.length ? ` (mostrando os ${searchResults.hits.length} primeiros)` : ""}
-                  </p>
-                  <ul className="marks-list search-list">
-                    {searchResults.hits.map((r) => (
-                      <li key={`${r.chapterIndex}-${r.paragraph}-${r.start}`}>
-                        <button type="button" className="search-hit" onClick={() => openSearchResult(r)}>
-                          <span className="marks-chapter">{r.chapterLabel}</span>
-                          <span className="search-snippet">
-                            {r.before}
-                            <mark>{r.match}</mark>
-                            {r.after}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          </div>
+          <BookSearchDialog
+            deferredTerm={deferredTerm}
+            openSearchResult={openSearchResult}
+            searchResults={searchResults}
+            searchTerm={searchTerm}
+            setSearchOpen={setSearchOpen}
+            setSearchTerm={setSearchTerm}
+          />
         ) : null}
 
         {highlightsOpen ? (
-          <div className="import-overlay" onClick={() => setHighlightsOpen(false)}>
-            <div
-              className="import-panel marks-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="marks-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="import-head">
-                <h3 id="marks-title">Marcações</h3>
-                <button type="button" className="icon-btn" onClick={() => setHighlightsOpen(false)} aria-label="Fechar">
-                  {Icon.close}
-                </button>
-              </div>
-              {highlightGroups.length === 0 ? (
-                <p className="import-note">
-                  Selecione um trecho do livro e toque em <strong>Marcar</strong> para guardar suas citações
-                  favoritas aqui.
-                </p>
-              ) : (
-                <ul className="marks-list">
-                  {highlightGroups.map(({ first, text }) => (
-                    <li key={first.group ?? first.id}>
-                      <span className="marks-chapter">{first.chapterLabel}</span>
-                      <blockquote>{text}</blockquote>
-                      <div className="marks-actions">
-                        <button type="button" className="link-btn" onClick={() => openHighlight(first)}>
-                          Ir para o trecho
-                        </button>
-                        <button type="button" className="link-btn" onClick={() => shareQuote(text, first.chapterLabel)}>
-                          Compartilhar
-                        </button>
-                        <button type="button" className="link-btn marks-remove" onClick={() => removeHighlight(first)}>
-                          Remover
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+          <HighlightsDialog
+            highlightGroups={highlightGroups}
+            openHighlight={openHighlight}
+            removeHighlight={removeHighlight}
+            setHighlightsOpen={setHighlightsOpen}
+            shareQuote={shareQuote}
+          />
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
@@ -4467,212 +3722,35 @@ export function App() {
           </div>
         ) : null}
 
-        <aside className={`chat ${chatOpen ? "is-open" : ""}`} aria-label="Conversa com os personagens">
-          {character ? (
-            <div className="chat-head" style={{ "--c": character.color } as React.CSSProperties}>
-              <span className="chat-head-avatar" ref={chatAvatarRef}>
-                <Avatar character={character} size="lg" bookTitle={book.title} generate />
-                {chatReaction?.emoji ? (
-                  <span key={chatReaction.id} className="chat-reaction" aria-hidden="true">
-                    {chatReaction.emoji}
-                  </span>
-                ) : null}
-              </span>
-              <div className="chat-head-text">
-                <strong>{character.name}</strong>
-                <span>{character.role}</span>
-              </div>
-              {userHasSpoken ? (
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={resetConversation}
-                  aria-label={`Recomeçar a conversa com ${character.name}`}
-                  title="Recomeçar a conversa"
-                >
-                  {Icon.refresh}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="icon-btn chat-close"
-                onClick={() => setChatOpen(false)}
-                aria-label="Fechar conversa"
-              >
-                {Icon.close}
-              </button>
-            </div>
-          ) : (
-            <div className="chat-head chat-head-pending">
-              <span className="spinner" aria-hidden="true" />
-              <div className="chat-head-text">
-                <strong>{ready ? "Conhecendo os personagens…" : "Abrindo o livro…"}</strong>
-                <span>Em instantes eles chegam para conversar</span>
-              </div>
-              <button
-                type="button"
-                className="icon-btn chat-close"
-                onClick={() => setChatOpen(false)}
-                aria-label="Fechar conversa"
-              >
-                {Icon.close}
-              </button>
-            </div>
-          )}
-
-          {characters.length > 1 ? (
-            <div className="cast" role="tablist" aria-label="Personagens">
-              {characters.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={c.id === character?.id}
-                  className={`cast-chip ${c.id === character?.id ? "active" : ""}`}
-                  style={{ "--c": c.color } as React.CSSProperties}
-                  onClick={() => setActiveCharId(c.id)}
-                >
-                  <Avatar character={c} size="sm" bookTitle={book.title} generate />
-                  {shortNameOf(c)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <PrivacyNote
-            details={
-              <>
-                Ninguém da comunidade vê suas conversas. Cada mensagem vai por conexão criptografada (HTTPS) até a
-                IA que dá voz ao personagem, só para ele responder, e o histórico fica no seu aparelho e na sua conta, para continuar de
-                onde parou. Você pode apagar tudo em Perfil › Ajustes › Privacidade.
-              </>
-            }
-          >
-            Conversa privada: só você vê.
-          </PrivacyNote>
-
-          <div ref={chatBodyRef} className="chat-body">
-            {character ? (
-              // Sempre no começo da conversa: deixa claro que é ficção feita por IA.
-              <p className="chat-ai-notice" role="note">
-                <span aria-hidden="true">🤖</span>
-                <span>
-                  <strong>Conversa fictícia criada por inteligência artificial.</strong> {character.name} é um personagem, não uma pessoa
-                  real: as respostas são geradas por IA e podem conter erros.
-                </span>
-              </p>
-            ) : null}
-            {messages.map((m) =>
-              m.role === "assistant" && character ? (
-                <div key={m.id} className="msg msg-assistant">
-                  <Avatar character={character} size="sm" bookTitle={book.title} generate />
-                  <div className="bubble assistant">{m.text}</div>
-                  <button
-                    type="button"
-                    className="msg-share"
-                    onClick={() => shareMessage(m)}
-                    aria-label="Compartilhar esta fala como imagem"
-                    title="Compartilhar como imagem"
-                  >
-                    {Icon.share}
-                  </button>
-                </div>
-              ) : (
-                <div key={m.id} className={`msg msg-user ${m.reaction ? "has-reaction" : ""}`}>
-                  <div className="bubble user">
-                    {m.text}
-                    {m.reaction ? (
-                      <span className="bubble-reaction" role="img" aria-label={`${character?.name ?? "O personagem"} reagiu com ${m.reaction}`}>
-                        {m.reaction}
-                      </span>
-                    ) : null}
-                  </div>
-                  {loading && messages[messages.length - 1]?.id === m.id ? (
-                    <span className="msg-seen" aria-label={`${character?.name ?? "O personagem"} viu a mensagem`}>
-                      Visto
-                    </span>
-                  ) : null}
-                </div>
-              ),
-            )}
-            {loading && character ? (
-              <div className="msg msg-assistant is-typing">
-                <Avatar character={character} size="sm" bookTitle={book.title} generate />
-                <div className="bubble assistant typing" aria-label={`${character.name} está escrevendo`}>
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {error ? <div className="chat-err">{error}</div> : null}
-
-          {!userHasSpoken && character && ready && !loading && !outOfMessages ? (
-            <div className="suggestions">
-              {suggestionsFor(character).map((s) => (
-                <button key={s} type="button" className="suggestion" onClick={() => void sendMessage(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {limitApplies && messagesLeft > 0 && messagesLeft <= 5 ? (
-            <p className="limit-note">
-              {messagesLeft === 1 ? "Resta 1 mensagem hoje." : `Restam ${messagesLeft} mensagens hoje.`}
-            </p>
-          ) : null}
-          {limitApplies && messagesLeft === 0 && extraMessagesLeft > 0 ? (
-            <p className="limit-note">
-              {extraMessagesLeft === 1
-                ? "Usando 1 mensagem extra."
-                : `Usando mensagens extras: ${extraMessagesLeft} restantes.`}
-            </p>
-          ) : null}
-
-          {outOfMessages ? (
-            <div className="limit-out" role="status">
-              <strong>Por hoje é só 💛</strong>
-              <span>
-                Você usou as mensagens gratuitas e extras de hoje. Os personagens voltam a conversar amanhã —
-                enquanto isso, a leitura continua.
-              </span>
-              <button type="button" className="btn btn-primary" onClick={() => setShopOpen(true)}>
-                Comprar mensagens extras
-              </button>
-            </div>
-          ) : (
-          <form className="composer" onSubmit={onSend}>
-            <textarea
-              ref={inputRef}
-              rows={1}
-              maxLength={USER_MESSAGE_MAX_CHARS}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                ready && character ? `Escreva para ${shortNameOf(character)}…` : "Aguarde um instante…"
-              }
-              disabled={loading || !ready || !castReady || !character}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void sendMessage(input);
-                }
-              }}
-            />
-            <button
-              type="submit"
-              className="send-btn"
-              disabled={loading || !ready || !character || !input.trim()}
-              aria-label="Enviar"
-            >
-              {Icon.send}
-            </button>
-          </form>
-          )}
-        </aside>
+        <ChatPanel
+          book={book}
+          castReady={castReady}
+          character={character}
+          characters={characters}
+          chatAvatarRef={chatAvatarRef}
+          chatBodyRef={chatBodyRef}
+          chatOpen={chatOpen}
+          chatReaction={chatReaction}
+          error={error}
+          extraMessagesLeft={extraMessagesLeft}
+          input={input}
+          inputRef={inputRef}
+          limitApplies={limitApplies}
+          loading={loading}
+          messages={messages}
+          messagesLeft={messagesLeft}
+          onSend={onSend}
+          outOfMessages={outOfMessages}
+          ready={ready}
+          resetConversation={resetConversation}
+          sendMessage={sendMessage}
+          setActiveCharId={setActiveCharId}
+          setChatOpen={setChatOpen}
+          setInput={setInput}
+          setShopOpen={setShopOpen}
+          shareMessage={shareMessage}
+          userHasSpoken={userHasSpoken}
+        />
 
         {!chatOpen ? (
           <button
