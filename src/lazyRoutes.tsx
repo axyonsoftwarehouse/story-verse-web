@@ -69,6 +69,10 @@ export const RankingPage = lazy(() =>
   loadRoute(() => import("./features/home/RankingPage")).then((m) => ({ default: m.RankingPage })),
 );
 
+export const ProfilePage = lazy(() =>
+  loadRoute(() => import("./features/profile/ProfilePage")).then((m) => ({ default: m.ProfilePage })),
+);
+
 export const LegalPage = lazy(() =>
   loadRoute(() => import("./features/legal/LegalPage")).then((m) => ({ default: m.LegalPage })),
 );

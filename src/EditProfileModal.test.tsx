@@ -24,7 +24,7 @@ vi.mock("./lib/profileMedia", async (importOriginal) => ({
   prepareImage: (...args: unknown[]) => prepareImage(...args),
 }));
 
-import { EditProfileModal } from "./App";
+import { EditProfileModal } from "./features/profile/EditProfileModal";
 import type { SupabaseSession } from "./lib/auth";
 import { clearOwnShopCover } from "./features/shop/useOwnProfileExtras";
 
