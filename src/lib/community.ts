@@ -342,6 +342,38 @@ async function dropObject(session: SupabaseSession | null, bucket: string, path:
 }
 
 /**
+ * Moderação corrige título e autor de um envio, em análise ou já publicado (U1). A API confere a
+ * regra de submissionMetadata.ts e atualiza a cópia do livro no catálogo.
+ */
+export async function updateSubmissionDetails(
+  session: SupabaseSession,
+  id: string,
+  details: { title: string; author: string },
+): Promise<Submission> {
+  const body = { title: details.title.trim().slice(0, 120), author: details.author.trim().slice(0, 120) };
+  let row: Submission;
+  if (apiEnabled) {
+    row = await apiRequest<Submission>(`/api/v1/community/submissions/${id}`, {
+      method: "PATCH",
+      accessToken: session.access_token,
+      body,
+    });
+  } else {
+    const res = await sb(`/rest/v1/book_submissions?id=eq.${id}`, {
+      method: "PATCH",
+      session,
+      headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify(body),
+    });
+    const rows = (await res.json()) as Submission[];
+    if (!rows[0]) throw new Error("Envio não encontrado.");
+    row = rows[0];
+  }
+  approvedCache = null;
+  return row;
+}
+
+/**
  * Troca a capa de um envio. Quem enviou usa a função set_submission_cover (só aceita capa da própria
  * pasta no Storage); sem ela no banco, o PATCH direto funciona para o admin.
  */

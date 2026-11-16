@@ -12,8 +12,10 @@ import {
   listSubmissions,
   reviewSubmission,
   rightsLabel,
+  updateSubmissionDetails,
   type Submission,
 } from "../../lib/community";
+import { metadataProblem, metadataWarning } from "../../lib/submissionMetadata";
 import { prepareImage } from "../../lib/profileMedia";
 import { SubmissionPreview } from "./SubmissionPreview";
 
@@ -106,6 +108,8 @@ export function SubmissionsModeration({
   const [flagged, setFlagged] = useState<Record<string, boolean>>({});
   const [authorized, setAuthorized] = useState<Record<string, boolean>>({});
   const [preview, setPreview] = useState<Submission | null>(null);
+  /** Correção de título e autor (U1): em análise ou já publicado. */
+  const [editing, setEditing] = useState<{ id: string; title: string; author: string } | null>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -120,6 +124,8 @@ export function SubmissionsModeration({
   }, [session]);
 
   async function approve(s: Submission) {
+    const problem = metadataProblem(s.title, s.author);
+    if (problem) return setError(`${problem} Use “Editar dados”.`);
     if (flagged[s.id] && !authorized[s.id]) {
       return setError(
         "Obra provavelmente protegida: confirme que tem autorização do autor ou da editora antes de aprovar.",
@@ -151,6 +157,25 @@ export function SubmissionsModeration({
       setRejecting(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível recusar.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function saveDetails(s: Submission, title: string, author: string) {
+    const problem = metadataProblem(title, author);
+    if (problem) return setError(problem);
+    setBusyId(s.id);
+    setError("");
+    try {
+      const updated = await updateSubmissionDetails(session, s.id, { title, author });
+      const swap = (list: Submission[] | null) =>
+        list?.map((item) => (item.id === s.id ? { ...item, ...updated } : item)) ?? null;
+      setPending(swap);
+      setApproved(swap);
+      setEditing(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar os dados.");
     } finally {
       setBusyId(null);
     }
@@ -249,7 +274,10 @@ export function SubmissionsModeration({
         </p>
       ) : (
         <ul className="submission-list">
-          {list?.map((s) => (
+          {list?.map((s) => {
+            const problem = metadataProblem(s.title, s.author);
+            const warning = problem ? null : metadataWarning(s.title);
+            return (
             <li key={s.id} className="profile-card moderation-item">
               <div className="moderation-body">
                 <div className="moderation-cover">
@@ -291,6 +319,14 @@ export function SubmissionsModeration({
                     <strong>{rightsLabel(s.rights)}</strong>
                     {s.rights_note ? ` — ${s.rights_note}` : " — sem justificativa"}
                   </p>
+                  {problem ? (
+                    <p className="rights-alert is-danger">
+                      <strong>Dados incompletos:</strong> {problem}{" "}
+                      {tab === "pending" ? "Não dá para aprovar assim." : "Aparece assim na vitrine."}
+                    </p>
+                  ) : warning ? (
+                    <p className="rights-alert is-unknown">{warning}</p>
+                  ) : null}
                   <RightsAlert
                     title={s.title}
                     author={s.author}
@@ -319,7 +355,48 @@ export function SubmissionsModeration({
                 </div>
               </div>
 
-              {rejecting?.id === s.id ? (
+              {editing?.id === s.id ? (
+                <form
+                  className="moderation-reject moderation-edit"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveDetails(s, editing.title, editing.author);
+                  }}
+                >
+                  <label className="field">
+                    <span>Título</span>
+                    <input
+                      value={editing.title}
+                      maxLength={120}
+                      onChange={(event) => setEditing({ ...editing, title: event.target.value })}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Autor</span>
+                    <input
+                      value={editing.author}
+                      maxLength={120}
+                      onChange={(event) => setEditing({ ...editing, author: event.target.value })}
+                    />
+                  </label>
+                  {metadataProblem(editing.title, editing.author) ?? metadataWarning(editing.title) ? (
+                    <p className="muted">{metadataProblem(editing.title, editing.author) ?? metadataWarning(editing.title)}</p>
+                  ) : null}
+                  <div className="moderation-actions">
+                    <button type="button" className="btn" onClick={() => setEditing(null)} disabled={busyId === s.id}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={busyId === s.id || Boolean(metadataProblem(editing.title, editing.author))}
+                    >
+                      {busyId === s.id ? "Salvando…" : "Salvar dados"}
+                    </button>
+                  </div>
+                </form>
+              ) : rejecting?.id === s.id ? (
                 <div className="moderation-reject">
                   <textarea
                     value={rejecting.note}
@@ -353,12 +430,26 @@ export function SubmissionsModeration({
                   <button type="button" className="btn" onClick={() => setPreview(s)}>
                     Ler
                   </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setRejecting(null);
+                      setEditing({ id: s.id, title: s.title, author: s.author ?? "" });
+                    }}
+                    disabled={busyId === s.id}
+                  >
+                    Editar dados
+                  </button>
                   {tab === "pending" ? (
                     <>
                       <button
                         type="button"
                         className="btn profile-logout"
-                        onClick={() => setRejecting({ id: s.id, note: "" })}
+                        onClick={() => {
+                          setEditing(null);
+                          setRejecting({ id: s.id, note: "" });
+                        }}
                         disabled={busyId === s.id}
                       >
                         Recusar
@@ -367,11 +458,13 @@ export function SubmissionsModeration({
                         type="button"
                         className="btn btn-primary"
                         onClick={() => void approve(s)}
-                        disabled={busyId === s.id || (flagged[s.id] && !authorized[s.id])}
+                        disabled={busyId === s.id || Boolean(problem) || (flagged[s.id] && !authorized[s.id])}
                         title={
-                          flagged[s.id] && !authorized[s.id]
-                            ? "Confirme a autorização para aprovar"
-                            : undefined
+                          problem
+                            ? "Corrija título e autor em “Editar dados” para aprovar"
+                            : flagged[s.id] && !authorized[s.id]
+                              ? "Confirme a autorização para aprovar"
+                              : undefined
                         }
                       >
                         {busyId === s.id ? "Aprovando…" : "Aprovar"}
@@ -390,7 +483,8 @@ export function SubmissionsModeration({
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
