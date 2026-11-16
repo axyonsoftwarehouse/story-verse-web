@@ -58,9 +58,40 @@ describe("SubmissionsModeration · dados do livro (U1)", () => {
     await waitFor(() =>
       expect(updateSubmissionDetails).toHaveBeenCalledWith(session, "s1", { title: "Morte", author: "Ana Arantes" }),
     );
-    await waitFor(() => expect(screen.getByRole("button", { name: "Aprovar" })).toBeEnabled());
-    expect(screen.queryByText(/parece nome de arquivo/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(/parece nome de arquivo/)).not.toBeInTheDocument());
+    // V1: ainda falta a justificativa de quem aprova.
+    expect(screen.getByRole("button", { name: "Aprovar" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Por que pode ser publicado/), {
+      target: { value: "Obra própria, conferida com a autora" },
+    });
+    expect(screen.getByRole("button", { name: "Aprovar" })).toBeEnabled();
     expect(reviewSubmission).not.toHaveBeenCalled();
+  });
+
+  it("aprova enviando a justificativa de direitos e lembra a regra do domínio público", async () => {
+    const ok = { ...raw, title: "Dom Casmurro", author: "Machado de Assis", rights: "public_domain" as const };
+    vi.mocked(listSubmissions).mockImplementation((_s, scope) => Promise.resolve(scope === "pending" ? [ok] : []));
+    vi.mocked(reviewSubmission).mockResolvedValue({ ...ok, status: "approved" });
+    render(<SubmissionsModeration session={session} />);
+
+    expect(await screen.findByRole("note")).toHaveTextContent(/70 anos depois da morte do autor/);
+    fireEvent.change(screen.getByLabelText(/Por que pode ser publicado/), { target: { value: "curto" } });
+    expect(screen.getByRole("button", { name: "Aprovar" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Por que pode ser publicado/), {
+      target: { value: "Domínio Público (MEC); Machado morreu em 1908" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Aprovar" }));
+
+    await waitFor(() =>
+      expect(reviewSubmission).toHaveBeenCalledWith(
+        session,
+        "s1",
+        "approved",
+        undefined,
+        null,
+        "Domínio Público (MEC); Machado morreu em 1908",
+      ),
+    );
   });
 
   it("não deixa salvar autor que não identifica ninguém", async () => {

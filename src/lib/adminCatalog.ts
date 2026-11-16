@@ -174,14 +174,32 @@ export function catalogMetadataProblem(value: {
   return "";
 }
 
+/** Mesmo mínimo da API (RightsJustification): "ok" não serve, "Gutenberg; morreu em 1910" serve. */
+export const RIGHTS_NOTE_MIN = 15;
+export const RIGHTS_NOTE_MESSAGE =
+  "Explique por que esta obra pode ser publicada: fonte, ano de morte do autor ou licença.";
+
+/**
+ * V1: o direito de publicar precisa estar escrito, inclusive em "domínio público", que foi o
+ * rótulo usado para obras protegidas no acervo de produção.
+ */
+export function rightsNoteProblem(note: string | null | undefined): string {
+  return (note ?? "").trim().length < RIGHTS_NOTE_MIN ? RIGHTS_NOTE_MESSAGE : "";
+}
+
 export function catalogRightsProblem(value: {
   rights: CatalogRights;
   rightsNote: string;
 }): string {
-  if (value.rights !== "public_domain" && value.rightsNote.trim().length < 3) {
-    return "Explique por que esta obra pode ser publicada (autorização, obra própria ou licença).";
-  }
-  return "";
+  return rightsNoteProblem(value.rightsNote);
+}
+
+/**
+ * No Brasil (Lei 9.610/98, art. 41) a obra entra em domínio público em 1º de janeiro do ano
+ * seguinte aos 70 anos da morte do autor. Devolve o último ano de morte que já libera a obra.
+ */
+export function publicDomainDeathYear(today = new Date()): number {
+  return today.getFullYear() - 71;
 }
 
 type UploadKind = { contentType: string; extension: string };
@@ -369,6 +387,21 @@ export function setCatalogBookStatus(
     `/api/v1/admin/catalog/books/${encodeURIComponent(id)}/${action}`,
     { method: "POST", accessToken: session.access_token },
   );
+}
+
+export type CatalogBulkResult = { status: "hidden" | "archived"; changed: number; requested: number };
+
+/** Ocultar ou arquivar vários livros de uma vez (V1). Publicar em lote não existe. */
+export function setCatalogBooksStatus(
+  session: SupabaseSession,
+  ids: string[],
+  status: "hidden" | "archived",
+): Promise<CatalogBulkResult> {
+  return apiRequest<CatalogBulkResult>("/api/v1/admin/catalog/books/bulk-status", {
+    method: "POST",
+    accessToken: session.access_token,
+    body: { ids, status },
+  });
 }
 
 export function deleteCatalogBook(session: SupabaseSession, id: string): Promise<void> {

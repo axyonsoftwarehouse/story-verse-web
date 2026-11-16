@@ -18,6 +18,8 @@ import {
 import { metadataProblem, metadataWarning } from "../../lib/submissionMetadata";
 import { prepareImage } from "../../lib/profileMedia";
 import { SubmissionPreview } from "./SubmissionPreview";
+import { PublicDomainHint } from "./CatalogFields";
+import { rightsNoteProblem } from "../../lib/adminCatalog";
 
 const LIKELY_PROTECTED_AFTER = 1955;
 
@@ -108,6 +110,8 @@ export function SubmissionsModeration({
   const [flagged, setFlagged] = useState<Record<string, boolean>>({});
   const [authorized, setAuthorized] = useState<Record<string, boolean>>({});
   const [preview, setPreview] = useState<Submission | null>(null);
+  /** V1: o "direitos" do envio é declarado por quem envia; quem aprova escreve a justificativa. */
+  const [rightsNotes, setRightsNotes] = useState<Record<string, string>>({});
   /** Correção de título e autor (U1): em análise ou já publicado. */
   const [editing, setEditing] = useState<{ id: string; title: string; author: string } | null>(null);
 
@@ -126,6 +130,9 @@ export function SubmissionsModeration({
   async function approve(s: Submission) {
     const problem = metadataProblem(s.title, s.author);
     if (problem) return setError(`${problem} Use “Editar dados”.`);
+    const rightsNote = rightsNotes[s.id] ?? "";
+    const rightsProblem = rightsNoteProblem(rightsNote);
+    if (rightsProblem) return setError(rightsProblem);
     if (flagged[s.id] && !authorized[s.id]) {
       return setError(
         "Obra provavelmente protegida: confirme que tem autorização do autor ou da editora antes de aprovar.",
@@ -137,7 +144,14 @@ export function SubmissionsModeration({
       const cover =
         s.cover_url ??
         (await findOpenLibraryCover(s.title, s.author ?? "", s.language).catch(() => undefined));
-      const updated = await reviewSubmission(session, s.id, "approved", undefined, cover ?? null);
+      const updated = await reviewSubmission(
+        session,
+        s.id,
+        "approved",
+        undefined,
+        cover ?? null,
+        rightsNote,
+      );
       setPending((list) => list?.filter((x) => x.id !== s.id) ?? null);
       setApproved((list) => [updated, ...(list ?? [])]);
     } catch (err) {
@@ -347,6 +361,21 @@ export function SubmissionsModeration({
                       </span>
                     </label>
                   ) : null}
+                  {tab === "pending" ? (
+                    <label className="moderation-rights-note">
+                      Por que pode ser publicado? *
+                      <textarea
+                        rows={2}
+                        maxLength={500}
+                        value={rightsNotes[s.id] ?? ""}
+                        onChange={(event) =>
+                          setRightsNotes((map) => ({ ...map, [s.id]: event.target.value }))
+                        }
+                        placeholder="Ex.: Project Gutenberg; autor morreu em 1908. Ou: obra própria, conferida com a autora."
+                      />
+                    </label>
+                  ) : null}
+                  {tab === "pending" && s.rights === "public_domain" ? <PublicDomainHint /> : null}
                   {s.characters ? (
                     <p className="submission-note">
                       Personagens: {s.characters.split("\n").filter(Boolean).join(", ")}
@@ -458,11 +487,18 @@ export function SubmissionsModeration({
                         type="button"
                         className="btn btn-primary"
                         onClick={() => void approve(s)}
-                        disabled={busyId === s.id || Boolean(problem) || (flagged[s.id] && !authorized[s.id])}
+                        disabled={
+                          busyId === s.id ||
+                          Boolean(problem) ||
+                          Boolean(rightsNoteProblem(rightsNotes[s.id])) ||
+                          (flagged[s.id] && !authorized[s.id])
+                        }
                         title={
                           problem
                             ? "Corrija título e autor em “Editar dados” para aprovar"
-                            : flagged[s.id] && !authorized[s.id]
+                            : rightsNoteProblem(rightsNotes[s.id])
+                              ? "Escreva por que a obra pode ser publicada"
+                              : flagged[s.id] && !authorized[s.id]
                               ? "Confirme a autorização para aprovar"
                               : undefined
                         }
