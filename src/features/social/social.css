@@ -1,5 +1,7 @@
 /* Rede social: página "Pessoas" e perfil de um leitor. Cores só das variáveis do tema. */
 
+@import "../../lib/profileTheme.css";
+
 .people-page .groups-hero {
   grid-template-columns: auto 1fr;
 }

@@ -7,6 +7,8 @@ import { clearOwnShopCover } from "../shop/useOwnProfileExtras";
 import { prepareImage, removeProfileImage, uploadProfileImage, type MediaKind } from "../../lib/profileMedia";
 import { updateProfileData, type SupabaseSession, type SupabaseUser } from "../../lib/auth";
 import { BIO_MAX, bioLength, bioProblem, normalizeBio } from "../../lib/profileBio";
+import { normalizeProfileTheme, PROFILE_THEMES, type ProfileThemeId } from "../../lib/profileTheme";
+import "../../lib/profileTheme.css";
 import { displayNameOf, metaString } from "../../lib/userMeta";
 import { UserAvatar } from "../../components/UserAvatar";
 
@@ -28,9 +30,11 @@ export function EditProfileModal({
   const savedPhoto = metaString(session.user, "photo");
   const savedCover = metaString(session.user, "cover");
   const savedBio = metaString(session.user, "bio") ?? "";
+  const savedTheme = normalizeProfileTheme(session.user.user_metadata?.profile_theme);
   const [name, setName] = useState(savedName);
   const [bio, setBio] = useState(savedBio);
   const [avatar, setAvatar] = useState<string | null>(savedAvatar);
+  const [profileTheme, setProfileTheme] = useState<ProfileThemeId>(savedTheme);
   const [photo, setPhoto] = useState<ImageDraft>({ url: savedPhoto, blob: null });
   const [cover, setCover] = useState<ImageDraft>({ url: savedCover, blob: null });
   const [preparing, setPreparing] = useState<MediaKind | null>(null);
@@ -46,8 +50,10 @@ export function EditProfileModal({
     photo.blob !== null ||
     photo.url !== savedPhoto ||
     cover.blob !== null ||
-    cover.url !== savedCover;
+    cover.url !== savedCover ||
+    profileTheme !== savedTheme;
   const busy = saving || preparing !== null;
+  const themeMeta = PROFILE_THEMES.find((t) => t.id === profileTheme);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -100,7 +106,14 @@ export function EditProfileModal({
       };
       const photoUrl = await imageUrl("avatar", photo, savedPhoto);
       const coverUrl = await imageUrl("cover", cover, savedCover);
-      const saved = await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl, bio: cleanBio });
+      const saved = await updateProfileData(session, {
+        name: trimmed,
+        avatar,
+        photo: photoUrl,
+        cover: coverUrl,
+        bio: cleanBio,
+        profileTheme,
+      });
       // Capa enviada nova: a comprada sai de cena para a enviada aparecer (a pessoa pode reequipar a comprada na loja).
       if (apiEnabled && cover.blob) {
         try {
@@ -126,7 +139,14 @@ export function EditProfileModal({
   const coverStyle = cover.url ? ({ backgroundImage: `url("${cover.url}")` } as React.CSSProperties) : undefined;
   return (
     <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose()}>
-      <form className="auth-card edit-profile" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title" onSubmit={save}>
+      <form
+        className="auth-card edit-profile"
+        data-profile-theme={profileTheme}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-profile-title"
+        onSubmit={save}
+      >
         <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar" disabled={saving}>
           {Icon.close}
         </button>
@@ -215,6 +235,36 @@ export function EditProfileModal({
               <span>{a.label}</span>
             </button>
           ))}
+        </div>
+
+        <span className="edit-profile-label">Tema do perfil</span>
+        <p className="edit-profile-hint">Outras pessoas veem esta paleta na sua página em Pessoas.</p>
+        <div className="theme-swatches edit-profile-theme" role="radiogroup" aria-label="Tema do perfil">
+          {PROFILE_THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={profileTheme === t.id}
+              className={`theme-swatch ${profileTheme === t.id ? "is-on" : ""}`}
+              disabled={busy}
+              onClick={() => setProfileTheme(t.id)}
+              style={{ "--a": t.swatch[0], "--b": t.swatch[1], "--bg": t.bg } as React.CSSProperties}
+            >
+              <span className="theme-swatch-dot" aria-hidden="true" />
+              <span className="theme-swatch-label">{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="edit-profile-theme-preview" data-profile-theme={profileTheme} aria-live="polite">
+          <p className="edit-profile-theme-preview-label">Pré-visualização</p>
+          <div className="edit-profile-theme-preview-row">
+            <span className="edit-profile-theme-chip">✦ Destaque</span>
+            <button type="button" className="btn btn-primary">
+              Botão
+            </button>
+            <span style={{ color: "var(--accent-2)", fontSize: "0.78rem" }}>{themeMeta?.label ?? "Tema"}</span>
+          </div>
         </div>
 
         {error ? <p className="auth-error" role="alert">{error}</p> : null}

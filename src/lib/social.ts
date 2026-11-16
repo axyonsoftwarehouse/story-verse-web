@@ -7,12 +7,16 @@ import type { Cosmetics } from "./shop";
  * "conexão". Só existe na API própria e usa a mesma liberação dos grupos (feature `groups`).
  */
 
+import type { ProfileThemeId } from "./profileTheme";
+
 export type Person = {
   id: string;
   name: string;
   avatar: string;
   /** Foto do perfil (só arquivo do Storage da própria pessoa; a API filtra). */
   photo: string | null;
+  /** Paleta do perfil público (padrão: dourado). Ausente até a API enviar. */
+  profile_theme?: ProfileThemeId | null;
   /**
    * Capa do perfil para o card das listas: `shop_cover` é a comprada (caminho relativo, resolvido
    * pelo site) e `cover` a enviada (URL absoluta, validada pela API). Vazio em perfil privado de

@@ -1,0 +1,147 @@
+/*
+ * Tema do perfil: afeta só .person-page e a prévia em "Editar perfil".
+ * O fundo permanece escuro; só destaques, bordas e brilhos mudam.
+ */
+.person-page[data-profile-theme="dourado"],
+.edit-profile[data-profile-theme="dourado"],
+.edit-profile-theme-preview[data-profile-theme="dourado"] {
+  --accent: #e4b86a;
+  --accent-rgb: 228, 184, 106;
+  --accent-deep: #c48a38;
+  --accent-deep-rgb: 200, 140, 50;
+  --accent-light: #f1cf88;
+  --accent-light-rgb: 240, 200, 130;
+  --accent-pale: #fbe7b8;
+  --on-accent: #1c140c;
+  --accent-dim: rgba(var(--accent-rgb), 0.42);
+  --accent-2: #9bc4b5;
+  --accent-2-rgb: 155, 196, 181;
+  --accent-2-light: #b9d6ca;
+  --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
+}
+
+.person-page[data-profile-theme="esmeralda"],
+.edit-profile[data-profile-theme="esmeralda"],
+.edit-profile-theme-preview[data-profile-theme="esmeralda"] {
+  --accent: #6fcf9f;
+  --accent-rgb: 111, 207, 159;
+  --accent-deep: #2f8f66;
+  --accent-deep-rgb: 47, 143, 102;
+  --accent-light: #9fe0bf;
+  --accent-light-rgb: 159, 224, 191;
+  --accent-pale: #d4f4e3;
+  --on-accent: #07170f;
+  --accent-dim: rgba(var(--accent-rgb), 0.42);
+  --accent-2: #d8c48a;
+  --accent-2-rgb: 216, 196, 138;
+  --accent-2-light: #e8dab0;
+  --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
+}
+
+.person-page[data-profile-theme="rosa"],
+.edit-profile[data-profile-theme="rosa"],
+.edit-profile-theme-preview[data-profile-theme="rosa"] {
+  --accent: #ee9fbf;
+  --accent-rgb: 238, 159, 191;
+  --accent-deep: #c4618b;
+  --accent-deep-rgb: 196, 97, 139;
+  --accent-light: #f6c3d8;
+  --accent-light-rgb: 246, 195, 216;
+  --accent-pale: #fde3ee;
+  --on-accent: #200b14;
+  --accent-dim: rgba(var(--accent-rgb), 0.42);
+  --accent-2: #b8a6e0;
+  --accent-2-rgb: 184, 166, 224;
+  --accent-2-light: #d3c8ef;
+  --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
+}
+
+.person-page[data-profile-theme="oceano"],
+.edit-profile[data-profile-theme="oceano"],
+.edit-profile-theme-preview[data-profile-theme="oceano"] {
+  --accent: #7fb6ec;
+  --accent-rgb: 127, 182, 236;
+  --accent-deep: #3f7fc0;
+  --accent-deep-rgb: 63, 127, 192;
+  --accent-light: #b0d3f5;
+  --accent-light-rgb: 176, 211, 245;
+  --accent-pale: #dcebfb;
+  --on-accent: #07121d;
+  --accent-dim: rgba(var(--accent-rgb), 0.42);
+  --accent-2: #9fd6c9;
+  --accent-2-rgb: 159, 214, 201;
+  --accent-2-light: #c3e6dd;
+  --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
+}
+
+.person-page[data-profile-theme="lavanda"],
+.edit-profile[data-profile-theme="lavanda"],
+.edit-profile-theme-preview[data-profile-theme="lavanda"] {
+  --accent: #b9a2f0;
+  --accent-rgb: 185, 162, 240;
+  --accent-deep: #7d63c9;
+  --accent-deep-rgb: 125, 99, 201;
+  --accent-light: #d6c8f8;
+  --accent-light-rgb: 214, 200, 248;
+  --accent-pale: #ece5fd;
+  --on-accent: #120c22;
+  --accent-dim: rgba(var(--accent-rgb), 0.42);
+  --accent-2: #f0b8c8;
+  --accent-2-rgb: 240, 184, 200;
+  --accent-2-light: #f6d3dd;
+  --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
+}
+
+.edit-profile-hint {
+  margin: -0.2rem 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.edit-profile-theme {
+  margin-top: 0.25rem;
+}
+
+.edit-profile-theme-preview {
+  margin-top: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  background:
+    radial-gradient(100% 120% at 100% 0%, rgba(var(--accent-rgb), 0.14), transparent 55%),
+    rgba(var(--card-top-rgb), 0.45);
+}
+
+.edit-profile-theme-preview-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.edit-profile-theme-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-profile-theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent-dim);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.edit-profile-theme-preview .btn-primary {
+  pointer-events: none;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+}
