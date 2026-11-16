@@ -56,6 +56,19 @@ export const ShopPage = lazy(() =>
   loadRoute(() => import("./features/shop/ShopPage")).then((m) => ({ default: m.ShopPage })),
 );
 
+/* Telas da home que só abrem por clique (V3): fora do bundle principal. */
+export const DiamondShopPage = lazy(() =>
+  loadRoute(() => import("./features/home/DiamondShop")).then((m) => ({ default: m.DiamondShopPage })),
+);
+
+export const DailySpinModal = lazy(() =>
+  loadRoute(() => import("./features/home/DiamondShop")).then((m) => ({ default: m.DailySpinModal })),
+);
+
+export const RankingPage = lazy(() =>
+  loadRoute(() => import("./features/home/RankingPage")).then((m) => ({ default: m.RankingPage })),
+);
+
 export const LegalPage = lazy(() =>
   loadRoute(() => import("./features/legal/LegalPage")).then((m) => ({ default: m.LegalPage })),
 );

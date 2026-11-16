@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { PersonAvatar, RankingRow } from "./App";
+import { PersonAvatar } from "./components/PersonAvatar";
+import { RankingRow } from "./features/home/RankingPage";
 import { nameColorStyle } from "./lib/shop";
 
 describe("RankingRow com enfeites", () => {
