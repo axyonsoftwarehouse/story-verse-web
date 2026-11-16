@@ -280,18 +280,27 @@ export async function reviewSubmission(
   status: "approved" | "rejected",
   note?: string,
   coverUrl?: string | null,
+  /** V1: justificativa de quem aprova (fonte, ano de morte do autor ou licença). */
+  rightsNote?: string,
 ): Promise<Submission> {
+  const rights = rightsNote?.trim().slice(0, 500);
   if (apiEnabled) {
     const row = await apiRequest<Submission>(`/api/v1/community/submissions/${id}`, {
       method: "PATCH",
       accessToken: session.access_token,
-      body: { status, review_note: note?.trim().slice(0, 500) || null, ...(coverUrl ? { cover_url: coverUrl } : {}) },
+      body: {
+        status,
+        review_note: note?.trim().slice(0, 500) || null,
+        ...(coverUrl ? { cover_url: coverUrl } : {}),
+        ...(rights ? { rights_note: rights } : {}),
+      },
     });
     approvedCache = null;
     return row;
   }
   const fields: Record<string, unknown> = { status, review_note: note?.trim().slice(0, 500) || null, reviewed_at: new Date().toISOString() };
   if (coverUrl) fields.cover_url = coverUrl;
+  if (rights) fields.rights_note = rights;
   const send = (body: Record<string, unknown>) =>
     sb(`/rest/v1/book_submissions?id=eq.${id}`, {
       method: "PATCH",

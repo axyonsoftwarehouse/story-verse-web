@@ -197,6 +197,9 @@ export function PublicBookPage() {
             ) : null}
 
             {rights ? <p className="catalog-book-rights">Direitos: {rights}.</p> : null}
+            <p className="catalog-book-rights">
+              <Link to="/termos#direitos-autorais">Denunciar violação de direito autoral</Link>
+            </p>
 
             <div className="catalog-book-actions">
               <Link className="btn btn-primary btn-lg" to={readerHref(false)}>

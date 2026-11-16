@@ -1,4 +1,4 @@
-import { CATALOG_GENRES, type CatalogRights } from "../../lib/adminCatalog";
+import { CATALOG_GENRES, publicDomainDeathYear, type CatalogRights } from "../../lib/adminCatalog";
 import type { DetailSource } from "../../lib/bookMetadata";
 import type {
   CatalogMetadataValue,
@@ -172,6 +172,18 @@ export function CatalogMetadataFields({
   );
 }
 
+/** Lembrete da regra brasileira, mostrado sempre que alguém marca "domínio público" (V1). */
+export function PublicDomainHint() {
+  const year = publicDomainDeathYear();
+  return (
+    <p className="catalog-rights-hint" role="note">
+      No Brasil, a obra fica em domínio público 70 anos depois da morte do autor: hoje, autores
+      que morreram até {year}. A tradução também tem direito autoral; uma tradução recente de um
+      clássico não é livre. Na dúvida, não publique.
+    </p>
+  );
+}
+
 export function CatalogRightsFields({
   value,
   onChange,
@@ -206,7 +218,7 @@ export function CatalogRightsFields({
       </div>
 
       <label className="catalog-field is-wide">
-        Justificativa {value.rights === "public_domain" ? "(opcional)" : "*"}
+        Justificativa *
         <textarea
           value={value.rightsNote}
           onChange={(event) => onChange({ rightsNote: event.target.value })}
@@ -215,11 +227,12 @@ export function CatalogRightsFields({
           disabled={disabled}
           placeholder={
             value.rights === "public_domain"
-              ? "Ex.: Aluísio Azevedo morreu em 1913"
+              ? "Ex.: Project Gutenberg; Aluísio Azevedo morreu em 1913"
               : "Ex.: sou o autor ou tenho autorização por escrito"
           }
         />
       </label>
+      {value.rights === "public_domain" ? <PublicDomainHint /> : null}
     </div>
   );
 }

@@ -44,7 +44,7 @@ const book: AdminCatalogBook = {
   description: null,
   page_count: 256,
   rights: "public_domain",
-  rights_note: null,
+  rights_note: "Project Gutenberg; Machado morreu em 1908",
   storage_bucket: "catalog-books",
   text_path: "admin-1/b1.txt",
   original_path: "admin-1/b1.txt",
@@ -114,6 +114,15 @@ describe("CatalogBookPage", () => {
       expect(setCatalogBookStatus).toHaveBeenCalledWith(session, "b1", "publish"),
     );
     expect(await screen.findByText("Publicado", { selector: ".status-chip" })).toBeInTheDocument();
+  });
+
+  it("não publica sem justificativa de direitos (V1)", async () => {
+    vi.mocked(getCatalogBook).mockResolvedValueOnce({ ...book, rights_note: null });
+    renderPage(["moderator"]);
+    fireEvent.click(await screen.findByRole("button", { name: "Publicar" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/salve antes de publicar/);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(setCatalogBookStatus).not.toHaveBeenCalled();
   });
 
   it("não publica quando a confirmação é cancelada", async () => {
