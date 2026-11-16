@@ -11,6 +11,7 @@ import {
 import { useStoredSession } from "../auth/useStoredSession";
 import { useSubscription } from "./useSubscription";
 import "./billing.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 const DEFAULT_PLAN: SubscriptionPlan = {
   id: "storyverse",
@@ -67,16 +68,11 @@ export function SubscribePage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/">
-          Voltar
+      <SiteTopBar>
+        <Link className="btn nav-login" to="/conta/assinatura">
+          Minha assinatura
         </Link>
-        {session ? (
-          <Link className="btn" to="/conta/assinatura">
-            Minha assinatura
-          </Link>
-        ) : null}
-      </nav>
+      </SiteTopBar>
 
       <section className="shelf billing-hero">
         <div className="shelf-head">

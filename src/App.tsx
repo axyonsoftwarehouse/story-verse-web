@@ -1,5 +1,5 @@
 import { userStorage } from "./lib/dataOwner";
-import { safeLoginReturn } from "./lib/loginReturn";
+import { authModalFromUrl, safeLoginReturn } from "./lib/loginReturn";
 import {
   useCallback,
   useDeferredValue,
@@ -295,6 +295,7 @@ import {
 import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
 import { BIO_MAX, bioLength, bioProblem, normalizeBio } from "./lib/profileBio";
 import "./App.css";
+import { installNudgeReady, noteBookOpened, noteVisit } from "./lib/installNudge";
 
 type Msg = ChatMsg;
 
@@ -6197,6 +6198,21 @@ export function App() {
     window.location.pathname === "/confirmar-email" || window.location.pathname === "/redefinir-senha";
   const billingBlocked =
     BILLING_UI_ENABLED && !authScreen && Boolean(authUser) && subscription !== undefined && !subscription.active;
+  /**
+   * `/?login=1` ou `/?cadastro=1` (links "Entrar"/"Criar conta" das subpáginas e da assinatura): abre
+   * a janela certa uma vez. Tira só esse parâmetro da URL; o `retorno` fica para depois do login.
+   */
+  useEffect(() => {
+    if (authLoading || authUser) return;
+    const mode = authModalFromUrl(window.location.search);
+    if (!mode) return;
+    setAuthModal(mode);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("login");
+    params.delete("cadastro");
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+  }, [authLoading, authUser]);
   /** Voltou do login pedindo uma página conhecida (assinatura, audiolivro): continua de onde parou. */
   useEffect(() => {
     if (!authUser) return;
@@ -6818,6 +6834,12 @@ export function App() {
   /** Janela "Baixar app" (passo a passo quando o navegador não tem o botão de instalar). */
   const [installOpen, setInstallOpen] = useState(false);
   const [installBannerOff, setInstallBannerOff] = useState(installBannerHidden);
+  /** U6: o convite espera a pessoa abrir um livro ou voltar outro dia (conta esta visita uma vez). */
+  const [installNudgeOn, setInstallNudgeOn] = useState(() => {
+    noteVisit();
+    return installNudgeReady();
+  });
+  const installBannerShown = !installed && !installBannerOff && installNudgeOn;
   const updateReady = useUpdateReady();
   const updateBanner = updateReady ? (
     <div className="update-banner" role="status">
@@ -7007,6 +7029,8 @@ export function App() {
       return;
     }
     recordOpened(b);
+    noteBookOpened();
+    setInstallNudgeOn(true);
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
@@ -8154,7 +8178,7 @@ export function App() {
             {!installed ? (
               <button
                 type="button"
-                className={`btn nav-install ${installBannerOff ? "" : "has-banner"}`}
+                className={`btn nav-install ${installBannerShown ? "has-banner" : ""}`}
                 onClick={() => setInstallOpen(true)}
                 aria-label="Baixar app"
                 title="Baixar app"
@@ -8257,7 +8281,7 @@ export function App() {
 
         {installOpen ? <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} /> : null}
 
-        {!installed && !installBannerOff ? (
+        {installBannerShown ? (
           // No celular o convite fica aqui, fora do topo (lá não cabe junto com "Importar livro").
           <div className="install-banner">
             <span>Baixe o app do Storyverse: abre em tela cheia e funciona sem internet.</span>

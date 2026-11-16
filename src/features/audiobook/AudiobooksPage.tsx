@@ -6,6 +6,7 @@ import {
   type AudioBookListItem,
 } from "../../lib/publicAudiobooks";
 import "./audiobook.css";
+import { SiteTopBar } from "../../components/SiteTopBar";
 
 export function AudiobooksPage() {
   const [items, setItems] = useState<AudioBookListItem[] | null>(null);
@@ -30,11 +31,7 @@ export function AudiobooksPage() {
 
   return (
     <div className="home">
-      <nav className="home-nav profile-nav">
-        <Link className="btn" to="/biblioteca">
-          Biblioteca
-        </Link>
-      </nav>
+      <SiteTopBar />
 
       <section className="shelf audiobook-list-page">
         <div className="shelf-head">

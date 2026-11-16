@@ -1,0 +1,77 @@
+/* Topo das subpáginas (SiteTopBar): marca à esquerda, livros, áudio e conta à direita. */
+.site-topbar {
+  min-width: 0;
+}
+
+.site-topbar-brand {
+  flex-shrink: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.site-topbar-link {
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-topbar-link:hover,
+.site-topbar-link.active {
+  color: var(--text);
+}
+
+.site-topbar-link.active {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.35em;
+}
+
+.site-topbar-link:focus-visible,
+.site-topbar-back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.site-topbar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.4rem 0 1rem;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.site-topbar-back:hover {
+  color: var(--text);
+}
+
+/* Celular: a marca vira só o ícone e os links ficam mais justos, para caber "Entrar" e "Criar conta". */
+@media (max-width: 520px) {
+  .site-topbar .wordmark-text {
+    display: none;
+  }
+
+  .site-topbar-actions {
+    gap: 0.35rem;
+  }
+
+  .site-topbar-link {
+    padding: 0.45rem 0.35rem;
+    font-size: 0.85rem;
+  }
+}
