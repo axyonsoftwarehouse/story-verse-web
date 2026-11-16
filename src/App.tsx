@@ -15,14 +15,23 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { BadgeIcon } from "./components/badgeIcons";
 import { useConfirm } from "./components/ConfirmDialog";
-import { DailySpinModal, DiamondShopPage, ProfilePage, RankingPage, RouteLoading } from "./lazyRoutes";
+import {
+  AboutDialog,
+  AuthModal,
+  DailySpinModal,
+  DiamondShopPage,
+  InstallAppDialog,
+  NewPasswordModal,
+  ProfilePage,
+  RankingPage,
+  RouteLoading,
+} from "./lazyRoutes";
 import { Icon } from "./components/Icon";
 import { formatMinutes } from "./lib/formatMinutes";
 import { ReaderCount } from "./components/ReaderCount";
-import { ApiHttpError } from "./lib/backend";
 import { disablePush } from "./lib/push";
-import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
-import { featuredBooks, suggestedBooks } from "./data/ebooks";
+import { warningMessage } from "./features/auth/sanctionNotice";
+import { featuredBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
 import {
   characterReply,
@@ -31,10 +40,9 @@ import {
   USER_MESSAGE_MAX_CHARS,
   type ChatTurn,
 } from "./lib/ai";
-import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
+import { knownCast, loadCast } from "./lib/cast";
 import {
   characterTalks,
-  forgetChat,
   loadChat,
   saveChat,
   type ChatMsg,
@@ -74,7 +82,6 @@ import { publishShowcase } from "./lib/social";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
 import { useNavCrowded } from "./lib/useNavCrowded";
-import { metadataProblem } from "./lib/submissionMetadata";
 import { NotificationBell } from "./features/notifications/NotificationBell";
 import { bookKeyOf } from "./lib/library";
 import {
@@ -100,24 +107,17 @@ import {
   useReveal,
 } from "./lib/motion";
 import { readerUrl, rememberOpenBook, takeReaderParam } from "./lib/readerUrl";
-import { blobToDataUrl, dataUrlToBlob, prepareImage, uploadBookCover } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
   communityIdOf,
   fetchCommunityBookText,
   isNewCommunityBook,
-  matchesCommunitySearch,
   newBookLabel,
-  normalizeText,
-  RIGHTS_OPTIONS,
-  submitBook,
   syncSubmissionCovers,
-  type Rights,
 } from "./lib/community";
 import { lookupWord, normalizeWord, type WordInfo } from "./lib/dictionary";
 import {
   allHighlights,
-  forgetHighlights,
   loadHighlights,
   MAX_HIGHLIGHT_CHARS,
   saveHighlights,
@@ -125,17 +125,13 @@ import {
   type Highlight,
 } from "./lib/highlights";
 import { splitIntoChapters } from "./lib/chapters";
-import { fetchBookText, searchBooks, type SearchLanguage } from "./lib/gutenberg";
-import { ACCEPTED_EXTENSIONS, importBookFile, type ImportedBook } from "./lib/importBook";
+import { fetchBookText } from "./lib/gutenberg";
 import {
   deleteAllLocalRecords,
-  deleteLocalBook,
   isLocalBook,
   listLocalBooks,
   loadLocalBookImages,
   loadLocalBookText,
-  newLocalBookId,
-  saveLocalBook,
 } from "./lib/localBooks";
 import {
   loadProgress,
@@ -149,7 +145,7 @@ import {
 import { missYouMessage, tidyAmbientMessages } from "./lib/readingAmbient";
 import { dismissNudge, homeNudge, NUDGE_AFTER_DAYS, nudgeText, voiceFor, type HomeNudge } from "./lib/characterNudge";
 import { withOfflineCopy } from "./lib/offlineText";
-import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
+import { type BookHint } from "./lib/openLibrary";
 import { excerptNearScrollRatio } from "./lib/readingContext";
 import { addSeenBlocks, countWords, type SeenBlock } from "./lib/readingPages";
 import {
@@ -175,7 +171,7 @@ import {
 } from "./lib/diamonds";
 import { PLACE_MEDALS, reportReading, readingHeartbeat, takeWeeklyAwards } from "./lib/ranking";
 import { lastCharacter, rememberCharacter, syncEngagementState } from "./lib/reminders";
-import { installPlatform, storeLinks, useAppInstall, useUpdateReady, type InstallPlatform } from "./lib/pwa";
+import { useAppInstall, useUpdateReady } from "./lib/pwa";
 import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
   listVoices,
@@ -199,22 +195,13 @@ import {
   clearLegacyCredentials,
   loginRequired,
   consumeAuthRedirect,
-  EMAIL_OTP_ENABLED,
   refreshAuthSession,
   refreshProfile,
   storedAuthSession,
-  resendSignupCode,
-  requestPasswordReset,
-  resetPasswordWithToken,
-  validateResetToken,
-  updatePassword,
   restoreAuthSession,
-  signInWithPassword,
   signOut,
-  signUpWithPassword,
   type SupabaseSession,
   type SupabaseUser,
-  verifySignupCode,
 } from "./lib/auth";
 import {
   cachedTranslation,
@@ -241,10 +228,14 @@ import { Avatar } from "./components/Avatar";
 import { BookCover } from "./components/BookCover";
 import { UserAvatar } from "./components/UserAvatar";
 import { CountUp } from "./components/CountUp";
-import { PasswordInput } from "./components/PasswordInput";
 import { LastBook, ReminderSetup } from "./features/home/ReminderSetup";
 import { ProfileShelf } from "./features/home/ProfileShelf";
-
+import { Explore, LangBadge } from "./features/home/Explore";
+import { SHELVES } from "./data/shelves";
+import { MyBooks } from "./features/home/MyBooks";
+import { CelebrationOverlay, type Celebration } from "./features/home/CelebrationOverlay";
+import { PrivacyNote } from "./components/PrivacyNote";
+import { IMAGE_MARKER, withoutImageMarkers } from "./lib/imageMarkers";
 
 type Msg = ChatMsg;
 
@@ -293,10 +284,6 @@ function suggestionsFor(c: StoryCharacter): string[] {
 }
 
 type Block = { kind: "heading" | "p" | "image"; text: string };
-
-/** Marcador de ilustração no texto de livros importados: "[[img:3]]" (a imagem fica no aparelho). */
-const IMAGE_MARKER = /^\[\[img:([\w-]+)\]\]$/;
-const IMAGE_MARKERS = /\[\[img:[\w-]+\]\]/g;
 
 /** Termina como frase (ponto, interrogação, aspas de fecho…): o parágrafo não continua no próximo. */
 const ENDS_SENTENCE = /[.!?…:;"»”)\]]$/;
@@ -413,714 +400,10 @@ function toBlocks(text: string, skipHeadline?: string): Block[] {
   });
 }
 
-/** Texto sem os marcadores de ilustração (para a IA, a voz e a tradução). */
-function withoutImageMarkers(text: string): string {
-  return text.replace(IMAGE_MARKERS, "");
-}
-
 /** O Gutenberg marca itálico como _assim_. */
 function withItalics(text: string): React.ReactNode {
   const parts = text.split(/_([^_]+)_/);
   return parts.length === 1 ? text : parts.map((p, i) => (i % 2 === 1 ? <em key={i}>{p}</em> : p));
-}
-
-function LangBadge({ book }: { book: Ebook }) {
-  return (
-    <span className={`lang-badge lang-${book.textLanguage}`}>
-      {book.textLanguage === "pt" ? "Em português" : "Texto em inglês"}
-    </span>
-  );
-}
-
-const SHELVES: { id: NonNullable<Ebook["shelf"]>; title: string; subtitle: string }[] = [
-  { id: "pt", title: "Em português", subtitle: "Romances e paixões proibidas, direto no nosso idioma." },
-  { id: "terror", title: "Terror e vampiros", subtitle: "Os clássicos do medo. Texto em inglês, conversa em português." },
-  { id: "classicos", title: "Mais clássicos", subtitle: "Mistério, romance e fantasia. Texto em inglês, conversa em português." },
-];
-
-const LANGUAGE_FILTERS: { id: SearchLanguage; label: string }[] = [
-  { id: "all", label: "Todos" },
-  { id: "pt", label: "Português" },
-  { id: "en", label: "Inglês" },
-];
-
-/** Busca no acervo inteiro do Project Gutenberg; sem busca, mostra sugestões prontas. */
-function Explore({
-  onOpen,
-  onImport,
-  communityBooks = [],
-}: {
-  /** Aprovados do acervo da comunidade: entram na busca e têm filtro próprio. */
-  communityBooks?: Ebook[];
-  onOpen: (b: Ebook) => void;
-  /** Abre o formulário de importação; com `hint`, já preenchido com o livro escolhido. */
-  onImport: (hint?: BookHint) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [language, setLanguage] = useState<SearchLanguage>("pt");
-  /** "community": só os livros enviados pela comunidade. */
-  const [origin, setOrigin] = useState<"all" | "community">("all");
-  const [books, setBooks] = useState<Ebook[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
-  const [next, setNext] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [slow, setSlow] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const term = query.trim();
-  const searching = term.length >= 2;
-
-  /** Livros famosos fora do acervo (Open Library), buscados junto com o Gutenberg. */
-  const [outside, setOutside] = useState<BookHint[]>([]);
-  useEffect(() => {
-    setOutside([]);
-    if (!searching) return;
-    let cancelled = false;
-    const t = setTimeout(() => {
-      searchOutsideCatalog(term)
-        .then((hints) => !cancelled && setOutside(hints))
-        .catch(() => undefined); // Sem a Open Library, a busca do acervo continua normal.
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [term, searching]);
-
-  useEffect(() => {
-    if (!searching) {
-      setStatus("idle");
-      return;
-    }
-    let cancelled = false;
-    setStatus("loading");
-    setSlow(false);
-    const slowTimer = setTimeout(() => !cancelled && setSlow(true), 5000);
-    const t = setTimeout(() => {
-      searchBooks(term, language)
-        .then((page) => {
-          if (cancelled) return;
-          setBooks(page.books);
-          setTotal(page.total);
-          setNext(page.next);
-          setStatus("ready");
-        })
-        .catch(() => !cancelled && setStatus("error"))
-        .finally(() => clearTimeout(slowTimer));
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-      clearTimeout(slowTimer);
-    };
-  }, [term, searching, language]);
-
-  const loadMore = () => {
-    if (!next || loadingMore) return;
-    setLoadingMore(true);
-    searchBooks(term, language, next)
-      .then((page) => {
-        setBooks((prev) => [...prev, ...page.books]);
-        setNext(page.next);
-      })
-      .catch(() => setNext(null))
-      .finally(() => setLoadingMore(false));
-  };
-
-  const communityTitles = new Set(communityBooks.map((b) => normalizeText(b.title)));
-  const shown = searching
-    ? books
-    : suggestedBooks.filter(
-        (b) => (language === "all" || b.textLanguage === language) && !communityTitles.has(normalizeText(b.title)),
-      );
-
-  const communityShown = communityBooks.filter(
-    (b) => (language === "all" || b.textLanguage === language) && (!searching || matchesCommunitySearch(b, term)),
-  );
-  const onlyCommunity = origin === "community";
-  const communityGrid = (list: Ebook[]) => (
-    <div className="result-grid">
-      {list.map((b) => (
-        <button key={b.id} type="button" className="result" onClick={() => onOpen(b)}>
-          {isNewCommunityBook(b) ? <span className="new-badge">{newBookLabel(b)}</span> : null}
-          <BookCover book={b} />
-          <strong>{b.title}</strong>
-          <span>
-            {b.author}
-            {b.textLanguage === "pt" ? " · PT" : ""}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-
-  return (
-    <section className="explore" id="acervo">
-      <div className="shelf-head">
-        <h2>Explorar o acervo</h2>
-        <p>Mais de 70 mil livros em domínio público, direto do Project Gutenberg.</p>
-      </div>
-
-      <div className="explore-controls">
-        <label className="search-box">
-          {Icon.search}
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Busque por título ou autor, como Verne, Poe ou Austen"
-            aria-label="Buscar livros"
-          />
-        </label>
-        <PrivacyNote
-          details={
-            <>
-              O Storyverse não guarda o que você busca nem mostra para ninguém. O termo vai, por conexão
-              criptografada (HTTPS), só até os catálogos de livros para trazer os resultados. Veja tudo em
-              Perfil › Ajustes › Privacidade.
-            </>
-          }
-        >
-          Suas buscas são privadas e não ficam salvas.
-        </PrivacyNote>
-        <div className="filter-pills" role="group" aria-label="Idioma do texto">
-          {LANGUAGE_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className={`filter-pill ${language === f.id ? "active" : ""}`}
-              onClick={() => setLanguage(f.id)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        {communityBooks.length > 0 ? (
-          <div className="filter-pills" role="group" aria-label="Origem dos livros">
-            <button type="button" className={`filter-pill ${origin === "all" ? "active" : ""}`} onClick={() => setOrigin("all")}>
-              Todo o acervo
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${origin === "community" ? "active" : ""}`}
-              onClick={() => setOrigin("community")}
-            >
-              Da comunidade
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      {onlyCommunity ? (
-        <>
-          <p className="explore-note">
-            {communityShown.length === 0
-              ? searching
-                ? `Nenhum livro da comunidade para “${term}”.`
-                : "Nenhum livro da comunidade neste idioma ainda."
-              : searching
-                ? `${communityShown.length} ${communityShown.length === 1 ? "livro" : "livros"} da comunidade para “${term}”`
-                : "Livros enviados por leitores e aprovados pela curadoria."}
-          </p>
-          {communityShown.length > 0 ? communityGrid(communityShown) : null}
-        </>
-      ) : null}
-
-      {/* Em "Todo o acervo", os da comunidade só entram no topo quando há busca: sem busca, a estante
-          "Da comunidade" logo acima já mostra os mesmos livros (U2). */}
-      {!onlyCommunity && searching && communityShown.length > 0 ? (
-        <div className="explore-community">
-          <div className="explore-community-head">
-            <h3>Da comunidade</h3>
-            <p>Enviados por leitores e aprovados pela curadoria.</p>
-          </div>
-          {communityGrid(communityShown)}
-        </div>
-      ) : null}
-
-      {onlyCommunity ? null : !searching ? (
-        <p className="explore-note">Sugestões para começar. Os personagens aparecem quando você abre o livro.</p>
-      ) : status === "error" ? (
-        <p className="explore-note">Não foi possível buscar livros agora. Tente de novo em instantes.</p>
-      ) : status === "loading" ? (
-        <p className="explore-note">
-          {slow ? "O acervo está demorando mais que o normal… quase lá." : "Procurando no acervo…"}
-        </p>
-      ) : status === "ready" && books.length === 0 ? (
-        <p className="explore-note">
-          Nenhum livro encontrado para “{term}”. A busca cobre os clássicos do Project Gutenberg e os
-          livros da comunidade; se você tem o arquivo do livro,{" "}
-          <button type="button" className="inline-link" onClick={() => onImport()}>
-            importe o seu
-          </button>
-          .
-        </p>
-      ) : (
-        <p className="explore-note">
-          {total === null
-            ? `Livros para “${term}”`
-            : `${total.toLocaleString("pt-BR")} ${total === 1 ? "livro" : "livros"} para “${term}”`}
-        </p>
-      )}
-
-      {status !== "error" && !onlyCommunity ? (
-        <div className="result-grid">
-          {searching && status === "loading"
-            ? Array.from({ length: 8 }, (_, i) => (
-                <div key={i} className="result result-skeleton" aria-hidden="true">
-                  <div className="cover" />
-                  <span />
-                  <span />
-                </div>
-              ))
-            : shown.map((b) => (
-                <button key={b.id} type="button" className="result" onClick={() => onOpen(b)}>
-                  <BookCover book={b} />
-                  <strong>{b.title}</strong>
-                  <span>
-                    {b.author}
-                    {b.textLanguage === "pt" ? " · PT" : ""}
-                  </span>
-                </button>
-              ))}
-        </div>
-      ) : null}
-
-      {searching && outside.length > 0 && !onlyCommunity ? (
-        <div className="outside">
-          <div className="outside-head">
-            <h3>Fora do acervo</h3>
-            <p>
-              Estes livros ainda têm direitos autorais, então não estão no acervo. Tem o arquivo? Importe e
-              leia aqui, com os personagens.
-            </p>
-          </div>
-          <div className="result-grid">
-            {outside.map((h) => (
-              <div key={`${h.title}|${h.author}`} className="result outside-book">
-                <div className="cover">
-                  <img className="cover-photo is-loaded" src={h.coverUrl} alt="" loading="lazy" />
-                </div>
-                <strong>{h.title}</strong>
-                <span>
-                  {h.author}
-                  {h.year ? ` · ${h.year}` : ""}
-                </span>
-                <button
-                  type="button"
-                  className="btn outside-import"
-                  onClick={() => onImport(h)}
-                  aria-label={`Importar o meu arquivo de ${h.title}`}
-                >
-                  {Icon.upload}
-                  Importar
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {searching && status === "ready" && next && !onlyCommunity ? (
-        <div className="explore-more">
-          <button type="button" className="btn" onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? "Carregando…" : "Carregar mais"}
-          </button>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-/** Livros do próprio leitor (.epub, .pdf, .txt): com conta, vão para os outros aparelhos dela. */
-function MyBooks({
-  onOpen,
-  onRemoved,
-  onRequest,
-  request,
-  setRequest,
-  session,
-  onSubmitted,
-}: {
-  onOpen: (b: Ebook) => void;
-  onRemoved: () => void;
-  onRequest: () => void;
-  /**
-   * Formulário aberto (`null` = fechado). Abre pelo topo da página, pelo destaque e pela busca;
-   * vindo de um livro "Fora do acervo", já traz título, autor e capa.
-   */
-  request: BookHint | Record<string, never> | null;
-  setRequest: (r: BookHint | Record<string, never> | null) => void;
-  /** Logado: pode sugerir o livro para o acervo da comunidade. */
-  session?: SupabaseSession | null;
-  onSubmitted?: () => void;
-}) {
-  const open = request !== null;
-  const hint = request && "title" in request ? request : null;
-  const [books, setBooks] = useState<Ebook[]>([]);
-  const [parsing, setParsing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<ImportedBook | null>(null);
-  const [fileName, setFileName] = useState("");
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [language, setLanguage] = useState<"pt" | "en">("pt");
-  const [castText, setCastText] = useState("");
-  const [showAllBooks, setShowAllBooks] = useState(false);
-  /** Capa escolhida pela pessoa (opcional): vale para o livro dela e, se sugerir, para o acervo. */
-  const [customCover, setCustomCover] = useState<{ blob: Blob; url: string } | null>(null);
-  const [coverBusy, setCoverBusy] = useState(false);
-  useEffect(() => () => void (customCover && URL.revokeObjectURL(customCover.url)), [customCover]);
-
-  async function pickCover(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setCoverBusy(true);
-    setError(null);
-    try {
-      const blob = await prepareImage(file, "book");
-      setCustomCover({ blob, url: URL.createObjectURL(blob) });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível usar esta imagem.");
-    } finally {
-      setCoverBusy(false);
-    }
-  }
-  const [share, setShare] = useState(false);
-  const [rights, setRights] = useState<Rights | null>(null);
-  const [rightsNote, setRightsNote] = useState("");
-  const [agree, setAgree] = useState(false);
-
-  useEffect(() => {
-    void listLocalBooks().then(setBooks);
-  }, []);
-
-  const chapterCount = useMemo(() => (parsed ? splitIntoChapters(parsed.text).length : 0), [parsed]);
-
-  const close = useCallback(() => {
-    if (saving) return;
-    setRequest(null);
-    setParsing(false);
-    setError(null);
-    setParsed(null);
-    setFileName("");
-    setTitle("");
-    setAuthor("");
-    setCastText("");
-    setShare(false);
-    setCustomCover(null);
-    setRights(null);
-    setRightsNote("");
-    setAgree(false);
-  }, [saving, setRequest]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setError(null);
-    setParsed(null);
-    setFileName(file.name);
-    setParsing(true);
-    try {
-      const book = await importBookFile(file);
-      setParsed(book);
-      // Livro escolhido em "Fora do acervo": vale o título em português do catálogo.
-      setTitle(hint?.title ?? book.title);
-      setAuthor(hint?.author || book.author);
-      setLanguage(book.language);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível ler este arquivo.");
-    } finally {
-      setParsing(false);
-    }
-  }
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!parsed || saving) return;
-    if (share && !rights) return setError("Escolha por que este livro pode ser compartilhado.");
-    if (share && !agree) return setError("Confirme a declaração de direitos para enviar ao acervo.");
-    // Para o acervo público, título e autor de verdade (U1); na estante pessoal vale qualquer um.
-    const shareProblem = share ? metadataProblem(title, author) : null;
-    if (shareProblem) return setError(`${shareProblem} Ele aparece assim para todo mundo no acervo.`);
-    const id = newLocalBookId();
-    const bookTitle = title.trim() || "Meu livro";
-    const chosenCover = customCover ? await blobToDataUrl(customCover.blob).catch(() => null) : null;
-    const characters = castFromNames(bookTitle, castText);
-    const book: Ebook = {
-      id: `local-${-id}`,
-      gutenbergId: id,
-      title: bookTitle,
-      author: author.trim() || "Autor não informado",
-      genre: "Meu livro",
-      // Capa: a escolhida pela pessoa, a do catálogo ("Fora do acervo") ou a que veio no arquivo.
-      ...((chosenCover ?? hint?.coverUrl ?? parsed.cover) ? { coverUrl: chosenCover ?? hint?.coverUrl ?? parsed.cover } : {}),
-      textLanguage: language,
-      source: "local",
-      // Sem nomes digitados, a IA sugere o elenco ao abrir o livro (uma vez só).
-      ...(characters.length > 0 ? { characters } : {}),
-    };
-    setSaving(true);
-    try {
-      // Envia primeiro: se falhar, nada fica pela metade e dá para tentar de novo.
-      if (share && session && rights) {
-        // A mesma capa de "Seus livros": a escolhida ou a do arquivo sobem para o Storage.
-        const sharedCover = customCover
-          ? await uploadBookCover(session, customCover.blob)
-          : hint?.coverUrl && !hint.coverUrl.startsWith("data:") && hint.coverUrl.length <= 300
-            ? hint.coverUrl
-            : parsed.cover
-              ? await uploadBookCover(session, await dataUrlToBlob(parsed.cover))
-              : null;
-        const submission = await submitBook(session, {
-          coverUrl: sharedCover,
-          title: book.title,
-          author: author.trim(),
-          language,
-          rights,
-          rightsNote,
-          characters: castText,
-          submitterName: displayNameOf(session.user),
-          text: withoutImageMarkers(parsed.text),
-        });
-        book.submissionId = submission.id;
-        onSubmitted?.();
-      }
-      await saveLocalBook(book, parsed.text, parsed.images);
-      setBooks((prev) => [book, ...prev]);
-      setSaving(false);
-      close();
-      onOpen(book);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível guardar o livro.");
-      setSaving(false);
-    }
-  }
-
-  async function remove(b: Ebook) {
-    const where = session ? "de todos os aparelhos da sua conta" : "deste aparelho";
-    if (!window.confirm(`Remover “${b.title}” ${where}? O progresso de leitura também será apagado.`)) {
-      return;
-    }
-    await deleteLocalBook(b.gutenbergId).catch(() => undefined);
-    removeProgress(b.gutenbergId);
-    forgetCast(b.id);
-    forgetChat(b.id);
-    forgetHighlights(b.id);
-    setBooks((prev) => prev.filter((x) => x.gutenbergId !== b.gutenbergId));
-    onRemoved();
-  }
-
-  return (
-    <section className="shelf my-books" id="meus-livros">
-      <div className="shelf-head">
-        <h2>Seus livros</h2>
-        <p>Tem o arquivo de um livro? Importe e converse com os personagens.</p>
-      </div>
-
-      <div className="result-grid">
-        <button type="button" className="result" onClick={onRequest}>
-          <div className="cover import-cover" aria-hidden="true">
-            <span className="import-plus">+</span>
-            <span className="import-formats">EPUB · PDF · TXT</span>
-          </div>
-          <strong>Importar meu livro</strong>
-          <span>{session ? "Em todos os seus aparelhos" : "Fica só neste aparelho"}</span>
-        </button>
-        {(showAllBooks ? books : books.slice(0, CONTINUE_PREVIEW)).map((b) => (
-          <div key={b.gutenbergId} className="my-book">
-            <button type="button" className="result" onClick={() => onOpen(b)}>
-              <BookCover book={b} />
-              <strong>{b.title}</strong>
-              <span>{b.author}</span>
-            </button>
-            <button type="button" className="link-btn my-book-remove" onClick={() => void remove(b)}>
-              Remover
-            </button>
-          </div>
-        ))}
-      </div>
-      {books.length > CONTINUE_PREVIEW ? (
-        <div className="shelf-more">
-          <button type="button" className="btn" onClick={() => setShowAllBooks((v) => !v)}>
-            {showAllBooks ? "Mostrar menos" : `Ver todos (${books.length})`}
-          </button>
-        </div>
-      ) : null}
-
-      {open ? (
-        <div className="import-overlay" onClick={close}>
-          <form
-            className="import-panel"
-            onSubmit={onSubmit}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="import-title"
-          >
-            <div className="import-head">
-              <h3 id="import-title">{hint ? `Importar “${hint.title}”` : "Importar meu livro"}</h3>
-              <button type="button" className="icon-btn" onClick={close} aria-label="Fechar">
-                {Icon.close}
-              </button>
-            </div>
-
-            <label
-              className={`file-drop ${parsed ? "is-ready" : ""} ${parsing ? "is-loading" : ""}`}
-              aria-busy={parsing}
-            >
-              <input type="file" accept={ACCEPTED_EXTENSIONS} onChange={onFile} disabled={parsing || saving} />
-              {parsing ? <span className="spinner file-drop-spinner" aria-hidden="true" /> : null}
-              <strong>
-                {parsing ? "Lendo o arquivo…" : fileName || "Escolher arquivo"}
-              </strong>
-              <span role="status">
-                {parsing
-                  ? `${fileName} · livros grandes podem levar alguns segundos`
-                  : parsed
-                    ? `${chapterCount} ${chapterCount === 1 ? "parte encontrada" : "partes encontradas"} · toque para trocar`
-                    : ".epub, .pdf ou .txt"}
-              </span>
-            </label>
-
-            {parsed ? (
-              <>
-                <label className="field">
-                  <span>Título</span>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} required />
-                </label>
-                <label className="field">
-                  <span>Autor</span>
-                  <input value={author} onChange={(e) => setAuthor(e.target.value)} maxLength={120} />
-                </label>
-                <label className="field">
-                  <span>Idioma do texto</span>
-                  <select value={language} onChange={(e) => setLanguage(e.target.value as "pt" | "en")}>
-                    <option value="pt">Português</option>
-                    <option value="en">Inglês (dá para traduzir na leitura)</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Personagens para conversar (opcional)</span>
-                  <textarea
-                    value={castText}
-                    onChange={(e) => setCastText(e.target.value)}
-                    rows={3}
-                    maxLength={600}
-                    placeholder={"Um por linha, por exemplo:\nBella Swan\nEdward Cullen — vampiro de 104 anos"}
-                  />
-                  <small>Em branco, a IA escolhe os personagens principais quando você abrir o livro.</small>
-                </label>
-                <div className="field cover-field">
-                  <span>Capa (opcional)</span>
-                  <div className="cover-pick">
-                    <div className="cover-pick-preview">
-                      {customCover || hint?.coverUrl || parsed.cover ? (
-                        <img src={customCover?.url ?? hint?.coverUrl ?? parsed.cover} alt="" />
-                      ) : (
-                        <span>Sem capa</span>
-                      )}
-                    </div>
-                    <div className="cover-pick-actions">
-                      <label className={`btn ${coverBusy ? "is-disabled" : ""}`}>
-                        {Icon.camera}
-                        {coverBusy ? "Preparando…" : customCover ? "Trocar imagem" : "Escolher imagem"}
-                        <input type="file" accept="image/*" onChange={(e) => void pickCover(e)} disabled={coverBusy || saving} />
-                      </label>
-                      {customCover ? (
-                        <button type="button" className="inline-link" onClick={() => setCustomCover(null)} disabled={saving}>
-                          Tirar a imagem escolhida
-                        </button>
-                      ) : null}
-                      <small>
-                        {customCover
-                          ? "Esta capa aparece no seu livro e, se você sugerir para o acervo, lá também."
-                          : parsed.cover || hint?.coverUrl
-                            ? "Usando a capa que veio com o livro. Pode trocar por outra imagem."
-                            : "Sem imagem, o app desenha uma capa ou busca uma na Open Library."}
-                      </small>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {parsed && session ? (
-              <div className={`share-box ${share ? "is-on" : ""}`}>
-                <label className="share-toggle">
-                  <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} />
-                  <span>
-                    <strong>Sugerir para o acervo da comunidade</strong>
-                    <small>Se for aprovado, outras pessoas também vão poder ler.</small>
-                  </span>
-                </label>
-                {share ? (
-                  <>
-                    <div className="share-rights" role="radiogroup" aria-label="Por que pode ser compartilhado">
-                      {RIGHTS_OPTIONS.map((o) => (
-                        <label key={o.id} className={`share-right ${rights === o.id ? "is-on" : ""}`}>
-                          <input type="radio" name="rights" checked={rights === o.id} onChange={() => setRights(o.id)} />
-                          <span>
-                            <strong>{o.label}</strong>
-                            <small>{o.hint}</small>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    {rights ? (
-                      <label className="field">
-                        <span>Como sabemos? (ajuda na análise)</span>
-                        <input
-                          value={rightsNote}
-                          onChange={(e) => setRightsNote(e.target.value)}
-                          maxLength={500}
-                          placeholder={RIGHTS_OPTIONS.find((o) => o.id === rights)?.placeholder}
-                        />
-                      </label>
-                    ) : null}
-                    <label className="share-agree">
-                      <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-                      <span>
-                        Declaro que este livro pode ser compartilhado e entendo que ele será removido se violar
-                        direitos autorais. Livros com direitos reservados (ex.: best-sellers atuais) são recusados.
-                      </span>
-                    </label>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-
-            {error ? <p className="import-error" role="alert">{error}</p> : null}
-
-            <p className="import-note">
-              O arquivo é lido no seu navegador e não é enviado para lugar nenhum. Livros com proteção
-              contra cópia (DRM), como os comprados no Kindle, não abrem.
-            </p>
-
-            <div className="import-actions">
-              <button type="button" className="btn" onClick={close} disabled={saving}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={!parsed || saving} aria-busy={saving}>
-                {saving ? <span className="spinner btn-spinner" aria-hidden="true" /> : null}
-                {saving ? (share ? "Enviando…" : "Guardando…") : share ? "Enviar e ler" : "Importar e ler"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-    </section>
-  );
 }
 
 /** Aviso na tela inicial: a sequência quebrou (oferta) ou foi salva com diamantes. */
@@ -1544,23 +827,6 @@ function FeaturedRow({
  * Aviso curto de privacidade nas telas de conversa e busca: o que acontece com o que a pessoa
  * digita, com o detalhe a um toque. A lista completa fica na Central de Privacidade (Ajustes).
  */
-function PrivacyNote({ children, details }: { children: React.ReactNode; details: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="privacy-note">
-      <p>
-        {Icon.lock}
-        <span>
-          {children}{" "}
-          <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            {open ? "Fechar" : "Saiba mais"}
-          </button>
-        </span>
-      </p>
-      {open ? <p className="privacy-note-more">{details}</p> : null}
-    </div>
-  );
-}
 
 /** Sequência de dias lendo, semana, escudos, meta diária de minutos e lembrete. */
 function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
@@ -1740,60 +1006,6 @@ function DemoConversation({ question, answer }: { question: string; answer: stri
   );
 }
 
-/** Comemoração no centro da tela (meta do dia, sequência, livro terminado). */
-type Celebration = {
-  emoji: string;
-  title: string;
-  text?: string;
-  /** Livro terminado: a capa aparece no lugar do emoji, com brilho dourado. */
-  book?: Ebook;
-  /** Sequência que subiu: o número antigo sai e o novo entra. */
-  roll?: { from: number; to: number; suffix: string };
-};
-
-function CelebrationOverlay({ celebration, onClose }: { celebration: Celebration; onClose: () => void }) {
-  useEffect(() => {
-    haptic(celebration.book ? [30, 60, 30, 60, 90] : [25, 50, 40]);
-  }, [celebration]);
-  const { book, roll } = celebration;
-  const pieces = book ? 24 : 14;
-  return (
-    <div className={`celebration ${book ? "is-book" : ""} ${roll ? "is-streak" : ""}`} role="status" onClick={onClose}>
-      <div className="celebration-card">
-        {book ? (
-          <div className="celebration-cover" aria-hidden="true">
-            <BookCover book={book} />
-          </div>
-        ) : (
-          <span className="celebration-emoji" aria-hidden="true">
-            {celebration.emoji}
-          </span>
-        )}
-        {roll ? (
-          <strong>
-            <span className="sr-only">{celebration.title}</span>
-            <span className="roll-title" aria-hidden="true">
-              <span className="roll">
-                <span className="roll-old">{roll.from}</span>
-                <span className="roll-new">{roll.to}</span>
-              </span>{" "}
-              {roll.suffix}
-            </span>
-          </strong>
-        ) : (
-          <strong>{celebration.title}</strong>
-        )}
-        {celebration.text ? <span>{celebration.text}</span> : null}
-      </div>
-      <div className="celebration-burst" aria-hidden="true" style={{ "--step": `${360 / pieces}deg` } as React.CSSProperties}>
-        {Array.from({ length: pieces }, (_, i) => (
-          <i key={i} style={{ "--i": i } as React.CSSProperties} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
  * O livro ainda pode ser aberto por esta conta? Importado: precisa estar em "Seus livros" neste
  * aparelho. Da comunidade: precisa continuar aprovado no acervo. Do Gutenberg: sempre.
@@ -1884,541 +1096,6 @@ function ContinueReading({
   );
 }
 
-/** O Supabase só deixa reenviar e-mail para o mesmo endereço depois de 60 s. */
-const RESEND_COOLDOWN = 60;
-
-function AuthModal({
-  mode,
-  onClose,
-  onAuthenticated,
-}: {
-  mode: "login" | "register";
-  onClose: () => void;
-  onAuthenticated: (session: SupabaseSession) => void;
-}) {
-  const [kind, setKind] = useState<"login" | "register" | "forgot">(mode);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
-  /** Depois do envio: tela de "confira seu e-mail" (link de cadastro, código ou link de senha nova). */
-  const [sent, setSent] = useState<"confirm" | "code" | "reset" | null>(null);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  // O foco fica no livro clicado atrás do modal e deixaria o carrossel parado depois de fechar.
-  useEffect(() => {
-    (document.activeElement as HTMLElement | null)?.blur();
-  }, []);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = window.setTimeout(() => setCooldown((s) => s - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [cooldown]);
-
-  const normalizedEmail = email.trim().toLowerCase();
-
-  function goTo(next: "login" | "register" | "forgot") {
-    setKind(next);
-    setSent(null);
-    setError("");
-    setSuccess("");
-  }
-
-  function showSent(next: "confirm" | "code" | "reset") {
-    setSent(next);
-    setVerificationCode("");
-    setCooldown(RESEND_COOLDOWN);
-  }
-
-  async function confirmEmail(e: React.FormEvent) {
-    e.preventDefault();
-    if (!/^\d{6}$/.test(verificationCode)) {
-      setError("Digite os 6 números do código que enviamos.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      onAuthenticated(await verifySignupCode(normalizedEmail, verificationCode));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível verificar o código.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function resend() {
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    try {
-      if (sent === "reset") await requestPasswordReset(normalizedEmail);
-      else await resendSignupCode(normalizedEmail);
-      setSuccess(sent === "code" ? "Código novo enviado." : "E-mail enviado de novo.");
-      setCooldown(RESEND_COOLDOWN);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível reenviar agora.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setError("Informe um endereço de e-mail válido.");
-      return;
-    }
-    if (kind !== "forgot" && (!password || (kind === "register" && password.length < 8))) {
-      setError(kind === "register" ? "A senha precisa ter pelo menos 8 caracteres." : "Informe sua senha.");
-      return;
-    }
-    if (kind === "register" && !name.trim()) {
-      setError("Informe seu nome.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    try {
-      if (kind === "forgot") {
-        // Mesma resposta exista ou não a conta (não revela quais e-mails estão cadastrados).
-        await requestPasswordReset(normalizedEmail);
-        showSent("reset");
-      } else if (kind === "register") {
-        const result = await signUpWithPassword(normalizedEmail, password, name.trim());
-        if (result) onAuthenticated(result);
-        // Sem OTP, o link do e-mail volta para o app já logado.
-        else showSent(EMAIL_OTP_ENABLED ? "code" : "confirm");
-      } else {
-        onAuthenticated(await signInWithPassword(normalizedEmail, password));
-      }
-    } catch (err) {
-      if (err instanceof ApiHttpError && err.code === "ACCOUNT_SANCTIONED") {
-        setError(sanctionMessage(err.body));
-      } else {
-        setError(err instanceof Error ? err.message : "Não foi possível concluir a autenticação.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const feedback = (
-    <>
-      {error ? <p className="auth-error" role="alert">{error}</p> : null}
-      {success ? <p className="auth-success" role="status">{success}</p> : null}
-    </>
-  );
-
-  const resendButton = (
-    <button type="button" className="btn auth-resend" onClick={() => void resend()} disabled={loading || cooldown > 0}>
-      {cooldown > 0 ? `Reenviar em ${cooldown}s` : sent === "code" ? "Reenviar código" : "Reenviar e-mail"}
-    </button>
-  );
-
-  let body: React.ReactNode;
-  if (sent) {
-    body = (
-      <>
-        <span className="auth-sent-icon" aria-hidden="true">{Icon.mail}</span>
-        <h2 id="auth-title">{sent === "code" ? "Digite o código" : "Confira seu e-mail"}</h2>
-        <p className="auth-subtitle">
-          {sent === "code"
-            ? "Enviamos um código de 6 números para"
-            : sent === "confirm"
-              ? "Se este e-mail puder ser usado, enviamos as instruções para"
-              : "Se houver uma conta com este e-mail, enviamos um link para criar uma senha nova em"}
-          <strong className="auth-email">{normalizedEmail}</strong>
-        </p>
-        {sent === "code" ? (
-          <form onSubmit={confirmEmail} className="auth-form">
-            <input
-              className="auth-otp-input"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="000000"
-              aria-label="Código de verificação de seis números"
-              autoFocus
-              required
-              disabled={loading}
-            />
-            {feedback}
-            <button type="submit" className="btn btn-primary btn-lg" disabled={loading || verificationCode.length !== 6}>
-              {loading ? "Verificando..." : "Confirmar e-mail"}
-            </button>
-          </form>
-        ) : null}
-        <p className="auth-hint">
-          {sent === "confirm" ? (
-            <>
-              Toque em <strong>Confirmar conta</strong> no e-mail para entrar.{" "}
-            </>
-          ) : sent === "reset" ? (
-            "O link vale por 1 hora. "
-          ) : null}
-          Não chegou? Veja a pasta de spam.
-        </p>
-        {sent !== "code" ? feedback : null}
-        {resendButton}
-        <p className="auth-switch">
-          <button type="button" className="inline-link" onClick={() => goTo(sent === "reset" ? "login" : kind)} disabled={loading}>
-            Usar outro e-mail
-          </button>
-          {" · "}
-          <button type="button" className="inline-link" onClick={() => goTo("login")} disabled={loading}>
-            Voltar para o login
-          </button>
-        </p>
-      </>
-    );
-  } else {
-    body = (
-      <>
-        <span className="eyebrow">Storyverse</span>
-        <h2 id="auth-title">
-          {kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?"}
-        </h2>
-        <p className="auth-subtitle">
-          {kind === "login"
-            ? "Acesse seus livros, progresso e conversas com os personagens."
-            : kind === "register"
-              ? "Salve seu progresso e converse com os personagens no seu ritmo."
-              : "Informe o e-mail da sua conta e enviaremos um link para criar uma senha nova."}
-        </p>
-        <form onSubmit={submit} className="auth-form">
-          {kind === "register" ? (
-            <label>
-              Nome
-              <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required disabled={loading} />
-            </label>
-          ) : null}
-          <label>
-            E-mail
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required disabled={loading} />
-          </label>
-          {kind !== "forgot" ? (
-            <label>
-              Senha
-              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 8 : undefined} required disabled={loading} />
-            </label>
-          ) : null}
-          {kind === "login" ? (
-            <button type="button" className="inline-link auth-forgot" onClick={() => goTo("forgot")} disabled={loading}>
-              Esqueci minha senha
-            </button>
-          ) : null}
-          {feedback}
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? "Aguarde..." : kind === "login" ? "Fazer login" : kind === "register" ? "Criar conta" : "Enviar link"}
-          </button>
-          {kind === "register" ? (
-            <p className="auth-legal">
-              Ao criar a conta, você concorda com os <Link to="/termos">Termos de uso</Link> e a{" "}
-              <Link to="/privacidade">Política de privacidade</Link>.
-            </p>
-          ) : null}
-        </form>
-        <p className="auth-switch">
-          {kind === "register" ? "Já tem uma conta?" : kind === "forgot" ? "Lembrou a senha?" : "Ainda não tem conta?"}{" "}
-          <button type="button" className="inline-link" onClick={() => goTo(kind === "login" ? "register" : "login")} disabled={loading}>
-            {kind === "login" ? "Criar conta" : "Fazer login"}
-          </button>
-        </p>
-      </>
-    );
-  }
-
-  return (
-    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
-          {Icon.close}
-        </button>
-        {/* A key troca o conteúdo com um fade curto ao ir de login para cadastro etc. */}
-        <div key={sent ?? kind} className={`auth-view ${sent ? "auth-view-sent" : ""}`}>
-          {body}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/** Tela de senha nova, aberta pelo link de "esqueci minha senha" (já logado por ele). */
-function NewPasswordModal({
-  session,
-  token,
-  onDone,
-  onCancel,
-}: {
-  session?: SupabaseSession;
-  token?: string;
-  onDone: (message: string) => void;
-  onCancel?: () => void;
-}) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  /** O link do e-mail é conferido antes de pedir a senha: não adianta digitar se ele já venceu. */
-  const [link, setLink] = useState<"checking" | "valid" | "expired">(token ? "checking" : "valid");
-
-  useEffect(() => {
-    if (!token) return;
-    let alive = true;
-    void validateResetToken(token).then((valid) => {
-      if (alive) setLink(valid ? "valid" : "expired");
-    });
-    return () => {
-      alive = false;
-    };
-  }, [token]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (password.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
-    if (password !== confirm) return setError("As duas senhas não são iguais.");
-    setLoading(true);
-    setError("");
-    try {
-      if (token) {
-        await resetPasswordWithToken(token, password);
-        onDone("Senha nova salva. Entre com a senha nova.");
-        return;
-      }
-      if (!session) throw new Error("Link de recupera\u00e7\u00e3o inv\u00e1lido.");
-      await updatePassword(session, "", password);
-      onDone("Senha nova salva. Você já está conectado.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar a senha nova.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (link !== "valid") {
-    const expired = link === "expired";
-    return (
-      <div className="auth-backdrop" role="presentation">
-        <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
-          <span className="eyebrow">Storyverse</span>
-          <h2 id="new-password-title">{expired ? "Link inválido ou expirado" : "Conferindo o link…"}</h2>
-          <p className="auth-subtitle">
-            {expired
-              ? "Este link de recuperação já foi usado ou passou do prazo. Peça um novo em “Esqueci minha senha”."
-              : "Só um instante enquanto confirmamos o seu link."}
-          </p>
-          {expired && onCancel ? (
-            <button type="button" className="btn btn-primary btn-lg" onClick={onCancel}>
-              Voltar para o login
-            </button>
-          ) : null}
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="auth-backdrop" role="presentation">
-      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
-        <span className="eyebrow">Storyverse</span>
-        <h2 id="new-password-title">Crie uma senha nova</h2>
-        <p className="auth-subtitle">Escolha a senha que você vai usar para entrar daqui para frente.</p>
-        <form onSubmit={submit} className="auth-form">
-          <label>
-            Senha nova
-            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required disabled={loading} />
-          </label>
-          <label>
-            Repita a senha
-            <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={8} required disabled={loading} />
-          </label>
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? "Aguarde..." : "Salvar senha"}
-          </button>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-/** Passo a passo para instalar o site como app, por aparelho. */
-const INSTALL_STEPS: Record<InstallPlatform, { label: string; steps: React.ReactNode[] }> = {
-  ios: {
-    label: "iPhone e iPad",
-    steps: [
-      <>
-        No Safari, toque em <strong>Compartilhar</strong> {Icon.share}
-      </>,
-      <>
-        Escolha <strong>Adicionar à Tela de Início</strong>
-      </>,
-      <>
-        Toque em <strong>Adicionar</strong>
-      </>,
-    ],
-  },
-  android: {
-    label: "Android",
-    steps: [
-      <>
-        Toque no menu <strong>⋮</strong> do navegador
-      </>,
-      <>
-        Escolha <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>
-      </>,
-      <>
-        Confirme em <strong>Instalar</strong>
-      </>,
-    ],
-  },
-  desktop: {
-    label: "Computador (Chrome ou Edge)",
-    steps: [
-      <>
-        Clique no ícone de instalar, no fim da barra de endereço
-      </>,
-      <>
-        Ou abra o menu <strong>⋮</strong> / <strong>···</strong> e procure <strong>Instalar Storyverse</strong>
-      </>,
-    ],
-  },
-  "mac-safari": {
-    label: "Mac (Safari)",
-    steps: [
-      <>
-        No menu <strong>Arquivo</strong>, escolha <strong>Adicionar ao Dock</strong>
-      </>,
-    ],
-  },
-  "firefox-desktop": {
-    label: "Firefox no computador",
-    steps: [
-      <>O Firefox no computador não instala sites como app.</>,
-      <>
-        Abra o Storyverse no <strong>Chrome</strong> ou no <strong>Edge</strong>, ou instale no celular
-      </>,
-    ],
-  },
-};
-
-/** "Baixar app": lojas (se houver), o botão nativo do navegador ou o passo a passo do aparelho. */
-function InstallAppDialog({ install, onClose }: { install: (() => Promise<void>) | null; onClose: () => void }) {
-  const platform = useMemo(() => installPlatform(), []);
-  const stores = useMemo(() => storeLinks(), []);
-  const [copied, setCopied] = useState(false);
-  const here = INSTALL_STEPS[platform];
-  const others = (Object.keys(INSTALL_STEPS) as InstallPlatform[]).filter(
-    (p) => p !== platform && p !== "firefox-desktop" && !(platform === "firefox-desktop" && p === "desktop"),
-  );
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.origin);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="spin-dialog install-dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
-        <button type="button" className="auth-close spin-close" onClick={onClose} aria-label="Fechar">
-          {Icon.close}
-        </button>
-        <img className="install-icon" src="/icons/icon-192.png" alt="" width={64} height={64} />
-        <h2 id="install-title">Baixe o Storyverse</h2>
-        <p className="spin-sub">Grátis. Abre em tela cheia e funciona sem internet.</p>
-
-        {stores.android || stores.ios ? (
-          <div className="install-stores">
-            {stores.android && platform !== "ios" ? (
-              <a className="btn btn-primary" href={stores.android} target="_blank" rel="noopener noreferrer">
-                Google Play
-              </a>
-            ) : null}
-            {stores.ios && platform !== "android" ? (
-              <a className="btn btn-primary" href={stores.ios} target="_blank" rel="noopener noreferrer">
-                App Store
-              </a>
-            ) : null}
-          </div>
-        ) : null}
-
-        {install ? (
-          <button
-            type="button"
-            className="btn btn-primary install-now"
-            onClick={() => {
-              void install().finally(onClose);
-            }}
-          >
-            {Icon.download} Instalar agora
-          </button>
-        ) : (
-          <div className="install-steps">
-            <span className="shop-section-title">{here.label}</span>
-            <ol>
-              {here.steps.map((step, i) => (
-                <li key={i}>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        <details className="install-other">
-          <summary>Instalar em outro aparelho</summary>
-          {others.map((p) => (
-            <div key={p} className="install-steps">
-              <span className="shop-section-title">{INSTALL_STEPS[p].label}</span>
-              <ol>
-                {INSTALL_STEPS[p].steps.map((step, i) => (
-                  <li key={i}>
-                  <span>{step}</span>
-                </li>
-                ))}
-              </ol>
-            </div>
-          ))}
-          <button type="button" className="btn install-copy" onClick={() => void copyLink()}>
-            {copied ? "Link copiado ✓" : "Copiar link do site"}
-          </button>
-        </details>
-      </section>
-    </div>
-  );
-}
-
 const INSTALL_BANNER_KEY = "storyverse:install-banner-hidden";
 /** Fechado no celular, o convite volta depois de 14 dias (o botão do topo continua lá). */
 const INSTALL_BANNER_PAUSE = 14 * 24 * 60 * 60 * 1000;
@@ -2437,73 +1114,6 @@ function hideInstallBanner() {
   } catch {
     // Sem armazenamento: some só nesta visita.
   }
-}
-
-function AboutDialog({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="about-dialog" role="dialog" aria-modal="true" aria-labelledby="sobre-title">
-        <header className="about-dialog-head">
-          <div>
-            <span className="eyebrow">Sobre o Storyverse</span>
-            <h2 id="sobre-title">Entre na história. Converse com quem vive nela.</h2>
-          </div>
-          <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar sobre">
-            {Icon.close}
-          </button>
-        </header>
-        <div className="about-copy">
-          <p className="about-lead">
-            Enquanto você lê, os personagens do livro conversam com você num chat ao lado da página.
-          </p>
-          <ol className="about-steps">
-            <li>
-              <strong>Escolha um livro</strong>
-              <span>Um livro do acervo ou um EPUB, PDF ou TXT seu.</span>
-            </li>
-            <li>
-              <strong>Leia no seu ritmo</strong>
-              <span>O progresso fica salvo, inclusive no celular e offline.</span>
-            </li>
-            <li>
-              <strong>Converse com quem vive nele</strong>
-              <span>Pergunte a Sherlock, provoque Drácula, ouça Isaura.</span>
-            </li>
-          </ol>
-          <div className="about-rules">
-            <p>
-              <strong>Sem spoilers.</strong> Os personagens só sabem o que você já leu.
-            </p>
-            <p>
-              <strong>O livro é o original.</strong> A IA dá voz aos personagens, mas não muda a história.
-            </p>
-          </div>
-          <p className="about-sub">Também dá para</p>
-          <ul className="about-features">
-            <li>Ouvir em voz alta</li>
-            <li>Ler no modo noturno ou sépia</li>
-            <li>Destacar trechos</li>
-            <li>Ver o significado de palavras</li>
-            <li>Criar metas de leitura</li>
-            <li>Compartilhar citações</li>
-          </ul>
-        </div>
-        <footer className="about-foot">
-          <button type="button" className="btn btn-primary" onClick={onClose}>
-            Começar a ler
-          </button>
-        </footer>
-      </section>
-    </div>
-  );
 }
 
 /**
@@ -4495,40 +3105,46 @@ export function App() {
     return (
       <div className={`home ${returning ? "is-returning" : ""}`} key={dataEpoch} ref={homeRef}>
         {authModal ? (
-          <AuthModal
-            mode={authModal}
-            onClose={() => setAuthModal(null)}
-            onAuthenticated={(session) => {
-              setAuthSession(session);
-              setAuthNotice(null);
-              setSanctionNotice(session.warning ? warningMessage(session.warning.reason) : null);
-              setAuthModal(null);
-            }}
-          />
+          <Suspense fallback={null}>
+            <AuthModal
+              mode={authModal}
+              onClose={() => setAuthModal(null)}
+              onAuthenticated={(session) => {
+                setAuthSession(session);
+                setAuthNotice(null);
+                setSanctionNotice(session.warning ? warningMessage(session.warning.reason) : null);
+                setAuthModal(null);
+              }}
+            />
+          </Suspense>
         ) : null}
         {resetToken ? (
-          <NewPasswordModal
-            token={resetToken}
-            onDone={(message) => {
-              setResetToken(null);
-              setAuthNotice({ text: message, ok: true });
-              if (!authSession) setAuthModal("login");
-            }}
-            onCancel={() => {
-              setResetToken(null);
-              setAuthNotice(null);
-              setAuthModal("login");
-            }}
-          />
+          <Suspense fallback={null}>
+            <NewPasswordModal
+              token={resetToken}
+              onDone={(message) => {
+                setResetToken(null);
+                setAuthNotice({ text: message, ok: true });
+                if (!authSession) setAuthModal("login");
+              }}
+              onCancel={() => {
+                setResetToken(null);
+                setAuthNotice(null);
+                setAuthModal("login");
+              }}
+            />
+          </Suspense>
         ) : passwordReset && authSession ? (
-          <NewPasswordModal
-            session={authSession}
-            onDone={(message) => {
-              setPasswordReset(false);
-              setAuthNotice({ text: message, ok: true });
-            }}
-            onCancel={() => setPasswordReset(false)}
-          />
+          <Suspense fallback={null}>
+            <NewPasswordModal
+              session={authSession}
+              onDone={(message) => {
+                setPasswordReset(false);
+                setAuthNotice({ text: message, ok: true });
+              }}
+              onCancel={() => setPasswordReset(false)}
+            />
+          </Suspense>
         ) : null}
         <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navFit !== "full" ? "is-crowded" : "is-crowded"}`}>
           <span className="wordmark">
@@ -4639,7 +3255,11 @@ export function App() {
         ) : null}
 
         {appConfirmDialog}
-        {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
+        {aboutOpen ? (
+          <Suspense fallback={null}>
+            <AboutDialog onClose={() => setAboutOpen(false)} />
+          </Suspense>
+        ) : null}
         {spinOpen && authSession ? (
           <Suspense fallback={null}>
             <DailySpinModal
@@ -4650,7 +3270,11 @@ export function App() {
           </Suspense>
         ) : null}
 
-        {installOpen ? <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} /> : null}
+        {installOpen ? (
+          <Suspense fallback={null}>
+            <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} />
+          </Suspense>
+        ) : null}
 
         {installBannerShown ? (
           // No celular o convite fica aqui, fora do topo (lá não cabe junto com "Importar livro").

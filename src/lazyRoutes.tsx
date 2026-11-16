@@ -77,6 +77,20 @@ export const LegalPage = lazy(() =>
   loadRoute(() => import("./features/legal/LegalPage")).then((m) => ({ default: m.LegalPage })),
 );
 
+/* Modais que só abrem por clique ou link (V3): login, senha nova, instalar e "Sobre". */
+export const AuthModal = lazy(() =>
+  loadRoute(() => import("./features/auth/AuthModal")).then((m) => ({ default: m.AuthModal })),
+);
+export const NewPasswordModal = lazy(() =>
+  loadRoute(() => import("./features/auth/AuthModal")).then((m) => ({ default: m.NewPasswordModal })),
+);
+export const InstallAppDialog = lazy(() =>
+  loadRoute(() => import("./features/home/InstallAppDialog")).then((m) => ({ default: m.InstallAppDialog })),
+);
+export const AboutDialog = lazy(() =>
+  loadRoute(() => import("./features/home/AboutDialog")).then((m) => ({ default: m.AboutDialog })),
+);
+
 /** Enquanto o código da rota chega (na primeira visita a abertura ainda cobre a tela). */
 export function RouteLoading() {
   return (
