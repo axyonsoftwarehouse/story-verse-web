@@ -15,7 +15,11 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { BadgeIcon, GiftIcon } from "./components/badgeIcons";
 import { useConfirm } from "./components/ConfirmDialog";
-import { RouteLoading, ShopPage } from "./lazyRoutes";
+import { DailySpinModal, DiamondShopPage, RankingPage, RouteLoading } from "./lazyRoutes";
+import { Icon } from "./components/Icon";
+import { PersonAvatar } from "./components/PersonAvatar";
+import { profileColor } from "./lib/profileColor";
+import { formatMinutes } from "./lib/formatMinutes";
 import { ReaderCount } from "./components/ReaderCount";
 import { ApiHttpError, apiEnabled } from "./lib/backend";
 import { disablePush } from "./lib/push";
@@ -27,13 +31,10 @@ import {
   characterReply,
   narratorCharacter,
   detectProvider,
-  fetchAiQuota,
   refreshAiQuota,
   USER_MESSAGE_MAX_CHARS,
-  type AiQuota,
   type ChatTurn,
 } from "./lib/ai";
-import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
 import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
 import {
   characterTalks,
@@ -80,7 +81,6 @@ import { GoldDust } from "./components/GoldDust";
 import { publishShowcase } from "./lib/social";
 import { equipShopItem, type Cosmetics } from "./lib/shop";
 import { clearOwnShopCover, ownProfileCover, useOwnProfileExtras } from "./features/shop/useOwnProfileExtras";
-import { FaceFrame } from "./features/groups/GroupParts";
 import { PersonName } from "./features/shop/PersonName";
 import { BadgeShelf } from "./features/shop/BadgeShelf";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
@@ -181,50 +181,24 @@ import {
   type ReadingSummary,
   type ReadingTotals,
   dayKey,
-  streakRescue,
-  weekStartDate,
 } from "./lib/readingStats";
 import {
-  autoFreezeEnabled,
   checkStreakFreeze,
   claimReadingRewards,
-  diamondEntryLabel,
-  fetchDiamondHistory,
   fetchSpinStatus,
   fetchWallet,
   rescueStreak,
-  setAutoFreezeEnabled,
-  spinDailyWheel,
-  SPIN_SEGMENTS,
   takeSpinOffer,
-  type DiamondEntry,
   type FreezeOutcome,
-  type SpinResult,
-  type Wallet,
 } from "./lib/diamonds";
 import {
-  fetchGiftCatalog,
   fetchGiftSummary,
   fetchReceivedGifts,
-  fetchWeeklyGiftCounts,
   giftDate,
-  sendGift,
-  type GiftCatalogItem,
   type GiftSummary,
   type ReceivedGift,
 } from "./lib/gifts";
-import {
-  fetchAlltimeRanking,
-  fetchRanking,
-  fetchRankingProfile,
-  PLACE_MEDALS,
-  reportReading,
-  readingHeartbeat,
-  setRankingHidden,
-  takeWeeklyAwards,
-  type RankEntry,
-  type RankingProfile,
-} from "./lib/ranking";
+import { PLACE_MEDALS, reportReading, readingHeartbeat, takeWeeklyAwards } from "./lib/ranking";
 import {
   disableDailyNotifications,
   downloadIcs,
@@ -701,172 +675,6 @@ function LangBadge({ book }: { book: Ebook }) {
   );
 }
 
-const Icon = {
-  logout: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-    </svg>
-  ),
-  chat: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" />
-    </svg>
-  ),
-  back: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  ),
-  next: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 18l6-6-6-6" />
-    </svg>
-  ),
-  send: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M22 2L11 13" />
-      <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-    </svg>
-  ),
-  eye: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ),
-  eyeOff: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6" />
-      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
-    </svg>
-  ),
-  mail: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2.5" />
-      <path d="m4 7 8 6 8-6" />
-    </svg>
-  ),
-  calendar: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
-      <path d="M3.5 10h17M8 3v4M16 3v4" />
-    </svg>
-  ),
-  download: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" />
-    </svg>
-  ),
-  bell: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z" />
-      <path d="M10 20.5a2 2 0 0 0 4 0" />
-    </svg>
-  ),
-  nightLight: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
-      <path d="M16 3.5v3M14.5 5h3" />
-    </svg>
-  ),
-  settings: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
-      <circle cx="16" cy="7" r="2" />
-      <circle cx="10" cy="17" r="2" />
-    </svg>
-  ),
-  pencil: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
-      <path d="m13.5 6.5 4 4" />
-    </svg>
-  ),
-  check: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m5 12.5 4.5 4.5L19 7.5" />
-    </svg>
-  ),
-  camera: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" />
-      <circle cx="12" cy="12.5" r="3.5" />
-    </svg>
-  ),
-  close: (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  ),
-  speaker: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M11 5L6 9H3v6h3l5 4V5z" />
-      <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
-    </svg>
-  ),
-  stop: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="6" width="12" height="12" rx="2" />
-    </svg>
-  ),
-  bookmark: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 3h12v18l-6-4-6 4V3z" />
-    </svg>
-  ),
-  share: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-      <path d="M16 6l-4-4-4 4M12 2v13" />
-    </svg>
-  ),
-  highlight: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 11l-6 6v3h3l6-6M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-    </svg>
-  ),
-  book: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z" />
-      <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
-    </svg>
-  ),
-  refresh: (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.3L3 16M3 21v-5h5" />
-    </svg>
-  ),
-  upload: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 16V4M7 9l5-5 5 5" />
-      <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-    </svg>
-  ),
-  search: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20l-3.5-3.5" />
-    </svg>
-  ),
-  lock: (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="4" y="11" width="16" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  ),
-  moon: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </svg>
-  ),
-  sun: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  ),
-};
-
 const SHELVES: { id: NonNullable<Ebook["shelf"]>; title: string; subtitle: string }[] = [
   { id: "pt", title: "Em português", subtitle: "Romances e paixões proibidas, direto no nosso idioma." },
   { id: "terror", title: "Terror e vampiros", subtitle: "Os clássicos do medo. Texto em inglês, conversa em português." },
@@ -1083,8 +891,8 @@ function Explore({
         </p>
       ) : status === "ready" && books.length === 0 ? (
         <p className="explore-note">
-          Nenhum livro encontrado para “{term}”. O acervo só tem livros em domínio público; se você
-          tem o arquivo do livro,{" "}
+          Nenhum livro encontrado para “{term}”. A busca cobre os clássicos do Project Gutenberg e os
+          livros da comunidade; se você tem o arquivo do livro,{" "}
           <button type="button" className="inline-link" onClick={() => onImport()}>
             importe o seu
           </button>
@@ -1666,20 +1474,6 @@ function displayNameOf(user: SupabaseUser): string {
   return name || user.email.split("@")[0];
 }
 
-const PROFILE_COLORS = ["#e4b86a", "#9bc4b5", "#d7a0b4", "#a8b8e0", "#c9a27e", "#b7c98a"];
-function profileColor(id: string): string {
-  let h = 0;
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return PROFILE_COLORS[h % PROFILE_COLORS.length];
-}
-
-function formatMinutes(total: number): string {
-  if (total < 60) return `${total} min`;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
-}
-
 function memberSince(iso?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -1705,51 +1499,6 @@ function UserAvatar({ user, className, cosmetics, animate }: { user: SupabaseUse
       cosmetics={cosmetics}
       animate={animate}
     />
-  );
-}
-
-/** O mesmo avatar para quem não é a conta atual (ex.: leitores do ranking). */
-export function PersonAvatar({
-  id,
-  name,
-  avatar: avatarId,
-  photo,
-  className,
-  cosmetics,
-  animate = false,
-}: {
-  id: string;
-  name: string;
-  avatar: unknown;
-  photo: string | null;
-  className: string;
-  /** Moldura da loja sobre o rosto (ver cosmetics.css: `.has-frame`). */
-  cosmetics?: Cosmetics | null;
-  /** Moldura animada: só no perfil. */
-  animate?: boolean;
-}) {
-  const avatar = findAvatar(avatarId);
-  const [broken, setBroken] = useState(false);
-  useEffect(() => setBroken(false), [photo]);
-  const framed = cosmetics?.frame ? " has-frame" : "";
-  const frame = <FaceFrame cosmetics={cosmetics} animate={animate} />;
-  if (photo && !broken) {
-    return (
-      <span className={`${className} has-photo${framed}`} aria-hidden="true">
-        <img src={photo} alt="" loading="lazy" onError={() => setBroken(true)} />
-        {frame}
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`${className} ${avatar ? "has-art" : ""}${framed}`}
-      style={{ "--c": avatar?.color ?? profileColor(id) } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      {avatar ? <AvatarArt avatar={avatar} /> : name.charAt(0).toUpperCase()}
-      {frame}
-    </span>
   );
 }
 
@@ -2599,613 +2348,6 @@ function MySubmissions({ session }: { session: SupabaseSession }) {
   );
 }
 
-/** Desenho da roleta: 8 fatias com os prêmios, a de cima é a sorteada. */
-/** Cor de cada faixa de prêmio: âmbar, cobre, esmeralda, safira, rubi e ouro (o prêmio raro). */
-const SPIN_TIER: Record<number, string> = { 5: "t5", 10: "t10", 15: "t15", 25: "t25", 50: "t50", 100: "t100" };
-
-/**
- * Desenho da roleta: aro dourado com luzinhas, fatias por faixa de prêmio e o ponteiro que "estala"
- * a cada fatia que passa por ele. `winner`: fatia sorteada, que acende quando a roda para.
- */
-function SpinWheel({
-  angle,
-  spinning,
-  winner,
-  onStop,
-  wrapRef,
-}: {
-  angle: number;
-  spinning: boolean;
-  winner: number | null;
-  onStop: () => void;
-  wrapRef?: (el: HTMLDivElement | null) => void;
-}) {
-  const n = SPIN_SEGMENTS.length;
-  const seg = 360 / n;
-  const wheel = useRef<SVGSVGElement>(null);
-  const pointer = useRef<HTMLSpanElement>(null);
-  const point = (deg: number, r: number) => {
-    const rad = (deg * Math.PI) / 180;
-    return `${(100 + r * Math.sin(rad)).toFixed(2)} ${(100 - r * Math.cos(rad)).toFixed(2)}`;
-  };
-
-  // Enquanto gira: lê o ângulo da roda a cada quadro e faz o ponteiro estalar ao trocar de fatia.
-  useEffect(() => {
-    if (!spinning || prefersReducedMotion()) return;
-    let raf = 0;
-    let last = -1;
-    const step = () => {
-      const el = wheel.current;
-      if (el) {
-        const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
-        const deg = ((Math.atan2(m.b, m.a) * 180) / Math.PI + 360) % 360;
-        const under = Math.floor(((360 - deg) % 360) / seg);
-        if (under !== last) {
-          last = under;
-          pointer.current?.animate(
-            [{ transform: "rotate(0deg)" }, { transform: "rotate(-22deg)" }, { transform: "rotate(0deg)" }],
-            { duration: 140, easing: "ease-out" },
-          );
-        }
-      }
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [spinning, seg]);
-
-  const bulbs = Array.from({ length: 16 }, (_, i) => i * (360 / 16));
-  return (
-    <div className={`spin-wheel-wrap ${spinning ? "is-spinning" : ""} ${winner !== null && !spinning ? "has-winner" : ""}`} ref={wrapRef}>
-      <span className="spin-glow" aria-hidden="true" />
-      <span className="spin-pointer" ref={pointer} aria-hidden="true">
-        <svg viewBox="0 0 28 36" width="28" height="36">
-          <defs>
-            <linearGradient id="spin-pointer-gold" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#ffe6a8" />
-              <stop offset="0.5" stopColor="#e4b86a" />
-              <stop offset="1" stopColor="#9a6a24" />
-            </linearGradient>
-          </defs>
-          <path d="M14 35 C 8 24, 2 18, 2 11 a12 12 0 0 1 24 0 c0 7 -6 13 -12 24z" fill="url(#spin-pointer-gold)" stroke="#5a3d12" strokeWidth="1.2" />
-          <circle cx="14" cy="11" r="4.2" fill="#2a1d0f" />
-        </svg>
-      </span>
-      <svg
-        ref={wheel}
-        className={`spin-wheel ${spinning ? "is-spinning" : ""}`}
-        viewBox="0 0 200 200"
-        style={{ transform: `rotate(${angle}deg)` }}
-        onTransitionEnd={onStop}
-        aria-hidden="true"
-      >
-        <defs>
-          <radialGradient id="spin-shade" cx="50%" cy="50%" r="50%">
-            <stop offset="0.55" stopColor="#000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.38" />
-          </radialGradient>
-          <linearGradient id="spin-rim" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffe3a0" />
-            <stop offset="0.35" stopColor="#c8933f" />
-            <stop offset="0.65" stopColor="#f3cf83" />
-            <stop offset="1" stopColor="#8a5b1c" />
-          </linearGradient>
-          <linearGradient id="spin-jackpot" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f6d27c" />
-            <stop offset="1" stopColor="#a8711f" />
-          </linearGradient>
-          {/* Diamante desenhado (o emoji sai torto e cortado dentro do SVG). */}
-          <linearGradient id="spin-gem-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#b8f1ff" />
-            <stop offset="1" stopColor="#2aa8e0" />
-          </linearGradient>
-          <g id="spin-gem">
-            <path d="M-5 -1.6 L-2.4 -4.5 L2.4 -4.5 L5 -1.6 L0 4.6 Z" fill="url(#spin-gem-fill)" stroke="#0d4d6e" strokeWidth="0.6" strokeLinejoin="round" />
-            <path d="M-5 -1.6 L5 -1.6 M-2.4 -4.5 L-1.2 -1.6 L0 4.6 L1.2 -1.6 L2.4 -4.5" fill="none" stroke="#e8fbff" strokeWidth="0.45" opacity="0.8" />
-          </g>
-          <radialGradient id="spin-hub" cx="40%" cy="35%" r="70%">
-            <stop offset="0" stopColor="#3b2c1b" />
-            <stop offset="1" stopColor="#120d08" />
-          </radialGradient>
-        </defs>
-        <circle cx="100" cy="100" r="99" fill="url(#spin-rim)" />
-        <circle cx="100" cy="100" r="91" fill="#1a130c" />
-        {SPIN_SEGMENTS.map((value, i) => {
-          const a = i * seg;
-          const mid = a + seg / 2;
-          return (
-            <g key={i} className={`spin-seg ${winner === i ? "is-winner" : ""}`}>
-              <path
-                d={`M100 100 L${point(a, 89)} A89 89 0 0 1 ${point(a + seg, 89)} Z`}
-                className={`spin-slice is-${SPIN_TIER[value] ?? "t5"}`}
-              />
-              <g transform={`rotate(${mid} 100 100)`}>
-                <text x="100" y="33" className={`spin-label ${value >= 50 ? "is-big" : ""}`} textAnchor="middle" dominantBaseline="middle">
-                  {value}
-                </text>
-                <use href="#spin-gem" x="100" y="50" className="spin-gem" />
-              </g>
-            </g>
-          );
-        })}
-        {SPIN_SEGMENTS.map((_, i) => (
-          <line key={i} x1="100" y1="100" x2={point(i * seg, 89).split(" ")[0]} y2={point(i * seg, 89).split(" ")[1]} className="spin-divider" />
-        ))}
-        <circle cx="100" cy="100" r="89" fill="url(#spin-shade)" pointerEvents="none" />
-        {bulbs.map((deg, i) => {
-          const [x, y] = point(deg, 95).split(" ");
-          return <circle key={deg} cx={x} cy={y} r="2.3" className={`spin-bulb ${i % 2 ? "is-b" : "is-a"}`} />;
-        })}
-        <circle cx="100" cy="100" r="19" fill="url(#spin-hub)" stroke="url(#spin-rim)" strokeWidth="3" />
-        <use href="#spin-gem" transform="translate(100 100) scale(1.7)" className="spin-hub-gem" />
-      </svg>
-    </div>
-  );
-}
-
-/** Diamantes que saem de `from` e voam até `to` (ex.: da roleta até o saldo). */
-function GemFlight({ from, to, count }: { from: HTMLElement | null; to: HTMLElement | null; count: number }) {
-  const [path, setPath] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
-  useLayoutEffect(() => {
-    if (!from || !to || prefersReducedMotion()) return;
-    const a = from.getBoundingClientRect();
-    const b = to.getBoundingClientRect();
-    const x = a.left + a.width / 2;
-    const y = a.top + a.height / 2;
-    setPath({ x, y, dx: b.left + b.width / 2 - x, dy: b.top + b.height / 2 - y });
-  }, [from, to]);
-  if (!path) return null;
-  return createPortal(
-    <div className="gem-flight" aria-hidden="true">
-      {Array.from({ length: count }, (_, i) => (
-        <span
-          key={i}
-          style={
-            {
-              left: path.x,
-              top: path.y,
-              "--i": i,
-              "--dx": `${path.dx}px`,
-              "--dy": `${path.dy}px`,
-              // Espalha para os lados antes de seguir até o saldo.
-              "--spread": `${(i % 2 ? 1 : -1) * (24 + ((i * 29) % 60))}px`,
-            } as React.CSSProperties
-          }
-        >
-          💎
-        </span>
-      ))}
-    </div>,
-    document.body,
-  );
-}
-
-/** Roleta diária: um giro por dia, o prêmio vem do banco e a roleta para nele. */
-function DailySpinModal({
-  session,
-  onClose,
-  onWon,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onWon: (result: SpinResult) => void;
-}) {
-  const [phase, setPhase] = useState<"ready" | "spinning" | "done">("ready");
-  const [result, setResult] = useState<SpinResult | null>(null);
-  const [angle, setAngle] = useState(0);
-  const [error, setError] = useState("");
-  const [wheelEl, setWheelEl] = useState<HTMLDivElement | null>(null);
-  const [winner, setWinner] = useState<number | null>(null);
-  const [balanceEl, setBalanceEl] = useState<HTMLElement | null>(null);
-  const celebrate = phase === "done" && !!result?.is_new;
-  // O saldo conta a partir do valor de antes do prêmio, enquanto os diamantes chegam.
-  const balance = useAnimatedNumber(phase === "done" && result ? result.balance : null, {
-    from: celebrate && result ? result.balance - result.prize : undefined,
-    delay: 700,
-  });
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && phase !== "spinning") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, phase]);
-
-  function finish(r: SpinResult) {
-    setPhase("done");
-    if (r.is_new) haptic([20, 40, 20]);
-    onWon(r);
-  }
-
-  async function spin() {
-    setPhase("spinning");
-    setError("");
-    try {
-      const r = await spinDailyWheel(session);
-      setResult(r);
-      const seg = 360 / SPIN_SEGMENTS.length;
-      const matches = SPIN_SEGMENTS.flatMap((v, i) => (v === r.prize ? [i] : []));
-      const idx = matches[Math.floor(Math.random() * matches.length)] ?? 0;
-      setWinner(idx);
-      // Para um pouco fora do centro da fatia (como numa roleta de verdade), nunca na divisa.
-      const jitter = (Math.random() - 0.5) * seg * 0.55;
-      const stop = 360 - (idx * seg + seg / 2 + jitter);
-      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      if (!r.is_new || reduced) {
-        // Já tinha girado (outro aparelho) ou sem animação: mostra direto o resultado.
-        setAngle(stop);
-        finish(r);
-      } else {
-        setAngle(360 * 7 + stop);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível girar a roleta.");
-      setPhase("ready");
-    }
-  }
-
-  return (
-    <div className="about-backdrop spin-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
-      <section className="spin-dialog" role="dialog" aria-modal="true" aria-labelledby="spin-title">
-        <button type="button" className="auth-close spin-close" onClick={onClose} disabled={phase === "spinning"} aria-label="Fechar roleta">
-          {Icon.close}
-        </button>
-        <h2 id="spin-title">Roleta diária</h2>
-        <p className="spin-sub">
-          {phase === "done" && result
-            ? result.is_new
-              ? "Volte amanhã para girar de novo."
-              : "Você já girou hoje. Volte amanhã!"
-            : "Um giro por dia: de 5 a 100 💎."}
-        </p>
-
-        <SpinWheel
-          angle={angle}
-          spinning={phase === "spinning"}
-          winner={phase === "done" ? winner : null}
-          onStop={() => result && phase === "spinning" && finish(result)}
-          wrapRef={setWheelEl}
-        />
-        {celebrate && result ? <GemFlight from={wheelEl} to={balanceEl} count={Math.min(10, Math.max(4, result.prize))} /> : null}
-
-        <div className="spin-foot" aria-live="polite">
-          {phase === "done" && result ? (
-            <>
-              {result.prize >= 50 && result.is_new ? <span className="spin-jackpot-label">Prêmio grande!</span> : null}
-              <span className="spin-prize-row">
-                <strong className={`spin-prize ${result.prize >= 50 ? "is-jackpot" : ""}`}>+{result.prize}</strong>
-                <span className="spin-prize-gem" aria-label="diamantes">
-                  💎
-                </span>
-              </span>
-              <span className="spin-balance">
-                Saldo:{" "}
-                <strong
-                  ref={setBalanceEl}
-                  className={`count-up ${balance !== null && balance !== result.balance ? "is-counting" : ""}`}
-                  aria-hidden="true"
-                >
-                  {balance ?? result.balance}
-                </strong>
-                <span className="sr-only">{result.balance}</span>
-              </span>
-              <button type="button" className="btn btn-primary" onClick={onClose}>
-                Boa!
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-primary spin-go" disabled={phase === "spinning"} onClick={() => void spin()}>
-              {phase === "spinning" ? "Girando…" : "Girar"}
-            </button>
-          )}
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/** Loja: saldo de diamantes, o Salva-ofensiva, como ganhar e o extrato. */
-function DiamondShopPage({
-  session,
-  onClose,
-  onStreakSaved,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onStreakSaved: () => void;
-}) {
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [history, setHistory] = useState<DiamondEntry[] | null>(null);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [auto, setAuto] = useState(autoFreezeEnabled);
-  const [rescue, setRescue] = useState(streakRescue);
-  const [showAll, setShowAll] = useState(false);
-  const [spin, setSpin] = useState<{ spun_today: boolean; prize: number | null } | null>(null);
-  const [spinOpen, setSpinOpen] = useState(false);
-  const [packs, setPacks] = useState<AiPack[]>([]);
-  const [quota, setQuota] = useState<AiQuota | null>(null);
-  const [buyingPack, setBuyingPack] = useState<string | null>(null);
-  const [itemsOpen, setItemsOpen] = useState(false);
-  const shownBalance = useAnimatedNumber(wallet ? wallet.balance : null);
-
-  const load = useCallback(() => {
-    return Promise.all([
-      fetchWallet(session),
-      fetchDiamondHistory(session),
-      fetchSpinStatus(session).catch(() => null),
-      fetchAiPacks(session).catch(() => []),
-      fetchAiQuota().catch(() => null),
-    ])
-      .then(([w, h, sp, catalog, aiQuota]) => {
-        setWallet(w);
-        setHistory(h);
-        setSpin(sp);
-        setPacks(catalog);
-        setQuota(aiQuota);
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar seus diamantes."));
-  }, [session]);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-    void load();
-  }, [load]);
-
-  async function saveStreak() {
-    if (!rescue) return;
-    setBusy(true);
-    setError("");
-    try {
-      const r = await rescueStreak(session, rescue);
-      setNotice(`Sequência salva: ${r.streak} ${r.streak === 1 ? "dia" : "dias"} 🔥`);
-      setRescue(null);
-      onStreakSaved();
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar a sequência.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function buyPack(pack: AiPack) {
-    if (buyingPack) return;
-    setBuyingPack(pack.id);
-    setError("");
-    setNotice("");
-    try {
-      const result = await buyAiPack(session, pack.id);
-      setNotice(
-        result.duplicate
-          ? "Esse pacote já tinha sido registrado."
-          : `${pack.messages} mensagens extras adicionadas.`,
-      );
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível comprar o pacote.");
-    } finally {
-      setBuyingPack(null);
-    }
-  }
-
-  const price = wallet?.freeze_price ?? 0;
-  const cost = rescue && rescue.paidDays.length > 0 ? rescue.paidDays.length * price : 0;
-  const short = wallet ? Math.max(0, cost - wallet.balance) : 0;
-  const shown = showAll ? history : history?.slice(0, 5);
-
-  if (itemsOpen) {
-    return (
-      <Suspense fallback={<RouteLoading />}>
-        <ShopPage
-          session={session}
-          onBalance={(balance) => setWallet((w) => (w ? { ...w, balance } : w))}
-          onClose={() => {
-            setItemsOpen(false);
-            void load();
-          }}
-        />
-      </Suspense>
-    );
-  }
-
-  return (
-    <div className="home profile shop">
-      {spinOpen ? (
-        <DailySpinModal
-          session={session}
-          onClose={() => setSpinOpen(false)}
-          onWon={(r) => {
-            setSpin({ spun_today: true, prize: r.prize });
-            void load();
-          }}
-        />
-      ) : null}
-      <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
-          Voltar
-        </button>
-      </nav>
-
-      <header className="shop-hero" aria-live="polite">
-        <span className="shop-hero-gem" aria-hidden="true">
-          💎
-        </span>
-        <strong className={`count-up ${wallet && shownBalance !== null && shownBalance !== wallet.balance ? "is-counting" : ""}`}>
-          {shownBalance ?? "–"}
-        </strong>
-        <span>diamantes</span>
-      </header>
-
-      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
-      {notice ? <p className="shop-notice" role="status">{notice}</p> : null}
-
-      {wallet === null && !error ? (
-        <div className="page-status">
-          <span className="spinner" aria-hidden="true" />
-          Carregando…
-        </div>
-      ) : wallet ? (
-        <>
-          <section className="shop-card" aria-label="Loja de itens">
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                🛍️
-              </span>
-              <span className="shop-card-title">
-                <strong>Loja de itens</strong>
-                <span>Molduras, insígnias, capas e cores de nome</span>
-              </span>
-              <button type="button" className="btn btn-primary" onClick={() => setItemsOpen(true)}>
-                Abrir
-              </button>
-            </div>
-          </section>
-
-          <section className="shop-card" aria-label="Roleta diária">
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                🎡
-              </span>
-              <span className="shop-card-title">
-                <strong>Roleta diária</strong>
-                <span>{spin?.spun_today ? `Hoje: +${spin.prize} 💎 · volte amanhã` : "Um giro grátis por dia"}</span>
-              </span>
-              <button type="button" className="btn btn-primary" disabled={!spin || spin.spun_today} onClick={() => setSpinOpen(true)}>
-                {spin?.spun_today ? "Amanhã" : "Girar"}
-              </button>
-            </div>
-          </section>
-
-          <section
-            className="shop-card"
-            aria-label="Salva-ofensiva"
-            title={`Mantém a sequência num dia sem leitura. Os escudos grátis são usados antes. Até ${wallet.freezes_per_week} por semana.`}
-          >
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                🧊
-              </span>
-              <span className="shop-card-title">
-                <strong>Salva-ofensiva</strong>
-                <span>{price} 💎 por dia perdido</span>
-              </span>
-              <span className="shop-chip" aria-label={`${wallet.freezes_this_week} de ${wallet.freezes_per_week} usados nesta semana`}>
-                {wallet.freezes_this_week}/{wallet.freezes_per_week} na semana
-              </span>
-            </div>
-
-            {rescue && cost > 0 ? (
-              <div className="shop-rescue">
-                <span>
-                  🔥 Sequência de <strong>{rescue.streak} {rescue.streak === 1 ? "dia" : "dias"}</strong> quebrou
-                </span>
-                <button type="button" className="btn btn-primary" disabled={busy || short > 0} onClick={() => void saveStreak()}>
-                  {busy ? "Salvando…" : short > 0 ? `Faltam ${short} 💎` : `Salvar · ${cost} 💎`}
-                </button>
-              </div>
-            ) : null}
-
-            <label className="shop-switch">
-              <span>Usar automaticamente</span>
-              <input
-                type="checkbox"
-                role="switch"
-                checked={auto}
-                onChange={(e) => {
-                  setAuto(e.target.checked);
-                  setAutoFreezeEnabled(e.target.checked);
-                }}
-              />
-            </label>
-          </section>
-
-          <section className="shop-card" aria-label="Mensagens extras">
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                💬
-              </span>
-              <span className="shop-card-title">
-                <strong>Mensagens extras</strong>
-                <span>
-                  {quota ? `${quota.credits} disponíveis` : "Carregando…"} · usadas quando a cota gratuita acaba
-                </span>
-              </span>
-            </div>
-            {packs.length === 0 ? (
-              <p className="profile-empty">Os pacotes de mensagens ainda não estão disponíveis.</p>
-            ) : (
-              <div className="ai-packs">
-                {packs.map((pack) => (
-                  <button
-                    key={pack.id}
-                    type="button"
-                    className="ai-pack"
-                    disabled={buyingPack !== null || (wallet?.balance ?? 0) < pack.price}
-                    onClick={() => void buyPack(pack)}
-                  >
-                    <strong>{pack.messages} mensagens</strong>
-                    <span>{pack.price} 💎</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <h2 className="shop-section-title" id="shop-earn">
-            Como ganhar
-          </h2>
-          <ul className="shop-earn" aria-labelledby="shop-earn">
-            <li>
-              <span aria-hidden="true">🎡</span>
-              <span>Roleta diária</span>
-              <strong>até +20</strong>
-            </li>
-            <li>
-              <span aria-hidden="true">📖</span>
-              <span>{wallet.goal_minutes} min lidos no dia</span>
-              <strong>+{wallet.goal_reward}</strong>
-            </li>
-            <li>
-              <span aria-hidden="true">🏆</span>
-              <span>Pódio da semana</span>
-              <strong>até +50</strong>
-            </li>
-          </ul>
-
-          <section className="shop-history" aria-labelledby="shop-history">
-            <h2 className="shop-section-title" id="shop-history">
-              Extrato
-            </h2>
-            {shown && shown.length > 0 ? (
-              <>
-                <ol>
-                  {shown.map((e, i) => (
-                    <li key={`${e.reason}-${e.ref}-${i}`}>
-                      <span>{diamondEntryLabel(e)}</span>
-                      <strong className={e.amount > 0 ? "is-in" : "is-out"}>{e.amount > 0 ? `+${e.amount}` : e.amount}</strong>
-                    </li>
-                  ))}
-                </ol>
-                {!showAll && history && history.length > 5 ? (
-                  <button type="button" className="inline-link" onClick={() => setShowAll(true)}>
-                    Ver tudo
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              <p className="profile-empty">Nada por aqui ainda. Gire a roleta para ganhar os primeiros!</p>
-            )}
-          </section>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
 /** Aviso na tela inicial: a sequência quebrou (oferta) ou foi salva com diamantes. */
 function FreezeNudge({
   outcome,
@@ -3274,442 +2416,6 @@ function FreezeNudge({
   );
 }
 
-function ordinal(place: number): string {
-  return `${place}º`;
-}
-
-/** Quanto falta para a semana do ranking acabar (domingo à meia-noite). */
-function weekCountdown(now = new Date()): string {
-  const end = weekStartDate(now);
-  end.setDate(end.getDate() + 7);
-  const days = Math.ceil((end.getTime() - now.getTime()) / 86_400_000);
-  return days <= 1 ? "termina hoje à meia-noite" : `termina em ${days} dias`;
-}
-
-function weekRangeLabel(offset: 0 | -1): string {
-  const start = weekStartDate();
-  start.setDate(start.getDate() + 7 * offset);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-
-/** Aba do ranking: geral (sem data), esta semana (0) ou a passada (-1). */
-type RankingTab = "all" | 0 | -1;
-
-/**
- * Ranking: pódio dos 3 que mais leram, a lista dos demais e a sua posição. Abre no geral, que soma
- * toda a leitura e não zera na virada da semana; o semanal continua com o pódio que ganha diamantes.
- */
-function RankingPage({
-  session,
-  onClose,
-  onOpenShop,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onOpenShop: () => void;
-}) {
-  const [tab, setTab] = useState<RankingTab>("all");
-  const [lists, setLists] = useState<Partial<Record<RankingTab, RankEntry[]>>>({});
-  const [profile, setProfile] = useState<RankingProfile | null>(null);
-  const [error, setError] = useState("");
-  const [savingHidden, setSavingHidden] = useState(false);
-  const [giftCatalog, setGiftCatalog] = useState<GiftCatalogItem[]>([]);
-  const [giftCounts, setGiftCounts] = useState<Record<string, number>>({});
-  const [giftTarget, setGiftTarget] = useState<RankEntry | null>(null);
-  const [giftBusy, setGiftBusy] = useState<string | null>(null);
-  const [giftNotice, setGiftNotice] = useState("");
-  const [giftError, setGiftError] = useState("");
-
-  useEffect(() => {
-    let alive = true;
-    fetchGiftCatalog(session)
-      .then((catalog) => {
-        if (alive) setGiftCatalog(catalog);
-      })
-      .catch(() => {
-        // Sem o catálogo, o ranking continua funcionando.
-      });
-    return () => {
-      alive = false;
-    };
-  }, [session]);
-
-  useEffect(() => {
-    let alive = true;
-    // No geral, os presentes contados são os desta semana.
-    fetchWeeklyGiftCounts(session, tab === "all" ? 0 : tab)
-      .then((counts) => {
-        if (alive) setGiftCounts(counts);
-      })
-      .catch(() => {
-        if (alive) setGiftCounts({});
-      });
-    return () => {
-      alive = false;
-    };
-  }, [session, tab]);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, []);
-
-  useEffect(() => {
-    if (lists[tab]) return;
-    let alive = true;
-    setError("");
-    // Envia os minutos de agora antes de buscar: a sua posição já sai atualizada.
-    const ready = tab !== -1 ? reportReading(session).catch(() => {}) : Promise.resolve();
-    void ready
-      .then(() =>
-        Promise.all([tab === "all" ? fetchAlltimeRanking(session) : fetchRanking(session, tab), fetchRankingProfile(session)]),
-      )
-      .then(([list, p]) => {
-        if (!alive) return;
-        setLists((l) => ({ ...l, [tab]: list }));
-        setProfile(p);
-      })
-      .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : "Não foi possível carregar o ranking."));
-    return () => {
-      alive = false;
-    };
-    // Recarrega ao trocar de aba ou depois de mudar a visibilidade (que limpa as listas).
-  }, [tab, session, lists]);
-
-  async function toggleHidden(hidden: boolean) {
-    setSavingHidden(true);
-    setError("");
-    try {
-      await setRankingHidden(session, hidden);
-      setProfile((p) => ({ diamonds: p?.diamonds ?? 0, hidden }));
-      setLists({});
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
-    } finally {
-      setSavingHidden(false);
-    }
-  }
-
-  function openGift(entry: RankEntry) {
-    if (!profile) return;
-    setGiftTarget(entry);
-    setGiftNotice("");
-    setGiftError("");
-  }
-
-  async function giveGift(gift: GiftCatalogItem, from: HTMLElement) {
-    if (!giftTarget || giftBusy) return;
-    // Posição do botão agora: a janela fecha antes do presente sair voando.
-    const origin = from.getBoundingClientRect();
-    setGiftBusy(gift.id);
-    setGiftNotice("");
-    setGiftError("");
-    try {
-      const result = await sendGift(session, giftTarget.user_id, gift.id);
-      setProfile((current) => (current ? { ...current, diamonds: result.balance } : current));
-      if (!result.duplicate) {
-        setGiftCounts((counts) => ({
-          ...counts,
-          [giftTarget.user_id]: (counts[giftTarget.user_id] ?? 0) + 1,
-        }));
-      }
-      setGiftNotice(
-        result.duplicate
-          ? "Esse presente já tinha sido registrado."
-          : `${gift.icon} enviado! Restam ${result.remaining_today} presentes hoje.`,
-      );
-      const target = giftTarget.user_id;
-      setGiftTarget(null);
-      // Com a janela fechada, o presente voa do lugar do botão até o avatar de quem ganhou.
-      requestAnimationFrame(() => {
-        const box = document.querySelector(`[data-gift-to="${target}"]`);
-        flyEmoji(gift.icon, origin, box?.querySelector(".podium-face, .ranking-face") ?? box);
-      });
-    } catch (err) {
-      setGiftError(err instanceof Error ? err.message : "Não foi possível enviar o presente.");
-    } finally {
-      setGiftBusy(null);
-    }
-  }
-
-  const list = lists[tab] ?? null;
-  const podium = list?.filter((e) => e.place <= 3) ?? [];
-  const me = list?.find((e) => e.is_me) ?? null;
-  const above = me && me.place > 1 ? list?.find((e) => e.place === me.place - 1) : undefined;
-  // O banco manda até 50 do topo; se você está mais abaixo, sua linha vem separada no fim.
-  const rest = list?.filter((e) => e.place > 3 && e.place <= 50) ?? [];
-  const meOutside = me && me.place > 50 ? me : null;
-  // "Atual": o geral e esta semana ainda mudam (dá para presentear); a semana passada já fechou.
-  const current = tab !== -1;
-  const alltime = tab === "all";
-
-  return (
-    <div className="home profile moderation ranking">
-      <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
-          Voltar
-        </button>
-        {profile ? (
-          <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
-            <span aria-hidden="true">💎</span> <strong>{profile.diamonds}</strong>
-            <span className="sr-only"> diamantes</span>
-          </button>
-        ) : null}
-      </nav>
-      <header className="moderation-head">
-        <span className="eyebrow">{tab === "all" ? "Ranking geral · desde o começo" : `Ranking semanal · ${weekRangeLabel(tab)}`}</span>
-        <h1>{alltime ? "Quem mais leu até hoje" : current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
-        {alltime ? (
-          <p>Soma todo o seu tempo de leitura e não zera na virada da semana: cada minuto lido fica com você.</p>
-        ) : (
-          <p>
-            Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham
-            50, 30 e 20 💎.
-          </p>
-        )}
-      </header>
-
-      <div className="segmented moderation-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={alltime} className={alltime ? "is-on" : ""} onClick={() => setTab("all")}>
-          Geral
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 0} className={tab === 0 ? "is-on" : ""} onClick={() => setTab(0)}>
-          Esta semana
-        </button>
-        <button type="button" role="tab" aria-selected={tab === -1} className={tab === -1 ? "is-on" : ""} onClick={() => setTab(-1)}>
-          Semana passada
-        </button>
-      </div>
-
-      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
-
-      {list === null && !error ? (
-        <div className="page-status">
-          <span className="spinner" aria-hidden="true" />
-          Carregando ranking…
-        </div>
-      ) : list ? (
-        <>
-          <div className={`ranking-me ${me ? "has-place" : ""}`} role="status">
-            {profile?.hidden ? (
-              <span>Você está escondido do ranking. Ative “Aparecer no ranking” abaixo para concorrer ao pódio.</span>
-            ) : me ? (
-              <>
-                <span className="ranking-me-place" aria-hidden="true">
-                  {me.place <= 3 ? PLACE_MEDALS[me.place as 1 | 2 | 3] : ordinal(me.place)}
-                </span>
-                <span>
-                  <strong>
-                    Você {current ? "está" : "ficou"} em {ordinal(me.place)} lugar · {formatMinutes(me.minutes)}
-                  </strong>
-                  {current && above ? (
-                    <small>
-                      Faltam {formatMinutes(above.minutes - me.minutes + 1)} de leitura para passar{" "}
-                      {above.name.split(" ")[0]}.
-                    </small>
-                  ) : current && me.place === 1 ? (
-                    <small>Você está na frente. Continue lendo para manter o ouro!</small>
-                  ) : null}
-                </span>
-              </>
-            ) : (
-              <span>
-                {alltime
-                  ? "Você ainda não entrou no ranking. Leia pelo menos 1 minuto para aparecer aqui!"
-                  : current
-                    ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
-                    : "Você não entrou no ranking da semana passada."}
-              </span>
-            )}
-          </div>
-
-          {list.length === 0 ? (
-            <p className="profile-empty moderation-empty">
-              {alltime
-                ? "Ninguém leu ainda. Que tal ser o primeiro? 📚"
-                : current
-                  ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚"
-                  : "Ninguém leu na semana passada."}
-            </p>
-          ) : (
-            <ol key={String(tab)} className="podium" aria-label="Pódio">
-              {/* Ordem visual de pódio: prata, ouro, bronze. */}
-              {[2, 1, 3].map((place) => {
-                const e = podium.find((p) => p.place === place);
-                return (
-                  <li
-                    key={place}
-                    className={["podium-spot", `is-${place}`, e?.is_me ? "is-me" : "", e ? "" : "is-empty"].filter(Boolean).join(" ")}
-                  >
-                    {e ? (
-                      <>
-                        <span className="podium-avatar" data-gift-to={e.user_id}>
-                          <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" cosmetics={e.cosmetics} />
-                          <span className="podium-medal" aria-hidden="true">
-                            {PLACE_MEDALS[place as 1 | 2 | 3]}
-                          </span>
-                        </span>
-                        <strong className="podium-name">
-                          <PersonName name={e.is_me ? "Você" : e.name} cosmetics={e.cosmetics} />
-                        </strong>
-                        <span className="podium-minutes">{formatMinutes(e.minutes)}</span>
-                        {!e.is_me && profile && current ? (
-                          <button
-                            type="button"
-                            className="podium-gift"
-                            onClick={() => openGift(e)}
-                            aria-label={`Presentear ${e.name}`}
-                            title={`Presentear ${e.name}`}
-                          >
-                            🎁
-                          </button>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className="podium-name is-muted">Vaga aberta</span>
-                    )}
-                    <span className="podium-block">
-                      <span className="sr-only">Lugar </span>
-                      {place}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-
-          {rest.length > 0 || meOutside ? (
-            <ol className="ranking-list" aria-label="Demais leitores">
-              {rest.map((e) => (
-                <RankingRow
-                  key={e.user_id}
-                  entry={e}
-                  giftsReceived={giftCounts[e.user_id] ?? 0}
-                  onGift={current && profile ? openGift : undefined}
-                />
-              ))}
-              {meOutside ? (
-                <>
-                  <li className="ranking-gap" aria-hidden="true">
-                    ⋯
-                  </li>
-                  <RankingRow
-                    entry={meOutside}
-                    giftsReceived={giftCounts[meOutside.user_id] ?? 0}
-                    onGift={current && profile ? openGift : undefined}
-                  />
-                </>
-              ) : null}
-            </ol>
-          ) : null}
-        </>
-      ) : null}
-
-      {giftNotice ? (
-        <p className="shop-notice" role="status">
-          {giftNotice}
-        </p>
-      ) : null}
-      {giftError ? (
-        <p className="auth-error moderation-error" role="alert">
-          {giftError}
-        </p>
-      ) : null}
-
-      {giftTarget ? (
-        <section className="gift-panel" aria-label={`Enviar presente para ${giftTarget.name}`}>
-          <header className="gift-panel-head">
-            <div>
-              <strong>Presentear {giftTarget.name.split(" ")[0]}</strong>
-              <span>Saldo: {profile?.diamonds ?? 0} 💎</span>
-            </div>
-            <button type="button" className="btn" onClick={() => setGiftTarget(null)}>
-              Fechar
-            </button>
-          </header>
-          {giftCatalog.length === 0 ? (
-            <p className="profile-empty">O catálogo de presentes ainda não está disponível.</p>
-          ) : (
-            <div className="gift-grid">
-              {giftCatalog.map((gift) => (
-                <button
-                  key={gift.id}
-                  type="button"
-                  className={`gift-option rarity-${gift.rarity}`}
-                  onClick={(e) => void giveGift(gift, e.currentTarget)}
-                  disabled={giftBusy !== null || (profile?.diamonds ?? 0) < gift.price}
-                >
-                  <span className="gift-option-icon" aria-hidden="true">
-                    <GiftIcon id={gift.id} emoji={gift.icon} size={24} />
-                  </span>
-                  <strong>{gift.name}</strong>
-                  <span>{gift.price} 💎</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      {profile ? (
-        <label className="ranking-visibility">
-          <input
-            type="checkbox"
-            checked={!profile.hidden}
-            disabled={savingHidden}
-            onChange={(e) => void toggleHidden(!e.target.checked)}
-          />
-          <span>
-            <strong>Aparecer no ranking</strong>
-            <small>Outros leitores veem só seu nome, avatar e minutos lidos.</small>
-          </span>
-        </label>
-      ) : null}
-    </div>
-  );
-}
-
-export function RankingRow({
-  entry,
-  giftsReceived,
-  onGift,
-}: {
-  entry: RankEntry;
-  giftsReceived: number;
-  onGift?: (entry: RankEntry) => void;
-}) {
-  return (
-    <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`} data-gift-to={entry.user_id}>
-      <span className="ranking-place">{ordinal(entry.place)}</span>
-      <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" cosmetics={entry.cosmetics} />
-      <span className="ranking-name">
-        <PersonName name={entry.is_me ? `${entry.name} (você)` : entry.name} cosmetics={entry.cosmetics} />
-      </span>
-      <span className="ranking-actions">
-        {giftsReceived > 0 ? (
-          <span className="gift-count" title="Presentes recebidos nesta semana">
-            🎁 {giftsReceived}
-          </span>
-        ) : null}
-        <span className="ranking-minutes">{formatMinutes(entry.minutes)}</span>
-        {!entry.is_me && onGift ? (
-          <button
-            type="button"
-            className="gift-chip"
-            onClick={() => onGift(entry)}
-            aria-label={`Presentear ${entry.name}`}
-            title={`Presentear ${entry.name}`}
-          >
-            Presentear
-          </button>
-        ) : null}
-      </span>
-    </li>
-  );
-}
-
 /** Convite na tela inicial para abrir o ranking. */
 function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   return (
@@ -3727,7 +2433,6 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
     </button>
   );
 }
-
 
 /**
  * Enquanto `open`, o botão voltar do celular fecha esta tela/janela (chama `close`) em vez de
@@ -3819,7 +2524,6 @@ function AchievementToast({ achievement, onDone }: { achievement: Achievement; o
     document.body,
   );
 }
-
 
 /**
  * Recado do personagem na tela inicial: o leitor sumiu do livro há alguns dias e quem estava
@@ -4609,7 +3313,6 @@ function ProfilePage({
   }, [dirty]);
 
   const chosenAvatar = findAvatar(user.user_metadata?.avatar);
-
 
   return (
     <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
@@ -6106,7 +4809,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
           <ol className="about-steps">
             <li>
               <strong>Escolha um livro</strong>
-              <span>Clássicos em domínio público ou um EPUB, PDF ou TXT seu.</span>
+              <span>Um livro do acervo ou um EPUB, PDF ou TXT seu.</span>
             </li>
             <li>
               <strong>Leia no seu ritmo</strong>
@@ -8057,14 +6760,16 @@ export function App() {
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
     if (shopOpen && authSession) {
       return (
-        <DiamondShopPage
-          session={authSession}
-          onClose={() => setShopOpen(false)}
-          onStreakSaved={() => {
-            setFreezeOutcome(null);
-            setDataEpoch((n) => n + 1);
-          }}
-        />
+        <Suspense fallback={<RouteLoading />}>
+          <DiamondShopPage
+            session={authSession}
+            onClose={() => setShopOpen(false)}
+            onStreakSaved={() => {
+              setFreezeOutcome(null);
+              setDataEpoch((n) => n + 1);
+            }}
+          />
+        </Suspense>
       );
     }
     if (libraryOpen && authSession && shelfOn) {
@@ -8082,7 +6787,11 @@ export function App() {
       );
     }
     if (rankingOpen && authSession) {
-      return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
+      return (
+        <Suspense fallback={<RouteLoading />}>
+          <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />
+        </Suspense>
+      );
     }
     if (profileOpen && authSession) {
       return (
@@ -8272,11 +6981,13 @@ export function App() {
         {appConfirmDialog}
         {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
         {spinOpen && authSession ? (
-          <DailySpinModal
-            session={authSession}
-            onClose={() => setSpinOpen(false)}
-            onWon={(r) => r.is_new && setToast(`+${r.prize} 💎 na roleta`)}
-          />
+          <Suspense fallback={null}>
+            <DailySpinModal
+              session={authSession}
+              onClose={() => setSpinOpen(false)}
+              onWon={(r) => r.is_new && setToast(`+${r.prize} 💎 na roleta`)}
+            />
+          </Suspense>
         ) : null}
 
         {installOpen ? <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} /> : null}
@@ -8494,7 +7205,6 @@ export function App() {
           />
         ) : null}
 
-
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
 
         {authSession ? <RankingTeaser onOpen={() => setRankingOpen(true)} /> : null}
@@ -8665,11 +7375,11 @@ export function App() {
               Storyverse
             </span>
             <p>
-              Leitura que conversa com você. Textos em domínio público do{" "}
+              Leitura que conversa com você. Clássicos do{" "}
               <a href="https://www.gutenberg.org" target="_blank" rel="noreferrer">
                 Project Gutenberg
               </a>
-              .
+              , livros da curadoria e da comunidade.
             </p>
           </div>
           <nav className="foot-cols" aria-label="Links do rodapé">

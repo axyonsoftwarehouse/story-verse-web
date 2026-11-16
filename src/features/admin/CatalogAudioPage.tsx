@@ -67,7 +67,8 @@ function emptyForm(book: AdminCatalogBook | null): EditionForm {
     sourceUrl: "",
     rights: book?.rights ?? "public_domain",
     rightsNote: book?.rights_note ?? "",
-    licenseNote: "LibriVox · domínio público",
+    // Vazio: o padrão "LibriVox · domínio público" acabava salvo em obra que não era (U7).
+    licenseNote: "",
     textMapping: "pending",
   };
 }
