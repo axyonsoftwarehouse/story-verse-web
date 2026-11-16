@@ -86,6 +86,7 @@ import { BadgeShelf } from "./features/shop/BadgeShelf";
 import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
 import { useNavCrowded } from "./lib/useNavCrowded";
+import { metadataProblem } from "./lib/submissionMetadata";
 import { NotificationBell } from "./features/notifications/NotificationBell";
 import { bookKeyOf, todayInBrazil } from "./lib/library";
 import {
@@ -1059,8 +1060,9 @@ function Explore({
         </>
       ) : null}
 
-      {/* Em "Todo o acervo" os livros da comunidade vêm em destaque no topo, com ou sem busca. */}
-      {!onlyCommunity && communityShown.length > 0 ? (
+      {/* Em "Todo o acervo", os da comunidade só entram no topo quando há busca: sem busca, a estante
+          "Da comunidade" logo acima já mostra os mesmos livros (U2). */}
+      {!onlyCommunity && searching && communityShown.length > 0 ? (
         <div className="explore-community">
           <div className="explore-community-head">
             <h3>Da comunidade</h3>
@@ -1282,6 +1284,9 @@ function MyBooks({
     if (!parsed || saving) return;
     if (share && !rights) return setError("Escolha por que este livro pode ser compartilhado.");
     if (share && !agree) return setError("Confirme a declaração de direitos para enviar ao acervo.");
+    // Para o acervo público, título e autor de verdade (U1); na estante pessoal vale qualquer um.
+    const shareProblem = share ? metadataProblem(title, author) : null;
+    if (shareProblem) return setError(`${shareProblem} Ele aparece assim para todo mundo no acervo.`);
     const id = newLocalBookId();
     const bookTitle = title.trim() || "Meu livro";
     const chosenCover = customCover ? await blobToDataUrl(customCover.blob).catch(() => null) : null;
@@ -6152,6 +6157,9 @@ function shieldNoticeOnLoad(): number | null {
   return shieldNoticeCache;
 }
 
+/** Quantos livros curados entram em "Novidades da biblioteca" na home. */
+const CATALOG_NEW_LIMIT = 6;
+
 export function App() {
   const [book, setBook] = useState<Ebook | null>(null);
   const currentBookRef = useRef(book);
@@ -6693,12 +6701,16 @@ export function App() {
   useEffect(() => {
     if (book) return;
     let alive = true;
-    void searchCatalog({ sort: "new", limit: 6 })
+    // O catálogo também lista os envios da comunidade (cm:), que já têm a estante "Da comunidade";
+    // aqui ficam só os curados. Pede mais que 6 para sobrar curado depois do filtro.
+    void searchCatalog({ sort: "new", limit: 30 })
       .then((page) => {
         if (!alive) return;
-        // Os envios da comunidade já têm a estante "Novidades" deles; aqui ficam os curados.
         setCatalogNew(
-          page.items.filter((item) => item.book_key.startsWith("cat:")).map(catalogBookToEbook),
+          page.items
+            .filter((item) => item.book_key.startsWith("cat:"))
+            .slice(0, CATALOG_NEW_LIMIT)
+            .map(catalogBookToEbook),
         );
       })
       .catch(() => {
@@ -8513,17 +8525,6 @@ export function App() {
           />
         ) : null}
 
-        {communityBooks.some(isNewCommunityBook) ? (
-          <ProfileShelf
-            className="novidades"
-            eyebrow="✨ Acabou de chegar"
-            title="Novidades"
-            subtitle="Livros que entraram no acervo da comunidade nesta semana."
-            onOpen={startBook}
-            items={communityBooks.filter(isNewCommunityBook).map((b) => ({ book: b, sub: b.author, badge: newBookLabel(b) }))}
-          />
-        ) : null}
-
         {SHELVES.map((shelf, si) => {
           const books = featuredBooks.filter((b) => (b.shelf ?? "classicos") === shelf.id);
           if (books.length === 0) return null;
@@ -8597,7 +8598,8 @@ export function App() {
           );
         })}
 
-        {communityBooks.some((b) => !isNewCommunityBook(b)) ? (
+        {/* Uma estante só para a comunidade (U2): os recém-aprovados vêm primeiro, com o selo "Novo". */}
+        {communityBooks.length > 0 ? (
           <ProfileShelf
             title="Da comunidade"
             subtitle="Livros enviados por leitores e aprovados pela curadoria."
@@ -8605,7 +8607,7 @@ export function App() {
             items={communityBooks.map((b) => ({
               book: b,
               sub: b.author,
-              ...(isNewCommunityBook(b) ? { badge: "Novo" } : {}),
+              ...(isNewCommunityBook(b) ? { badge: newBookLabel(b) } : {}),
             }))}
           />
         ) : null}
