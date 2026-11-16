@@ -23,6 +23,7 @@ import { prefersReducedMotion, useAnimatedNumber } from "../../lib/motion";
 import { FollowButton, PeopleBlocked, PeopleEmpty, PeopleList, RelationBadge, SuggestionsStrip } from "./PeopleParts";
 import { TransitionLink } from "../../components/TransitionLink";
 import { useTransitionBack } from "../../lib/useTransitionBack";
+import { normalizeProfileTheme, PROFILE_THEME_HUE } from "../../lib/profileTheme";
 
 type ListTab = "seguidores" | "seguindo";
 
@@ -101,6 +102,7 @@ export function PersonProfilePage() {
     setParams(tab === "seguidores" ? {} : { lista: tab }, { replace: true });
     networkRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
   };
+  const theme = normalizeProfileTheme(profile.profile_theme);
   const stats: { key: string; value: number; label: string; tab?: ListTab }[] = [
     { key: "followers", value: profile.followers, label: profile.followers === 1 ? "seguidor" : "seguidores", tab: "seguidores" },
     { key: "following", value: profile.following, label: "seguindo", tab: "seguindo" },
@@ -108,7 +110,11 @@ export function PersonProfilePage() {
   ];
 
   return (
-    <div className="home groups-page people-page person-page" style={{ "--person-hue": hueOf(profile.id) } as CSSProperties}>
+    <div
+      className="home groups-page people-page person-page"
+      data-profile-theme={theme}
+      style={{ "--person-hue": PROFILE_THEME_HUE[theme] ?? hueOf(profile.id) } as CSSProperties}
+    >
       {back}
 
       <section className="person-hero">

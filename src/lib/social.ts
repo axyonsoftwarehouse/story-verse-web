@@ -6,12 +6,16 @@ import { apiEnabled, apiRequest, AuthSessionError } from "./backend";
  * "conexão". Só existe na API própria e usa a mesma liberação dos grupos (feature `groups`).
  */
 
+import type { ProfileThemeId } from "./profileTheme";
+
 export type Person = {
   id: string;
   name: string;
   avatar: string;
   /** Foto do perfil (só arquivo do Storage da própria pessoa; a API filtra). */
   photo: string | null;
+  /** Paleta do perfil público (padrão: dourado). */
+  profile_theme: ProfileThemeId;
   /** A conta logada segue esta pessoa. */
   is_following: boolean;
   /** Esta pessoa segue a conta logada. */
