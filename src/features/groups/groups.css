@@ -1505,7 +1505,11 @@
 }
 
 .group-invite-validity {
+  /* Cabe na coluna do texto: quebra em duas linhas em vez de sair cortada no celular. */
+  white-space: normal;
+  overflow: visible;
   color: var(--accent);
+  font-weight: 600;
 }
 
 .group-switch {
