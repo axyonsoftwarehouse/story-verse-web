@@ -1504,8 +1504,9 @@
   padding-left: 0;
 }
 
-.group-invite-validity {
-  /* Cabe na coluna do texto: quebra em duas linhas em vez de sair cortada no celular. */
+/* Precisa vencer a regra .group-invite-text small (que corta em uma linha): por isso o seletor
+   mais específico. Aqui a validade quebra em duas linhas em vez de sair cortada no celular. */
+.group-invite-text small.group-invite-validity {
   white-space: normal;
   overflow: visible;
   color: var(--accent);
