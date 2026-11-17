@@ -178,6 +178,14 @@
   letter-spacing: -0.01em;
 }
 
+.home-nav.is-tight .status-label {
+  display: none !important;
+}
+
+.home-nav.is-tight .status {
+  padding: 0.45rem !important;
+}
+
 .wordmark-mark {
   width: 30px;
   height: 30px;
@@ -3528,17 +3536,21 @@
     padding-bottom: 0.5rem;
   }
 
-  /* Sugestões numa fileira só, com rolagem para o lado. */
+  /*
+   * Sugestões quebram linha também nas telas baixas. Antes eram uma fileira só, com rolagem
+   * escondida (`scrollbar-width: none`): o segundo chip aparecia cortado na borda e nada
+   * indicava que dava para arrastar — é o caso de notebook 1366×768 a 125% de zoom (altura
+   * útil abaixo de 640 px) e de celular deitado. Cartão "corte horizontal nas sugestões".
+   */
   .suggestions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
     padding-bottom: 0.5rem;
-    scrollbar-width: none;
   }
 
+  /* Chip mais largo que a linha quebra o texto dentro dele, em vez de sair pela borda. */
   .suggestion {
-    flex-shrink: 0;
-    white-space: nowrap;
+    max-width: 100%;
+    white-space: normal;
   }
 
   .composer {
@@ -4889,6 +4901,29 @@
   overflow-wrap: anywhere;
 }
 
+/* Biografia: texto da pessoa, com as quebras de linha que ela escreveu. */
+.profile-id .profile-bio {
+  max-width: 36rem;
+  margin: 0.15rem 0 0.45rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.profile-bio-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.1rem 0 0.4rem;
+  font-size: 0.85rem;
+}
+
+.profile-bio-add svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .profile-device-note {
   margin: 0.6rem 0 2.5rem;
   color: var(--muted);
@@ -5497,6 +5532,47 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.edit-profile-bio {
+  position: relative;
+}
+
+.edit-profile-name textarea {
+  width: 100%;
+  min-height: 5.4rem;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 248, 235, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.edit-profile-name textarea:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+
+.edit-profile-name textarea[aria-invalid="true"] {
+  border-color: var(--danger, #e5484d);
+}
+
+.edit-profile-bio small {
+  justify-self: end;
+  margin-top: -0.15rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-profile-bio small.is-over {
+  color: var(--danger, #e5484d);
+}
+
 .edit-profile-name input:focus {
   outline: none;
   border-color: var(--accent-dim);
@@ -5858,37 +5934,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   box-shadow: 0 4px 14px -4px rgba(var(--accent-rgb), 0.7);
-}
-
-/* Faixa em destaque: moldura dourada, brilho e fundo próprio. */
-.novidades {
-  position: relative;
-  padding: clamp(1.2rem, 3vw, 1.8rem);
-  overflow: hidden;
-  border: 1px solid var(--accent-dim);
-  border-radius: 24px;
-  background:
-    radial-gradient(ellipse 60% 90% at 0% 0%, rgba(var(--accent-rgb), 0.16), transparent 60%),
-    radial-gradient(ellipse 50% 80% at 100% 100%, rgba(var(--accent-2-rgb), 0.1), transparent 60%),
-    linear-gradient(165deg, rgba(var(--card-top-rgb), 0.85), rgba(var(--card-bottom-rgb), 0.9));
-  box-shadow: 0 24px 60px -30px rgba(var(--accent-rgb), 0.45);
-}
-
-.novidades .shelf-head {
-  display: block;
-}
-
-.novidades .shelf-head .eyebrow {
-  display: inline-block;
-  margin-bottom: 0.35rem;
-}
-
-.novidades .shelf-head h2 {
-  margin-bottom: 0.25rem;
-}
-
-.novidades .result .cover {
-  box-shadow: 0 16px 34px -18px rgba(var(--accent-rgb), 0.55);
 }
 
 .explore-community {
@@ -8617,6 +8662,36 @@ button.identity-card {
   filter: none;
   opacity: 1;
   animation: badge-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--i) * 45ms + 0.15s) both;
+}
+
+/*
+ * Ícones vetoriais das conquistas e dos presentes (cartão "Substituir emojis nativos por ícones").
+ * No medalhão dourado o traço é escuro (contraste); no bloqueado fica acinzentado, e o `grayscale`
+ * do próprio `.badge-medal` cuida do resto.
+ */
+.badge-medal svg,
+.achievement-toast-medal svg,
+.person-badge-medal svg,
+.person-gift-icon svg,
+.gift-option-icon svg,
+.gift-received-icon svg {
+  display: block;
+}
+
+.badge-medal svg {
+  color: var(--muted);
+}
+
+.badge-card.is-unlocked .badge-medal svg,
+.achievement-toast-medal svg {
+  color: var(--on-accent);
+}
+
+.person-badge-medal svg,
+.person-gift-icon svg,
+.gift-option-icon svg,
+.gift-received-icon svg {
+  color: var(--accent);
 }
 
 .badge-card strong {

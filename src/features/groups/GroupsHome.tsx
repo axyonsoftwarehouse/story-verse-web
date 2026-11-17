@@ -8,15 +8,18 @@ import {
   enableGroupNotifications,
   messageTime,
   myGroups,
+  myInvites,
   notificationsAvailable,
   notifyGroupMessage,
   openGroupStream,
   publicGroups,
   stripFormatting,
   type Group,
+  type ReceivedInvite,
 } from "../../lib/groups";
 import { GroupForm } from "./GroupForm";
 import { PushStatus } from "./PushStatus";
+import { ReceivedInvites } from "./ReceivedInvites";
 import { GroupAvatar, GroupsBlocked } from "./GroupParts";
 import { GIcon } from "./groupIcons";
 import { useGroupsGate } from "./groupHelpers";
@@ -41,6 +44,7 @@ export function GroupsHome() {
   const presetTitle = params.get("titulo");
   const [tab, setTab] = useState<Tab>(presetBook ? "explore" : "mine");
   const [mine, setMine] = useState<Group[] | null>(null);
+  const [invites, setInvites] = useState<ReceivedInvite[]>([]);
   const [explore, setExplore] = useState<Group[] | null>(null);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -67,7 +71,13 @@ export function GroupsHome() {
           setMine(list);
         })
         .catch((err: unknown) => alive && setError(message(err)));
+    // Convites recebidos: sem rede ou API antiga, a lista fica vazia.
+    const loadInvites = () =>
+      myInvites()
+        .then((list) => alive && setInvites(list))
+        .catch(() => undefined);
     void load();
+    void loadInvites();
     // Mensagem nova em qualquer grupo: atualiza a lista (ordem, não lidas e prévia).
     const close = openGroupStream((event) => {
       if (event.type === "message") {
@@ -75,7 +85,11 @@ export function GroupsHome() {
         if (g && event.data.author_id !== me) notifyGroupMessage(event.data, g.name, g.muted);
       }
       if (event.type === "message" || event.type === "group" || event.type === "message_deleted") void load();
-    }, load);
+      if (event.type === "group" && (event.data.type === "invited" || event.data.type === "invite_cancelled")) void loadInvites();
+    }, () => {
+      void load();
+      void loadInvites();
+    });
     return () => {
       alive = false;
       close();
@@ -198,6 +212,14 @@ export function GroupsHome() {
         <p className="auth-error groups-error" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {tab === "mine" ? (
+        <ReceivedInvites
+          invites={invites}
+          onAccepted={(g) => navigate(`/grupos/${g.id}`)}
+          onGone={(id) => setInvites((cur) => cur.filter((i) => i.group_id !== id))}
+        />
       ) : null}
 
       {list === null ? (

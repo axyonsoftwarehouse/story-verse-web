@@ -6,14 +6,18 @@ import {
   catalogChars,
   catalogDate,
   catalogErrorMessage,
+  catalogRightsLabel,
   catalogSourceLabel,
   catalogStatusLabel,
   catalogStatusTone,
   listCatalogBooks,
+  rightsNoteProblem,
+  setCatalogBooksStatus,
   type AdminCatalogBook,
   type CatalogFilters,
   type CatalogStatus,
 } from "../../lib/adminCatalog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { CatalogBookForm } from "./CatalogBookForm";
 
 const STATUS_OPTIONS: { value: CatalogStatus; label: string }[] = [
@@ -44,11 +48,18 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  // V1: curadoria em lote. Filtra por autor ou origem, marca e oculta/arquiva de uma vez.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [reload, setReload] = useState(0);
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setError("");
+    setSelected(new Set());
     listCatalogBooks(session, filters, 0)
       .then((result) => {
         if (!alive) return;
@@ -67,7 +78,7 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
     return () => {
       alive = false;
     };
-  }, [session, filters]);
+  }, [session, filters, reload]);
 
   function loadMore() {
     if (loading) return;
@@ -81,6 +92,56 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
       })
       .catch((err) => setError(catalogErrorMessage(err, "Não foi possível carregar mais livros.")))
       .finally(() => setLoading(false));
+  }
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const shown = books ?? [];
+  const allShownSelected = shown.length > 0 && shown.every((book) => selected.has(book.id));
+
+  function toggleAllShown() {
+    setSelected(allShownSelected ? new Set() : new Set(shown.map((book) => book.id)));
+  }
+
+  async function applyBulk(status: "hidden" | "archived") {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const verb = status === "hidden" ? "Ocultar" : "Arquivar";
+    const ok = await confirm({
+      title: `${verb} ${ids.length} ${ids.length === 1 ? "livro" : "livros"}?`,
+      message:
+        status === "hidden"
+          ? "Saem da biblioteca pública agora. Quem já colocou na estante continua lendo. Dá para publicar de novo, um a um, com justificativa de direitos."
+          : "Saem da biblioteca pública e ficam guardados no arquivo. Dá para publicar de novo, um a um, com justificativa de direitos.",
+      confirmLabel: `${verb} ${ids.length}`,
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await setCatalogBooksStatus(session, ids, status);
+      setNotice(
+        `${result.changed} ${result.changed === 1 ? "livro" : "livros"} ${
+          status === "hidden"
+            ? result.changed === 1 ? "oculto" : "ocultos"
+            : result.changed === 1 ? "arquivado" : "arquivados"
+        }.`,
+      );
+      setReload((value) => value + 1);
+    } catch (err) {
+      setError(catalogErrorMessage(err, "Não foi possível mudar a situação dos livros."));
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   function clearFilters() {
@@ -224,6 +285,48 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
           {error}
         </p>
       ) : null}
+      {notice ? (
+        <p className="catalog-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
+
+      {shown.length > 0 ? (
+        <div className="catalog-bulk" aria-label="Ações em lote">
+          <label className="catalog-bulk-all">
+            <input type="checkbox" checked={allShownSelected} onChange={toggleAllShown} />
+            Marcar os {shown.length} mostrados
+          </label>
+          {selected.size > 0 ? (
+            <>
+              <span className="muted">
+                {selected.size} {selected.size === 1 ? "marcado" : "marcados"}
+              </span>
+              <button
+                type="button"
+                className="btn"
+                disabled={bulkBusy}
+                onClick={() => void applyBulk("hidden")}
+              >
+                Ocultar marcados
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={bulkBusy}
+                onClick={() => void applyBulk("archived")}
+              >
+                Arquivar marcados
+              </button>
+              <button type="button" className="btn" onClick={() => setSelected(new Set())}>
+                Desmarcar
+              </button>
+            </>
+          ) : (
+            <span className="muted">Filtre por autor ou origem para ocultar vários de uma vez.</span>
+          )}
+        </div>
+      ) : null}
 
       {books === null && loading ? (
         <div className="page-status">
@@ -240,6 +343,13 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
         <ul className="catalog-list">
           {books?.map((book) => (
             <li key={book.id} className="profile-card catalog-row">
+              <input
+                type="checkbox"
+                className="catalog-row-check"
+                checked={selected.has(book.id)}
+                onChange={() => toggle(book.id)}
+                aria-label={`Marcar “${book.title}”`}
+              />
               <div className="catalog-thumb">
                 {book.cover_url ? (
                   <img src={book.cover_url} alt="" loading="lazy" />
@@ -262,6 +372,12 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
                 </span>
                 <span className="muted">
                   {catalogSourceLabel(book.source)} · atualizado em {catalogDate(book.updated_at)}
+                </span>
+                <span className={rightsNoteProblem(book.rights_note) ? "catalog-rights-missing" : "muted"}>
+                  {catalogRightsLabel(book.rights)} ·{" "}
+                  {rightsNoteProblem(book.rights_note)
+                    ? "sem justificativa de direitos"
+                    : book.rights_note}
                 </span>
                 {book.description ? <p className="catalog-description">{book.description}</p> : null}
                 <span className="catalog-key">
@@ -297,6 +413,7 @@ export function CatalogSection({ session }: { session: SupabaseSession }) {
           }}
         />
       ) : null}
+      {dialog}
     </section>
   );
 }

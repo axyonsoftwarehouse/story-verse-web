@@ -1,5 +1,7 @@
 /* Rede social: página "Pessoas" e perfil de um leitor. Cores só das variáveis do tema. */
 
+@import "../../lib/profileTheme.css";
+
 .people-page .groups-hero {
   grid-template-columns: auto 1fr;
 }
@@ -63,6 +65,54 @@
   height: 3.9rem;
 }
 
+/*
+ * Card com capa (cartão "Exibir a foto de capa nos cards"): faixa 3:1 no topo, rosto por cima dela.
+ * A regra da capa (loja > enviada, e nada em perfil privado de quem não segue) vem pronta da API;
+ * aqui só se desenha. Sem capa o card continua exatamente como era.
+ */
+.people-row.has-cover {
+  display: grid;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.people-row-cover {
+  display: block;
+  /* Faixa compacta: 3:1 nas telas estreitas e teto de 104 px no card largo (a imagem recorta). */
+  height: clamp(72px, 15vw, 104px);
+  background: var(--surface-2);
+}
+
+.people-row-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.people-row-body {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.people-row.has-cover .people-row-body {
+  padding-top: 0;
+}
+
+/* O rosto sobe para dentro da faixa (deslocamento visual: o card não cresce por causa dele). */
+.people-row.has-cover .people-row-main .group-face {
+  position: relative;
+  top: -1.15rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+
 .people-row-main {
   display: flex;
   flex: 1;
@@ -72,6 +122,7 @@
   color: inherit;
   text-decoration: none;
 }
+
 
 .people-row-main:focus-visible {
   outline: 2px solid var(--accent);
@@ -221,6 +272,22 @@
   line-height: 1.15;
 }
 
+.person-bio {
+  max-width: 34rem;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+@media (max-width: 560px) {
+  .person-bio {
+    margin-inline: auto;
+  }
+}
+
 .person-hero-meta {
   display: flex;
   flex-wrap: wrap;
@@ -339,6 +406,37 @@ button.person-stat.is-on {
   filter: blur(10px);
   animation: person-glow 9s ease-in-out infinite alternate;
   pointer-events: none;
+}
+
+/* Capa (comprada ou enviada): faixa no topo do cartão que se dissolve no fundo, como no perfil próprio. */
+.person-hero.has-cover {
+  padding-top: clamp(120px, 16vw, 170px);
+}
+
+.person-cover {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: -1;
+  height: clamp(150px, 20vw, 210px);
+  background-position: center;
+  background-size: cover;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  pointer-events: none;
+}
+
+.person-hero.has-cover .person-hero-glow {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .person-hero.has-cover {
+    padding-top: 96px;
+  }
+
+  .person-cover {
+    height: 150px;
+  }
 }
 
 /* Anel girando em volta do rosto. */
@@ -1067,4 +1165,92 @@ button.person-stat.is-on {
     min-width: 0;
     scroll-snap-align: start;
   }
+}
+
+/* ---- Perfil privado e pedidos para seguir ---- */
+
+.people-badge.is-private {
+  gap: 0.25rem;
+}
+
+.people-badge.is-private svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Pedido enviado: discreto como "Seguindo", com o tom de quem espera resposta. */
+.people-follow.is-requested {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.person-privacy {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.person-requests-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.person-requests-link svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+@media (hover: hover) {
+  .person-requests-link:hover {
+    background: rgba(var(--accent-rgb), 0.2);
+  }
+}
+
+.person-privacy-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.people-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 1px;
+}
+
+.people-request-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.people-request-actions .btn.is-compact {
+  min-height: 34px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.people-request-actions .people-follow-error {
+  flex-basis: 100%;
 }

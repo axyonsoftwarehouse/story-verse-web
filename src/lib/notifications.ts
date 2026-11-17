@@ -1,11 +1,12 @@
 import { refreshAuthSession } from "./auth";
 import { apiEnabled, apiRequest } from "./backend";
 import type { MediaKind } from "./groups";
+import type { Cosmetics } from "./shop";
 
 /** Aviso do sininho: responderam, reagiram, entrou alguém num grupo da conta ou começou a seguir. */
 export type AppNotification = {
   id: number;
-  kind: "reply" | "reaction" | "member_joined" | "member_added" | "follow";
+  kind: "reply" | "reaction" | "member_joined" | "member_added" | "follow" | "follow_request" | "follow_accepted" | "group_invite";
   /** Nulo no aviso de "começou a seguir você" (não é de grupo). */
   group_id: string | null;
   group_name: string | null;
@@ -17,6 +18,7 @@ export type AppNotification = {
   actor_name: string;
   actor_avatar: string;
   actor_photo: string | null;
+  actor_cosmetics?: Cosmetics | null;
   message_body: string | null;
   message_media_kind: MediaKind | null;
 };

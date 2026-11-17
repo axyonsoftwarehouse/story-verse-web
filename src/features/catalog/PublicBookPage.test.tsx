@@ -94,6 +94,10 @@ describe("PublicBookPage", () => {
     expect(await screen.findByRole("heading", { name: "Dom Casmurro" })).toBeInTheDocument();
     expect(screen.getByText(/Um clássico da literatura/)).toBeInTheDocument();
     expect(screen.getByText(/Domínio público/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Denunciar violação de direito autoral" })).toHaveAttribute(
+      "href",
+      "/termos#direitos-autorais",
+    );
 
     expect(screen.getByRole("link", { name: "Ler agora" })).toHaveAttribute(
       "href",

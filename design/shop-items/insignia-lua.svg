@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbe7b4"/>
+      <stop offset="0.5" stop-color="#e4b86a"/>
+      <stop offset="1" stop-color="#c48a3a"/>
+    </linearGradient>
+  </defs>
+  <defs>
+    <mask id="corte">
+      <rect width="256" height="256" fill="#fff"/>
+      <circle cx="172" cy="92" r="78" fill="#000"/>
+    </mask>
+  </defs>
+  <circle cx="118" cy="138" r="104" fill="url(#ouro)" stroke="#2b1d0c" stroke-width="9" mask="url(#corte)"/>
+  <path d="M196 134 L204.23 156.67 L228.34 157.49 L209.31 172.33 L215.98 195.51 L196 182 L176.02 195.51 L182.69 172.33 L163.66 157.49 L187.77 156.67Z" fill="url(#ouro)" stroke="#2b1d0c" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M208 38 L213.29 52.72 L228.92 53.2 L216.56 62.78 L220.93 77.8 L208 69 L195.07 77.8 L199.44 62.78 L187.08 53.2 L202.71 52.72Z" fill="#fff6dc" stroke="#2b1d0c" stroke-width="6" stroke-linejoin="round"/>
+</svg>

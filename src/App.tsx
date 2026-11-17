@@ -1,64 +1,46 @@
 import { userStorage } from "./lib/dataOwner";
-import { safeLoginReturn } from "./lib/loginReturn";
+import { authModalFromUrl, safeLoginReturn } from "./lib/loginReturn";
 import {
   useCallback,
-  useDeferredValue,
   useEffect,
-  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  Suspense,
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { BadgeIcon } from "./components/badgeIcons";
 import { useConfirm } from "./components/ConfirmDialog";
-import { ReaderCount } from "./components/ReaderCount";
-import { ApiHttpError } from "./lib/backend";
-import { disablePush } from "./lib/push";
-import { sanctionMessage, warningMessage } from "./features/auth/sanctionNotice";
-import { AVATARS, AvatarArt, findAvatar } from "./avatars";
-import { featuredBooks, suggestedBooks } from "./data/ebooks";
-import type { Ebook, StoryCharacter } from "./data/types";
 import {
-  characterReply,
-  narratorCharacter,
-  detectProvider,
-  fetchAiQuota,
-  providerDisplayLabel,
-  refreshAiQuota,
-  USER_MESSAGE_MAX_CHARS,
-  type AiQuota,
-  type ChatTurn,
-} from "./lib/ai";
-import { buyAiPack, fetchAiPacks, type AiPack } from "./lib/aiPacks";
-import { castFromNames, forgetCast, knownCast, loadCast } from "./lib/cast";
+  AboutDialog,
+  AuthModal,
+  DailySpinModal,
+  DiamondShopPage,
+  InstallAppDialog,
+  NewPasswordModal,
+  ProfilePage,
+  RankingPage,
+  RouteLoading,
+} from "./lazyRoutes";
+import { Icon } from "./components/Icon";
+import { formatMinutes } from "./lib/formatMinutes";
+import { ReaderCount } from "./components/ReaderCount";
+import { disablePush } from "./lib/push";
+import { warningMessage } from "./features/auth/sanctionNotice";
+import { featuredBooks } from "./data/ebooks";
+import type { Ebook, StoryCharacter } from "./data/types";
+import { knownCast, loadCast } from "./lib/cast";
 import {
   characterTalks,
-  forgetAllChats,
-  forgetChat,
-  loadChat,
-  saveChat,
-  storedChatSummary,
-  type ChatMsg,
 } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
-import { deleteAccount, exportAccount, exportAccountFiles } from "./lib/account";
 import { quoteOfTheDay } from "./data/dailyQuotes";
-import { APP_THEMES, applyAppTheme, loadAppTheme, saveAppTheme, type AppThemeId } from "./lib/appTheme";
-import {
-  dismissNaturalOffer,
-  downloadNaturalVoice,
-  naturalOfferDismissed,
-  naturalVoicesFor,
-  naturalVoiceSupported,
-  naturalVoiceUri,
-  storedNaturalVoices,
-} from "./lib/naturalVoice";
+import { applyAppTheme } from "./lib/appTheme";
 import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
-import { findOpenLibraryCover, forgetCover, knownCover } from "./lib/bookCovers";
 import {
   catalogBookToEbook,
   catalogNumericId,
@@ -69,7 +51,6 @@ import {
 import { finishedBooks, markBookFinished } from "./lib/finished";
 import { useAccountFeatures } from "./features/auth/useAccountFeatures";
 import { isStaff } from "./features/admin/adminSections";
-import { BookStatusControl } from "./features/library/BookStatusControl";
 import { FinishBookDialog } from "./features/library/FinishBookDialog";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { hasFeature } from "./lib/accountFeatures";
@@ -80,15 +61,12 @@ import { useGroupsUnread } from "./features/groups/useGroupsUnread";
 import { NavMore, type NavMoreItem } from "./features/notifications/NavMore";
 import { useNavCrowded } from "./lib/useNavCrowded";
 import { NotificationBell } from "./features/notifications/NotificationBell";
-import { bookKeyOf, todayInBrazil } from "./lib/library";
+import { bookKeyOf } from "./lib/library";
 import {
   recordFinished,
   recordOpened,
   recordProgress,
-  shelfAchievementInput,
   shelfEnabled,
-  shelfEntries,
-  shelfEntry,
   type LocalShelfEntry,
 } from "./lib/libraryStore";
 import { useFinishPrompt } from "./features/library/useFinishPrompt";
@@ -97,48 +75,39 @@ import { BILLING_UI_ENABLED, billingDate, billingStatusLabel, type SubscriptionS
 import { BillingBlocked } from "./features/billing/BillingBlocked";
 import { watchPresence } from "./lib/presence";
 import { holdSplash, releaseSplash } from "./lib/splash";
-import { flyEmoji, haptic, installCoverTilt, openBookWithTransition, prefersReducedMotion, useAnimatedNumber, useReveal } from "./lib/motion";
-import { pushLayer, removeLayer } from "./lib/backStack";
+import {
+  flyEmoji,
+  haptic,
+  installCoverTilt,
+  openBookWithTransition,
+  prefersReducedMotion,
+  useReveal,
+} from "./lib/motion";
 import { readerUrl, rememberOpenBook, takeReaderParam } from "./lib/readerUrl";
-import { blobToDataUrl, dataUrlToBlob, prepareImage, removeProfileImage, uploadBookCover, uploadProfileImage, type MediaKind } from "./lib/profileMedia";
 import {
   approvedCommunityBooks,
-  deleteSubmission,
   communityIdOf,
   fetchCommunityBookText,
   isNewCommunityBook,
-  listSubmissions,
-  matchesCommunitySearch,
   newBookLabel,
-  normalizeText,
-  RIGHTS_OPTIONS,
-  submitBook,
   syncSubmissionCovers,
-  type Rights,
-  type Submission,
 } from "./lib/community";
 import { lookupWord, normalizeWord, type WordInfo } from "./lib/dictionary";
 import {
   allHighlights,
-  forgetHighlights,
   loadHighlights,
   MAX_HIGHLIGHT_CHARS,
   saveHighlights,
-  splitByHighlights,
   type Highlight,
 } from "./lib/highlights";
 import { splitIntoChapters } from "./lib/chapters";
-import { fetchBookText, searchBooks, type SearchLanguage } from "./lib/gutenberg";
-import { ACCEPTED_EXTENSIONS, importBookFile, type ImportedBook } from "./lib/importBook";
+import { fetchBookText } from "./lib/gutenberg";
 import {
   deleteAllLocalRecords,
-  deleteLocalBook,
   isLocalBook,
   listLocalBooks,
   loadLocalBookImages,
   loadLocalBookText,
-  newLocalBookId,
-  saveLocalBook,
 } from "./lib/localBooks";
 import {
   loadProgress,
@@ -149,11 +118,9 @@ import {
   saveProgress,
   type ReadingProgress,
 } from "./lib/progress";
-import { missYouMessage, tidyAmbientMessages } from "./lib/readingAmbient";
 import { dismissNudge, homeNudge, NUDGE_AFTER_DAYS, nudgeText, voiceFor, type HomeNudge } from "./lib/characterNudge";
 import { withOfflineCopy } from "./lib/offlineText";
-import { searchOutsideCatalog, type BookHint } from "./lib/openLibrary";
-import { cachedPortrait, requestPortrait } from "./lib/portraits";
+import { type BookHint } from "./lib/openLibrary";
 import { excerptNearScrollRatio } from "./lib/readingContext";
 import { addSeenBlocks, countWords, type SeenBlock } from "./lib/readingPages";
 import {
@@ -166,87 +133,21 @@ import {
   reconcileStreak,
   setReadingGoalMinutes,
   takeShieldNotice,
-  readingDays,
-  SHIELD_RULES,
-  type ReadingDay,
   type ReadingEvents,
-  type ReadingSummary,
-  type ReadingTotals,
   dayKey,
-  streakRescue,
-  weekStartDate,
 } from "./lib/readingStats";
 import {
-  autoFreezeEnabled,
   checkStreakFreeze,
   claimReadingRewards,
-  diamondEntryLabel,
-  fetchDiamondHistory,
   fetchSpinStatus,
-  fetchWallet,
   rescueStreak,
-  setAutoFreezeEnabled,
-  spinDailyWheel,
-  SPIN_SEGMENTS,
   takeSpinOffer,
-  type DiamondEntry,
   type FreezeOutcome,
-  type SpinResult,
-  type Wallet,
 } from "./lib/diamonds";
-import {
-  fetchGiftCatalog,
-  fetchGiftSummary,
-  fetchReceivedGifts,
-  fetchWeeklyGiftCounts,
-  giftDate,
-  sendGift,
-  type GiftCatalogItem,
-  type GiftSummary,
-  type ReceivedGift,
-} from "./lib/gifts";
-import {
-  fetchAlltimeRanking,
-  fetchRanking,
-  fetchRankingProfile,
-  PLACE_MEDALS,
-  reportReading,
-  readingHeartbeat,
-  setRankingHidden,
-  takeWeeklyAwards,
-  type RankEntry,
-  type RankingProfile,
-} from "./lib/ranking";
-import {
-  disableDailyNotifications,
-  downloadIcs,
-  enableDailyNotifications,
-  googleCalendarUrl,
-  lastCharacter,
-  loadReminderPrefs,
-  notificationSupport,
-  rememberCharacter,
-  reminderText,
-  saveReminderPrefs,
-  sendTestNotification,
-  syncEngagementState,
-} from "./lib/reminders";
-import { installPlatform, storeLinks, useAppInstall, useUpdateReady, type InstallPlatform } from "./lib/pwa";
+import { PLACE_MEDALS, reportReading, readingHeartbeat, takeWeeklyAwards } from "./lib/ranking";
+import { lastCharacter, syncEngagementState } from "./lib/reminders";
+import { useAppInstall, useUpdateReady } from "./lib/pwa";
 import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
-import {
-  listVoices,
-  RATE_OPTIONS,
-  saveRate,
-  savedRate,
-  savedVoiceUri,
-  saveVoiceUri,
-  speakParagraphs,
-  speakSample,
-  speechSupported,
-  type SpeechSession,
-  type VoiceOption,
-} from "./lib/speech";
-import { countMessage, extraMessages, messagesLeftToday } from "./lib/usageLimit";
 import {
   AUTH_SESSION_STORAGE_KEY,
   AuthNetworkError,
@@ -255,2866 +156,53 @@ import {
   clearLegacyCredentials,
   loginRequired,
   consumeAuthRedirect,
-  EMAIL_OTP_ENABLED,
   refreshAuthSession,
   refreshProfile,
   storedAuthSession,
-  resendSignupCode,
-  requestPasswordReset,
-  resetPasswordWithToken,
-  validateResetToken,
-  updateProfileData,
-  updatePassword,
   restoreAuthSession,
-  signInWithPassword,
   signOut,
-  signUpWithPassword,
   type SupabaseSession,
   type SupabaseUser,
-  verifySignupCode,
 } from "./lib/auth";
-import {
-  cachedTranslation,
-  chunkRanges,
-  detectTranslationEngine,
-  grantRemoteTranslationConsent,
-  hasRemoteTranslationConsent,
-  storeTranslation,
-  translateParagraphs,
-  warmUpLocalTranslator,
-  type TranslationEngine,
-} from "./lib/translate";
 import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
 import "./App.css";
+import { installNudgeReady, noteBookOpened, noteVisit } from "./lib/installNudge";
+import { FONT_SIZES, PREFS_KEY, loadPrefs } from "./lib/readingPrefs";
+import { shortNameOf } from "./lib/characterName";
+import { displayNameOf } from "./lib/userMeta";
+import { savedLabel } from "./lib/streakLabels";
+import { useBackClose } from "./lib/useBackClose";
+import { shelfAchievements } from "./lib/shelfAchievements";
+import { CONTINUE_PREVIEW } from "./lib/homePreviews";
+import { Avatar } from "./components/Avatar";
+import { BookCover } from "./components/BookCover";
+import { UserAvatar } from "./components/UserAvatar";
+import { CountUp } from "./components/CountUp";
+import { LastBook, ReminderSetup } from "./features/home/ReminderSetup";
+import { ProfileShelf } from "./features/home/ProfileShelf";
+import { Explore, LangBadge } from "./features/home/Explore";
+import { SHELVES } from "./data/shelves";
+import { MyBooks } from "./features/home/MyBooks";
+import { CelebrationOverlay, type Celebration } from "./features/home/CelebrationOverlay";
+import { withoutImageMarkers } from "./lib/imageMarkers";
+import { toBlocks } from "./features/reader/bookText";
+import { listNames, uid, type Msg } from "./features/chat/chatHelpers";
+import { VoicePanel } from "./features/reader/VoicePanel";
+import { SelectionToolbar } from "./features/reader/SelectionToolbar";
+import { WordCard } from "./features/reader/WordCard";
+import { BookSearchDialog } from "./features/reader/BookSearchDialog";
+import { HighlightsDialog } from "./features/reader/HighlightsDialog";
+import { ChatPanel } from "./features/chat/ChatPanel";
+import { useChat, type ChatSendContext } from "./features/chat/useChat";
+import { useBookSearch } from "./features/reader/useBookSearch";
+import { useBookTranslation } from "./features/reader/useBookTranslation";
+import { useReadAloud } from "./features/reader/useReadAloud";
+import { ReaderBar } from "./features/reader/ReaderBar";
+import { ChapterText } from "./features/reader/ChapterText";
 
-type Msg = ChatMsg;
-
-const EMPTY_THREAD: Msg[] = [];
 /** Capítulo sem tradução carregada: a mesma referência sempre, para não refazer o texto da tela. */
-const NO_TRANSLATIONS: Record<number, (string | null)[]> = {};
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-
-type ReadingTheme = "night" | "sepia";
-const FONT_SIZES = [0.95, 1.05, 1.17, 1.3, 1.45, 1.6];
-const PREFS_KEY = "storyverse:reading-prefs";
-/** Luz noturna: 0 desligada, 1 suave, 2 forte (filtro âmbar que corta a luz azul). */
-type NightLight = 0 | 1 | 2;
-const NIGHT_LIGHT_LABELS = ["desligada", "suave", "forte"] as const;
-
-function uid() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function initialThreadsFor(cast: StoryCharacter[]): Record<string, Msg[]> {
-  const initial: Record<string, Msg[]> = {};
-  for (const c of cast) {
-    initial[c.id] = [
-      {
-        id: uid(),
-        role: "assistant",
-        text:
-          c.greeting ??
-          `Olá! Eu sou ${c.name}. Vamos ler juntos? Pode me perguntar o que quiser sobre a história.`,
-      },
-    ];
-  }
-  return initial;
-}
-
-function loadPrefs(): { theme: ReadingTheme; fontStep: number; translate: boolean; nightLight: NightLight } {
-  try {
-    const raw = userStorage.getItem(PREFS_KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as { theme?: string; fontStep?: number; translate?: boolean; nightLight?: number };
-      return {
-        theme: p.theme === "sepia" ? "sepia" : "night",
-        translate: p.translate === true,
-        nightLight: p.nightLight === 1 || p.nightLight === 2 ? p.nightLight : 0,
-        fontStep:
-          typeof p.fontStep === "number" && p.fontStep >= 0 && p.fontStep < FONT_SIZES.length
-            ? p.fontStep
-            : 1,
-      };
-    }
-  } catch {
-    // Sem armazenamento disponível: usa o padrão.
-  }
-  return { theme: "night", fontStep: 1, translate: false, nightLight: 0 };
-}
-
-/** Toque (celular): o menu da seleção vai abaixo do trecho, longe do menu nativo do sistema. */
-function coarsePointer(): boolean {
-  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-}
-
-function shortNameOf(c: StoryCharacter): string {
-  return c.shortName ?? c.name;
-}
-
-function listNames(names: string[]): string {
-  if (names.length <= 1) return names.join("");
-  return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
-}
-
-function suggestionsFor(c: StoryCharacter): string[] {
-  return [
-    `Quem é você de verdade, ${shortNameOf(c)}?`,
-    "O que está sentindo agora?",
-    "O que acha do que acabou de acontecer?",
-  ];
-}
-
-type Block = { kind: "heading" | "p" | "image"; text: string };
-
-/** Marcador de ilustração no texto de livros importados: "[[img:3]]" (a imagem fica no aparelho). */
-const IMAGE_MARKER = /^\[\[img:([\w-]+)\]\]$/;
-const IMAGE_MARKERS = /\[\[img:[\w-]+\]\]/g;
-
-/** Termina como frase (ponto, interrogação, aspas de fecho…): o parágrafo não continua no próximo. */
-const ENDS_SENTENCE = /[.!?…:;"»”)\]]$/;
-/** Títulos de seção de verdade: "Capítulo 3", "PARTE II", "Prólogo", numeral romano sozinho. */
-const SECTION_WORD =
-  /^(cap[ií]tulo|chapter|parte|part|livro|book|pr[oó]logo|prologue|ep[ií]logo|epilogue|pref[aá]cio|preface|introdu[cç][aã]o|introduction|ato|act|cena|scene)\b/i;
-const ROMAN_ALONE = /^[IVXLC]{1,9}\.?$/;
-
-function isHeading(p: string, next: string | undefined): boolean {
-  if (p.startsWith("—") || p.startsWith("-") || p.length > 90) return false;
-  if (SECTION_WORD.test(p) || ROMAN_ALONE.test(p)) return true;
-  // Todo em maiúsculas ("O RETRATO", "A SCANDAL IN BOHEMIA").
-  const letters = p.replace(/[^\p{L}]/gu, "");
-  if (letters.length >= 3 && p === p.toUpperCase() && !/[!?]$/.test(p)) return true;
-  // Linha curta com cara de título: começa em maiúscula, poucas palavras, sem pontuação final,
-  // e o parágrafo seguinte começa de novo (não é continuação da mesma frase).
-  const words = p.split(/\s+/).length;
-  return (
-    p.length <= 50 &&
-    words <= 8 &&
-    /^[\p{Lu}\d"“«]/u.test(p) &&
-    !/[,.!?…:;"»”)\-—]$/.test(p) &&
-    (next === undefined || /^[\p{Lu}\d"“«—-]/u.test(next))
-  );
-}
-
-/**
- * Os .txt do Gutenberg quebram as linhas a cada ~70 caracteres e separam parágrafos por
- * linha em branco: cada bloco vira um parágrafo. PDFs e EPUBs às vezes quebram uma frase no meio
- * ("…encontrei no trem da" + "Central um rapaz…"): esses pedaços voltam a ser um parágrafo só.
- * Só vira subtítulo (em destaque) o que é mesmo título de seção.
- */
-type BookSearchHit = {
-  chapterIndex: number;
-  chapterLabel: string;
-  paragraph: number;
-  start: number;
-  before: string;
-  match: string;
-  after: string;
-};
-
-/** Até 60 trechos onde o termo aparece (sem diferenciar maiúsculas nem acentos). */
-function searchBook(
-  blocksByChapter: Block[][],
-  chapters: { label: string }[],
-  term: string,
-): { hits: BookSearchHit[]; total: number } {
-  const plainText = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const needle = plainText(term.trim());
-  if (needle.length < 2) return { hits: [], total: 0 };
-  const hits: BookSearchHit[] = [];
-  let total = 0;
-  blocksByChapter.forEach((blocks, chapterIndex) => {
-    blocks.forEach((b, paragraph) => {
-      if (b.kind === "image") return;
-      const text = b.text.replace(/_/g, "");
-      // A normalização mantém o tamanho do texto (só tira os acentos combinados depois de NFD).
-      const hay = plainText(text);
-      let at = hay.indexOf(needle);
-      while (at !== -1) {
-        total++;
-        if (hits.length < 60) {
-          const from = Math.max(0, at - 50);
-          const to = Math.min(text.length, at + needle.length + 70);
-          hits.push({
-            chapterIndex,
-            chapterLabel: chapters[chapterIndex]?.label ?? "",
-            paragraph,
-            start: at,
-            before: `${from > 0 ? "…" : ""}${text.slice(from, at)}`,
-            match: text.slice(at, at + needle.length),
-            after: `${text.slice(at + needle.length, to)}${to < text.length ? "…" : ""}`,
-          });
-        }
-        at = hay.indexOf(needle, at + needle.length);
-      }
-    });
-  });
-  return { hits, total };
-}
-
-function toBlocks(text: string, skipHeadline?: string): Block[] {
-  // Ignora o "(1/2)" que o app acrescenta quando divide um capítulo longo em partes.
-  const norm = (s: string) =>
-    s.toUpperCase().replace(/\s*\(\d+\/\d+\)$/, "").replace(/\s+/g, " ").replace(/[\].\s]+$/, "");
-  const raw = text
-    .replace(/\r\n/g, "\n")
-    .split(/\n[ \t]*\n/)
-    .map((p) => p.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-  // O título do capítulo já aparece no topo: não repete ("Capítulo I" + "I" logo abaixo).
-  if (skipHeadline && raw[0]) {
-    const label = norm(skipHeadline);
-    const first = norm(raw[0]);
-    if (first === label || (ROMAN_ALONE.test(raw[0]) && label.endsWith(` ${first}`))) raw.shift();
-  }
-
-  // Junta pedaços de frase: sem pontuação no fim e o próximo começando em minúscula.
-  const paras: string[] = [];
-  for (const p of raw) {
-    const prev = paras[paras.length - 1];
-    if (prev && !IMAGE_MARKER.test(prev) && !IMAGE_MARKER.test(p) && !ENDS_SENTENCE.test(prev) && /^\p{Ll}/u.test(p)) {
-      paras[paras.length - 1] = `${prev.replace(/-$/, "")}${prev.endsWith("-") ? "" : " "}${p}`;
-    } else {
-      paras.push(p);
-    }
-  }
-
-  return paras.map((p, i) => {
-    const img = p.match(IMAGE_MARKER);
-    if (img) return { kind: "image", text: img[1] };
-    return { kind: isHeading(p, paras[i + 1]) ? "heading" : "p", text: p };
-  });
-}
-
-/** Texto sem os marcadores de ilustração (para a IA, a voz e a tradução). */
-function withoutImageMarkers(text: string): string {
-  return text.replace(IMAGE_MARKERS, "");
-}
-
-/** O Gutenberg marca itálico como _assim_. */
-function withItalics(text: string): React.ReactNode {
-  const parts = text.split(/_([^_]+)_/);
-  return parts.length === 1 ? text : parts.map((p, i) => (i % 2 === 1 ? <em key={i}>{p}</em> : p));
-}
-
-/**
- * Avatar do personagem: a inicial do nome e, por cima, o retrato (ilustração livre ou gerada),
- * quando houver. `generate` pede o retrato se ainda não existir (no leitor); sem ele, só mostra
- * retratos já guardados neste aparelho (página inicial, para não disparar dezenas de pedidos).
- */
-function Avatar({
-  character,
-  size = "md",
-  bookTitle,
-  generate = false,
-}: {
-  character: StoryCharacter;
-  size?: "sm" | "md" | "lg";
-  bookTitle?: string;
-  generate?: boolean;
-}) {
-  const [src, setSrc] = useState<string | null>(() => (bookTitle ? cachedPortrait(character, bookTitle) : null));
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (!bookTitle) return;
-    const cached = cachedPortrait(character, bookTitle);
-    if (cached) {
-      setSrc(cached);
-      return;
-    }
-    setSrc(null);
-    setLoaded(false);
-    if (!generate) return;
-    let alive = true;
-    void requestPortrait(character, bookTitle).then((url) => {
-      if (alive && url) setSrc(url);
-    });
-    return () => {
-      alive = false;
-    };
-    // O objeto do personagem muda a cada render; nome e id bastam.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [character.id, character.name, bookTitle, generate]);
-
-  return (
-    <span
-      className={`avatar avatar-${size}`}
-      style={{ "--c": character.color } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      {shortNameOf(character).replace(/^(O|A|Mr\.|Mrs\.|Dr\.)\s+/i, "").charAt(0).toUpperCase()}
-      {src ? (
-        <img
-          className={`avatar-photo ${loaded ? "is-loaded" : ""}`}
-          src={src}
-          alt=""
-          loading="lazy"
-          onLoad={() => setLoaded(true)}
-          onError={() => setSrc(null)}
-        />
-      ) : null}
-    </span>
-  );
-}
-
-/** Capa real do Gutenberg; se não houver (ou falhar), desenha uma capa tipográfica. */
-/**
- * Capa do livro: a própria (Gutenberg ou do arquivo importado); sem ela, ou se não carregar, a da
- * Open Library pelo título e autor (buscada só quando o livro aparece na tela); por último, a
- * capa tipográfica desenhada pelo app.
- */
-function BookCover({ book }: { book: Ebook }) {
-  // Outro livro ou outra capa: começa do zero (a key recria o estado já no primeiro desenho).
-  // Zerar num useEffect falhava no refresh do celular: a imagem do cache carregava antes do efeito
-  // rodar, o efeito voltava para "carregando" e a capa ficava invisível.
-  return <BookCoverImage key={`${book.gutenbergId}|${book.coverUrl ?? ""}|${book.title}|${book.author}`} book={book} />;
-}
-
-function BookCoverImage({ book }: { book: Ebook }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
-  const [useCoverMirror, setUseCoverMirror] = useState(false);
-  const [olUrl, setOlUrl] = useState<string | null | undefined>(() => knownCover(book.title, book.author));
-  const [olStatus, setOlStatus] = useState<"loading" | "loaded" | "failed">("loading");
-  /** Nova tentativa depois de uma falha (rede móvel instável): 1,5 s e depois 4 s. */
-  const [retry, setRetry] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const retryTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(retryTimer.current), []);
-  /** Falhou: tenta de novo (até 2 vezes, pulando o cache) antes de ficar com a capa desenhada. */
-  const retryOr = (giveUp: () => void) => {
-    if (retry >= 2) return giveUp();
-    window.clearTimeout(retryTimer.current);
-    retryTimer.current = window.setTimeout(() => setRetry((n) => n + 1), retry === 0 ? 1500 : 4000);
-  };
-  // Imagem guardada no próprio endereço (data:/blob:) não aceita "?tentativa" no fim.
-  const withRetry = (src: string | undefined) =>
-    src && retry > 0 && !/^(data|blob):/.test(src) ? `${src}${src.includes("?") ? "&" : "?"}tentativa=${retry}` : src;
-
-  const needsFallback = !book.coverUrl || status === "failed";
-  useEffect(() => {
-    if (!needsFallback || olUrl !== undefined) return;
-    const el = ref.current;
-    if (!el) return;
-    let alive = true;
-    let tries = 0;
-    let again: number | undefined;
-    const lookup = () =>
-      void findOpenLibraryCover(book.title, book.author, book.textLanguage).then((url) => {
-        if (!alive) return;
-        if (url !== undefined) return setOlUrl(url);
-        // Falhou agora (rede, demora): tenta de novo sozinho em vez de ficar com a genérica.
-        if (++tries <= 2) again = window.setTimeout(lookup, tries === 1 ? 4000 : 12000);
-      });
-    if (typeof IntersectionObserver === "undefined") {
-      lookup();
-      return () => {
-        alive = false;
-        window.clearTimeout(again);
-      };
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          io.disconnect();
-          lookup();
-        }
-      },
-      // Folga lateral: nas fileiras que rolam para o lado, já busca os próximos livros.
-      { rootMargin: "300px 900px" },
-    );
-    io.observe(el);
-    return () => {
-      alive = false;
-      window.clearTimeout(again);
-      io.disconnect();
-    };
-  }, [needsFallback, olUrl, book.title, book.author, book.textLanguage]);
-
-  const coverSrc =
-    useCoverMirror && book.coverUrl?.startsWith("/gutenberg/")
-      ? book.coverUrl.replace(/^\/gutenberg\//, "/gutenberg-mirror/")
-      : book.coverUrl;
-
-  return (
-    <div className="cover" ref={ref}>
-      {book.coverUrl && status !== "failed" ? (
-        <img
-          className={`cover-photo ${status === "loaded" ? "is-loaded" : ""}`}
-          src={withRetry(coverSrc)}
-          alt=""
-          loading="lazy"
-          onLoad={() => setStatus("loaded")}
-          onError={() => {
-            if (!useCoverMirror && book.coverUrl?.startsWith("/gutenberg/")) {
-              setUseCoverMirror(true);
-              setStatus("loading");
-              return;
-            }
-            retryOr(() => setStatus("failed"));
-          }}
-        />
-      ) : needsFallback && olUrl && olStatus !== "failed" ? (
-        <img
-          className={`cover-photo ${olStatus === "loaded" ? "is-loaded" : ""}`}
-          src={withRetry(olUrl)}
-          alt=""
-          loading="lazy"
-          onLoad={(e) => {
-            // A Open Library devolve uma imagem de 1 px quando a capa não existe.
-            if (e.currentTarget.naturalWidth < 10) {
-              forgetCover(book.title, book.author);
-              setOlStatus("failed");
-            } else setOlStatus("loaded");
-          }}
-          // Falha de rede: só esta vez fica a capa desenhada (sem esquecer a capa: no próximo
-          // carregamento tenta de novo). Esquecer é só para a imagem vazia acima.
-          onError={() => retryOr(() => setOlStatus("failed"))}
-        />
-      ) : null}
-      <div className="cover-frame">
-        {book.genre ? <span className="cover-genre">{book.genre}</span> : null}
-        <span className="cover-title">{book.title}</span>
-        <span className="cover-ornament" aria-hidden="true">
-          ✦
-        </span>
-        <span className="cover-author">{book.author}</span>
-      </div>
-    </div>
-  );
-}
-
-function LangBadge({ book }: { book: Ebook }) {
-  return (
-    <span className={`lang-badge lang-${book.textLanguage}`}>
-      {book.textLanguage === "pt" ? "Em português" : "Texto em inglês"}
-    </span>
-  );
-}
-
-const Icon = {
-  logout: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-    </svg>
-  ),
-  chat: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" />
-    </svg>
-  ),
-  back: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  ),
-  next: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 18l6-6-6-6" />
-    </svg>
-  ),
-  send: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M22 2L11 13" />
-      <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-    </svg>
-  ),
-  eye: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ),
-  eyeOff: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6" />
-      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
-    </svg>
-  ),
-  mail: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2.5" />
-      <path d="m4 7 8 6 8-6" />
-    </svg>
-  ),
-  calendar: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
-      <path d="M3.5 10h17M8 3v4M16 3v4" />
-    </svg>
-  ),
-  download: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" />
-    </svg>
-  ),
-  bell: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z" />
-      <path d="M10 20.5a2 2 0 0 0 4 0" />
-    </svg>
-  ),
-  nightLight: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
-      <path d="M16 3.5v3M14.5 5h3" />
-    </svg>
-  ),
-  settings: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
-      <circle cx="16" cy="7" r="2" />
-      <circle cx="10" cy="17" r="2" />
-    </svg>
-  ),
-  pencil: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
-      <path d="m13.5 6.5 4 4" />
-    </svg>
-  ),
-  check: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m5 12.5 4.5 4.5L19 7.5" />
-    </svg>
-  ),
-  camera: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" />
-      <circle cx="12" cy="12.5" r="3.5" />
-    </svg>
-  ),
-  close: (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  ),
-  speaker: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M11 5L6 9H3v6h3l5 4V5z" />
-      <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
-    </svg>
-  ),
-  stop: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="6" width="12" height="12" rx="2" />
-    </svg>
-  ),
-  bookmark: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 3h12v18l-6-4-6 4V3z" />
-    </svg>
-  ),
-  share: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-      <path d="M16 6l-4-4-4 4M12 2v13" />
-    </svg>
-  ),
-  highlight: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 11l-6 6v3h3l6-6M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-    </svg>
-  ),
-  book: (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z" />
-      <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
-    </svg>
-  ),
-  refresh: (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.3L3 16M3 21v-5h5" />
-    </svg>
-  ),
-  upload: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 16V4M7 9l5-5 5 5" />
-      <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-    </svg>
-  ),
-  search: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20l-3.5-3.5" />
-    </svg>
-  ),
-  lock: (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="4" y="11" width="16" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  ),
-  moon: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </svg>
-  ),
-  sun: (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  ),
-};
-
-const SHELVES: { id: NonNullable<Ebook["shelf"]>; title: string; subtitle: string }[] = [
-  { id: "pt", title: "Em português", subtitle: "Romances e paixões proibidas, direto no nosso idioma." },
-  { id: "terror", title: "Terror e vampiros", subtitle: "Os clássicos do medo. Texto em inglês, conversa em português." },
-  { id: "classicos", title: "Mais clássicos", subtitle: "Mistério, romance e fantasia. Texto em inglês, conversa em português." },
-];
-
-const LANGUAGE_FILTERS: { id: SearchLanguage; label: string }[] = [
-  { id: "all", label: "Todos" },
-  { id: "pt", label: "Português" },
-  { id: "en", label: "Inglês" },
-];
-
-/** Busca no acervo inteiro do Project Gutenberg; sem busca, mostra sugestões prontas. */
-function Explore({
-  onOpen,
-  onImport,
-  communityBooks = [],
-}: {
-  /** Aprovados do acervo da comunidade: entram na busca e têm filtro próprio. */
-  communityBooks?: Ebook[];
-  onOpen: (b: Ebook) => void;
-  /** Abre o formulário de importação; com `hint`, já preenchido com o livro escolhido. */
-  onImport: (hint?: BookHint) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [language, setLanguage] = useState<SearchLanguage>("pt");
-  /** "community": só os livros enviados pela comunidade. */
-  const [origin, setOrigin] = useState<"all" | "community">("all");
-  const [books, setBooks] = useState<Ebook[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
-  const [next, setNext] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [slow, setSlow] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const term = query.trim();
-  const searching = term.length >= 2;
-
-  /** Livros famosos fora do acervo (Open Library), buscados junto com o Gutenberg. */
-  const [outside, setOutside] = useState<BookHint[]>([]);
-  useEffect(() => {
-    setOutside([]);
-    if (!searching) return;
-    let cancelled = false;
-    const t = setTimeout(() => {
-      searchOutsideCatalog(term)
-        .then((hints) => !cancelled && setOutside(hints))
-        .catch(() => undefined); // Sem a Open Library, a busca do acervo continua normal.
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [term, searching]);
-
-  useEffect(() => {
-    if (!searching) {
-      setStatus("idle");
-      return;
-    }
-    let cancelled = false;
-    setStatus("loading");
-    setSlow(false);
-    const slowTimer = setTimeout(() => !cancelled && setSlow(true), 5000);
-    const t = setTimeout(() => {
-      searchBooks(term, language)
-        .then((page) => {
-          if (cancelled) return;
-          setBooks(page.books);
-          setTotal(page.total);
-          setNext(page.next);
-          setStatus("ready");
-        })
-        .catch(() => !cancelled && setStatus("error"))
-        .finally(() => clearTimeout(slowTimer));
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-      clearTimeout(slowTimer);
-    };
-  }, [term, searching, language]);
-
-  const loadMore = () => {
-    if (!next || loadingMore) return;
-    setLoadingMore(true);
-    searchBooks(term, language, next)
-      .then((page) => {
-        setBooks((prev) => [...prev, ...page.books]);
-        setNext(page.next);
-      })
-      .catch(() => setNext(null))
-      .finally(() => setLoadingMore(false));
-  };
-
-  const communityTitles = new Set(communityBooks.map((b) => normalizeText(b.title)));
-  const shown = searching
-    ? books
-    : suggestedBooks.filter(
-        (b) => (language === "all" || b.textLanguage === language) && !communityTitles.has(normalizeText(b.title)),
-      );
-
-  const communityShown = communityBooks.filter(
-    (b) => (language === "all" || b.textLanguage === language) && (!searching || matchesCommunitySearch(b, term)),
-  );
-  const onlyCommunity = origin === "community";
-  const communityGrid = (list: Ebook[]) => (
-    <div className="result-grid">
-      {list.map((b) => (
-        <button key={b.id} type="button" className="result" onClick={() => onOpen(b)}>
-          {isNewCommunityBook(b) ? <span className="new-badge">{newBookLabel(b)}</span> : null}
-          <BookCover book={b} />
-          <strong>{b.title}</strong>
-          <span>
-            {b.author}
-            {b.textLanguage === "pt" ? " · PT" : ""}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-
-  return (
-    <section className="explore" id="acervo">
-      <div className="shelf-head">
-        <h2>Explorar o acervo</h2>
-        <p>Mais de 70 mil livros em domínio público, direto do Project Gutenberg.</p>
-      </div>
-
-      <div className="explore-controls">
-        <label className="search-box">
-          {Icon.search}
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Busque por título ou autor, como Verne, Poe ou Austen"
-            aria-label="Buscar livros"
-          />
-        </label>
-        <PrivacyNote
-          details={
-            <>
-              O Storyverse não guarda o que você busca nem mostra para ninguém. O termo vai, por conexão
-              criptografada (HTTPS), só até os catálogos de livros para trazer os resultados. Veja tudo em
-              Perfil › Ajustes › Privacidade.
-            </>
-          }
-        >
-          Suas buscas são privadas e não ficam salvas.
-        </PrivacyNote>
-        <div className="filter-pills" role="group" aria-label="Idioma do texto">
-          {LANGUAGE_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className={`filter-pill ${language === f.id ? "active" : ""}`}
-              onClick={() => setLanguage(f.id)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        {communityBooks.length > 0 ? (
-          <div className="filter-pills" role="group" aria-label="Origem dos livros">
-            <button type="button" className={`filter-pill ${origin === "all" ? "active" : ""}`} onClick={() => setOrigin("all")}>
-              Todo o acervo
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${origin === "community" ? "active" : ""}`}
-              onClick={() => setOrigin("community")}
-            >
-              Da comunidade
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      {onlyCommunity ? (
-        <>
-          <p className="explore-note">
-            {communityShown.length === 0
-              ? searching
-                ? `Nenhum livro da comunidade para “${term}”.`
-                : "Nenhum livro da comunidade neste idioma ainda."
-              : searching
-                ? `${communityShown.length} ${communityShown.length === 1 ? "livro" : "livros"} da comunidade para “${term}”`
-                : "Livros enviados por leitores e aprovados pela curadoria."}
-          </p>
-          {communityShown.length > 0 ? communityGrid(communityShown) : null}
-        </>
-      ) : null}
-
-      {/* Em "Todo o acervo" os livros da comunidade vêm em destaque no topo, com ou sem busca. */}
-      {!onlyCommunity && communityShown.length > 0 ? (
-        <div className="explore-community">
-          <div className="explore-community-head">
-            <h3>Da comunidade</h3>
-            <p>Enviados por leitores e aprovados pela curadoria.</p>
-          </div>
-          {communityGrid(communityShown)}
-        </div>
-      ) : null}
-
-      {onlyCommunity ? null : !searching ? (
-        <p className="explore-note">Sugestões para começar. Os personagens aparecem quando você abre o livro.</p>
-      ) : status === "error" ? (
-        <p className="explore-note">Não foi possível buscar livros agora. Tente de novo em instantes.</p>
-      ) : status === "loading" ? (
-        <p className="explore-note">
-          {slow ? "O acervo está demorando mais que o normal… quase lá." : "Procurando no acervo…"}
-        </p>
-      ) : status === "ready" && books.length === 0 ? (
-        <p className="explore-note">
-          Nenhum livro encontrado para “{term}”. O acervo só tem livros em domínio público; se você
-          tem o arquivo do livro,{" "}
-          <button type="button" className="inline-link" onClick={() => onImport()}>
-            importe o seu
-          </button>
-          .
-        </p>
-      ) : (
-        <p className="explore-note">
-          {total === null
-            ? `Livros para “${term}”`
-            : `${total.toLocaleString("pt-BR")} ${total === 1 ? "livro" : "livros"} para “${term}”`}
-        </p>
-      )}
-
-      {status !== "error" && !onlyCommunity ? (
-        <div className="result-grid">
-          {searching && status === "loading"
-            ? Array.from({ length: 8 }, (_, i) => (
-                <div key={i} className="result result-skeleton" aria-hidden="true">
-                  <div className="cover" />
-                  <span />
-                  <span />
-                </div>
-              ))
-            : shown.map((b) => (
-                <button key={b.id} type="button" className="result" onClick={() => onOpen(b)}>
-                  <BookCover book={b} />
-                  <strong>{b.title}</strong>
-                  <span>
-                    {b.author}
-                    {b.textLanguage === "pt" ? " · PT" : ""}
-                  </span>
-                </button>
-              ))}
-        </div>
-      ) : null}
-
-      {searching && outside.length > 0 && !onlyCommunity ? (
-        <div className="outside">
-          <div className="outside-head">
-            <h3>Fora do acervo</h3>
-            <p>
-              Estes livros ainda têm direitos autorais, então não estão no acervo. Tem o arquivo? Importe e
-              leia aqui, com os personagens.
-            </p>
-          </div>
-          <div className="result-grid">
-            {outside.map((h) => (
-              <div key={`${h.title}|${h.author}`} className="result outside-book">
-                <div className="cover">
-                  <img className="cover-photo is-loaded" src={h.coverUrl} alt="" loading="lazy" />
-                </div>
-                <strong>{h.title}</strong>
-                <span>
-                  {h.author}
-                  {h.year ? ` · ${h.year}` : ""}
-                </span>
-                <button
-                  type="button"
-                  className="btn outside-import"
-                  onClick={() => onImport(h)}
-                  aria-label={`Importar o meu arquivo de ${h.title}`}
-                >
-                  {Icon.upload}
-                  Importar
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {searching && status === "ready" && next && !onlyCommunity ? (
-        <div className="explore-more">
-          <button type="button" className="btn" onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? "Carregando…" : "Carregar mais"}
-          </button>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-/** Livros do próprio leitor (.epub, .pdf, .txt): com conta, vão para os outros aparelhos dela. */
-function MyBooks({
-  onOpen,
-  onRemoved,
-  onRequest,
-  request,
-  setRequest,
-  session,
-  onSubmitted,
-}: {
-  onOpen: (b: Ebook) => void;
-  onRemoved: () => void;
-  onRequest: () => void;
-  /**
-   * Formulário aberto (`null` = fechado). Abre pelo topo da página, pelo destaque e pela busca;
-   * vindo de um livro "Fora do acervo", já traz título, autor e capa.
-   */
-  request: BookHint | Record<string, never> | null;
-  setRequest: (r: BookHint | Record<string, never> | null) => void;
-  /** Logado: pode sugerir o livro para o acervo da comunidade. */
-  session?: SupabaseSession | null;
-  onSubmitted?: () => void;
-}) {
-  const open = request !== null;
-  const hint = request && "title" in request ? request : null;
-  const [books, setBooks] = useState<Ebook[]>([]);
-  const [parsing, setParsing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<ImportedBook | null>(null);
-  const [fileName, setFileName] = useState("");
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [language, setLanguage] = useState<"pt" | "en">("pt");
-  const [castText, setCastText] = useState("");
-  const [showAllBooks, setShowAllBooks] = useState(false);
-  /** Capa escolhida pela pessoa (opcional): vale para o livro dela e, se sugerir, para o acervo. */
-  const [customCover, setCustomCover] = useState<{ blob: Blob; url: string } | null>(null);
-  const [coverBusy, setCoverBusy] = useState(false);
-  useEffect(() => () => void (customCover && URL.revokeObjectURL(customCover.url)), [customCover]);
-
-  async function pickCover(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setCoverBusy(true);
-    setError(null);
-    try {
-      const blob = await prepareImage(file, "book");
-      setCustomCover({ blob, url: URL.createObjectURL(blob) });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível usar esta imagem.");
-    } finally {
-      setCoverBusy(false);
-    }
-  }
-  const [share, setShare] = useState(false);
-  const [rights, setRights] = useState<Rights | null>(null);
-  const [rightsNote, setRightsNote] = useState("");
-  const [agree, setAgree] = useState(false);
-
-  useEffect(() => {
-    void listLocalBooks().then(setBooks);
-  }, []);
-
-  const chapterCount = useMemo(() => (parsed ? splitIntoChapters(parsed.text).length : 0), [parsed]);
-
-  const close = useCallback(() => {
-    if (saving) return;
-    setRequest(null);
-    setParsing(false);
-    setError(null);
-    setParsed(null);
-    setFileName("");
-    setTitle("");
-    setAuthor("");
-    setCastText("");
-    setShare(false);
-    setCustomCover(null);
-    setRights(null);
-    setRightsNote("");
-    setAgree(false);
-  }, [saving, setRequest]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setError(null);
-    setParsed(null);
-    setFileName(file.name);
-    setParsing(true);
-    try {
-      const book = await importBookFile(file);
-      setParsed(book);
-      // Livro escolhido em "Fora do acervo": vale o título em português do catálogo.
-      setTitle(hint?.title ?? book.title);
-      setAuthor(hint?.author || book.author);
-      setLanguage(book.language);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível ler este arquivo.");
-    } finally {
-      setParsing(false);
-    }
-  }
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!parsed || saving) return;
-    if (share && !rights) return setError("Escolha por que este livro pode ser compartilhado.");
-    if (share && !agree) return setError("Confirme a declaração de direitos para enviar ao acervo.");
-    const id = newLocalBookId();
-    const bookTitle = title.trim() || "Meu livro";
-    const chosenCover = customCover ? await blobToDataUrl(customCover.blob).catch(() => null) : null;
-    const characters = castFromNames(bookTitle, castText);
-    const book: Ebook = {
-      id: `local-${-id}`,
-      gutenbergId: id,
-      title: bookTitle,
-      author: author.trim() || "Autor não informado",
-      genre: "Meu livro",
-      // Capa: a escolhida pela pessoa, a do catálogo ("Fora do acervo") ou a que veio no arquivo.
-      ...((chosenCover ?? hint?.coverUrl ?? parsed.cover) ? { coverUrl: chosenCover ?? hint?.coverUrl ?? parsed.cover } : {}),
-      textLanguage: language,
-      source: "local",
-      // Sem nomes digitados, a IA sugere o elenco ao abrir o livro (uma vez só).
-      ...(characters.length > 0 ? { characters } : {}),
-    };
-    setSaving(true);
-    try {
-      // Envia primeiro: se falhar, nada fica pela metade e dá para tentar de novo.
-      if (share && session && rights) {
-        // A mesma capa de "Seus livros": a escolhida ou a do arquivo sobem para o Storage.
-        const sharedCover = customCover
-          ? await uploadBookCover(session, customCover.blob)
-          : hint?.coverUrl && !hint.coverUrl.startsWith("data:") && hint.coverUrl.length <= 300
-            ? hint.coverUrl
-            : parsed.cover
-              ? await uploadBookCover(session, await dataUrlToBlob(parsed.cover))
-              : null;
-        const submission = await submitBook(session, {
-          coverUrl: sharedCover,
-          title: book.title,
-          author: author.trim(),
-          language,
-          rights,
-          rightsNote,
-          characters: castText,
-          submitterName: displayNameOf(session.user),
-          text: withoutImageMarkers(parsed.text),
-        });
-        book.submissionId = submission.id;
-        onSubmitted?.();
-      }
-      await saveLocalBook(book, parsed.text, parsed.images);
-      setBooks((prev) => [book, ...prev]);
-      setSaving(false);
-      close();
-      onOpen(book);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível guardar o livro.");
-      setSaving(false);
-    }
-  }
-
-  async function remove(b: Ebook) {
-    const where = session ? "de todos os aparelhos da sua conta" : "deste aparelho";
-    if (!window.confirm(`Remover “${b.title}” ${where}? O progresso de leitura também será apagado.`)) {
-      return;
-    }
-    await deleteLocalBook(b.gutenbergId).catch(() => undefined);
-    removeProgress(b.gutenbergId);
-    forgetCast(b.id);
-    forgetChat(b.id);
-    forgetHighlights(b.id);
-    setBooks((prev) => prev.filter((x) => x.gutenbergId !== b.gutenbergId));
-    onRemoved();
-  }
-
-  return (
-    <section className="shelf my-books" id="meus-livros">
-      <div className="shelf-head">
-        <h2>Seus livros</h2>
-        <p>Tem o arquivo de um livro? Importe e converse com os personagens.</p>
-      </div>
-
-      <div className="result-grid">
-        <button type="button" className="result" onClick={onRequest}>
-          <div className="cover import-cover" aria-hidden="true">
-            <span className="import-plus">+</span>
-            <span className="import-formats">EPUB · PDF · TXT</span>
-          </div>
-          <strong>Importar meu livro</strong>
-          <span>{session ? "Em todos os seus aparelhos" : "Fica só neste aparelho"}</span>
-        </button>
-        {(showAllBooks ? books : books.slice(0, CONTINUE_PREVIEW)).map((b) => (
-          <div key={b.gutenbergId} className="my-book">
-            <button type="button" className="result" onClick={() => onOpen(b)}>
-              <BookCover book={b} />
-              <strong>{b.title}</strong>
-              <span>{b.author}</span>
-            </button>
-            <button type="button" className="link-btn my-book-remove" onClick={() => void remove(b)}>
-              Remover
-            </button>
-          </div>
-        ))}
-      </div>
-      {books.length > CONTINUE_PREVIEW ? (
-        <div className="shelf-more">
-          <button type="button" className="btn" onClick={() => setShowAllBooks((v) => !v)}>
-            {showAllBooks ? "Mostrar menos" : `Ver todos (${books.length})`}
-          </button>
-        </div>
-      ) : null}
-
-      {open ? (
-        <div className="import-overlay" onClick={close}>
-          <form
-            className="import-panel"
-            onSubmit={onSubmit}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="import-title"
-          >
-            <div className="import-head">
-              <h3 id="import-title">{hint ? `Importar “${hint.title}”` : "Importar meu livro"}</h3>
-              <button type="button" className="icon-btn" onClick={close} aria-label="Fechar">
-                {Icon.close}
-              </button>
-            </div>
-
-            <label
-              className={`file-drop ${parsed ? "is-ready" : ""} ${parsing ? "is-loading" : ""}`}
-              aria-busy={parsing}
-            >
-              <input type="file" accept={ACCEPTED_EXTENSIONS} onChange={onFile} disabled={parsing || saving} />
-              {parsing ? <span className="spinner file-drop-spinner" aria-hidden="true" /> : null}
-              <strong>
-                {parsing ? "Lendo o arquivo…" : fileName || "Escolher arquivo"}
-              </strong>
-              <span role="status">
-                {parsing
-                  ? `${fileName} · livros grandes podem levar alguns segundos`
-                  : parsed
-                    ? `${chapterCount} ${chapterCount === 1 ? "parte encontrada" : "partes encontradas"} · toque para trocar`
-                    : ".epub, .pdf ou .txt"}
-              </span>
-            </label>
-
-            {parsed ? (
-              <>
-                <label className="field">
-                  <span>Título</span>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} required />
-                </label>
-                <label className="field">
-                  <span>Autor</span>
-                  <input value={author} onChange={(e) => setAuthor(e.target.value)} maxLength={120} />
-                </label>
-                <label className="field">
-                  <span>Idioma do texto</span>
-                  <select value={language} onChange={(e) => setLanguage(e.target.value as "pt" | "en")}>
-                    <option value="pt">Português</option>
-                    <option value="en">Inglês (dá para traduzir na leitura)</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Personagens para conversar (opcional)</span>
-                  <textarea
-                    value={castText}
-                    onChange={(e) => setCastText(e.target.value)}
-                    rows={3}
-                    maxLength={600}
-                    placeholder={"Um por linha, por exemplo:\nBella Swan\nEdward Cullen — vampiro de 104 anos"}
-                  />
-                  <small>Em branco, a IA escolhe os personagens principais quando você abrir o livro.</small>
-                </label>
-                <div className="field cover-field">
-                  <span>Capa (opcional)</span>
-                  <div className="cover-pick">
-                    <div className="cover-pick-preview">
-                      {customCover || hint?.coverUrl || parsed.cover ? (
-                        <img src={customCover?.url ?? hint?.coverUrl ?? parsed.cover} alt="" />
-                      ) : (
-                        <span>Sem capa</span>
-                      )}
-                    </div>
-                    <div className="cover-pick-actions">
-                      <label className={`btn ${coverBusy ? "is-disabled" : ""}`}>
-                        {Icon.camera}
-                        {coverBusy ? "Preparando…" : customCover ? "Trocar imagem" : "Escolher imagem"}
-                        <input type="file" accept="image/*" onChange={(e) => void pickCover(e)} disabled={coverBusy || saving} />
-                      </label>
-                      {customCover ? (
-                        <button type="button" className="inline-link" onClick={() => setCustomCover(null)} disabled={saving}>
-                          Tirar a imagem escolhida
-                        </button>
-                      ) : null}
-                      <small>
-                        {customCover
-                          ? "Esta capa aparece no seu livro e, se você sugerir para o acervo, lá também."
-                          : parsed.cover || hint?.coverUrl
-                            ? "Usando a capa que veio com o livro. Pode trocar por outra imagem."
-                            : "Sem imagem, o app desenha uma capa ou busca uma na Open Library."}
-                      </small>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {parsed && session ? (
-              <div className={`share-box ${share ? "is-on" : ""}`}>
-                <label className="share-toggle">
-                  <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} />
-                  <span>
-                    <strong>Sugerir para o acervo da comunidade</strong>
-                    <small>Se for aprovado, outras pessoas também vão poder ler.</small>
-                  </span>
-                </label>
-                {share ? (
-                  <>
-                    <div className="share-rights" role="radiogroup" aria-label="Por que pode ser compartilhado">
-                      {RIGHTS_OPTIONS.map((o) => (
-                        <label key={o.id} className={`share-right ${rights === o.id ? "is-on" : ""}`}>
-                          <input type="radio" name="rights" checked={rights === o.id} onChange={() => setRights(o.id)} />
-                          <span>
-                            <strong>{o.label}</strong>
-                            <small>{o.hint}</small>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    {rights ? (
-                      <label className="field">
-                        <span>Como sabemos? (ajuda na análise)</span>
-                        <input
-                          value={rightsNote}
-                          onChange={(e) => setRightsNote(e.target.value)}
-                          maxLength={500}
-                          placeholder={RIGHTS_OPTIONS.find((o) => o.id === rights)?.placeholder}
-                        />
-                      </label>
-                    ) : null}
-                    <label className="share-agree">
-                      <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-                      <span>
-                        Declaro que este livro pode ser compartilhado e entendo que ele será removido se violar
-                        direitos autorais. Livros com direitos reservados (ex.: best-sellers atuais) são recusados.
-                      </span>
-                    </label>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-
-            {error ? <p className="import-error" role="alert">{error}</p> : null}
-
-            <p className="import-note">
-              O arquivo é lido no seu navegador e não é enviado para lugar nenhum. Livros com proteção
-              contra cópia (DRM), como os comprados no Kindle, não abrem.
-            </p>
-
-            <div className="import-actions">
-              <button type="button" className="btn" onClick={close} disabled={saving}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={!parsed || saving} aria-busy={saving}>
-                {saving ? <span className="spinner btn-spinner" aria-hidden="true" /> : null}
-                {saving ? (share ? "Enviando…" : "Guardando…") : share ? "Enviar e ler" : "Importar e ler"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-type LastBook = { title: string; chapterLabel?: string; character?: string };
-
-/** Lembrete diário: calendário (qualquer aparelho) e notificação (Android com o app instalado). */
-function ReminderSetup({
-  lastBook,
-  time,
-  onTimeChange,
-}: {
-  lastBook?: LastBook;
-  /** No perfil o horário é rascunho: quem salva é o botão "Salvar alterações". */
-  time?: string;
-  onTimeChange?: (time: string) => void;
-}) {
-  const [savedPrefs, setPrefs] = useState(loadReminderPrefs);
-  const prefs = time ? { ...savedPrefs, time } : savedPrefs;
-  const [status, setStatus] = useState<string | null>(null);
-  const support = notificationSupport();
-  const text = reminderText(lastBook);
-
-  const update = (p: typeof prefs) => {
-    if (onTimeChange && p.time !== savedPrefs.time) {
-      onTimeChange(p.time);
-      p = { ...p, time: savedPrefs.time };
-    }
-    setPrefs(p);
-    saveReminderPrefs(p);
-  };
-
-  async function toggleNotifications() {
-    if (prefs.notifications) {
-      await disableDailyNotifications();
-      update({ ...prefs, notifications: false });
-      setStatus("Notificações desligadas.");
-      return;
-    }
-    const result = await enableDailyNotifications();
-    if (result === "enabled") {
-      update({ ...prefs, notifications: true });
-      setStatus("Pronto! Veja um exemplo de como o lembrete vai chegar.");
-      void sendTestNotification();
-    } else if (result === "denied") {
-      setStatus("As notificações foram bloqueadas. Libere nas configurações do navegador para este site.");
-    } else {
-      setStatus("Este aparelho não permite lembretes automáticos. Use o calendário acima.");
-    }
-  }
-
-  return (
-    <div className="reminder">
-      <div className="reminder-when">
-        <span className="reminder-label">Lembrete diário</span>
-        <label className="reminder-time">
-          <span className="sr-only">Horário do lembrete</span>
-          <input
-            type="time"
-            value={prefs.time}
-            onChange={(e) => e.target.value && update({ ...prefs, time: e.target.value })}
-          />
-        </label>
-        <p className="reminder-note">
-          Você vai receber: <em>“{text.details}”</em>
-        </p>
-      </div>
-
-      <div className="reminder-how">
-        <span className="reminder-label">Como avisar</span>
-        <div className="reminder-options">
-          <a className="reminder-option" href={googleCalendarUrl(prefs.time, text)} target="_blank" rel="noreferrer">
-            <span className="reminder-option-icon" aria-hidden="true">{Icon.calendar}</span>
-            <strong>Google Agenda</strong>
-            <span>Android e computador</span>
-          </a>
-          <button type="button" className="reminder-option" onClick={() => downloadIcs(prefs.time, text)}>
-            <span className="reminder-option-icon" aria-hidden="true">{Icon.download}</span>
-            <strong>Outro calendário</strong>
-            <span>iPhone, Outlook e Apple</span>
-          </button>
-          {support === "supported" ? (
-            <button
-              type="button"
-              className={`reminder-option ${prefs.notifications ? "is-on" : ""}`}
-              onClick={() => void toggleNotifications()}
-              aria-pressed={prefs.notifications}
-            >
-              <span className="reminder-option-icon" aria-hidden="true">{Icon.bell}</span>
-              <strong>{prefs.notifications ? "Notificações ligadas" : "Notificação do app"}</strong>
-              <span>{prefs.notifications ? "Toque para desligar" : "Avisa só se você esquecer"}</span>
-            </button>
-          ) : support === "install-first" ? (
-            <div className="reminder-option is-disabled">
-              <span className="reminder-option-icon" aria-hidden="true">{Icon.bell}</span>
-              <strong>Notificação do app</strong>
-              <span>Instale o app para ativar</span>
-            </div>
-          ) : null}
-        </div>
-        {status ? <p className="reminder-status" role="status">{status}</p> : null}
-      </div>
-    </div>
-  );
-}
-
-/** Nome mostrado no perfil: o do cadastro ou, sem ele, o começo do e-mail. */
-function displayNameOf(user: SupabaseUser): string {
-  const name = typeof user.user_metadata?.name === "string" ? user.user_metadata.name.trim() : "";
-  return name || user.email.split("@")[0];
-}
-
-const PROFILE_COLORS = ["#e4b86a", "#9bc4b5", "#d7a0b4", "#a8b8e0", "#c9a27e", "#b7c98a"];
-function profileColor(id: string): string {
-  let h = 0;
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return PROFILE_COLORS[h % PROFILE_COLORS.length];
-}
-
-function formatMinutes(total: number): string {
-  if (total < 60) return `${total} min`;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
-}
-
-function memberSince(iso?: string): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-}
-
-/** Avatar escolhido (dos prontos) ou a inicial do nome sobre a cor da conta. */
-function metaString(user: SupabaseUser, key: string): string | null {
-  const v = user.user_metadata?.[key];
-  return typeof v === "string" && v ? v : null;
-}
-
-/** Foto enviada, senão o avatar pronto, senão a inicial do nome sobre a cor da conta. */
-function UserAvatar({ user, className }: { user: SupabaseUser; className: string }) {
-  return (
-    <PersonAvatar
-      id={user.id}
-      name={displayNameOf(user)}
-      avatar={user.user_metadata?.avatar}
-      photo={metaString(user, "photo")}
-      className={className}
-    />
-  );
-}
-
-/** O mesmo avatar para quem não é a conta atual (ex.: leitores do ranking). */
-function PersonAvatar({
-  id,
-  name,
-  avatar: avatarId,
-  photo,
-  className,
-}: {
-  id: string;
-  name: string;
-  avatar: unknown;
-  photo: string | null;
-  className: string;
-}) {
-  const avatar = findAvatar(avatarId);
-  const [broken, setBroken] = useState(false);
-  useEffect(() => setBroken(false), [photo]);
-  if (photo && !broken) {
-    return (
-      <span className={`${className} has-photo`} aria-hidden="true">
-        <img src={photo} alt="" loading="lazy" onError={() => setBroken(true)} />
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`${className} ${avatar ? "has-art" : ""}`}
-      style={{ "--c": avatar?.color ?? profileColor(id) } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      {avatar ? <AvatarArt avatar={avatar} /> : name.charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
-/** Rascunho de uma imagem do perfil: a salva, uma nova (ainda não enviada) ou removida. */
-type ImageDraft = { url: string | null; blob: Blob | null };
-
-/** Janela "Editar perfil": capa, foto, nome e avatar, com prévia e salvar na própria janela. */
-function EditProfileModal({
-  session,
-  onSaved,
-  onClose,
-}: {
-  session: SupabaseSession;
-  onSaved: (session: SupabaseSession) => void;
-  onClose: () => void;
-}) {
-  const savedName = displayNameOf(session.user);
-  const savedAvatar = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
-  const savedPhoto = metaString(session.user, "photo");
-  const savedCover = metaString(session.user, "cover");
-  const [name, setName] = useState(savedName);
-  const [avatar, setAvatar] = useState<string | null>(savedAvatar);
-  const [photo, setPhoto] = useState<ImageDraft>({ url: savedPhoto, blob: null });
-  const [cover, setCover] = useState<ImageDraft>({ url: savedCover, blob: null });
-  const [preparing, setPreparing] = useState<MediaKind | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const trimmed = name.trim().slice(0, 60);
-  const changed =
-    trimmed !== savedName ||
-    avatar !== savedAvatar ||
-    photo.blob !== null ||
-    photo.url !== savedPhoto ||
-    cover.blob !== null ||
-    cover.url !== savedCover;
-  const busy = saving || preparing !== null;
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !saving) onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, saving]);
-
-  // Prévias locais (blob:) liberadas ao trocar ou fechar.
-  useEffect(() => () => void (photo.blob && photo.url && URL.revokeObjectURL(photo.url)), [photo]);
-  useEffect(() => () => void (cover.blob && cover.url && URL.revokeObjectURL(cover.url)), [cover]);
-
-  async function pick(kind: MediaKind, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setError("");
-    setPreparing(kind);
-    try {
-      const blob = await prepareImage(file, kind);
-      const draft = { url: URL.createObjectURL(blob), blob };
-      if (kind === "avatar") setPhoto(draft);
-      else setCover(draft);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível usar esta imagem.");
-    } finally {
-      setPreparing(null);
-    }
-  }
-
-  /** Escolher avatar pronto (ou a inicial) tira a foto: a foto sempre tem prioridade. */
-  function chooseAvatar(id: string | null) {
-    setAvatar(id);
-    setPhoto({ url: null, blob: null });
-  }
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!trimmed) return setError("Informe um nome.");
-    if (!changed) return onClose();
-    setSaving(true);
-    setError("");
-    try {
-      const imageUrl = async (kind: MediaKind, draft: ImageDraft, saved: string | null) => {
-        if (draft.blob) return uploadProfileImage(session, kind, draft.blob);
-        if (!draft.url && saved) await removeProfileImage(session, kind);
-        return draft.url;
-      };
-      const photoUrl = await imageUrl("avatar", photo, savedPhoto);
-      const coverUrl = await imageUrl("cover", cover, savedCover);
-      onSaved(await updateProfileData(session, { name: trimmed, avatar, photo: photoUrl, cover: coverUrl }));
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
-      setSaving(false);
-    }
-  }
-
-  const preview: SupabaseUser = {
-    ...session.user,
-    user_metadata: { ...session.user.user_metadata, name: trimmed || savedName, avatar, photo: photo.url },
-  };
-  const initialUser = { ...preview, user_metadata: { ...preview.user_metadata, avatar: null, photo: null } };
-  const coverStyle = cover.url ? ({ backgroundImage: `url("${cover.url}")` } as React.CSSProperties) : undefined;
-  return (
-    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose()}>
-      <form className="auth-card edit-profile" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title" onSubmit={save}>
-        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar" disabled={saving}>
-          {Icon.close}
-        </button>
-        <h2 id="edit-profile-title">Editar perfil</h2>
-
-        <div className={`edit-cover ${cover.url ? "has-cover" : ""}`} style={coverStyle}>
-          <div className="edit-cover-actions">
-            <label className={`btn edit-media-btn ${busy ? "is-disabled" : ""}`}>
-              {Icon.camera}
-              {preparing === "cover" ? "Preparando…" : cover.url ? "Trocar capa" : "Adicionar capa"}
-              <input type="file" accept="image/*" onChange={(e) => void pick("cover", e)} disabled={busy} />
-            </label>
-            {cover.url ? (
-              <button type="button" className="btn edit-media-btn" onClick={() => setCover({ url: null, blob: null })} disabled={busy}>
-                Remover
-              </button>
-            ) : null}
-          </div>
-          <div className="edit-profile-preview">
-            <UserAvatar user={preview} className="profile-avatar" />
-            <label className={`edit-photo-btn ${busy ? "is-disabled" : ""}`} title="Enviar foto de perfil">
-              {preparing === "avatar" ? <span className="spinner" aria-hidden="true" /> : Icon.camera}
-              <span className="sr-only">Enviar foto de perfil</span>
-              <input type="file" accept="image/*" onChange={(e) => void pick("avatar", e)} disabled={busy} />
-            </label>
-          </div>
-        </div>
-        <div className="edit-photo-row">
-          {photo.url ? (
-            <button type="button" className="inline-link" onClick={() => setPhoto({ url: null, blob: null })} disabled={busy}>
-              Remover foto de perfil
-            </button>
-          ) : (
-            <span>Toque na câmera para enviar uma foto, ou escolha um avatar abaixo.</span>
-          )}
-        </div>
-
-        <label className="edit-profile-name">
-          <span>Nome</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" disabled={saving} />
-        </label>
-
-        <span className="edit-profile-label">Avatar</span>
-        <div className="avatar-grid" role="radiogroup" aria-label="Avatares">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={!photo.url && avatar === null}
-            className={`avatar-choice ${!photo.url && avatar === null ? "is-on" : ""}`}
-            onClick={() => chooseAvatar(null)}
-            disabled={busy}
-          >
-            <UserAvatar user={initialUser} className="avatar-choice-art" />
-            <span>Inicial</span>
-          </button>
-          {AVATARS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              role="radio"
-              aria-checked={!photo.url && avatar === a.id}
-              className={`avatar-choice ${!photo.url && avatar === a.id ? "is-on" : ""}`}
-              onClick={() => chooseAvatar(a.id)}
-              disabled={busy}
-            >
-              <span className="avatar-choice-art has-art" style={{ "--c": a.color } as React.CSSProperties} aria-hidden="true">
-                <AvatarArt avatar={a} />
-              </span>
-              <span>{a.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {error ? <p className="auth-error" role="alert">{error}</p> : null}
-        <div className="edit-profile-actions">
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !changed}>
-            {saving ? "Salvando…" : "Salvar"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-/** Quem pediu menos movimento no sistema vê tudo parado. */
-/** Número que sobe de 0 até `value` ao aparecer (≈0,9 s, desacelerando no fim). */
-function useCountUp(value: number, duration = 900): number {
-  const [shown, setShown] = useState(() => (prefersReducedMotion() ? value : 0));
-  useEffect(() => {
-    if (prefersReducedMotion()) return setShown(value);
-    let frame = 0;
-    const start = performance.now();
-    const tick = (t: number) => {
-      const k = Math.min(1, (t - start) / duration);
-      setShown(Math.round(value * (1 - Math.pow(1 - k, 3))));
-      if (k < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [value, duration]);
-  return shown;
-}
-
-function CountUp({ value, format = (n: number) => String(n) }: { value: number; format?: (n: number) => string }) {
-  return <>{format(useCountUp(value))}</>;
-}
-
-/** Nível do dia pela meta: 0 sem leitura, 1 pouco, 2 perto da meta, 3 meta cumprida. */
-function dayLevel(minutes: number, goal: number): 0 | 1 | 2 | 3 {
-  if (minutes <= 0) return 0;
-  if (minutes >= goal) return 3;
-  return minutes >= goal / 2 ? 2 : 1;
-}
-const LEVEL_LABELS = ["Sem leitura", "Pouco", "Perto da meta", "Meta cumprida"] as const;
-const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-
-/** Dia sem leitura que manteve a sequência: por escudo (grátis) ou com diamantes. */
-function savedLabel(d: { bought: boolean }): string {
-  return d.bought ? "salvo com diamantes" : "salvo por escudo";
-}
-
-function dayTitle(d: ReadingDay, goal?: number): string {
-  const date = d.date.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
-  if (d.state === "frozen") return `${date}: ${savedLabel(d)}`;
-  const met = goal !== undefined && d.minutes >= goal;
-  return `${date}: ${d.minutes} min${met ? " · meta cumprida ✓" : ""}`;
-}
-
-/**
- * Chama animada da sequência: camadas (vermelho → laranja → amarelo → miolo claro) tremulando em
- * ritmos diferentes, brilho pulsando e faíscas subindo. Apagada (cinza e parada) sem leitura hoje.
- */
-function StreakFlame({ lit }: { lit: boolean }) {
-  return (
-    <span className={`streak-flame-anim ${lit ? "is-lit" : ""}`} aria-hidden="true">
-      <span className="flame-glow" />
-      <svg viewBox="0 0 64 84">
-        <defs>
-          <linearGradient id="flame-outer" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor="#d9481c" />
-            <stop offset="1" stopColor="#f07a2a" />
-          </linearGradient>
-          <linearGradient id="flame-mid" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor="#f4902c" />
-            <stop offset="1" stopColor="#ffc24a" />
-          </linearGradient>
-          <linearGradient id="flame-core" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor="#ffe08a" />
-            <stop offset="1" stopColor="#fff7dc" />
-          </linearGradient>
-        </defs>
-        <path
-          className="flame-layer flame-outer"
-          fill="url(#flame-outer)"
-          d="M32 3c5 13 19 21 19 42 0 19-9 34-19 34S13 64 13 45c0-10 5-17 9-24 1 6 4 10 8 11-2-10-1-19 2-29z"
-        />
-        <path
-          className="flame-layer flame-mid"
-          fill="url(#flame-mid)"
-          d="M33 24c4 9 12 15 12 29 0 13-6 23-13 23s-13-10-13-23c0-7 3-12 6-16 1 4 3 7 6 7-1-7 0-14 2-20z"
-        />
-        <path
-          className="flame-layer flame-core"
-          fill="url(#flame-core)"
-          d="M32 46c3 5 7 9 7 17 0 7-3 12-7 12s-7-5-7-12c0-5 3-9 7-17z"
-        />
-      </svg>
-      <span className="flame-spark s1" />
-      <span className="flame-spark s2" />
-      <span className="flame-spark s3" />
-    </span>
-  );
-}
-
-/** Anel da meta de hoje (medidor: trilho e preenchimento do mesmo tom). */
-function GoalRing({ minutes, goal }: { minutes: number; goal: number }) {
-  const pct = Math.min(1, goal > 0 ? minutes / goal : 0);
-  const r = 52;
-  const len = 2 * Math.PI * r;
-  const [drawn, setDrawn] = useState(prefersReducedMotion() ? pct : 0);
-  useEffect(() => {
-    const t = requestAnimationFrame(() => setDrawn(pct));
-    return () => cancelAnimationFrame(t);
-  }, [pct]);
-  const done = minutes >= goal;
-  return (
-    <div className={`goal-ring ${done ? "is-done" : ""}`} role="img" aria-label={`Meta de hoje: ${minutes} de ${goal} minutos`}>
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle className="goal-ring-track" cx="60" cy="60" r={r} />
-        <circle
-          className="goal-ring-fill"
-          cx="60"
-          cy="60"
-          r={r}
-          strokeDasharray={len}
-          strokeDashoffset={len * (1 - drawn)}
-          transform="rotate(-90 60 60)"
-        />
-      </svg>
-      <div className="goal-ring-center">
-        <strong>
-          <CountUp value={minutes} />
-        </strong>
-        <span>de {goal} min</span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Dia escolhido num gráfico: ao passar o mouse ou tocar, o detalhe aparece no topo do cartão
- * (sem caixinha flutuando por cima das barras). Tocar de novo no mesmo dia solta.
- */
-function useDayPick() {
-  const [picked, setPicked] = useState<string | null>(null);
-  const lastPointer = useRef("mouse");
-  const bind = (key: string) => ({
-    onPointerDown: (e: React.PointerEvent) => {
-      lastPointer.current = e.pointerType;
-    },
-    // Mouse: passar por cima já mostra; clicar só confirma.
-    onPointerEnter: (e: React.PointerEvent) => e.pointerType === "mouse" && setPicked(key),
-    // Toque: um toque mostra, outro toque no mesmo dia solta.
-    onClick: () => (lastPointer.current === "mouse" ? setPicked(key) : setPicked((k) => (k === key ? null : key))),
-    // Teclado (Tab): o foco mostra o dia. Foco vindo do toque não conta (senão o toque desfazia).
-    onFocus: (e: React.FocusEvent) => e.currentTarget.matches(":focus-visible") && setPicked(key),
-  });
-  return { picked, bind, clear: () => setPicked(null) };
-}
-
-function DayDetail({ day, goal }: { day: ReadingDay; goal: number }) {
-  const date = day.date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
-  return (
-    <span className="day-detail" role="status">
-      <strong>{date}</strong>
-      {day.state === "frozen" ? ` · ${savedLabel(day)} ${day.bought ? "💎" : "🛡️"}` : ` · ${day.minutes} min`}
-      {day.state !== "frozen" && day.minutes >= goal ? <span className="day-detail-met"> · meta ✓</span> : null}
-    </span>
-  );
-}
-
-/** Barras dos últimos 7 dias; hoje em destaque e linha tracejada da meta. */
-function WeekBars({ days, goal, total }: { days: ReadingDay[]; goal: number; total: string }) {
-  const { picked, bind, clear } = useDayPick();
-  const pickedDay = days.find((d) => d.key === picked);
-  const top = Math.max(...days.map((d) => d.minutes));
-  // Folga acima da meta e da maior barra (o número dela fica por cima, dentro do gráfico).
-  const max = Math.max(goal * 1.25, top * 1.18, 1);
-  const pct = (m: number) => `${(m / max) * 100}%`;
-  return (
-    <>
-      <div className="dash-card-head">
-        <span className="dash-label">Últimos 7 dias</span>
-        {pickedDay ? <DayDetail day={pickedDay} goal={goal} /> : <span className="dash-sub">{total} no total</span>}
-      </div>
-      <div className="week-bars-wrap">
-        <div className="week-plot" onPointerLeave={(e) => e.pointerType === "mouse" && clear()}>
-          <div className="week-goal-line" style={{ bottom: pct(goal) }} aria-hidden="true" />
-          {days.map((d, i) => {
-            const today = i === days.length - 1;
-            const label = today || (d.minutes === top && top > 0);
-            return (
-              <button
-                type="button"
-                key={d.key}
-                className={`week-bar ${today ? "is-today" : ""} ${d.state === "frozen" ? "is-frozen" : ""} ${picked === d.key ? "is-picked" : ""}`}
-                aria-label={dayTitle(d, goal)}
-                aria-pressed={picked === d.key}
-                {...bind(d.key)}
-              >
-                <span
-                  className={`week-bar-fill ${d.minutes >= goal ? "is-met" : ""}`}
-                  style={{ height: d.minutes > 0 ? `max(4px, ${pct(d.minutes)})` : 0, animationDelay: `${i * 60}ms` }}
-                >
-                  {label && d.minutes > 0 ? <span className="week-bar-value">{d.minutes}</span> : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="week-days" aria-hidden="true">
-          {days.map((d, i) => (
-            <span key={d.key} className={i === days.length - 1 ? "is-today" : picked === d.key ? "is-picked" : ""}>
-              {i === days.length - 1 ? "hoje" : WEEKDAY_SHORT[d.date.getDay()]}
-            </span>
-          ))}
-        </div>
-        {/* Legenda fora do gráfico: o texto na linha passava por cima das barras. */}
-        <div className="week-legend">
-          <span className="week-legend-line" aria-hidden="true" />
-          meta de {goal} min por dia
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** Calendário de constância: semanas em colunas, meses em cima e dias da semana ao lado. */
-const HEAT_GAP = 4;
-const HEAT_LABEL_W = 30;
-const HEAT_WEEKDAYS = ["", "seg", "", "qua", "", "sex", ""];
-/** Períodos do mapa: por padrão os últimos 3 meses (um ano inteiro fica vazio para quem começou agora). */
-const HEAT_PERIODS = [
-  { id: "1m", label: "1 mês", weeks: 5 },
-  { id: "3m", label: "3 meses", weeks: 13 },
-  { id: "1a", label: "1 ano", weeks: 53 },
-] as const;
-type HeatPeriod = (typeof HEAT_PERIODS)[number]["id"];
-const HEAT_PERIOD_KEY = "storyverse:heat-period";
-
-function savedHeatPeriod(): HeatPeriod {
-  try {
-    const v = userStorage.getItem(HEAT_PERIOD_KEY);
-    return HEAT_PERIODS.some((p) => p.id === v) ? (v as HeatPeriod) : "3m";
-  } catch {
-    return "3m";
-  }
-}
-
-/** Texto do tooltip de um dia: data por extenso e o que foi lido. */
-function heatTooltip(d: ReadingDay, goal: number): { date: string; detail: string } {
-  const date = d.date.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-  const detail =
-    d.state === "frozen"
-      ? d.bought
-        ? "Sequência salva com diamantes 💎"
-        : "Sequência salva por escudo 🛡️"
-      : d.minutes <= 0
-        ? "Sem leitura"
-        : `${formatMinutes(d.minutes)} lidos • ${d.minutes >= goal ? "Meta atingida" : `meta de ${goal} min`}`;
-  return { date: date.charAt(0).toUpperCase() + date.slice(1), detail };
-}
-
-function ReadingHeatmap({ days: allDays, goal, streak }: { days: ReadingDay[]; goal: number; streak: number }) {
-  const { picked, bind, clear } = useDayPick();
-  const [period, setPeriod] = useState<HeatPeriod>(savedHeatPeriod);
-  const weeks = HEAT_PERIODS.find((p) => p.id === period)!.weeks;
-
-  // Quadrados do tamanho que couber (entre 10 e 28 px); o ano inteiro rola de lado no celular.
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [cell, setCell] = useState(14);
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const fit = () => {
-      const free = el.clientWidth - HEAT_LABEL_W - HEAT_GAP * (weeks - 1);
-      setCell(Math.max(10, Math.min(28, Math.floor(free / weeks))));
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [weeks]);
-  // Começa mostrando o mais recente (hoje fica à direita).
-  useEffect(() => {
-    const sc = scrollRef.current;
-    if (sc) sc.scrollLeft = sc.scrollWidth;
-  }, [weeks, cell]);
-
-  // Colunas = semanas começando no domingo; a última termina hoje.
-  const today = allDays[allDays.length - 1];
-  const days = allDays.slice(-((weeks - 1) * 7 + today.date.getDay() + 1));
-  const readCount = days.filter((d) => d.minutes > 0).length;
-  const metCount = days.filter((d) => d.minutes >= goal).length;
-  const hasSaved = days.some((d) => d.state === "frozen");
-  const step = cell + HEAT_GAP;
-
-  // Nome do mês em cima da primeira semana em que ele aparece.
-  const months: { col: number; label: string }[] = [];
-  for (let col = 0; col * 7 < days.length; col++) {
-    const first = days[col * 7].date;
-    const prev = col > 0 ? days[(col - 1) * 7].date : null;
-    if (!prev || prev.getMonth() !== first.getMonth()) {
-      // Mês que começou no meio da primeira coluna: o nome vai na seguinte (não fica cortado).
-      if (col === 0 && first.getDate() > 7) continue;
-      months.push({ col, label: first.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "") });
-    }
-  }
-
-  // Tooltip flutuante em cima do dia escolhido (embaixo, se não couber em cima).
-  const [tip, setTip] = useState<{ left: number; top: number; below: boolean; edge: "" | "is-left" | "is-right" } | null>(null);
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current;
-    const btn = picked ? wrap?.querySelector<HTMLElement>(`[data-day="${picked}"]`) : null;
-    if (!wrap || !btn) return setTip(null);
-    const w = wrap.getBoundingClientRect();
-    const b = btn.getBoundingClientRect();
-    const below = b.top - w.top < 56;
-    const left = b.left - w.left + b.width / 2;
-    // Perto das bordas o tooltip se alinha pelo lado do dia (não sai do card).
-    const edge = left < 110 ? "is-left" : left > w.width - 110 ? "is-right" : "";
-    setTip({ left, top: below ? b.bottom - w.top + 8 : b.top - w.top - 8, below, edge });
-  }, [picked, cell, weeks]);
-  const pickedDay = days.find((d) => d.key === picked);
-  const tipText = pickedDay ? heatTooltip(pickedDay, goal) : null;
-
-  return (
-    <>
-      <div className="dash-card-head heat-head">
-        <span className="dash-label">Constância</span>
-        <div className="segmented heat-periods" role="tablist" aria-label="Período">
-          {HEAT_PERIODS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              role="tab"
-              aria-selected={period === p.id}
-              className={period === p.id ? "is-on" : ""}
-              onClick={() => {
-                clear();
-                setPeriod(p.id);
-                try {
-                  userStorage.setItem(HEAT_PERIOD_KEY, p.id);
-                } catch {
-                  // Sem armazenamento: vale só nesta visita.
-                }
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <dl className="heat-stats">
-        <div>
-          <dt>
-            <span aria-hidden="true">🔥</span> Ofensiva<span className="heat-stat-more"> atual</span>
-          </dt>
-          <dd>
-            {streak} {streak === 1 ? "dia" : "dias"}
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <span aria-hidden="true">📚</span> Dias lidos
-          </dt>
-          <dd>{readCount}</dd>
-        </div>
-        <div>
-          <dt>
-            <span aria-hidden="true">🎯</span> Metas<span className="heat-stat-more"> cumpridas</span>
-          </dt>
-          <dd>{metCount}</dd>
-        </div>
-      </dl>
-
-      <div
-        className="heatmap-wrap"
-        ref={wrapRef}
-        style={{ "--cell": `${cell}px` } as React.CSSProperties}
-        onPointerLeave={(e) => e.pointerType === "mouse" && clear()}
-      >
-        <div className="heat-scroll" ref={scrollRef} onScroll={clear}>
-          <div className="heat-grid">
-            <div className="heat-months" aria-hidden="true" style={{ marginLeft: HEAT_LABEL_W }}>
-              {months.map((m) => (
-                <span key={m.col} style={{ left: m.col * step }}>
-                  {m.label}
-                </span>
-              ))}
-            </div>
-            <div className="heat-body">
-              <div className="heat-weekdays" aria-hidden="true">
-                {HEAT_WEEKDAYS.map((w, i) => (
-                  <span key={i}>{w}</span>
-                ))}
-              </div>
-              <div className="heatmap">
-                {days.map((d, i) => (
-                  <button
-                    type="button"
-                    key={d.key}
-                    data-day={d.key}
-                    className={`heat-cell lv-${d.state === "frozen" ? "frozen" : dayLevel(d.minutes, goal)} ${
-                      d.key === today.key ? "is-today" : ""
-                    } ${picked === d.key ? "is-picked" : ""}`}
-                    style={{ animationDelay: `${Math.floor(i / 7) * 18}ms` }}
-                    aria-label={dayTitle(d, goal)}
-                    aria-pressed={picked === d.key}
-                    tabIndex={-1}
-                    {...bind(d.key)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-        {tip && tipText ? (
-          <div
-            className={`heat-tooltip ${tip.below ? "is-below" : ""} ${tip.edge}`}
-            style={{ left: tip.left, top: tip.top }}
-            role="status"
-          >
-            <strong>{tipText.date}</strong>
-            <span>{tipText.detail}</span>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="heatmap-foot" aria-hidden="true">
-        <span className="heat-legend">
-          Sem leitura
-          {([0, 1, 2, 3] as const).map((lv) => (
-            <i key={lv} className={`heat-cell lv-${lv}`} title={LEVEL_LABELS[lv]} />
-          ))}
-          Meta cumprida
-        </span>
-        {hasSaved ? (
-          <span className="heat-legend">
-            <i className="heat-cell lv-frozen" /> Sequência salva
-          </span>
-        ) : null}
-      </div>
-      {/* Mesmo dado em tabela, para leitores de tela. */}
-      <table className="sr-only">
-        <caption>Minutos lidos por dia</caption>
-        <tbody>
-          {days
-            .filter((d) => d.minutes > 0 || d.state === "frozen")
-            .map((d) => (
-              <tr key={d.key}>
-                <th>{d.date.toLocaleDateString("pt-BR")}</th>
-                <td>{d.state === "frozen" ? savedLabel(d) : `${d.minutes} min`}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </>
-  );
-}
-
-/** Painel "Sua leitura" do perfil: meta de hoje, sequência, semana, constância e totais. */
-function ReadingDashboard({
-  summary,
-  totals,
-  finishedCount,
-  markCount,
-}: {
-  summary: ReadingSummary;
-  totals: ReadingTotals;
-  finishedCount: number;
-  markCount: number;
-}) {
-  const week = useMemo(() => readingDays(7), []);
-  const history = useMemo(() => readingDays(53 * 7), []);
-  const tiles = [
-    { label: "Tempo lendo", value: totals.totalMinutes, format: formatMinutes },
-    { label: "Nesta semana", value: totals.weekMinutes, format: formatMinutes },
-    { label: "Livros terminados", value: finishedCount },
-    { label: "Trechos marcados", value: markCount },
-  ];
-  return (
-    <section className="dashboard" aria-label="Sua leitura">
-      <div className="dash-card dash-goal">
-        <span className="dash-label">Meta de hoje</span>
-        <GoalRing minutes={summary.todayMinutes} goal={summary.goalMinutes} />
-        {summary.todayMinutes >= summary.goalMinutes ? (
-          <span className="goal-caption is-done">
-            <span className="goal-ring-check">{Icon.check}</span>
-            Meta cumprida!
-          </span>
-        ) : (
-          <span className="goal-caption">
-            faltam {summary.goalMinutes - summary.todayMinutes} min
-          </span>
-        )}
-      </div>
-
-      <div className={`dash-card dash-streak ${summary.readToday ? "is-lit" : ""}`}>
-        <StreakFlame lit={summary.readToday} />
-        <div className="dash-streak-info">
-          <span className="dash-label">Sequência</span>
-          <strong className="dash-hero">
-            <CountUp value={summary.streak} />
-            <small>{summary.streak === 1 ? "dia" : "dias"}</small>
-          </strong>
-          <span className="dash-sub">
-            {summary.readToday
-              ? "Você já leu hoje. O fogo está aceso!"
-              : summary.streak > 0
-                ? "Leia hoje para não apagar o fogo."
-                : "Leia um pouco hoje para acender o fogo."}
-          </span>
-          <span className="dash-record">🏆 Recorde: {totals.bestStreak} {totals.bestStreak === 1 ? "dia" : "dias"}</span>
-          {(() => {
-            const { daysPerShield, maxShields } = SHIELD_RULES;
-            if (summary.shields >= maxShields) {
-              return <span className="dash-shield">🛡️ {summary.shields} escudos protegendo a sequência</span>;
-            }
-            const into = summary.streak % daysPerShield;
-            return (
-              <div className="dash-shield-progress" title="A cada 7 dias seguidos você ganha um escudo, que salva a sequência se um dia passar sem leitura.">
-                <span>
-                  🛡️ {summary.shields > 0 ? `${summary.shields} ${summary.shields === 1 ? "escudo" : "escudos"} · ` : ""}
-                  faltam {daysPerShield - into} {daysPerShield - into === 1 ? "dia" : "dias"} para o próximo
-                </span>
-                <span className="dash-shield-bar">
-                  <span style={{ width: `${(into / daysPerShield) * 100}%` }} />
-                </span>
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-
-      <div className="dash-card dash-week">
-        <WeekBars days={week} goal={summary.goalMinutes} total={formatMinutes(totals.weekMinutes)} />
-      </div>
-
-      <div className="dash-card dash-heat">
-        <ReadingHeatmap days={history} goal={summary.goalMinutes} streak={summary.streak} />
-      </div>
-
-      <div className="dash-tiles">
-        {tiles.map((t) => (
-          <div key={t.label} className="dash-card dash-tile">
-            <strong>
-              <CountUp value={t.value} format={t.format} />
-            </strong>
-            <span>{t.label}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-type ReadingPrefs = ReturnType<typeof loadPrefs>;
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-const STATUS_LABELS: Record<Submission["status"], string> = {
-  pending: "Em análise",
-  approved: "Publicado",
-  rejected: "Recusado",
-};
-
-/** Quantos envios aparecem de início e quantos a mais cada "Ver mais" mostra. */
-const SUBMISSIONS_PAGE = 5;
-
-/** Envios do próprio leitor, com o andamento de cada um (no perfil). */
-function MySubmissions({ session }: { session: SupabaseSession }) {
-  const [items, setItems] = useState<Submission[] | null>(null);
-  const [visible, setVisible] = useState(SUBMISSIONS_PAGE);
-  useEffect(() => {
-    void listSubmissions(session, "mine").then(setItems).catch(() => setItems([]));
-  }, [session]);
-
-  async function withdraw(s: Submission) {
-    if (!window.confirm(`Desistir de enviar “${s.title}”?`)) return;
-    try {
-      await deleteSubmission(session, s);
-      setItems((list) => list?.filter((x) => x.id !== s.id) ?? null);
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Não foi possível desistir agora.");
-    }
-  }
-
-  if (!items || items.length === 0) return null;
-  return (
-    <section className="shelf">
-      <div className="shelf-head">
-        <h2>Seus envios</h2>
-        <p>
-          Livros que você sugeriu para o acervo da comunidade
-          {items.length > SUBMISSIONS_PAGE ? ` · ${items.length} no total` : ""}.
-        </p>
-      </div>
-      <ul className="submission-list stagger">
-        {items.slice(0, visible).map((s) => (
-          <li key={s.id} className="profile-card submission">
-            <div className="submission-main">
-              <strong>{s.title}</strong>
-              <span>
-                {s.author || "Autor não informado"} · enviado em {formatDate(s.created_at)}
-              </span>
-              {s.status === "rejected" && s.review_note ? <p className="submission-note">Motivo: {s.review_note}</p> : null}
-            </div>
-            <span className={`status-chip is-${s.status}`}>{STATUS_LABELS[s.status]}</span>
-            {s.status === "pending" ? (
-              <button type="button" className="link-btn" onClick={() => void withdraw(s)}>
-                Desistir
-              </button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {items.length > SUBMISSIONS_PAGE ? (
-        <div className="shelf-more">
-          {visible < items.length ? (
-            <button type="button" className="btn" onClick={() => setVisible((v) => v + SUBMISSIONS_PAGE)}>
-              Ver mais ({items.length - visible} {items.length - visible === 1 ? "restante" : "restantes"})
-            </button>
-          ) : (
-            <button type="button" className="btn" onClick={() => setVisible(SUBMISSIONS_PAGE)}>
-              Mostrar menos
-            </button>
-          )}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-/** Desenho da roleta: 8 fatias com os prêmios, a de cima é a sorteada. */
-/** Cor de cada faixa de prêmio: âmbar, cobre, esmeralda, safira, rubi e ouro (o prêmio raro). */
-const SPIN_TIER: Record<number, string> = { 5: "t5", 10: "t10", 15: "t15", 25: "t25", 50: "t50", 100: "t100" };
-
-/**
- * Desenho da roleta: aro dourado com luzinhas, fatias por faixa de prêmio e o ponteiro que "estala"
- * a cada fatia que passa por ele. `winner`: fatia sorteada, que acende quando a roda para.
- */
-function SpinWheel({
-  angle,
-  spinning,
-  winner,
-  onStop,
-  wrapRef,
-}: {
-  angle: number;
-  spinning: boolean;
-  winner: number | null;
-  onStop: () => void;
-  wrapRef?: (el: HTMLDivElement | null) => void;
-}) {
-  const n = SPIN_SEGMENTS.length;
-  const seg = 360 / n;
-  const wheel = useRef<SVGSVGElement>(null);
-  const pointer = useRef<HTMLSpanElement>(null);
-  const point = (deg: number, r: number) => {
-    const rad = (deg * Math.PI) / 180;
-    return `${(100 + r * Math.sin(rad)).toFixed(2)} ${(100 - r * Math.cos(rad)).toFixed(2)}`;
-  };
-
-  // Enquanto gira: lê o ângulo da roda a cada quadro e faz o ponteiro estalar ao trocar de fatia.
-  useEffect(() => {
-    if (!spinning || prefersReducedMotion()) return;
-    let raf = 0;
-    let last = -1;
-    const step = () => {
-      const el = wheel.current;
-      if (el) {
-        const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
-        const deg = ((Math.atan2(m.b, m.a) * 180) / Math.PI + 360) % 360;
-        const under = Math.floor(((360 - deg) % 360) / seg);
-        if (under !== last) {
-          last = under;
-          pointer.current?.animate(
-            [{ transform: "rotate(0deg)" }, { transform: "rotate(-22deg)" }, { transform: "rotate(0deg)" }],
-            { duration: 140, easing: "ease-out" },
-          );
-        }
-      }
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [spinning, seg]);
-
-  const bulbs = Array.from({ length: 16 }, (_, i) => i * (360 / 16));
-  return (
-    <div className={`spin-wheel-wrap ${spinning ? "is-spinning" : ""} ${winner !== null && !spinning ? "has-winner" : ""}`} ref={wrapRef}>
-      <span className="spin-glow" aria-hidden="true" />
-      <span className="spin-pointer" ref={pointer} aria-hidden="true">
-        <svg viewBox="0 0 28 36" width="28" height="36">
-          <defs>
-            <linearGradient id="spin-pointer-gold" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#ffe6a8" />
-              <stop offset="0.5" stopColor="#e4b86a" />
-              <stop offset="1" stopColor="#9a6a24" />
-            </linearGradient>
-          </defs>
-          <path d="M14 35 C 8 24, 2 18, 2 11 a12 12 0 0 1 24 0 c0 7 -6 13 -12 24z" fill="url(#spin-pointer-gold)" stroke="#5a3d12" strokeWidth="1.2" />
-          <circle cx="14" cy="11" r="4.2" fill="#2a1d0f" />
-        </svg>
-      </span>
-      <svg
-        ref={wheel}
-        className={`spin-wheel ${spinning ? "is-spinning" : ""}`}
-        viewBox="0 0 200 200"
-        style={{ transform: `rotate(${angle}deg)` }}
-        onTransitionEnd={onStop}
-        aria-hidden="true"
-      >
-        <defs>
-          <radialGradient id="spin-shade" cx="50%" cy="50%" r="50%">
-            <stop offset="0.55" stopColor="#000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.38" />
-          </radialGradient>
-          <linearGradient id="spin-rim" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffe3a0" />
-            <stop offset="0.35" stopColor="#c8933f" />
-            <stop offset="0.65" stopColor="#f3cf83" />
-            <stop offset="1" stopColor="#8a5b1c" />
-          </linearGradient>
-          <linearGradient id="spin-jackpot" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f6d27c" />
-            <stop offset="1" stopColor="#a8711f" />
-          </linearGradient>
-          {/* Diamante desenhado (o emoji sai torto e cortado dentro do SVG). */}
-          <linearGradient id="spin-gem-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#b8f1ff" />
-            <stop offset="1" stopColor="#2aa8e0" />
-          </linearGradient>
-          <g id="spin-gem">
-            <path d="M-5 -1.6 L-2.4 -4.5 L2.4 -4.5 L5 -1.6 L0 4.6 Z" fill="url(#spin-gem-fill)" stroke="#0d4d6e" strokeWidth="0.6" strokeLinejoin="round" />
-            <path d="M-5 -1.6 L5 -1.6 M-2.4 -4.5 L-1.2 -1.6 L0 4.6 L1.2 -1.6 L2.4 -4.5" fill="none" stroke="#e8fbff" strokeWidth="0.45" opacity="0.8" />
-          </g>
-          <radialGradient id="spin-hub" cx="40%" cy="35%" r="70%">
-            <stop offset="0" stopColor="#3b2c1b" />
-            <stop offset="1" stopColor="#120d08" />
-          </radialGradient>
-        </defs>
-        <circle cx="100" cy="100" r="99" fill="url(#spin-rim)" />
-        <circle cx="100" cy="100" r="91" fill="#1a130c" />
-        {SPIN_SEGMENTS.map((value, i) => {
-          const a = i * seg;
-          const mid = a + seg / 2;
-          return (
-            <g key={i} className={`spin-seg ${winner === i ? "is-winner" : ""}`}>
-              <path
-                d={`M100 100 L${point(a, 89)} A89 89 0 0 1 ${point(a + seg, 89)} Z`}
-                className={`spin-slice is-${SPIN_TIER[value] ?? "t5"}`}
-              />
-              <g transform={`rotate(${mid} 100 100)`}>
-                <text x="100" y="33" className={`spin-label ${value >= 50 ? "is-big" : ""}`} textAnchor="middle" dominantBaseline="middle">
-                  {value}
-                </text>
-                <use href="#spin-gem" x="100" y="50" className="spin-gem" />
-              </g>
-            </g>
-          );
-        })}
-        {SPIN_SEGMENTS.map((_, i) => (
-          <line key={i} x1="100" y1="100" x2={point(i * seg, 89).split(" ")[0]} y2={point(i * seg, 89).split(" ")[1]} className="spin-divider" />
-        ))}
-        <circle cx="100" cy="100" r="89" fill="url(#spin-shade)" pointerEvents="none" />
-        {bulbs.map((deg, i) => {
-          const [x, y] = point(deg, 95).split(" ");
-          return <circle key={deg} cx={x} cy={y} r="2.3" className={`spin-bulb ${i % 2 ? "is-b" : "is-a"}`} />;
-        })}
-        <circle cx="100" cy="100" r="19" fill="url(#spin-hub)" stroke="url(#spin-rim)" strokeWidth="3" />
-        <use href="#spin-gem" transform="translate(100 100) scale(1.7)" className="spin-hub-gem" />
-      </svg>
-    </div>
-  );
-}
-
-/** Diamantes que saem de `from` e voam até `to` (ex.: da roleta até o saldo). */
-function GemFlight({ from, to, count }: { from: HTMLElement | null; to: HTMLElement | null; count: number }) {
-  const [path, setPath] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
-  useLayoutEffect(() => {
-    if (!from || !to || prefersReducedMotion()) return;
-    const a = from.getBoundingClientRect();
-    const b = to.getBoundingClientRect();
-    const x = a.left + a.width / 2;
-    const y = a.top + a.height / 2;
-    setPath({ x, y, dx: b.left + b.width / 2 - x, dy: b.top + b.height / 2 - y });
-  }, [from, to]);
-  if (!path) return null;
-  return createPortal(
-    <div className="gem-flight" aria-hidden="true">
-      {Array.from({ length: count }, (_, i) => (
-        <span
-          key={i}
-          style={
-            {
-              left: path.x,
-              top: path.y,
-              "--i": i,
-              "--dx": `${path.dx}px`,
-              "--dy": `${path.dy}px`,
-              // Espalha para os lados antes de seguir até o saldo.
-              "--spread": `${(i % 2 ? 1 : -1) * (24 + ((i * 29) % 60))}px`,
-            } as React.CSSProperties
-          }
-        >
-          💎
-        </span>
-      ))}
-    </div>,
-    document.body,
-  );
-}
-
-/** Roleta diária: um giro por dia, o prêmio vem do banco e a roleta para nele. */
-function DailySpinModal({
-  session,
-  onClose,
-  onWon,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onWon: (result: SpinResult) => void;
-}) {
-  const [phase, setPhase] = useState<"ready" | "spinning" | "done">("ready");
-  const [result, setResult] = useState<SpinResult | null>(null);
-  const [angle, setAngle] = useState(0);
-  const [error, setError] = useState("");
-  const [wheelEl, setWheelEl] = useState<HTMLDivElement | null>(null);
-  const [winner, setWinner] = useState<number | null>(null);
-  const [balanceEl, setBalanceEl] = useState<HTMLElement | null>(null);
-  const celebrate = phase === "done" && !!result?.is_new;
-  // O saldo conta a partir do valor de antes do prêmio, enquanto os diamantes chegam.
-  const balance = useAnimatedNumber(phase === "done" && result ? result.balance : null, {
-    from: celebrate && result ? result.balance - result.prize : undefined,
-    delay: 700,
-  });
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && phase !== "spinning") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, phase]);
-
-  function finish(r: SpinResult) {
-    setPhase("done");
-    if (r.is_new) haptic([20, 40, 20]);
-    onWon(r);
-  }
-
-  async function spin() {
-    setPhase("spinning");
-    setError("");
-    try {
-      const r = await spinDailyWheel(session);
-      setResult(r);
-      const seg = 360 / SPIN_SEGMENTS.length;
-      const matches = SPIN_SEGMENTS.flatMap((v, i) => (v === r.prize ? [i] : []));
-      const idx = matches[Math.floor(Math.random() * matches.length)] ?? 0;
-      setWinner(idx);
-      // Para um pouco fora do centro da fatia (como numa roleta de verdade), nunca na divisa.
-      const jitter = (Math.random() - 0.5) * seg * 0.55;
-      const stop = 360 - (idx * seg + seg / 2 + jitter);
-      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      if (!r.is_new || reduced) {
-        // Já tinha girado (outro aparelho) ou sem animação: mostra direto o resultado.
-        setAngle(stop);
-        finish(r);
-      } else {
-        setAngle(360 * 7 + stop);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível girar a roleta.");
-      setPhase("ready");
-    }
-  }
-
-  return (
-    <div className="about-backdrop spin-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && phase !== "spinning" && onClose()}>
-      <section className="spin-dialog" role="dialog" aria-modal="true" aria-labelledby="spin-title">
-        <button type="button" className="auth-close spin-close" onClick={onClose} disabled={phase === "spinning"} aria-label="Fechar roleta">
-          {Icon.close}
-        </button>
-        <h2 id="spin-title">Roleta diária</h2>
-        <p className="spin-sub">
-          {phase === "done" && result
-            ? result.is_new
-              ? "Volte amanhã para girar de novo."
-              : "Você já girou hoje. Volte amanhã!"
-            : "Um giro por dia: de 5 a 100 💎."}
-        </p>
-
-        <SpinWheel
-          angle={angle}
-          spinning={phase === "spinning"}
-          winner={phase === "done" ? winner : null}
-          onStop={() => result && phase === "spinning" && finish(result)}
-          wrapRef={setWheelEl}
-        />
-        {celebrate && result ? <GemFlight from={wheelEl} to={balanceEl} count={Math.min(10, Math.max(4, result.prize))} /> : null}
-
-        <div className="spin-foot" aria-live="polite">
-          {phase === "done" && result ? (
-            <>
-              {result.prize >= 50 && result.is_new ? <span className="spin-jackpot-label">Prêmio grande!</span> : null}
-              <span className="spin-prize-row">
-                <strong className={`spin-prize ${result.prize >= 50 ? "is-jackpot" : ""}`}>+{result.prize}</strong>
-                <span className="spin-prize-gem" aria-label="diamantes">
-                  💎
-                </span>
-              </span>
-              <span className="spin-balance">
-                Saldo:{" "}
-                <strong
-                  ref={setBalanceEl}
-                  className={`count-up ${balance !== null && balance !== result.balance ? "is-counting" : ""}`}
-                  aria-hidden="true"
-                >
-                  {balance ?? result.balance}
-                </strong>
-                <span className="sr-only">{result.balance}</span>
-              </span>
-              <button type="button" className="btn btn-primary" onClick={onClose}>
-                Boa!
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-primary spin-go" disabled={phase === "spinning"} onClick={() => void spin()}>
-              {phase === "spinning" ? "Girando…" : "Girar"}
-            </button>
-          )}
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/** Loja: saldo de diamantes, o Salva-ofensiva, como ganhar e o extrato. */
-function DiamondShopPage({
-  session,
-  onClose,
-  onStreakSaved,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onStreakSaved: () => void;
-}) {
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [history, setHistory] = useState<DiamondEntry[] | null>(null);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [auto, setAuto] = useState(autoFreezeEnabled);
-  const [rescue, setRescue] = useState(streakRescue);
-  const [showAll, setShowAll] = useState(false);
-  const [spin, setSpin] = useState<{ spun_today: boolean; prize: number | null } | null>(null);
-  const [spinOpen, setSpinOpen] = useState(false);
-  const [packs, setPacks] = useState<AiPack[]>([]);
-  const [quota, setQuota] = useState<AiQuota | null>(null);
-  const [buyingPack, setBuyingPack] = useState<string | null>(null);
-  const shownBalance = useAnimatedNumber(wallet ? wallet.balance : null);
-
-  const load = useCallback(() => {
-    return Promise.all([
-      fetchWallet(session),
-      fetchDiamondHistory(session),
-      fetchSpinStatus(session).catch(() => null),
-      fetchAiPacks(session).catch(() => []),
-      fetchAiQuota().catch(() => null),
-    ])
-      .then(([w, h, sp, catalog, aiQuota]) => {
-        setWallet(w);
-        setHistory(h);
-        setSpin(sp);
-        setPacks(catalog);
-        setQuota(aiQuota);
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Não foi possível carregar seus diamantes."));
-  }, [session]);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-    void load();
-  }, [load]);
-
-  async function saveStreak() {
-    if (!rescue) return;
-    setBusy(true);
-    setError("");
-    try {
-      const r = await rescueStreak(session, rescue);
-      setNotice(`Sequência salva: ${r.streak} ${r.streak === 1 ? "dia" : "dias"} 🔥`);
-      setRescue(null);
-      onStreakSaved();
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar a sequência.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function buyPack(pack: AiPack) {
-    if (buyingPack) return;
-    setBuyingPack(pack.id);
-    setError("");
-    setNotice("");
-    try {
-      const result = await buyAiPack(session, pack.id);
-      setNotice(
-        result.duplicate
-          ? "Esse pacote já tinha sido registrado."
-          : `${pack.messages} mensagens extras adicionadas.`,
-      );
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível comprar o pacote.");
-    } finally {
-      setBuyingPack(null);
-    }
-  }
-
-  const price = wallet?.freeze_price ?? 0;
-  const cost = rescue && rescue.paidDays.length > 0 ? rescue.paidDays.length * price : 0;
-  const short = wallet ? Math.max(0, cost - wallet.balance) : 0;
-  const shown = showAll ? history : history?.slice(0, 5);
-
-  return (
-    <div className="home profile shop">
-      {spinOpen ? (
-        <DailySpinModal
-          session={session}
-          onClose={() => setSpinOpen(false)}
-          onWon={(r) => {
-            setSpin({ spun_today: true, prize: r.prize });
-            void load();
-          }}
-        />
-      ) : null}
-      <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
-          Voltar
-        </button>
-      </nav>
-
-      <header className="shop-hero" aria-live="polite">
-        <span className="shop-hero-gem" aria-hidden="true">
-          💎
-        </span>
-        <strong className={`count-up ${wallet && shownBalance !== null && shownBalance !== wallet.balance ? "is-counting" : ""}`}>
-          {shownBalance ?? "–"}
-        </strong>
-        <span>diamantes</span>
-      </header>
-
-      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
-      {notice ? <p className="shop-notice" role="status">{notice}</p> : null}
-
-      {wallet === null && !error ? (
-        <div className="page-status">
-          <span className="spinner" aria-hidden="true" />
-          Carregando…
-        </div>
-      ) : wallet ? (
-        <>
-          <section className="shop-card" aria-label="Roleta diária">
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                🎡
-              </span>
-              <span className="shop-card-title">
-                <strong>Roleta diária</strong>
-                <span>{spin?.spun_today ? `Hoje: +${spin.prize} 💎 · volte amanhã` : "Um giro grátis por dia"}</span>
-              </span>
-              <button type="button" className="btn btn-primary" disabled={!spin || spin.spun_today} onClick={() => setSpinOpen(true)}>
-                {spin?.spun_today ? "Amanhã" : "Girar"}
-              </button>
-            </div>
-          </section>
-
-          <section
-            className="shop-card"
-            aria-label="Salva-ofensiva"
-            title={`Mantém a sequência num dia sem leitura. Os escudos grátis são usados antes. Até ${wallet.freezes_per_week} por semana.`}
-          >
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                🧊
-              </span>
-              <span className="shop-card-title">
-                <strong>Salva-ofensiva</strong>
-                <span>{price} 💎 por dia perdido</span>
-              </span>
-              <span className="shop-chip" aria-label={`${wallet.freezes_this_week} de ${wallet.freezes_per_week} usados nesta semana`}>
-                {wallet.freezes_this_week}/{wallet.freezes_per_week} na semana
-              </span>
-            </div>
-
-            {rescue && cost > 0 ? (
-              <div className="shop-rescue">
-                <span>
-                  🔥 Sequência de <strong>{rescue.streak} {rescue.streak === 1 ? "dia" : "dias"}</strong> quebrou
-                </span>
-                <button type="button" className="btn btn-primary" disabled={busy || short > 0} onClick={() => void saveStreak()}>
-                  {busy ? "Salvando…" : short > 0 ? `Faltam ${short} 💎` : `Salvar · ${cost} 💎`}
-                </button>
-              </div>
-            ) : null}
-
-            <label className="shop-switch">
-              <span>Usar automaticamente</span>
-              <input
-                type="checkbox"
-                role="switch"
-                checked={auto}
-                onChange={(e) => {
-                  setAuto(e.target.checked);
-                  setAutoFreezeEnabled(e.target.checked);
-                }}
-              />
-            </label>
-          </section>
-
-          <section className="shop-card" aria-label="Mensagens extras">
-            <div className="shop-card-row">
-              <span className="shop-card-icon" aria-hidden="true">
-                💬
-              </span>
-              <span className="shop-card-title">
-                <strong>Mensagens extras</strong>
-                <span>
-                  {quota ? `${quota.credits} disponíveis` : "Carregando…"} · usadas quando a cota gratuita acaba
-                </span>
-              </span>
-            </div>
-            {packs.length === 0 ? (
-              <p className="profile-empty">Os pacotes de mensagens ainda não estão disponíveis.</p>
-            ) : (
-              <div className="ai-packs">
-                {packs.map((pack) => (
-                  <button
-                    key={pack.id}
-                    type="button"
-                    className="ai-pack"
-                    disabled={buyingPack !== null || (wallet?.balance ?? 0) < pack.price}
-                    onClick={() => void buyPack(pack)}
-                  >
-                    <strong>{pack.messages} mensagens</strong>
-                    <span>{pack.price} 💎</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <h2 className="shop-section-title" id="shop-earn">
-            Como ganhar
-          </h2>
-          <ul className="shop-earn" aria-labelledby="shop-earn">
-            <li>
-              <span aria-hidden="true">🎡</span>
-              <span>Roleta diária</span>
-              <strong>até +20</strong>
-            </li>
-            <li>
-              <span aria-hidden="true">📖</span>
-              <span>{wallet.goal_minutes} min lidos no dia</span>
-              <strong>+{wallet.goal_reward}</strong>
-            </li>
-            <li>
-              <span aria-hidden="true">🏆</span>
-              <span>Pódio da semana</span>
-              <strong>até +50</strong>
-            </li>
-          </ul>
-
-          <section className="shop-history" aria-labelledby="shop-history">
-            <h2 className="shop-section-title" id="shop-history">
-              Extrato
-            </h2>
-            {shown && shown.length > 0 ? (
-              <>
-                <ol>
-                  {shown.map((e, i) => (
-                    <li key={`${e.reason}-${e.ref}-${i}`}>
-                      <span>{diamondEntryLabel(e)}</span>
-                      <strong className={e.amount > 0 ? "is-in" : "is-out"}>{e.amount > 0 ? `+${e.amount}` : e.amount}</strong>
-                    </li>
-                  ))}
-                </ol>
-                {!showAll && history && history.length > 5 ? (
-                  <button type="button" className="inline-link" onClick={() => setShowAll(true)}>
-                    Ver tudo
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              <p className="profile-empty">Nada por aqui ainda. Gire a roleta para ganhar os primeiros!</p>
-            )}
-          </section>
-        </>
-      ) : null}
-    </div>
-  );
-}
 
 /** Aviso na tela inicial: a sequência quebrou (oferta) ou foi salva com diamantes. */
 function FreezeNudge({
@@ -3184,438 +272,6 @@ function FreezeNudge({
   );
 }
 
-function ordinal(place: number): string {
-  return `${place}º`;
-}
-
-/** Quanto falta para a semana do ranking acabar (domingo à meia-noite). */
-function weekCountdown(now = new Date()): string {
-  const end = weekStartDate(now);
-  end.setDate(end.getDate() + 7);
-  const days = Math.ceil((end.getTime() - now.getTime()) / 86_400_000);
-  return days <= 1 ? "termina hoje à meia-noite" : `termina em ${days} dias`;
-}
-
-function weekRangeLabel(offset: 0 | -1): string {
-  const start = weekStartDate();
-  start.setDate(start.getDate() + 7 * offset);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-
-/** Aba do ranking: geral (sem data), esta semana (0) ou a passada (-1). */
-type RankingTab = "all" | 0 | -1;
-
-/**
- * Ranking: pódio dos 3 que mais leram, a lista dos demais e a sua posição. Abre no geral, que soma
- * toda a leitura e não zera na virada da semana; o semanal continua com o pódio que ganha diamantes.
- */
-function RankingPage({
-  session,
-  onClose,
-  onOpenShop,
-}: {
-  session: SupabaseSession;
-  onClose: () => void;
-  onOpenShop: () => void;
-}) {
-  const [tab, setTab] = useState<RankingTab>("all");
-  const [lists, setLists] = useState<Partial<Record<RankingTab, RankEntry[]>>>({});
-  const [profile, setProfile] = useState<RankingProfile | null>(null);
-  const [error, setError] = useState("");
-  const [savingHidden, setSavingHidden] = useState(false);
-  const [giftCatalog, setGiftCatalog] = useState<GiftCatalogItem[]>([]);
-  const [giftCounts, setGiftCounts] = useState<Record<string, number>>({});
-  const [giftTarget, setGiftTarget] = useState<RankEntry | null>(null);
-  const [giftBusy, setGiftBusy] = useState<string | null>(null);
-  const [giftNotice, setGiftNotice] = useState("");
-  const [giftError, setGiftError] = useState("");
-
-  useEffect(() => {
-    let alive = true;
-    fetchGiftCatalog(session)
-      .then((catalog) => {
-        if (alive) setGiftCatalog(catalog);
-      })
-      .catch(() => {
-        // Sem o catálogo, o ranking continua funcionando.
-      });
-    return () => {
-      alive = false;
-    };
-  }, [session]);
-
-  useEffect(() => {
-    let alive = true;
-    // No geral, os presentes contados são os desta semana.
-    fetchWeeklyGiftCounts(session, tab === "all" ? 0 : tab)
-      .then((counts) => {
-        if (alive) setGiftCounts(counts);
-      })
-      .catch(() => {
-        if (alive) setGiftCounts({});
-      });
-    return () => {
-      alive = false;
-    };
-  }, [session, tab]);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, []);
-
-  useEffect(() => {
-    if (lists[tab]) return;
-    let alive = true;
-    setError("");
-    // Envia os minutos de agora antes de buscar: a sua posição já sai atualizada.
-    const ready = tab !== -1 ? reportReading(session).catch(() => {}) : Promise.resolve();
-    void ready
-      .then(() =>
-        Promise.all([tab === "all" ? fetchAlltimeRanking(session) : fetchRanking(session, tab), fetchRankingProfile(session)]),
-      )
-      .then(([list, p]) => {
-        if (!alive) return;
-        setLists((l) => ({ ...l, [tab]: list }));
-        setProfile(p);
-      })
-      .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : "Não foi possível carregar o ranking."));
-    return () => {
-      alive = false;
-    };
-    // Recarrega ao trocar de aba ou depois de mudar a visibilidade (que limpa as listas).
-  }, [tab, session, lists]);
-
-  async function toggleHidden(hidden: boolean) {
-    setSavingHidden(true);
-    setError("");
-    try {
-      await setRankingHidden(session, hidden);
-      setProfile((p) => ({ diamonds: p?.diamonds ?? 0, hidden }));
-      setLists({});
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
-    } finally {
-      setSavingHidden(false);
-    }
-  }
-
-  function openGift(entry: RankEntry) {
-    if (!profile) return;
-    setGiftTarget(entry);
-    setGiftNotice("");
-    setGiftError("");
-  }
-
-  async function giveGift(gift: GiftCatalogItem, from: HTMLElement) {
-    if (!giftTarget || giftBusy) return;
-    // Posição do botão agora: a janela fecha antes do presente sair voando.
-    const origin = from.getBoundingClientRect();
-    setGiftBusy(gift.id);
-    setGiftNotice("");
-    setGiftError("");
-    try {
-      const result = await sendGift(session, giftTarget.user_id, gift.id);
-      setProfile((current) => (current ? { ...current, diamonds: result.balance } : current));
-      if (!result.duplicate) {
-        setGiftCounts((counts) => ({
-          ...counts,
-          [giftTarget.user_id]: (counts[giftTarget.user_id] ?? 0) + 1,
-        }));
-      }
-      setGiftNotice(
-        result.duplicate
-          ? "Esse presente já tinha sido registrado."
-          : `${gift.icon} enviado! Restam ${result.remaining_today} presentes hoje.`,
-      );
-      const target = giftTarget.user_id;
-      setGiftTarget(null);
-      // Com a janela fechada, o presente voa do lugar do botão até o avatar de quem ganhou.
-      requestAnimationFrame(() => {
-        const box = document.querySelector(`[data-gift-to="${target}"]`);
-        flyEmoji(gift.icon, origin, box?.querySelector(".podium-face, .ranking-face") ?? box);
-      });
-    } catch (err) {
-      setGiftError(err instanceof Error ? err.message : "Não foi possível enviar o presente.");
-    } finally {
-      setGiftBusy(null);
-    }
-  }
-
-  const list = lists[tab] ?? null;
-  const podium = list?.filter((e) => e.place <= 3) ?? [];
-  const me = list?.find((e) => e.is_me) ?? null;
-  const above = me && me.place > 1 ? list?.find((e) => e.place === me.place - 1) : undefined;
-  // O banco manda até 50 do topo; se você está mais abaixo, sua linha vem separada no fim.
-  const rest = list?.filter((e) => e.place > 3 && e.place <= 50) ?? [];
-  const meOutside = me && me.place > 50 ? me : null;
-  // "Atual": o geral e esta semana ainda mudam (dá para presentear); a semana passada já fechou.
-  const current = tab !== -1;
-  const alltime = tab === "all";
-
-  return (
-    <div className="home profile moderation ranking">
-      <nav className="home-nav profile-nav">
-        <button type="button" className="btn" onClick={onClose}>
-          Voltar
-        </button>
-        {profile ? (
-          <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
-            <span aria-hidden="true">💎</span> <strong>{profile.diamonds}</strong>
-            <span className="sr-only"> diamantes</span>
-          </button>
-        ) : null}
-      </nav>
-      <header className="moderation-head">
-        <span className="eyebrow">{tab === "all" ? "Ranking geral · desde o começo" : `Ranking semanal · ${weekRangeLabel(tab)}`}</span>
-        <h1>{alltime ? "Quem mais leu até hoje" : current ? "Quem mais leu nesta semana" : "Pódio da semana passada"}</h1>
-        {alltime ? (
-          <p>Soma todo o seu tempo de leitura e não zera na virada da semana: cada minuto lido fica com você.</p>
-        ) : (
-          <p>
-            Conta o tempo de leitura de segunda a domingo{current ? ` e ${weekCountdown()}` : ""}. Os 3 primeiros ganham
-            50, 30 e 20 💎.
-          </p>
-        )}
-      </header>
-
-      <div className="segmented moderation-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={alltime} className={alltime ? "is-on" : ""} onClick={() => setTab("all")}>
-          Geral
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 0} className={tab === 0 ? "is-on" : ""} onClick={() => setTab(0)}>
-          Esta semana
-        </button>
-        <button type="button" role="tab" aria-selected={tab === -1} className={tab === -1 ? "is-on" : ""} onClick={() => setTab(-1)}>
-          Semana passada
-        </button>
-      </div>
-
-      {error ? <p className="auth-error moderation-error" role="alert">{error}</p> : null}
-
-      {list === null && !error ? (
-        <div className="page-status">
-          <span className="spinner" aria-hidden="true" />
-          Carregando ranking…
-        </div>
-      ) : list ? (
-        <>
-          <div className={`ranking-me ${me ? "has-place" : ""}`} role="status">
-            {profile?.hidden ? (
-              <span>Você está escondido do ranking. Ative “Aparecer no ranking” abaixo para concorrer ao pódio.</span>
-            ) : me ? (
-              <>
-                <span className="ranking-me-place" aria-hidden="true">
-                  {me.place <= 3 ? PLACE_MEDALS[me.place as 1 | 2 | 3] : ordinal(me.place)}
-                </span>
-                <span>
-                  <strong>
-                    Você {current ? "está" : "ficou"} em {ordinal(me.place)} lugar · {formatMinutes(me.minutes)}
-                  </strong>
-                  {current && above ? (
-                    <small>
-                      Faltam {formatMinutes(above.minutes - me.minutes + 1)} de leitura para passar{" "}
-                      {above.name.split(" ")[0]}.
-                    </small>
-                  ) : current && me.place === 1 ? (
-                    <small>Você está na frente. Continue lendo para manter o ouro!</small>
-                  ) : null}
-                </span>
-              </>
-            ) : (
-              <span>
-                {alltime
-                  ? "Você ainda não entrou no ranking. Leia pelo menos 1 minuto para aparecer aqui!"
-                  : current
-                    ? "Você ainda não entrou no ranking desta semana. Leia pelo menos 1 minuto para aparecer aqui!"
-                    : "Você não entrou no ranking da semana passada."}
-              </span>
-            )}
-          </div>
-
-          {list.length === 0 ? (
-            <p className="profile-empty moderation-empty">
-              {alltime
-                ? "Ninguém leu ainda. Que tal ser o primeiro? 📚"
-                : current
-                  ? "Ninguém leu ainda nesta semana. Que tal ser o primeiro? 📚"
-                  : "Ninguém leu na semana passada."}
-            </p>
-          ) : (
-            <ol key={String(tab)} className="podium" aria-label="Pódio">
-              {/* Ordem visual de pódio: prata, ouro, bronze. */}
-              {[2, 1, 3].map((place) => {
-                const e = podium.find((p) => p.place === place);
-                return (
-                  <li
-                    key={place}
-                    className={["podium-spot", `is-${place}`, e?.is_me ? "is-me" : "", e ? "" : "is-empty"].filter(Boolean).join(" ")}
-                  >
-                    {e ? (
-                      <>
-                        <span className="podium-avatar" data-gift-to={e.user_id}>
-                          <PersonAvatar id={e.user_id} name={e.name} avatar={e.avatar} photo={e.photo} className="podium-face" />
-                          <span className="podium-medal" aria-hidden="true">
-                            {PLACE_MEDALS[place as 1 | 2 | 3]}
-                          </span>
-                        </span>
-                        <strong className="podium-name">{e.is_me ? "Você" : e.name}</strong>
-                        <span className="podium-minutes">{formatMinutes(e.minutes)}</span>
-                        {!e.is_me && profile && current ? (
-                          <button
-                            type="button"
-                            className="podium-gift"
-                            onClick={() => openGift(e)}
-                            aria-label={`Presentear ${e.name}`}
-                            title={`Presentear ${e.name}`}
-                          >
-                            🎁
-                          </button>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className="podium-name is-muted">Vaga aberta</span>
-                    )}
-                    <span className="podium-block">
-                      <span className="sr-only">Lugar </span>
-                      {place}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-
-          {rest.length > 0 || meOutside ? (
-            <ol className="ranking-list" aria-label="Demais leitores">
-              {rest.map((e) => (
-                <RankingRow
-                  key={e.user_id}
-                  entry={e}
-                  giftsReceived={giftCounts[e.user_id] ?? 0}
-                  onGift={current && profile ? openGift : undefined}
-                />
-              ))}
-              {meOutside ? (
-                <>
-                  <li className="ranking-gap" aria-hidden="true">
-                    ⋯
-                  </li>
-                  <RankingRow
-                    entry={meOutside}
-                    giftsReceived={giftCounts[meOutside.user_id] ?? 0}
-                    onGift={current && profile ? openGift : undefined}
-                  />
-                </>
-              ) : null}
-            </ol>
-          ) : null}
-        </>
-      ) : null}
-
-      {giftNotice ? (
-        <p className="shop-notice" role="status">
-          {giftNotice}
-        </p>
-      ) : null}
-      {giftError ? (
-        <p className="auth-error moderation-error" role="alert">
-          {giftError}
-        </p>
-      ) : null}
-
-      {giftTarget ? (
-        <section className="gift-panel" aria-label={`Enviar presente para ${giftTarget.name}`}>
-          <header className="gift-panel-head">
-            <div>
-              <strong>Presentear {giftTarget.name.split(" ")[0]}</strong>
-              <span>Saldo: {profile?.diamonds ?? 0} 💎</span>
-            </div>
-            <button type="button" className="btn" onClick={() => setGiftTarget(null)}>
-              Fechar
-            </button>
-          </header>
-          {giftCatalog.length === 0 ? (
-            <p className="profile-empty">O catálogo de presentes ainda não está disponível.</p>
-          ) : (
-            <div className="gift-grid">
-              {giftCatalog.map((gift) => (
-                <button
-                  key={gift.id}
-                  type="button"
-                  className={`gift-option rarity-${gift.rarity}`}
-                  onClick={(e) => void giveGift(gift, e.currentTarget)}
-                  disabled={giftBusy !== null || (profile?.diamonds ?? 0) < gift.price}
-                >
-                  <span className="gift-option-icon" aria-hidden="true">
-                    {gift.icon}
-                  </span>
-                  <strong>{gift.name}</strong>
-                  <span>{gift.price} 💎</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      {profile ? (
-        <label className="ranking-visibility">
-          <input
-            type="checkbox"
-            checked={!profile.hidden}
-            disabled={savingHidden}
-            onChange={(e) => void toggleHidden(!e.target.checked)}
-          />
-          <span>
-            <strong>Aparecer no ranking</strong>
-            <small>Outros leitores veem só seu nome, avatar e minutos lidos.</small>
-          </span>
-        </label>
-      ) : null}
-    </div>
-  );
-}
-
-function RankingRow({
-  entry,
-  giftsReceived,
-  onGift,
-}: {
-  entry: RankEntry;
-  giftsReceived: number;
-  onGift?: (entry: RankEntry) => void;
-}) {
-  return (
-    <li className={`ranking-row ${entry.is_me ? "is-me" : ""}`} data-gift-to={entry.user_id}>
-      <span className="ranking-place">{ordinal(entry.place)}</span>
-      <PersonAvatar id={entry.user_id} name={entry.name} avatar={entry.avatar} photo={entry.photo} className="ranking-face" />
-      <span className="ranking-name">{entry.is_me ? `${entry.name} (você)` : entry.name}</span>
-      <span className="ranking-actions">
-        {giftsReceived > 0 ? (
-          <span className="gift-count" title="Presentes recebidos nesta semana">
-            🎁 {giftsReceived}
-          </span>
-        ) : null}
-        <span className="ranking-minutes">{formatMinutes(entry.minutes)}</span>
-        {!entry.is_me && onGift ? (
-          <button
-            type="button"
-            className="gift-chip"
-            onClick={() => onGift(entry)}
-            aria-label={`Presentear ${entry.name}`}
-            title={`Presentear ${entry.name}`}
-          >
-            Presentear
-          </button>
-        ) : null}
-      </span>
-    </li>
-  );
-}
-
 /** Convite na tela inicial para abrir o ranking. */
 function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   return (
@@ -3634,29 +290,6 @@ function RankingTeaser({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-
-/**
- * Enquanto `open`, o botão voltar do celular fecha esta tela/janela (chama `close`) em vez de
- * sair do app. Fechada pelo próprio app, o passo sai do histórico sozinho.
- */
-function useBackClose(open: boolean, close: () => void, url?: string) {
-  const closeRef = useRef(close);
-  closeRef.current = close;
-  const urlRef = useRef(url);
-  urlRef.current = url;
-  useEffect(() => {
-    if (!open) return;
-    let closedByBack = false;
-    const id = pushLayer(() => {
-      closedByBack = true;
-      closeRef.current();
-    }, urlRef.current);
-    return () => {
-      if (!closedByBack) removeLayer(id);
-    };
-  }, [open]);
-}
-
 /** Quantas pessoas estão na sala agora (null enquanto conecta ou sem Realtime). */
 function usePresenceCount(room: string | null, who: string | undefined): number | null {
   const [count, setCount] = useState<number | null>(null);
@@ -3666,20 +299,6 @@ function usePresenceCount(room: string | null, who: string | undefined): number 
     return watchPresence(room, who, setCount);
   }, [room, who]);
   return count;
-}
-
-/** "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho. */
-/** Números da estante para as conquistas (`null` sem a estante: as conquistas dela não aparecem). */
-function shelfAchievements() {
-  return shelfEnabled() ? shelfAchievementInput(shelfEntries(), Number(todayInBrazil().slice(0, 4))) : null;
-}
-
-/** Status e nota deste livro na estante, para o chat (só com a estante ligada). */
-function shelfContextFor(book: Ebook) {
-  if (!shelfEnabled()) return undefined;
-  const key = bookKeyOf(book);
-  const entry = key ? shelfEntry(key) : null;
-  return entry ? { status: entry.status, rating: entry.rating } : undefined;
 }
 
 /** Conquistas da conta agora (sem presentes: esses dependem do servidor e só contam no perfil). */
@@ -3715,7 +334,7 @@ function AchievementToast({ achievement, onDone }: { achievement: Achievement; o
   return createPortal(
     <div className="achievement-toast" role="status" onClick={leave}>
       <span className="achievement-toast-medal" aria-hidden="true" ref={medal}>
-        {achievement.emoji}
+        <BadgeIcon id={achievement.id} size={22} />
       </span>
       <span>
         <small>Conquista desbloqueada</small>
@@ -3725,7 +344,6 @@ function AchievementToast({ achievement, onDone }: { achievement: Achievement; o
     document.body,
   );
 }
-
 
 /**
  * Recado do personagem na tela inicial: o leitor sumiu do livro há alguns dias e quem estava
@@ -3995,1063 +613,10 @@ function FeaturedRow({
   );
 }
 
-/** Card do perfil que leva à "Minha estante", com os totais. */
-function ShelfSummary({ onOpen }: { onOpen: () => void }) {
-  const entries = shelfEntries();
-  const finished = entries.filter((e) => e.status === "finished").length;
-  return (
-    <section className="shelf">
-      <div className="shelf-head">
-        <h2>Minha estante</h2>
-        <p>
-          {entries.length === 1 ? "1 livro" : `${entries.length} livros`} ·{" "}
-          {finished === 1 ? "1 terminado" : `${finished} terminados`}
-        </p>
-      </div>
-      <button type="button" className="btn" onClick={onOpen}>
-        Abrir minha estante
-      </button>
-    </section>
-  );
-}
-
 /**
  * Aviso curto de privacidade nas telas de conversa e busca: o que acontece com o que a pessoa
  * digita, com o detalhe a um toque. A lista completa fica na Central de Privacidade (Ajustes).
  */
-function PrivacyNote({ children, details }: { children: React.ReactNode; details: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="privacy-note">
-      <p>
-        {Icon.lock}
-        <span>
-          {children}{" "}
-          <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            {open ? "Fechar" : "Saiba mais"}
-          </button>
-        </span>
-      </p>
-      {open ? <p className="privacy-note-more">{details}</p> : null}
-    </div>
-  );
-}
-
-/**
- * Central de Privacidade (Ajustes): o que fica guardado sobre o leitor, para quê, e a limpeza
- * do histórico de conversas a qualquer momento. Buscas não são guardadas.
- */
-function PrivacyCenter() {
-  const [chats, setChats] = useState(() => storedChatSummary());
-  const [cleared, setCleared] = useState(false);
-  const clearChats = () => {
-    if (!window.confirm("Apagar todas as suas conversas com os personagens, em todos os aparelhos da conta? Não dá para desfazer.")) {
-      return;
-    }
-    forgetAllChats();
-    setChats(storedChatSummary());
-    setCleared(true);
-  };
-  return (
-    <section className="shelf" id="privacidade">
-      <div className="shelf-head">
-        <h2>Privacidade</h2>
-        <p>O que fica guardado sobre você, para quê, e como apagar. Ninguém da comunidade vê nada disso.</p>
-      </div>
-      <div className="profile-card profile-account privacy-center">
-        <div className="profile-account-row">
-          <div>
-            <span className="profile-account-label">Conversas com os personagens</span>
-            <p>
-              Guardadas no seu aparelho e na sua conta para continuar de onde parou. Cada mensagem vai
-              criptografada até a IA só para o personagem responder.
-            </p>
-            <strong>
-              {chats.books === 0
-                ? "Nenhuma conversa guardada."
-                : `${chats.books} ${chats.books === 1 ? "conversa" : "conversas"} · ${chats.messages} ${chats.messages === 1 ? "mensagem sua" : "mensagens suas"}`}
-            </strong>
-          </div>
-          <button type="button" className="btn" onClick={clearChats} disabled={chats.books === 0}>
-            Apagar histórico
-          </button>
-        </div>
-        {cleared ? (
-          <p className="privacy-center-done" role="status">
-            Histórico de conversas apagado. Os outros aparelhos da conta apagam na próxima sincronização.
-          </p>
-        ) : null}
-        <div className="profile-account-row">
-          <div>
-            <span className="profile-account-label">Buscas</span>
-            <p>
-              Não ficam salvas. A busca no acervo vai só até os catálogos de livros para trazer resultados;
-              a busca dentro de um livro roda no seu aparelho.
-            </p>
-          </div>
-        </div>
-        <div className="profile-account-row">
-          <div>
-            <span className="profile-account-label">Leitura</span>
-            <p>
-              Progresso, livros terminados, marcações e minutos lidos ficam na sua conta para você continuar em
-              qualquer aparelho e manter a sequência.
-            </p>
-          </div>
-        </div>
-        <div className="profile-account-row">
-          <div>
-            <span className="profile-account-label">Tudo de uma vez</span>
-            <p>Para apagar a conta e todos os dados dela, use Excluir conta, logo abaixo.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** Estante do perfil: mostra 4 e o resto em "Ver todos", como em Continue lendo. */
-function ProfileShelf({
-  title,
-  subtitle,
-  eyebrow,
-  className,
-  items,
-  empty,
-  action,
-  onOpen,
-}: {
-  title: string;
-  subtitle?: string;
-  eyebrow?: string;
-  className?: string;
-  items: { book: Ebook; sub: string; pct?: number; badge?: string }[];
-  empty?: string;
-  /** Link/ação extra no rodapé da estante (ex.: "Ver a biblioteca"). */
-  action?: React.ReactNode;
-  onOpen: (book: Ebook) => void;
-}) {
-  const [showAll, setShowAll] = useState(false);
-  if (items.length === 0 && !empty) return null;
-  const shown = showAll ? items : items.slice(0, CONTINUE_PREVIEW);
-  return (
-    <section className={`shelf ${className ?? ""}`}>
-      <div className="shelf-head">
-        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
-        <h2>{title}</h2>
-        {subtitle ? <p>{subtitle}</p> : null}
-      </div>
-      {items.length === 0 ? (
-        <p className="profile-empty profile-empty-card">
-          <span className="profile-empty-icon" aria-hidden="true">
-            {Icon.book}
-          </span>
-          <span>{empty}</span>
-        </p>
-      ) : (
-        <div className="result-grid">
-          {shown.map(({ book, sub, pct, badge }) => (
-            <button key={book.id} type="button" className="result" onClick={() => onOpen(book)}>
-              {badge ? <span className="new-badge">{badge}</span> : null}
-              <BookCover book={book} />
-              {pct !== undefined ? (
-                <span className="continue-bar" aria-hidden="true">
-                  <span style={{ width: `${Math.max(pct, 3)}%` }} />
-                </span>
-              ) : null}
-              <strong>{book.title}</strong>
-              <span>{sub}</span>
-              <ReaderCount bookKey={bookKeyOf(book)} />
-            </button>
-          ))}
-        </div>
-      )}
-      {items.length > CONTINUE_PREVIEW ? (
-        <div className="shelf-more">
-          <button type="button" className="btn" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? "Mostrar menos" : `Ver todos (${items.length})`}
-          </button>
-        </div>
-      ) : null}
-      {action ? <div className="shelf-more">{action}</div> : null}
-    </section>
-  );
-}
-
-/**
- * Perfil: quem é o leitor, números da leitura, estante, marcações, preferências e conta.
- * Nome, avatar e preferências são um rascunho até tocar em "Salvar alterações".
- */
-function ProfilePage({
-  session,
-  onSessionChange,
-  onClose,
-  onLogout,
-  onAccountDeleted,
-  loggingOut,
-  onOpenBook,
-  onOpenHighlight,
-  prefs,
-  setPrefs,
-  lastBook,
-  isAvailable,
-  isStaff,
-  canModerate,
-  onOpenShop,
-  onOpenShelf,
-}: {
-  session: SupabaseSession;
-  onSessionChange: (session: SupabaseSession) => void;
-  onClose: () => void;
-  onLogout: () => void;
-  onAccountDeleted: () => void;
-  loggingOut: boolean;
-  onOpenBook: (book: Ebook) => void;
-  onOpenHighlight: (book: Ebook, h: Highlight) => void;
-  prefs: ReadingPrefs;
-  setPrefs: React.Dispatch<React.SetStateAction<ReadingPrefs>>;
-  lastBook?: LastBook;
-  /** Livro ainda existe para esta conta (ver `bookAvailable`). */
-  isAvailable: (book: Ebook) => boolean;
-  isStaff?: boolean;
-  canModerate?: boolean;
-  onOpenShop: () => void;
-  /** Abre "Minha estante"; ausente quando a conta não tem a estante. */
-  onOpenShelf?: () => void;
-}) {
-  const user = session.user;
-  const [diamonds, setDiamonds] = useState<number | null>(null);
-  const [giftSummary, setGiftSummary] = useState<GiftSummary | null>(null);
-  const [receivedGifts, setReceivedGifts] = useState<ReceivedGift[]>([]);
-  const shownDiamonds = useAnimatedNumber(diamonds);
-  useEffect(() => {
-    let alive = true;
-    fetchWallet(session)
-      .then((w) => alive && setDiamonds(w.balance))
-      .catch(() => {
-        // Sem a loja no Supabase ou sem internet: o botão mostra "–" no lugar do saldo.
-      });
-    Promise.all([fetchGiftSummary(session), fetchReceivedGifts(session, 6)])
-      .then(([summary, gifts]) => {
-        if (!alive) return;
-        setGiftSummary(summary);
-        setReceivedGifts(gifts);
-      })
-      .catch(() => {
-        // Presentes ainda não configurados: o perfil segue normal.
-      });
-    return () => {
-      alive = false;
-    };
-  }, [session]);
-  const name = displayNameOf(user);
-  const since = memberSince(user.created_at);
-  const { confirm, dialog } = useConfirm();
-
-  async function askLogout() {
-    if (
-      await confirm({
-        title: "Sair da conta?",
-        message: "Você precisará entrar de novo para continuar lendo neste aparelho.",
-        confirmLabel: "Sair",
-        danger: true,
-      })
-    ) {
-      onLogout();
-    }
-  }
-
-  const [summary, setSummary] = useState(readingSummary);
-  const totals = useMemo(readingTotals, []);
-  const reading = useMemo(() => recentProgress().filter((p) => isAvailable(p.book)), [isAvailable]);
-  const finished = useMemo(finishedBooks, []);
-  const [imported, setImported] = useState<Ebook[]>([]);
-  useEffect(() => {
-    void listLocalBooks().then(setImported).catch(() => {});
-  }, []);
-
-  // ---- Rascunho das preferências (só vale depois de salvar) ----
-  const [goal, setGoal] = useState(summary.goalMinutes);
-  const [theme, setTheme] = useState(prefs.theme);
-  const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
-  const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
-  const [editOpen, setEditOpen] = useState(false);
-  useBackClose(editOpen, () => setEditOpen(false));
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [savedFlash, setSavedFlash] = useState(false);
-
-  const dirty =
-    goal !== summary.goalMinutes ||
-    theme !== prefs.theme ||
-    nightLight !== prefs.nightLight ||
-    reminderTime !== loadReminderPrefs().time;
-
-  function discard() {
-    setGoal(summary.goalMinutes);
-    setTheme(prefs.theme);
-    setNightLight(prefs.nightLight);
-    setReminderTime(loadReminderPrefs().time);
-    setSaveError("");
-  }
-
-  async function save() {
-    setSaving(true);
-    setSaveError("");
-    try {
-      setReadingGoalMinutes(goal);
-      setSummary(readingSummary());
-      setPrefs((p) => ({ ...p, theme, nightLight }));
-      saveReminderPrefs({ ...loadReminderPrefs(), time: reminderTime });
-      setSavedFlash(true);
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Não foi possível salvar. Tente de novo.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!savedFlash) return;
-    const t = window.setTimeout(() => setSavedFlash(false), 2600);
-    return () => window.clearTimeout(t);
-  }, [savedFlash]);
-
-  function leave() {
-    if (dirty && !window.confirm("Sair sem salvar as alterações?")) return;
-    onClose();
-  }
-
-  // Livro de cada marcação: dos começados, terminados, importados ou da estante.
-  const bookById = useMemo(() => {
-    const map = new Map<string, Ebook>();
-    for (const b of featuredBooks) map.set(b.id, b);
-    for (const b of imported) map.set(b.id, b);
-    for (const f of finished) map.set(f.book.id, f.book);
-    for (const p of reading) map.set(p.book.id, p.book);
-    return map;
-  }, [imported, finished, reading]);
-
-  const marks = useMemo(
-    () =>
-      allHighlights()
-        .map(({ bookId, highlights }) => {
-          const groups = new Map<string, { first: Highlight; text: string }>();
-          for (const h of [...highlights].sort((a, b) => a.chapterIndex - b.chapterIndex || a.paragraph - b.paragraph)) {
-            const key = h.group ?? h.id;
-            const g = groups.get(key);
-            if (g) g.text = `${g.text} ${h.text}`;
-            else groups.set(key, { first: h, text: h.text });
-          }
-          return { book: bookById.get(bookId), items: [...groups.values()] };
-        })
-        .filter((m): m is { book: Ebook; items: { first: Highlight; text: string }[] } => Boolean(m.book)),
-    [bookById],
-  );
-  const markCount = marks.reduce((n, m) => n + m.items.length, 0);
-  const lendo = reading.filter((p) => !finished.some((f) => f.book.id === p.book.id));
-
-  /** Com quem você mais conversou (das conversas guardadas), com o livro e o retrato de cada um. */
-  const allTalks = useMemo(() => characterTalks(), []);
-  const talks = useMemo(() => {
-    const out: { book: Ebook; character: StoryCharacter; sent: number }[] = [];
-    for (const t of allTalks) {
-      const book = bookById.get(t.bookId);
-      if (!book) continue;
-      const character =
-        t.characterId === "narrador" ? narratorCharacter(book.title) : knownCast(book)?.find((c) => c.id === t.characterId);
-      if (!character) continue;
-      out.push({ book, character, sent: t.sent });
-    }
-    return out;
-  }, [allTalks, bookById]);
-  const [allCharacters, setAllCharacters] = useState(false);
-  const shownTalks = allCharacters ? talks : talks.slice(0, TALKS_PREVIEW);
-  const [showAllBadges, setShowAllBadges] = useState(false);
-  const favorite = talks[0];
-
-  const badges = useMemo(
-    () =>
-      achievements({
-        totalMinutes: totals.totalMinutes,
-        bestStreak: totals.bestStreak,
-        finishedBooks: finished.length,
-        marks: markCount,
-        messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
-        charactersTalked: allTalks.length,
-        giftsReceived: giftSummary?.received_total ?? null,
-        shelf: shelfAchievements(),
-      }),
-    [totals, finished.length, markCount, allTalks, giftSummary],
-  );
-  const unlockedCount = badges.filter((b) => b.unlocked).length;
-  const allBadges = unlockedCount === badges.length;
-  // Perfil público (rede social): leva as conquistas e alguns números para quem abrir o perfil.
-  useEffect(() => {
-    void publishShowcase(user.id, badges, {
-      totalMinutes: totals.totalMinutes,
-      bestStreak: totals.bestStreak,
-      finishedBooks: finished.length,
-      messagesSent: allTalks.reduce((n, t) => n + t.sent, 0),
-    });
-  }, [user.id, badges, totals, finished.length, allTalks]);
-  const nowReading = lendo[0];
-
-  /** Cor do app: vale na hora (sem "Salvar"), e o app inteiro troca junto. */
-  const [appTheme, setAppTheme] = useState<AppThemeId>(loadAppTheme);
-  /** Preferências e conta ficam numa tela à parte; o perfil é sobre a leitura. */
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  useBackClose(settingsOpen, () => setSettingsOpen(false));
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, [settingsOpen]);
-
-  // ---- Senha (ação direta, com o próprio botão) ----
-  const [pwOpen, setPwOpen] = useState(false);
-  const [pwCurrent, setPwCurrent] = useState("");
-  const [pw, setPw] = useState("");
-  const [pwConfirm, setPwConfirm] = useState("");
-  const [pwState, setPwState] = useState<{ loading?: boolean; error?: string; ok?: string }>({});
-  async function savePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!pwCurrent) return setPwState({ error: "Informe a senha atual." });
-    if (pw.length < 8) return setPwState({ error: "A senha precisa ter pelo menos 8 caracteres." });
-    if (pw !== pwConfirm) return setPwState({ error: "As duas senhas não são iguais." });
-    setPwState({ loading: true });
-    try {
-      await updatePassword(session, pwCurrent, pw);
-      setPwCurrent("");
-      setPw("");
-      setPwConfirm("");
-      setPwOpen(false);
-      setPwState({ ok: "Senha trocada." });
-    } catch (err) {
-      setPwState({ error: err instanceof Error ? err.message : "Não foi possível trocar a senha." });
-    }
-  }
-
-  // ---- Dados da conta: exportar/excluir ----
-  const [accountBusy, setAccountBusy] = useState<"export" | "files" | "delete" | null>(null);
-  const [accountError, setAccountError] = useState("");
-  const [accountOk, setAccountOk] = useState("");
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-
-  async function downloadData() {
-    setAccountBusy("export");
-    setAccountError("");
-    setAccountOk("");
-    try {
-      const data = await exportAccount(session);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "storyverse-dados.json";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
-      setAccountOk("Cópia dos seus dados gerada.");
-    } catch (err) {
-      setAccountError(err instanceof Error ? err.message : "Não foi possível exportar seus dados.");
-    } finally {
-      setAccountBusy(null);
-    }
-  }
-
-  async function downloadFiles() {
-    setAccountBusy("files");
-    setAccountError("");
-    setAccountOk("");
-    try {
-      const blob = await exportAccountFiles(session);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "storyverse-arquivos.zip";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
-      setAccountOk("Arquivos da conta gerados em ZIP.");
-    } catch (err) {
-      setAccountError(err instanceof Error ? err.message : "Não foi possível exportar os arquivos.");
-    } finally {
-      setAccountBusy(null);
-    }
-  }
-
-  async function removeAccount(e: React.FormEvent) {
-    e.preventDefault();
-    if (!deletePassword) return setAccountError("Informe sua senha para excluir a conta.");
-    if (!window.confirm("Excluir permanentemente a conta, os livros importados, as conversas e os arquivos? A assinatura no cartão, se houver, será cancelada. Não dá para desfazer.")) return;
-    setAccountBusy("delete");
-    setAccountError("");
-    setAccountOk("");
-    try {
-      await deleteAccount(session, deletePassword);
-      onAccountDeleted();
-    } catch (err) {
-      setAccountError(err instanceof Error ? err.message : "Não foi possível excluir a conta.");
-      setAccountBusy(null);
-    }
-  }
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, []);
-
-  // Fechar a aba ou recarregar com alterações pendentes: o navegador pergunta antes.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
-
-  const chosenAvatar = findAvatar(user.user_metadata?.avatar);
-
-
-  return (
-    <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
-      {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
-      <nav className="home-nav profile-nav nav-split">
-        <button type="button" className="btn" onClick={settingsOpen ? () => setSettingsOpen(false) : leave}>
-          Voltar
-        </button>
-        <span className="profile-nav-actions">
-          {settingsOpen ? null : (
-            <button type="button" className="btn profile-settings-btn" onClick={() => setSettingsOpen(true)} aria-label="Ajustes">
-              {Icon.settings}
-              <span className="profile-settings-label">Ajustes</span>
-            </button>
-          )}
-        <button type="button" className="btn ranking-diamonds" onClick={onOpenShop} title="Abrir a loja de diamantes">
-          <span aria-hidden="true">💎</span>{" "}
-          <strong className={`count-up ${shownDiamonds !== null && shownDiamonds !== diamonds ? "is-counting" : ""}`}>{shownDiamonds ?? "–"}</strong>
-          <span className="sr-only"> diamantes. Abrir a loja</span>
-        </button>
-        </span>
-      </nav>
-
-      {settingsOpen ? null : (
-      <>
-
-      <header
-        className={`profile-hero ${metaString(user, "cover") ? "has-cover" : ""}`}
-      >
-        {/* Capa: faixa dentro do cartão (fora da borda), que se dissolve no fundo. */}
-        {metaString(user, "cover") ? (
-          <div
-            className="profile-cover"
-            style={{ backgroundImage: `url("${metaString(user, "cover")}")` } as React.CSSProperties}
-            aria-hidden="true"
-          />
-        ) : null}
-        <div className="profile-hero-glow" style={{ "--c": chosenAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
-        <button type="button" className="profile-avatar-btn" onClick={() => setEditOpen(true)} aria-label="Editar perfil">
-          <UserAvatar user={user} className="profile-avatar" />
-          <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
-        </button>
-        <div className="profile-id">
-          <h1>{name}</h1>
-          {allBadges ? <span className="legend-seal">🏆 Lenda da leitura</span> : null}
-          {since ? <p>Lendo no Storyverse desde {since}</p> : null}
-        </div>
-      </header>
-
-      {nowReading || favorite ? (
-        <div className="profile-identity">
-          {nowReading ? (
-            <button type="button" className="identity-card identity-book" onClick={() => onOpenBook(nowReading.book)}>
-              <span className="identity-cover">
-                <BookCover book={nowReading.book} />
-              </span>
-              <span className="identity-text">
-                <small>Lendo agora</small>
-                <strong>{nowReading.book.title}</strong>
-                <span className="identity-progress" aria-label={`${Math.round(progressPct(nowReading))}% lido`}>
-                  <span style={{ width: `${Math.max(3, Math.round(progressPct(nowReading)))}%` }} />
-                </span>
-              </span>
-            </button>
-          ) : null}
-          {favorite ? (
-            <div className="identity-card identity-character" style={{ "--c": favorite.character.color } as React.CSSProperties}>
-              <Avatar character={favorite.character} size="lg" bookTitle={favorite.book.title} />
-              <span className="identity-text">
-                <small>Personagem favorito</small>
-                <strong>{favorite.character.name}</strong>
-                <span>
-                  {favorite.sent} {favorite.sent === 1 ? "mensagem" : "mensagens"} · {favorite.book.title}
-                </span>
-              </span>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <ReadingDashboard summary={summary} totals={totals} finishedCount={finished.length} markCount={markCount} />
-      <p className="profile-device-note">Os números, as marcações e os livros são da sua conta: aparecem igual na Web e no app.</p>
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Seus personagens</h2>
-          <p>Com quem você mais conversou nos livros.</p>
-        </div>
-        {talks.length === 0 ? (
-          <p className="profile-empty profile-empty-card">
-            <span className="profile-empty-icon" aria-hidden="true">
-              💬
-            </span>
-            <span>Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.</span>
-          </p>
-        ) : (
-          <ol className="talk-grid">
-            {shownTalks.map(({ book, character, sent }, i) => (
-              <li key={`${book.id}-${character.id}`} style={{ "--c": character.color, "--i": i } as React.CSSProperties}>
-                <button type="button" className={`talk-card ${i === 0 ? "is-top" : ""}`} onClick={() => onOpenBook(book)}>
-                  {i === 0 ? <span className="talk-badge">Favorito</span> : null}
-                  <Avatar character={character} size="lg" bookTitle={book.title} />
-                  <strong>{character.name}</strong>
-                  <span className="talk-book">{book.title}</span>
-                  <span className="talk-count">
-                    {sent} {sent === 1 ? "mensagem" : "mensagens"}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        )}
-        {talks.length > TALKS_PREVIEW ? (
-          <div className="shelf-more">
-            <button type="button" className="btn" onClick={() => setAllCharacters((v) => !v)}>
-              {allCharacters ? "Mostrar menos" : `Ver todos (${talks.length})`}
-            </button>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Conquistas</h2>
-          {allBadges ? null : (
-            <p>
-              {unlockedCount} de {badges.length} conquistadas. As apagadas mostram quanto falta.
-            </p>
-          )}
-        </div>
-        {allBadges ? (
-          <div className="badge-complete" role="status">
-            <span className="badge-complete-trophy" aria-hidden="true">
-              🏆
-            </span>
-            <div>
-              <strong>Você conquistou todas as {badges.length} conquistas!</strong>
-              <span>Lenda da leitura: não sobrou nenhum marco para trás.</span>
-            </div>
-          </div>
-        ) : null}
-        <ol className={`badge-grid ${allBadges ? "is-complete" : ""}`}>
-          {/* Conquistadas primeiro; depois as que estão mais perto de sair. De início, só a primeira leva. */}
-          {[...badges]
-            .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.current / b.target - a.current / a.target)
-            .slice(0, showAllBadges ? undefined : BADGES_PREVIEW)
-            .map((b, i) => (
-              <li
-                key={b.id}
-                className={`badge-card ${b.unlocked ? "is-unlocked" : ""}`}
-                style={{ "--i": i } as React.CSSProperties}
-              >
-                <span className="badge-medal" aria-hidden="true">
-                  {b.emoji}
-                </span>
-                <strong>{b.title}</strong>
-                <span className="badge-desc">{b.description}</span>
-                {b.unlocked ? (
-                  <span className="badge-done">Conquistada</span>
-                ) : (
-                  <>
-                    <span className="badge-bar" aria-hidden="true">
-                      <span style={{ width: `${Math.max(4, (b.current / b.target) * 100)}%` }} />
-                    </span>
-                    <span className="badge-missing">{b.missing}</span>
-                  </>
-                )}
-              </li>
-            ))}
-        </ol>
-        {badges.length > BADGES_PREVIEW ? (
-          <div className="shelf-more">
-            <button
-              type="button"
-              className="btn"
-              aria-expanded={showAllBadges}
-              onClick={() => setShowAllBadges((v) => !v)}
-            >
-              {showAllBadges ? "Mostrar menos" : `Ver todas (${badges.length})`}
-            </button>
-          </div>
-        ) : null}
-      </section>
-
-      {onOpenShelf ? <ShelfSummary onOpen={onOpenShelf} /> : null}
-
-      <ProfileShelf
-        title="Lendo agora"
-        empty="Nenhum livro começado ainda."
-        onOpen={onOpenBook}
-        items={lendo.map((p) => {
-          const pct = Math.round(progressPct(p));
-          return { book: p.book, sub: `${p.chapterLabel} · ${pct}%`, pct };
-        })}
-      />
-      <ProfileShelf
-        title="Terminados"
-        onOpen={onOpenBook}
-        items={finished.map((f) => ({
-          book: f.book,
-          sub: `Terminado em ${new Date(f.finishedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
-        }))}
-      />
-      <ProfileShelf title="Seus livros importados" onOpen={onOpenBook} items={imported.map((b) => ({ book: b, sub: b.author }))} />
-
-      <MySubmissions session={session} />
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Presentes</h2>
-          <p>Itens que outros leitores enviaram para você.</p>
-        </div>
-        {giftSummary ? (
-          <div className="gift-summary">
-            <div>
-              <strong>{giftSummary.received_total}</strong>
-              <span>recebidos</span>
-            </div>
-            <div>
-              <strong>{giftSummary.received_this_week}</strong>
-              <span>nesta semana</span>
-            </div>
-            <div>
-              <strong>{giftSummary.sent_this_week}</strong>
-              <span>enviados na semana</span>
-            </div>
-          </div>
-        ) : null}
-        {receivedGifts.length > 0 ? (
-          <ul className="gift-received">
-            {receivedGifts.map((gift, index) => (
-              <li key={`${gift.gift_id}-${gift.created_at}-${index}`}>
-                <span className="gift-received-icon" aria-hidden="true">
-                  {gift.icon}
-                </span>
-                <span>
-                  <strong>{gift.name}</strong>
-                  <small>
-                    de {gift.from_name} · {giftDate(gift.created_at)}
-                  </small>
-                </span>
-                <span className="gift-received-price">{gift.price} 💎</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="profile-empty profile-empty-card">
-            <span className="profile-empty-icon" aria-hidden="true">
-              🎁
-            </span>
-            <span>Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.</span>
-          </p>
-        )}
-      </section>
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Marcações</h2>
-          <p>Os trechos que você destacou, de todos os livros.</p>
-        </div>
-        {marks.length === 0 ? (
-          <p className="profile-empty profile-empty-card">
-            <span className="profile-empty-icon" aria-hidden="true">
-              {Icon.highlight}
-            </span>
-            <span>
-              <strong>Nenhum trecho marcado ainda.</strong> Durante a leitura, selecione um trecho e toque em{" "}
-              <strong>Marcar</strong>: ele fica guardado aqui.
-            </span>
-          </p>
-        ) : (
-          <div className="profile-marks">
-            {marks.map(({ book, items }) => (
-              <div key={book.id} className="profile-card profile-mark-book">
-                <h3>{book.title}</h3>
-                <ul className="marks-list">
-                  {items.map(({ first, text }) => (
-                    <li key={first.group ?? first.id}>
-                      <span className="marks-chapter">{first.chapterLabel}</span>
-                      <blockquote>{text}</blockquote>
-                      <div className="marks-actions">
-                        <button type="button" className="link-btn" onClick={() => onOpenHighlight(book, first)}>
-                          Abrir no trecho
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      </>
-      )}
-
-      {settingsOpen ? (
-      <>
-      <header className="profile-settings-head">
-        <span className="profile-settings-icon" aria-hidden="true">
-          {Icon.settings}
-        </span>
-        <h1>Ajustes</h1>
-        <p>Cor do app, leitura, privacidade, conta e sessão.</p>
-      </header>
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Preferências</h2>
-        </div>
-        <div className="profile-card profile-prefs">
-          <div className="profile-pref">
-            <span>Cor do app</span>
-            <div className="theme-swatches" role="radiogroup" aria-label="Cor do app">
-              {APP_THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={appTheme === t.id}
-                  className={`theme-swatch ${appTheme === t.id ? "is-on" : ""}`}
-                  style={{ "--a": t.swatch[0], "--b": t.swatch[1], "--bg": t.bg } as React.CSSProperties}
-                  onClick={() => {
-                    setAppTheme(t.id);
-                    saveAppTheme(t.id);
-                  }}
-                  title={t.label}
-                >
-                  <span className="theme-swatch-dot" aria-hidden="true" />
-                  <span className="theme-swatch-label">{t.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="profile-pref">
-            <span>Meta diária</span>
-            <div className="segmented" role="radiogroup" aria-label="Meta diária">
-              {GOAL_OPTIONS.map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={goal === m} className={goal === m ? "is-on" : ""} onClick={() => setGoal(m)}>
-                  {m} min
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="profile-pref">
-            <span>Tema de leitura</span>
-            <div className="segmented" role="radiogroup" aria-label="Tema de leitura">
-              {(["night", "sepia"] as const).map((t) => (
-                <button key={t} type="button" role="radio" aria-checked={theme === t} className={theme === t ? "is-on" : ""} onClick={() => setTheme(t)}>
-                  {t === "night" ? "Noturno" : "Sépia"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="profile-pref">
-            <span>Luz noturna</span>
-            <div className="segmented" role="radiogroup" aria-label="Luz noturna">
-              {([0, 1, 2] as const).map((n) => (
-                <button key={n} type="button" role="radio" aria-checked={nightLight === n} className={nightLight === n ? "is-on" : ""} onClick={() => setNightLight(n)}>
-                  {NIGHT_LIGHT_LABELS[n].charAt(0).toUpperCase() + NIGHT_LIGHT_LABELS[n].slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <ReminderSetup lastBook={lastBook} time={reminderTime} onTimeChange={setReminderTime} />
-        </div>
-      </section>
-
-      {isStaff ? (
-        <section className="shelf">
-          <div className="shelf-head">
-            <h2>Admin</h2>
-          </div>
-          <a className="profile-card profile-admin admin-entry" href="/admin">
-            <div>
-              <strong>Painel administrativo</strong>
-              <span>Visão geral, contas, moderação e auditoria.</span>
-            </div>
-            <span className="btn btn-primary">Abrir painel</span>
-          </a>
-          {canModerate ? (
-            <a className="profile-card profile-admin admin-entry" href="/admin/acervo">
-              <div>
-                <strong>Acervo</strong>
-                <span>Cadastre, publique e modere os livros do catálogo.</span>
-              </div>
-              <span className="btn">Abrir acervo</span>
-            </a>
-          ) : null}
-        </section>
-      ) : null}
-
-      <PrivacyCenter />
-
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Conta</h2>
-        </div>
-        <div className="profile-card profile-account">
-          <div className="profile-account-row">
-            <div>
-              <span className="profile-account-label">E-mail</span>
-              <strong>{user.email}</strong>
-            </div>
-          </div>
-          <div className="profile-account-row">
-            <div>
-              <span className="profile-account-label">Senha</span>
-              <strong>••••••••</strong>
-            </div>
-            {!pwOpen ? (
-              <button type="button" className="btn" onClick={() => { setPwOpen(true); setPwState({}); }}>
-                Trocar senha
-              </button>
-            ) : null}
-          </div>
-          {pwOpen ? (
-            <form className="auth-form profile-pw-form" onSubmit={savePassword}>
-              <label>
-                Senha atual
-                <PasswordInput value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} autoComplete="current-password" required disabled={pwState.loading} />
-              </label>
-              <label>
-                Senha nova
-                <PasswordInput value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={8} required disabled={pwState.loading} />
-              </label>
-              <label>
-                Repita a senha
-                <PasswordInput value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" minLength={8} required disabled={pwState.loading} />
-              </label>
-              {pwState.error ? <p className="auth-error" role="alert">{pwState.error}</p> : null}
-              <div className="profile-pw-actions">
-                <button type="button" className="btn" onClick={() => { setPwOpen(false); setPwState({}); }} disabled={pwState.loading}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={pwState.loading}>
-                  {pwState.loading ? "Salvando…" : "Salvar senha"}
-                </button>
-              </div>
-            </form>
-          ) : null}
-          {pwState.ok ? <p className="auth-success" role="status">{pwState.ok}</p> : null}
-          {BILLING_UI_ENABLED ? (
-            <div className="profile-account-row">
-              <div>
-                <span className="profile-account-label">Assinatura</span>
-                <strong>Plano, pagamento e cancelamento</strong>
-              </div>
-              <Link className="btn" to="/conta/assinatura">
-                Minha assinatura
-              </Link>
-            </div>
-          ) : null}
-          <div className="profile-account-row">
-            <div>
-              <span className="profile-account-label">Sessão</span>
-              <strong>Conectado neste aparelho</strong>
-            </div>
-            <button type="button" className="btn profile-logout" onClick={() => void askLogout()} disabled={loggingOut}>
-              {loggingOut ? "Saindo…" : "Sair da conta"}
-            </button>
-          </div>
-          <div className="profile-account-row">
-            <div>
-              <span className="profile-account-label">Seus dados</span>
-              <strong>Baixe uma cópia em JSON (perfil, leitura e envios).</strong>
-            </div>
-            <button type="button" className="btn" onClick={() => void downloadData()} disabled={accountBusy !== null}>
-              {accountBusy === "export" ? "Preparando…" : "Baixar meus dados"}
-            </button>
-          </div>
-          <div className="profile-account-row">
-            <div>
-              <span className="profile-account-label">Arquivos</span>
-              <strong>Fotos, livros importados e textos enviados, em um ZIP.</strong>
-            </div>
-            <button type="button" className="btn" onClick={() => void downloadFiles()} disabled={accountBusy !== null}>
-              {accountBusy === "files" ? "Preparando…" : "Baixar arquivos"}
-            </button>
-          </div>
-          {accountOk ? <p className="auth-success" role="status">{accountOk}</p> : null}
-          {accountError ? <p className="auth-error" role="alert">{accountError}</p> : null}
-          <div className="profile-account-row">
-            <div>
-              <span className="profile-account-label">Excluir conta</span>
-              <strong>Apaga a conta, os livros importados, as conversas e os arquivos.</strong>
-            </div>
-            <button type="button" className="btn" onClick={() => setDeleteOpen((open) => !open)} disabled={accountBusy !== null}>
-              Excluir conta
-            </button>
-          </div>
-          {deleteOpen ? (
-            <form className="auth-form profile-pw-form" onSubmit={removeAccount}>
-              <label>
-                Senha atual
-                <PasswordInput
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                  disabled={accountBusy !== null}
-                />
-              </label>
-              <div className="profile-pw-actions">
-                <button type="button" className="btn" onClick={() => { setDeleteOpen(false); setDeletePassword(""); }} disabled={accountBusy !== null}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={accountBusy !== null}>
-                  {accountBusy === "delete" ? "Excluindo…" : "Excluir definitivamente"}
-                </button>
-              </div>
-            </form>
-          ) : null}
-        </div>
-      </section>
-      </>
-      ) : null}
-
-      {dirty ? (
-        <div className="profile-savebar" role="region" aria-label="Alterações não salvas">
-          <span>{saveError || "Você tem alterações não salvas."}</span>
-          <div>
-            <button type="button" className="btn" onClick={discard} disabled={saving}>
-              Descartar
-            </button>
-            <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={saving}>
-              {saving ? "Salvando…" : "Salvar alterações"}
-            </button>
-          </div>
-        </div>
-      ) : savedFlash ? (
-        <div className="profile-savebar is-saved" role="status">
-          <span>✓ Alterações salvas</span>
-        </div>
-      ) : null}
-      {dialog}
-    </div>
-  );
-}
 
 /** Sequência de dias lendo, semana, escudos, meta diária de minutos e lembrete. */
 function ReadingStreak({ lastBook }: { lastBook?: LastBook }) {
@@ -5231,67 +796,6 @@ function DemoConversation({ question, answer }: { question: string; answer: stri
   );
 }
 
-/** Comemoração no centro da tela (meta do dia, sequência, livro terminado). */
-type Celebration = {
-  emoji: string;
-  title: string;
-  text?: string;
-  /** Livro terminado: a capa aparece no lugar do emoji, com brilho dourado. */
-  book?: Ebook;
-  /** Sequência que subiu: o número antigo sai e o novo entra. */
-  roll?: { from: number; to: number; suffix: string };
-};
-
-function CelebrationOverlay({ celebration, onClose }: { celebration: Celebration; onClose: () => void }) {
-  useEffect(() => {
-    haptic(celebration.book ? [30, 60, 30, 60, 90] : [25, 50, 40]);
-  }, [celebration]);
-  const { book, roll } = celebration;
-  const pieces = book ? 24 : 14;
-  return (
-    <div className={`celebration ${book ? "is-book" : ""} ${roll ? "is-streak" : ""}`} role="status" onClick={onClose}>
-      <div className="celebration-card">
-        {book ? (
-          <div className="celebration-cover" aria-hidden="true">
-            <BookCover book={book} />
-          </div>
-        ) : (
-          <span className="celebration-emoji" aria-hidden="true">
-            {celebration.emoji}
-          </span>
-        )}
-        {roll ? (
-          <strong>
-            <span className="sr-only">{celebration.title}</span>
-            <span className="roll-title" aria-hidden="true">
-              <span className="roll">
-                <span className="roll-old">{roll.from}</span>
-                <span className="roll-new">{roll.to}</span>
-              </span>{" "}
-              {roll.suffix}
-            </span>
-          </strong>
-        ) : (
-          <strong>{celebration.title}</strong>
-        )}
-        {celebration.text ? <span>{celebration.text}</span> : null}
-      </div>
-      <div className="celebration-burst" aria-hidden="true" style={{ "--step": `${360 / pieces}deg` } as React.CSSProperties}>
-        {Array.from({ length: pieces }, (_, i) => (
-          <i key={i} style={{ "--i": i } as React.CSSProperties} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Quantos livros "Continue lendo" mostra antes de "Ver todos". */
-const CONTINUE_PREVIEW = 4;
-/** Personagens no perfil antes do "Ver todos". */
-const TALKS_PREVIEW = 6;
-/** Conquistas visíveis antes do "Ver todas": uma fileira na grade larga, três no celular. */
-const BADGES_PREVIEW = 6;
-
 /**
  * O livro ainda pode ser aberto por esta conta? Importado: precisa estar em "Seus livros" neste
  * aparelho. Da comunidade: precisa continuar aprovado no acervo. Do Gutenberg: sempre.
@@ -5382,564 +886,6 @@ function ContinueReading({
   );
 }
 
-/** Campo de senha com o "olhinho" para mostrar ou esconder o que foi digitado. */
-function PasswordInput(props: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <span className="password-field">
-      <input {...props} type={visible ? "text" : "password"} />
-      <button
-        type="button"
-        className="password-toggle"
-        // Mantém o cursor no campo ao mostrar/esconder.
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "Esconder senha" : "Mostrar senha"}
-        aria-pressed={visible}
-        title={visible ? "Esconder senha" : "Mostrar senha"}
-        disabled={props.disabled}
-      >
-        {visible ? Icon.eyeOff : Icon.eye}
-      </button>
-    </span>
-  );
-}
-
-/** O Supabase só deixa reenviar e-mail para o mesmo endereço depois de 60 s. */
-const RESEND_COOLDOWN = 60;
-
-function AuthModal({
-  mode,
-  onClose,
-  onAuthenticated,
-}: {
-  mode: "login" | "register";
-  onClose: () => void;
-  onAuthenticated: (session: SupabaseSession) => void;
-}) {
-  const [kind, setKind] = useState<"login" | "register" | "forgot">(mode);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
-  /** Depois do envio: tela de "confira seu e-mail" (link de cadastro, código ou link de senha nova). */
-  const [sent, setSent] = useState<"confirm" | "code" | "reset" | null>(null);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  // O foco fica no livro clicado atrás do modal e deixaria o carrossel parado depois de fechar.
-  useEffect(() => {
-    (document.activeElement as HTMLElement | null)?.blur();
-  }, []);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = window.setTimeout(() => setCooldown((s) => s - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [cooldown]);
-
-  const normalizedEmail = email.trim().toLowerCase();
-
-  function goTo(next: "login" | "register" | "forgot") {
-    setKind(next);
-    setSent(null);
-    setError("");
-    setSuccess("");
-  }
-
-  function showSent(next: "confirm" | "code" | "reset") {
-    setSent(next);
-    setVerificationCode("");
-    setCooldown(RESEND_COOLDOWN);
-  }
-
-  async function confirmEmail(e: React.FormEvent) {
-    e.preventDefault();
-    if (!/^\d{6}$/.test(verificationCode)) {
-      setError("Digite os 6 números do código que enviamos.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      onAuthenticated(await verifySignupCode(normalizedEmail, verificationCode));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível verificar o código.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function resend() {
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    try {
-      if (sent === "reset") await requestPasswordReset(normalizedEmail);
-      else await resendSignupCode(normalizedEmail);
-      setSuccess(sent === "code" ? "Código novo enviado." : "E-mail enviado de novo.");
-      setCooldown(RESEND_COOLDOWN);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível reenviar agora.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setError("Informe um endereço de e-mail válido.");
-      return;
-    }
-    if (kind !== "forgot" && (!password || (kind === "register" && password.length < 8))) {
-      setError(kind === "register" ? "A senha precisa ter pelo menos 8 caracteres." : "Informe sua senha.");
-      return;
-    }
-    if (kind === "register" && !name.trim()) {
-      setError("Informe seu nome.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    try {
-      if (kind === "forgot") {
-        // Mesma resposta exista ou não a conta (não revela quais e-mails estão cadastrados).
-        await requestPasswordReset(normalizedEmail);
-        showSent("reset");
-      } else if (kind === "register") {
-        const result = await signUpWithPassword(normalizedEmail, password, name.trim());
-        if (result) onAuthenticated(result);
-        // Sem OTP, o link do e-mail volta para o app já logado.
-        else showSent(EMAIL_OTP_ENABLED ? "code" : "confirm");
-      } else {
-        onAuthenticated(await signInWithPassword(normalizedEmail, password));
-      }
-    } catch (err) {
-      if (err instanceof ApiHttpError && err.code === "ACCOUNT_SANCTIONED") {
-        setError(sanctionMessage(err.body));
-      } else {
-        setError(err instanceof Error ? err.message : "Não foi possível concluir a autenticação.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const feedback = (
-    <>
-      {error ? <p className="auth-error" role="alert">{error}</p> : null}
-      {success ? <p className="auth-success" role="status">{success}</p> : null}
-    </>
-  );
-
-  const resendButton = (
-    <button type="button" className="btn auth-resend" onClick={() => void resend()} disabled={loading || cooldown > 0}>
-      {cooldown > 0 ? `Reenviar em ${cooldown}s` : sent === "code" ? "Reenviar código" : "Reenviar e-mail"}
-    </button>
-  );
-
-  let body: React.ReactNode;
-  if (sent) {
-    body = (
-      <>
-        <span className="auth-sent-icon" aria-hidden="true">{Icon.mail}</span>
-        <h2 id="auth-title">{sent === "code" ? "Digite o código" : "Confira seu e-mail"}</h2>
-        <p className="auth-subtitle">
-          {sent === "code"
-            ? "Enviamos um código de 6 números para"
-            : sent === "confirm"
-              ? "Se este e-mail puder ser usado, enviamos as instruções para"
-              : "Se houver uma conta com este e-mail, enviamos um link para criar uma senha nova em"}
-          <strong className="auth-email">{normalizedEmail}</strong>
-        </p>
-        {sent === "code" ? (
-          <form onSubmit={confirmEmail} className="auth-form">
-            <input
-              className="auth-otp-input"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="000000"
-              aria-label="Código de verificação de seis números"
-              autoFocus
-              required
-              disabled={loading}
-            />
-            {feedback}
-            <button type="submit" className="btn btn-primary btn-lg" disabled={loading || verificationCode.length !== 6}>
-              {loading ? "Verificando..." : "Confirmar e-mail"}
-            </button>
-          </form>
-        ) : null}
-        <p className="auth-hint">
-          {sent === "confirm" ? (
-            <>
-              Toque em <strong>Confirmar conta</strong> no e-mail para entrar.{" "}
-            </>
-          ) : sent === "reset" ? (
-            "O link vale por 1 hora. "
-          ) : null}
-          Não chegou? Veja a pasta de spam.
-        </p>
-        {sent !== "code" ? feedback : null}
-        {resendButton}
-        <p className="auth-switch">
-          <button type="button" className="inline-link" onClick={() => goTo(sent === "reset" ? "login" : kind)} disabled={loading}>
-            Usar outro e-mail
-          </button>
-          {" · "}
-          <button type="button" className="inline-link" onClick={() => goTo("login")} disabled={loading}>
-            Voltar para o login
-          </button>
-        </p>
-      </>
-    );
-  } else {
-    body = (
-      <>
-        <span className="eyebrow">Storyverse</span>
-        <h2 id="auth-title">
-          {kind === "login" ? "Entre para continuar lendo" : kind === "register" ? "Crie sua conta gratuita" : "Esqueceu a senha?"}
-        </h2>
-        <p className="auth-subtitle">
-          {kind === "login"
-            ? "Acesse seus livros, progresso e conversas com os personagens."
-            : kind === "register"
-              ? "Salve seu progresso e converse com os personagens no seu ritmo."
-              : "Informe o e-mail da sua conta e enviaremos um link para criar uma senha nova."}
-        </p>
-        <form onSubmit={submit} className="auth-form">
-          {kind === "register" ? (
-            <label>
-              Nome
-              <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required disabled={loading} />
-            </label>
-          ) : null}
-          <label>
-            E-mail
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required disabled={loading} />
-          </label>
-          {kind !== "forgot" ? (
-            <label>
-              Senha
-              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={kind === "login" ? "current-password" : "new-password"} minLength={kind === "register" ? 8 : undefined} required disabled={loading} />
-            </label>
-          ) : null}
-          {kind === "login" ? (
-            <button type="button" className="inline-link auth-forgot" onClick={() => goTo("forgot")} disabled={loading}>
-              Esqueci minha senha
-            </button>
-          ) : null}
-          {feedback}
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? "Aguarde..." : kind === "login" ? "Fazer login" : kind === "register" ? "Criar conta" : "Enviar link"}
-          </button>
-          {kind === "register" ? (
-            <p className="auth-legal">
-              Ao criar a conta, você concorda com os <Link to="/termos">Termos de uso</Link> e a{" "}
-              <Link to="/privacidade">Política de privacidade</Link>.
-            </p>
-          ) : null}
-        </form>
-        <p className="auth-switch">
-          {kind === "register" ? "Já tem uma conta?" : kind === "forgot" ? "Lembrou a senha?" : "Ainda não tem conta?"}{" "}
-          <button type="button" className="inline-link" onClick={() => goTo(kind === "login" ? "register" : "login")} disabled={loading}>
-            {kind === "login" ? "Criar conta" : "Fazer login"}
-          </button>
-        </p>
-      </>
-    );
-  }
-
-  return (
-    <div className="auth-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-        <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar">
-          {Icon.close}
-        </button>
-        {/* A key troca o conteúdo com um fade curto ao ir de login para cadastro etc. */}
-        <div key={sent ?? kind} className={`auth-view ${sent ? "auth-view-sent" : ""}`}>
-          {body}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/** Tela de senha nova, aberta pelo link de "esqueci minha senha" (já logado por ele). */
-function NewPasswordModal({
-  session,
-  token,
-  onDone,
-  onCancel,
-}: {
-  session?: SupabaseSession;
-  token?: string;
-  onDone: (message: string) => void;
-  onCancel?: () => void;
-}) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  /** O link do e-mail é conferido antes de pedir a senha: não adianta digitar se ele já venceu. */
-  const [link, setLink] = useState<"checking" | "valid" | "expired">(token ? "checking" : "valid");
-
-  useEffect(() => {
-    if (!token) return;
-    let alive = true;
-    void validateResetToken(token).then((valid) => {
-      if (alive) setLink(valid ? "valid" : "expired");
-    });
-    return () => {
-      alive = false;
-    };
-  }, [token]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (password.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
-    if (password !== confirm) return setError("As duas senhas não são iguais.");
-    setLoading(true);
-    setError("");
-    try {
-      if (token) {
-        await resetPasswordWithToken(token, password);
-        onDone("Senha nova salva. Entre com a senha nova.");
-        return;
-      }
-      if (!session) throw new Error("Link de recupera\u00e7\u00e3o inv\u00e1lido.");
-      await updatePassword(session, "", password);
-      onDone("Senha nova salva. Você já está conectado.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar a senha nova.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (link !== "valid") {
-    const expired = link === "expired";
-    return (
-      <div className="auth-backdrop" role="presentation">
-        <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
-          <span className="eyebrow">Storyverse</span>
-          <h2 id="new-password-title">{expired ? "Link inválido ou expirado" : "Conferindo o link…"}</h2>
-          <p className="auth-subtitle">
-            {expired
-              ? "Este link de recuperação já foi usado ou passou do prazo. Peça um novo em “Esqueci minha senha”."
-              : "Só um instante enquanto confirmamos o seu link."}
-          </p>
-          {expired && onCancel ? (
-            <button type="button" className="btn btn-primary btn-lg" onClick={onCancel}>
-              Voltar para o login
-            </button>
-          ) : null}
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="auth-backdrop" role="presentation">
-      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="new-password-title">
-        <span className="eyebrow">Storyverse</span>
-        <h2 id="new-password-title">Crie uma senha nova</h2>
-        <p className="auth-subtitle">Escolha a senha que você vai usar para entrar daqui para frente.</p>
-        <form onSubmit={submit} className="auth-form">
-          <label>
-            Senha nova
-            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required disabled={loading} />
-          </label>
-          <label>
-            Repita a senha
-            <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={8} required disabled={loading} />
-          </label>
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? "Aguarde..." : "Salvar senha"}
-          </button>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-/** Passo a passo para instalar o site como app, por aparelho. */
-const INSTALL_STEPS: Record<InstallPlatform, { label: string; steps: React.ReactNode[] }> = {
-  ios: {
-    label: "iPhone e iPad",
-    steps: [
-      <>
-        No Safari, toque em <strong>Compartilhar</strong> {Icon.share}
-      </>,
-      <>
-        Escolha <strong>Adicionar à Tela de Início</strong>
-      </>,
-      <>
-        Toque em <strong>Adicionar</strong>
-      </>,
-    ],
-  },
-  android: {
-    label: "Android",
-    steps: [
-      <>
-        Toque no menu <strong>⋮</strong> do navegador
-      </>,
-      <>
-        Escolha <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>
-      </>,
-      <>
-        Confirme em <strong>Instalar</strong>
-      </>,
-    ],
-  },
-  desktop: {
-    label: "Computador (Chrome ou Edge)",
-    steps: [
-      <>
-        Clique no ícone de instalar, no fim da barra de endereço
-      </>,
-      <>
-        Ou abra o menu <strong>⋮</strong> / <strong>···</strong> e procure <strong>Instalar Storyverse</strong>
-      </>,
-    ],
-  },
-  "mac-safari": {
-    label: "Mac (Safari)",
-    steps: [
-      <>
-        No menu <strong>Arquivo</strong>, escolha <strong>Adicionar ao Dock</strong>
-      </>,
-    ],
-  },
-  "firefox-desktop": {
-    label: "Firefox no computador",
-    steps: [
-      <>O Firefox no computador não instala sites como app.</>,
-      <>
-        Abra o Storyverse no <strong>Chrome</strong> ou no <strong>Edge</strong>, ou instale no celular
-      </>,
-    ],
-  },
-};
-
-/** "Baixar app": lojas (se houver), o botão nativo do navegador ou o passo a passo do aparelho. */
-function InstallAppDialog({ install, onClose }: { install: (() => Promise<void>) | null; onClose: () => void }) {
-  const platform = useMemo(() => installPlatform(), []);
-  const stores = useMemo(() => storeLinks(), []);
-  const [copied, setCopied] = useState(false);
-  const here = INSTALL_STEPS[platform];
-  const others = (Object.keys(INSTALL_STEPS) as InstallPlatform[]).filter(
-    (p) => p !== platform && p !== "firefox-desktop" && !(platform === "firefox-desktop" && p === "desktop"),
-  );
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.origin);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="spin-dialog install-dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
-        <button type="button" className="auth-close spin-close" onClick={onClose} aria-label="Fechar">
-          {Icon.close}
-        </button>
-        <img className="install-icon" src="/icons/icon-192.png" alt="" width={64} height={64} />
-        <h2 id="install-title">Baixe o Storyverse</h2>
-        <p className="spin-sub">Grátis. Abre em tela cheia e funciona sem internet.</p>
-
-        {stores.android || stores.ios ? (
-          <div className="install-stores">
-            {stores.android && platform !== "ios" ? (
-              <a className="btn btn-primary" href={stores.android} target="_blank" rel="noopener noreferrer">
-                Google Play
-              </a>
-            ) : null}
-            {stores.ios && platform !== "android" ? (
-              <a className="btn btn-primary" href={stores.ios} target="_blank" rel="noopener noreferrer">
-                App Store
-              </a>
-            ) : null}
-          </div>
-        ) : null}
-
-        {install ? (
-          <button
-            type="button"
-            className="btn btn-primary install-now"
-            onClick={() => {
-              void install().finally(onClose);
-            }}
-          >
-            {Icon.download} Instalar agora
-          </button>
-        ) : (
-          <div className="install-steps">
-            <span className="shop-section-title">{here.label}</span>
-            <ol>
-              {here.steps.map((step, i) => (
-                <li key={i}>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        <details className="install-other">
-          <summary>Instalar em outro aparelho</summary>
-          {others.map((p) => (
-            <div key={p} className="install-steps">
-              <span className="shop-section-title">{INSTALL_STEPS[p].label}</span>
-              <ol>
-                {INSTALL_STEPS[p].steps.map((step, i) => (
-                  <li key={i}>
-                  <span>{step}</span>
-                </li>
-                ))}
-              </ol>
-            </div>
-          ))}
-          <button type="button" className="btn install-copy" onClick={() => void copyLink()}>
-            {copied ? "Link copiado ✓" : "Copiar link do site"}
-          </button>
-        </details>
-      </section>
-    </div>
-  );
-}
-
 const INSTALL_BANNER_KEY = "storyverse:install-banner-hidden";
 /** Fechado no celular, o convite volta depois de 14 dias (o botão do topo continua lá). */
 const INSTALL_BANNER_PAUSE = 14 * 24 * 60 * 60 * 1000;
@@ -5960,73 +906,6 @@ function hideInstallBanner() {
   }
 }
 
-function AboutDialog({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="about-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="about-dialog" role="dialog" aria-modal="true" aria-labelledby="sobre-title">
-        <header className="about-dialog-head">
-          <div>
-            <span className="eyebrow">Sobre o Storyverse</span>
-            <h2 id="sobre-title">Entre na história. Converse com quem vive nela.</h2>
-          </div>
-          <button type="button" className="auth-close" onClick={onClose} aria-label="Fechar sobre">
-            {Icon.close}
-          </button>
-        </header>
-        <div className="about-copy">
-          <p className="about-lead">
-            Enquanto você lê, os personagens do livro conversam com você num chat ao lado da página.
-          </p>
-          <ol className="about-steps">
-            <li>
-              <strong>Escolha um livro</strong>
-              <span>Clássicos em domínio público ou um EPUB, PDF ou TXT seu.</span>
-            </li>
-            <li>
-              <strong>Leia no seu ritmo</strong>
-              <span>O progresso fica salvo, inclusive no celular e offline.</span>
-            </li>
-            <li>
-              <strong>Converse com quem vive nele</strong>
-              <span>Pergunte a Sherlock, provoque Drácula, ouça Isaura.</span>
-            </li>
-          </ol>
-          <div className="about-rules">
-            <p>
-              <strong>Sem spoilers.</strong> Os personagens só sabem o que você já leu.
-            </p>
-            <p>
-              <strong>O livro é o original.</strong> A IA dá voz aos personagens, mas não muda a história.
-            </p>
-          </div>
-          <p className="about-sub">Também dá para</p>
-          <ul className="about-features">
-            <li>Ouvir em voz alta</li>
-            <li>Ler no modo noturno ou sépia</li>
-            <li>Destacar trechos</li>
-            <li>Ver o significado de palavras</li>
-            <li>Criar metas de leitura</li>
-            <li>Compartilhar citações</li>
-          </ul>
-        </div>
-        <footer className="about-foot">
-          <button type="button" className="btn btn-primary" onClick={onClose}>
-            Começar a ler
-          </button>
-        </footer>
-      </section>
-    </div>
-  );
-}
-
 /**
  * Aplica os escudos uma vez por carregamento da página, antes de desenhar qualquer coisa (assim o
  * quadro da sequência já mostra o dia salvo). Devolve o tamanho da sequência salva, para o aviso.
@@ -6039,6 +918,9 @@ function shieldNoticeOnLoad(): number | null {
   }
   return shieldNoticeCache;
 }
+
+/** Quantos livros curados entram em "Novidades da biblioteca" na home. */
+const CATALOG_NEW_LIMIT = 6;
 
 export function App() {
   const [book, setBook] = useState<Ebook | null>(null);
@@ -6077,6 +959,21 @@ export function App() {
     window.location.pathname === "/confirmar-email" || window.location.pathname === "/redefinir-senha";
   const billingBlocked =
     BILLING_UI_ENABLED && !authScreen && Boolean(authUser) && subscription !== undefined && !subscription.active;
+  /**
+   * `/?login=1` ou `/?cadastro=1` (links "Entrar"/"Criar conta" das subpáginas e da assinatura): abre
+   * a janela certa uma vez. Tira só esse parâmetro da URL; o `retorno` fica para depois do login.
+   */
+  useEffect(() => {
+    if (authLoading || authUser) return;
+    const mode = authModalFromUrl(window.location.search);
+    if (!mode) return;
+    setAuthModal(mode);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("login");
+    params.delete("cadastro");
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+  }, [authLoading, authUser]);
   /** Voltou do login pedindo uma página conhecida (assinatura, audiolivro): continua de onde parou. */
   useEffect(() => {
     if (!authUser) return;
@@ -6229,6 +1126,10 @@ export function App() {
     if (dataIsReady) applyAppTheme();
   }, [dataIsReady, dataEpoch]);
   const onlineCount = usePresenceCount(authEnabled ? "app" : null, authUserId);
+  /** Elenco do livro aberto (null enquanto a IA ainda está sugerindo). */
+  const [cast, setCast] = useState<StoryCharacter[] | null>(null);
+  const chat = useChat({ book, cast, authSession, sendContext: chatSendContext, beginRequest: beginChatRequest });
+  const { resetChat, startConversation, setChatOpen } = chat;
   const bookRoomId = book?.id;
   const readingHere = usePresenceCount(authEnabled && bookRoomId ? `book:${bookRoomId}` : null, authUserId);
   useLayoutEffect(() => {
@@ -6238,7 +1139,7 @@ export function App() {
     readerGeneration.current++;
     setOwnerError(null);
     setBook(null);
-    setThreads({});
+    resetChat();
     void activateDataOwner(authUserId ?? "anon").then((changed) => {
       if (!alive) return;
       setReadyOwner(authUserId ?? "anon");
@@ -6252,7 +1153,7 @@ export function App() {
     return () => {
       alive = false;
     };
-  }, [authUserId, authLoading]);
+  }, [authUserId, authLoading, resetChat]);
 
   /**
    * Nuvem: a mesma conta na Web e no app instalado. Ao entrar (depois da troca de dono acima),
@@ -6376,29 +1277,6 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
-  /** Elenco do livro aberto (null enquanto a IA ainda está sugerindo). */
-  const [cast, setCast] = useState<StoryCharacter[] | null>(null);
-  const [activeCharId, setActiveCharId] = useState<string>("");
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [threads, setThreads] = useState<Record<string, Msg[]>>({});
-  /** No celular o chat abre como painel por cima do texto. */
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messagesLeft, setMessagesLeft] = useState(messagesLeftToday);
-  const [extraMessagesLeft, setExtraMessagesLeft] = useState(extraMessages);
-  useEffect(() => {
-    if (!authEnabled || !authSession) return;
-    let alive = true;
-    void refreshAiQuota().then(() => {
-      if (!alive) return;
-      setMessagesLeft(messagesLeftToday());
-      setExtraMessagesLeft(extraMessages());
-    });
-    return () => {
-      alive = false;
-    };
-  }, [authSession]);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   /** Conquistas novas na fila do aviso (uma por vez). */
   const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
@@ -6479,16 +1357,6 @@ export function App() {
    * progresso do livro. Some sozinho ao trocar de capítulo (a chave deixa de bater).
    */
   const [chapterDone, setChapterDone] = useState<{ key: string; label: string; done: number; total: number } | null>(null);
-  /** O personagem "ouviu": o avatar do topo do chat pula; quando ele reage à mensagem, solta o emoji. */
-  const [chatReaction, setChatReaction] = useState<{ id: string; emoji: string | null } | null>(null);
-  const chatAvatarRef = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!chatReaction || prefersReducedMotion()) return;
-    chatAvatarRef.current?.animate(
-      [{ transform: "translateY(0)" }, { transform: "translateY(-7px) scale(1.06)" }, { transform: "translateY(0)" }],
-      { duration: 420, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
-    );
-  }, [chatReaction]);
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 2600);
@@ -6512,16 +1380,6 @@ export function App() {
     null,
   );
 
-  /* Leitura em voz alta. */
-  const [speaking, setSpeaking] = useState(false);
-  const [speakingBlock, setSpeakingBlock] = useState<number | null>(null);
-  const [speechRate, setSpeechRate] = useState(savedRate);
-  const [voicePanelOpen, setVoicePanelOpen] = useState(false);
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
-  const [voiceUri, setVoiceUri] = useState<string | undefined>(undefined);
-  const speechRef = useRef<SpeechSession | null>(null);
-  /** A voz chegou ao fim do capítulo e segue no próximo. */
-  const continueSpeechRef = useRef(false);
   /** Ao abrir um capítulo, rola até este parágrafo (vindo de uma marcação). */
   const jumpToBlockRef = useRef<number | null>(null);
   /** Última interação no leitor: o tempo de leitura só conta com o leitor presente. */
@@ -6581,12 +1439,16 @@ export function App() {
   useEffect(() => {
     if (book) return;
     let alive = true;
-    void searchCatalog({ sort: "new", limit: 6 })
+    // O catálogo também lista os envios da comunidade (cm:), que já têm a estante "Da comunidade";
+    // aqui ficam só os curados. Pede mais que 6 para sobrar curado depois do filtro.
+    void searchCatalog({ sort: "new", limit: 30 })
       .then((page) => {
         if (!alive) return;
-        // Os envios da comunidade já têm a estante "Novidades" deles; aqui ficam os curados.
         setCatalogNew(
-          page.items.filter((item) => item.book_key.startsWith("cat:")).map(catalogBookToEbook),
+          page.items
+            .filter((item) => item.book_key.startsWith("cat:"))
+            .slice(0, CATALOG_NEW_LIMIT)
+            .map(catalogBookToEbook),
         );
       })
       .catch(() => {
@@ -6694,6 +1556,12 @@ export function App() {
   /** Janela "Baixar app" (passo a passo quando o navegador não tem o botão de instalar). */
   const [installOpen, setInstallOpen] = useState(false);
   const [installBannerOff, setInstallBannerOff] = useState(installBannerHidden);
+  /** U6: o convite espera a pessoa abrir um livro ou voltar outro dia (conta esta visita uma vez). */
+  const [installNudgeOn, setInstallNudgeOn] = useState(() => {
+    noteVisit();
+    return installNudgeReady();
+  });
+  const installBannerShown = !installed && !installBannerOff && installNudgeOn;
   const updateReady = useUpdateReady();
   const updateBanner = updateReady ? (
     <div className="update-banner" role="status">
@@ -6731,8 +1599,6 @@ export function App() {
   }, [prefs]);
 
   const readRef = useRef<HTMLDivElement>(null);
-  const chatBodyRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [scrollRatio, setScrollRatio] = useState(0);
   /**
    * Capítulo a que a rolagem medida pertence. Fica vazio ao trocar de capítulo até o novo ser
@@ -6804,30 +1670,7 @@ export function App() {
         return loadCast(book, text.slice(0, 3000)).then((list) => {
           if (cancelled) return;
           setCast(list);
-          // Conversa guardada da última vez; personagem sem conversa começa com a saudação.
-          const saved = loadChat(book.id);
-          const greetings = initialThreadsFor(list);
-          setThreads((prev) =>
-            Object.keys(prev).length > 0
-              ? prev
-              : Object.fromEntries(
-                  list.map((c) => [c.id, saved?.threads[c.id]?.length ? saved.threads[c.id] : greetings[c.id]]),
-                ),
-          );
-          const savedActive = saved?.activeCharId && list.some((c) => c.id === saved.activeCharId);
-          const activeId = savedActive ? saved!.activeCharId : list[0]?.id;
-          setActiveCharId((id) => id || activeId || "");
-          if (awayDays >= NUDGE_AFTER_DAYS && awayChapter && activeId) {
-            // O mesmo recado da tela inicial, de quem o mandou (sem ele, a saudade genérica).
-            const voice = voiceFor(book);
-            const from = list.find((c) => c.id === voice?.id || c.name === voice?.name)?.id ?? activeId;
-            const line = voice ? nudgeText(book, voice, awayChapter, awayDays) : missYouMessage(awayChapter, awayDays);
-            setThreads((prev) => ({
-              ...prev,
-              // Uma saudade só: se a anterior ficou sem resposta, a nova toma o lugar dela.
-              [from]: tidyAmbientMessages([...(prev[from] ?? []), { id: uid(), role: "assistant", text: line }]),
-            }));
-          }
+          startConversation(book, list, { days: awayDays, chapter: awayChapter });
         });
       })
       .catch((err) => {
@@ -6839,7 +1682,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [book, loadAttempt]);
+  }, [book, loadAttempt, startConversation]);
 
   const onReadScroll = useCallback(() => {
     const el = readRef.current;
@@ -6883,19 +1726,16 @@ export function App() {
       return;
     }
     recordOpened(b);
+    noteBookOpened();
+    setInstallNudgeOn(true);
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
-      setLoading(false);
       setCast(null);
-      setActiveCharId(opts?.characterId ?? "");
-      setThreads({});
-      setError(null);
-      setInput("");
-      setChatOpen(opts?.chat ?? false);
+      resetChat({ characterId: opts?.characterId, open: opts?.chat });
       window.scrollTo({ top: 0 });
     });
-  }, [authLoading, authUser, canRead]);
+  }, [authLoading, authUser, canRead, resetChat]);
 
   /**
    * Link direto para um livro da biblioteca (`/?abrir=cat:<uuid>`). Se a pessoa ainda não entrou,
@@ -6925,7 +1765,7 @@ export function App() {
           text: err instanceof Error ? err.message : "Não foi possível abrir o livro.",
         });
       });
-  }, [authLoading, authUser, canRead, startBook]);
+  }, [authLoading, authUser, canRead, startBook, setChatOpen]);
 
   /**
    * Recarregou com o livro aberto (`?ler=`): abre o mesmo livro quando a conta estiver pronta.
@@ -6968,41 +1808,6 @@ export function App() {
     [authLoading, canRead],
   );
 
-  const stopSpeaking = useCallback(() => {
-    speechRef.current?.stop();
-    speechRef.current = null;
-    continueSpeechRef.current = false;
-    setSpeaking(false);
-    setSpeakingBlock(null);
-    setVoicePanelOpen(false);
-  }, []);
-
-  /** Livro aberto e já carregado: ao sair, a fita do marcador lembra que o ponto ficou guardado. */
-  const leavingTitleRef = useRef<string | null>(null);
-  const leaveBook = useCallback(() => {
-    readerGeneration.current++;
-    if (leavingTitleRef.current) setBookmarkDrop({ id: Date.now(), label: leavingTitleRef.current });
-    stopSpeaking();
-    setHighlightsOpen(false);
-    setReaderSettingsOpen(false);
-    setImmersive(false);
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    setSelection(null);
-    setWordCard(null);
-    setBook(null);
-    setLoading(false);
-    setCast(null);
-    setActiveCharId("");
-    setThreads({});
-    setError(null);
-    setInput("");
-    setFullText("");
-    setChapterIndex(0);
-    setLoadState("idle");
-    setLoadError(null);
-    setChatOpen(false);
-  }, [stopSpeaking]);
-
   const toggleReadingFullscreen = useCallback(async () => {
     setReaderSettingsOpen(false);
     if (immersive) {
@@ -7026,22 +1831,6 @@ export function App() {
   }, [immersive]);
 
   const retryLoad = useCallback(() => setLoadAttempt((n) => n + 1), []);
-
-  const characters = useMemo(() => cast ?? [], [cast]);
-  const character = useMemo(
-    () => characters.find((c) => c.id === activeCharId) ?? characters[0],
-    [activeCharId, characters],
-  );
-
-  const messages = character ? (threads[character.id] ?? EMPTY_THREAD) : EMPTY_THREAD;
-
-  /** Guarda a conversa do livro para continuar na próxima vez. */
-  useEffect(() => {
-    if (!book || !cast || Object.keys(threads).length === 0) return;
-    const owner = currentDataOwner();
-    const t = window.setTimeout(() => saveChat(book.id, threads, activeCharId, owner), 400);
-    return () => window.clearTimeout(t);
-  }, [book, cast, threads, activeCharId]);
 
   /** Marcações do livro aberto. */
   useEffect(() => {
@@ -7094,64 +1883,15 @@ export function App() {
     [noticeAchievements],
   );
 
-  /** Tempo de leitura (para a sequência de dias e a meta): conta de 15 em 15 s com o leitor ativo. */
-  useEffect(() => {
-    if (!book || loadState !== "ready") return;
-    const TICK = 15;
-    const session = authSessionRef.current;
-    if (session) void readingHeartbeat(session, true).catch(() => {});
-    const t = window.setInterval(() => {
-      const active = Date.now() - lastActivityRef.current < 120_000 || speechRef.current !== null;
-      const reading = document.visibilityState === "visible" && active;
-      if (reading) {
-        celebrate(addReadingSeconds(TICK));
-        countVisibleWordsRef.current();
-      }
-      if (session && authSessionRef.current?.user.id === session.user.id)
-        void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
-    }, TICK * 1000);
-    return () => {
-      window.clearInterval(t);
-      if (session) void readingHeartbeat(session, false).catch(() => {});
-    };
-  }, [book, loadState, celebrate]);
-
   // Conquista nova ao conversar, marcar um trecho ou ao abrir o app com os dados prontos.
   useEffect(() => {
     if (dataIsReady) noticeAchievements();
-  }, [dataIsReady, threads, highlights, noticeAchievements]);
-
-  /** Trocou de personagem no chat: o retrato do topo gira como uma moeda. */
-  const flippedForRef = useRef<string | null>(null);
-  useEffect(() => {
-    const id = character?.id ?? null;
-    const before = flippedForRef.current;
-    flippedForRef.current = id;
-    if (!id || !before || before === id || prefersReducedMotion()) return;
-    chatAvatarRef.current?.animate(
-      [{ transform: "perspective(400px) rotateY(0)" }, { transform: "perspective(400px) rotateY(180deg) scale(0.9)" }, { transform: "perspective(400px) rotateY(360deg)" }],
-      { duration: 520, easing: "cubic-bezier(0.45, 0, 0.25, 1)" },
-    );
-  }, [character?.id]);
-
-  /** Guarda com quem o leitor conversou por último (usado no texto dos lembretes). */
-  useEffect(() => {
-    if (book && character) rememberCharacter(book.id, character.name);
-  }, [book, character]);
-
-  /** A voz para ao sair do livro ou fechar a página. */
-  useEffect(() => () => speechRef.current?.stop(), []);
-
-  useEffect(() => {
-    const el = chatBodyRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, activeCharId, loading, chatOpen]);
-
-  const providerLabel = providerDisplayLabel();
+  }, [dataIsReady, chat.threads, highlights, noticeAchievements]);
 
   const chapters = useMemo(() => (fullText ? splitIntoChapters(fullText) : []), [fullText]);
   const currentChapter = chapters[chapterIndex] ?? chapters[0];
+  /** Livro aberto e já carregado: ao sair, a fita do marcador lembra que o ponto ficou guardado. */
+  const leavingTitleRef = useRef<string | null>(null);
   leavingTitleRef.current = book && loadState === "ready" ? book.title : null;
 
   useEffect(() => {
@@ -7230,23 +1970,7 @@ export function App() {
   const displayedStory = currentChapter?.body ?? "";
 
   /** Buscar no livro: palavra ou nome em todos os capítulos, com o trecho e o salto até lá. */
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const deferredTerm = useDeferredValue(searchTerm);
-  const bookBlocks = useMemo(
-    () => (searchOpen ? chapters.map((ch) => toBlocks(ch.body, ch.label)) : []),
-    [searchOpen, chapters],
-  );
-  const searchResults = useMemo(() => searchBook(bookBlocks, chapters, deferredTerm), [bookBlocks, chapters, deferredTerm]);
-  function openSearchResult(r: BookSearchHit) {
-    setSearchOpen(false);
-    if (r.chapterIndex === chapterIndex) {
-      requestAnimationFrame(() => scrollToBlock(r.paragraph));
-    } else {
-      jumpToBlockRef.current = r.paragraph;
-      setChapterIndex(r.chapterIndex);
-    }
-  }
+  const search = useBookSearch({ chapters, chapterIndex, setChapterIndex, jumpToBlockRef, scrollToBlock });
 
   /** Rola até um parágrafo do capítulo aberto e o destaca por um instante. */
   function scrollToBlock(i: number) {
@@ -7292,301 +2016,76 @@ export function App() {
   useEffect(() => () => window.clearTimeout(scrollIdleRef.current), []);
 
   /* ---- Tradução dos livros em inglês: trecho a trecho, conforme o leitor avança. ---- */
-  const [engine, setEngine] = useState<TranslationEngine>("google");
-  useEffect(() => {
-    let alive = true;
-    void detectTranslationEngine().then((e) => alive && setEngine(e));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const canTranslate = book?.textLanguage === "en";
-  // Livros locais/importados podem ser privados: o tradutor remoto só roda com consentimento.
-  const [translateConsent, setTranslateConsent] = useState(() => hasRemoteTranslationConsent());
-  const remoteTranslationNeedsConsent =
-    book?.source === "local" && engine !== "local" && !translateConsent;
-  const translateOn = canTranslate && prefs.translate && !remoteTranslationNeedsConsent;
-  const chunks = useMemo(() => chunkRanges(blocks.map((b) => b.text)), [blocks]);
-  /** Traduções do capítulo; `chunks` diz para quais trechos o guardado no aparelho já foi carregado. */
-  const [translated, setTranslated] = useState<{
-    key: string;
-    chunks: [number, number][] | null;
-    byChunk: Record<number, (string | null)[]>;
-  }>({ key: "", chunks: null, byChunk: {} });
-  const translations = useMemo(
-    () => (translated.key === chapterKey ? translated.byChunk : NO_TRANSLATIONS),
-    [translated, chapterKey],
-  );
-  const [translatingChunk, setTranslatingChunk] = useState<number | null>(null);
-  const [failedChunks, setFailedChunks] = useState<number[]>([]);
-
-  async function toggleTranslation() {
-    const active = prefs.translate && !remoteTranslationNeedsConsent;
-    if (active) {
-      setPrefs((p) => ({ ...p, translate: false }));
-      return;
-    }
-    const detected = await detectTranslationEngine();
-    if (detected !== "local" && book?.source === "local" && !hasRemoteTranslationConsent()) {
-      const ok = window.confirm(
-        "Para traduzir este livro local, trechos do texto serão enviados ao Google Tradutor/MyMemory. " +
-          "Se o livro for privado, cancele e use o tradutor do próprio navegador quando disponível. Continuar?",
-      );
-      if (!ok) {
-        setPrefs((p) => ({ ...p, translate: false }));
-        return;
-      }
-      grantRemoteTranslationConsent();
-    }
-    if (detected === "local") {
-      warmUpLocalTranslator();
-      setEngine("local");
-      setTranslateConsent(true);
-    } else if (hasRemoteTranslationConsent()) {
-      setTranslateConsent(true);
-    }
-    setPrefs((p) => ({ ...p, translate: true }));
-  }
-
-  /** Troca de capítulo: começa com o que já foi traduzido antes e está guardado. */
-  useEffect(() => {
-    const cached: Record<number, (string | null)[]> = {};
-    if (book && canTranslate) {
-      chunks.forEach((_, c) => {
-        const t = cachedTranslation(book.gutenbergId, chapterIndex, c);
-        if (t) cached[c] = t;
-      });
-    }
-    setTranslated({ key: chapterKeyRef.current, chunks, byChunk: cached });
-    setTranslatingChunk(null);
-    setFailedChunks([]);
-  }, [book, canTranslate, chapterIndex, chunks]);
-
-  /** Traduz o trecho visível e o seguinte, um pedido por vez. */
-  useEffect(() => {
-    if (!book || !translateOn || loadState !== "ready" || translatingChunk !== null) return;
-    // Espera o capítulo carregar o que está guardado e a rolagem ser medida.
-    if (translated.key !== chapterKey || visibleChunk?.key !== chapterKey) return;
-    const c = [visibleChunk.chunk, visibleChunk.chunk + 1].find(
-      (n) => n < chunks.length && !translations[n] && !failedChunks.includes(n),
-    );
-    if (c === undefined) return;
-    const key = chapterKey;
-    const [start, end] = chunks[c];
-    // Espera a rolagem parar: quem passa correndo pelo capítulo não dispara um pedido por trecho.
-    const t = setTimeout(() => {
-      setTranslatingChunk(c);
-      // Ilustrações não têm o que traduzir.
-      translateParagraphs(
-        engine,
-        blocks.slice(start, end).map((b) => (b.kind === "image" ? "" : b.text)),
-        book.source !== "local" || translateConsent,
-      )
-        .then((result) => {
-          storeTranslation(book.gutenbergId, chapterIndex, c, result);
-          if (chapterKeyRef.current === key) {
-            setTranslated((prev) => ({ ...prev, key, byChunk: { ...prev.byChunk, [c]: result } }));
-          }
-        })
-        .catch((err) => {
-          console.warn("Falha na tradução:", err);
-          if (chapterKeyRef.current === key) setFailedChunks((prev) => [...prev, c]);
-        })
-        .finally(() => {
-          if (chapterKeyRef.current === key) setTranslatingChunk(null);
-        });
-    }, 700);
-    return () => clearTimeout(t);
-  }, [
-    engine,
+  const translation = useBookTranslation({
     book,
-    translateOn,
-    translateConsent,
-    loadState,
-    translatingChunk,
-    visibleChunk,
-    chunks,
-    translated,
-    translations,
-    failedChunks,
-    chapterKey,
-    chapterIndex,
     blocks,
-  ]);
-
-  const chunkOfBlock = useMemo(() => {
-    const map: number[] = [];
-    chunks.forEach(([start, end], c) => {
-      for (let i = start; i < end; i++) map[i] = c;
-    });
-    return map;
-  }, [chunks]);
-
-  /** Texto na tela de cada parágrafo: a tradução, quando ligada e pronta, ou o original. */
-  const shownTexts = useMemo(
-    () =>
-      blocks.map((b, i) => {
-        // Ilustração: sem texto (a voz pula, a tradução ignora).
-        if (b.kind === "image") return "";
-        const c = chunkOfBlock[i];
-        return (translateOn ? translations[c]?.[i - chunks[c][0]] : null) ?? b.text;
-      }),
-    [blocks, chunkOfBlock, chunks, translateOn, translations],
-  );
-  /** Idioma do parágrafo na tela (para a voz e o dicionário). */
-  const blockLanguage = (i: number): "pt" | "en" => {
-    if (!book) return "pt";
-    const c = chunkOfBlock[i];
-    const translatedNow = translateOn && translations[c]?.[i - (chunks[c]?.[0] ?? 0)];
-    return translatedNow ? "pt" : book.textLanguage;
-  };
+    chapterIndex,
+    chapterKey,
+    chapterKeyRef,
+    loaded: loadState === "ready",
+    visibleChunk,
+    prefs,
+    setPrefs,
+  });
+  const { engine, translateOn, blockLanguage } = translation;
 
   /* ---- Leitura em voz alta ---- */
-  const canSpeak = speechSupported();
-  const speakLang: "pt" | "en" = !book ? "pt" : translateOn ? "pt" : book.textLanguage;
+  const voice = useReadAloud({
+    book,
+    loaded: loadState === "ready",
+    blocks,
+    chunks: translation.chunks,
+    translatedChunks: translation.translatedChunks,
+    translateOn,
+    shownTexts: translation.shownTexts,
+    chapterIndex,
+    chapterCount: chapters.length,
+    setChapterIndex,
+    readRef,
+    lastActivityRef,
+  });
+  const { stopSpeaking, isSpeaking } = voice;
 
-  /** Vozes naturais (Piper) do idioma já baixadas (null = conferindo), a que está baixando e a que falhou. */
-  const [storedNatural, setStoredNatural] = useState<string[] | null>(null);
-  const [naturalDownload, setNaturalDownload] = useState<{ id: string; pct: number } | null>(null);
-  const [naturalError, setNaturalError] = useState<string | null>(null);
+  /** Tempo de leitura (para a sequência de dias e a meta): conta de 15 em 15 s com o leitor ativo. */
   useEffect(() => {
-    if (!voicePanelOpen || !naturalVoiceSupported()) return;
-    let alive = true;
-    setStoredNatural(null);
-    void storedNaturalVoices(speakLang).then((ids) => {
-      if (alive) setStoredNatural(ids);
-    });
+    if (!book || loadState !== "ready") return;
+    const TICK = 15;
+    const session = authSessionRef.current;
+    if (session) void readingHeartbeat(session, true).catch(() => {});
+    const t = window.setInterval(() => {
+      const active = Date.now() - lastActivityRef.current < 120_000 || isSpeaking();
+      const reading = document.visibilityState === "visible" && active;
+      if (reading) {
+        celebrate(addReadingSeconds(TICK));
+        countVisibleWordsRef.current();
+      }
+      if (session && authSessionRef.current?.user.id === session.user.id)
+        void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
+    }, TICK * 1000);
     return () => {
-      alive = false;
+      window.clearInterval(t);
+      if (session) void readingHeartbeat(session, false).catch(() => {});
     };
-  }, [voicePanelOpen, speakLang]);
-  const missingNatural = storedNatural ? naturalVoicesFor(speakLang).filter((v) => !storedNatural.includes(v.id)) : [];
+  }, [book, loadState, celebrate, isSpeaking]);
 
-  /** Começa a ler e, enquanto a voz natural não foi baixada (nem recusada), já mostra a oferta. */
-  function listenAloud() {
-    startSpeaking(firstVisibleBlock());
-    if (!naturalVoiceSupported() || naturalOfferDismissed()) return;
-    void storedNaturalVoices(speakLang).then((ids) => {
-      if (ids.length === 0) setVoicePanelOpen(true);
-    });
-  }
-
-  function declineNaturalVoice() {
-    dismissNaturalOffer();
-    setVoicePanelOpen(false);
-  }
-
-  async function getNaturalVoice(id: string) {
-    const lang = speakLang;
-    setNaturalDownload({ id, pct: 0 });
-    setNaturalError(null);
-    try {
-      await downloadNaturalVoice(id, (pct) => setNaturalDownload({ id, pct }));
-      setStoredNatural(await storedNaturalVoices(lang));
-      setVoices(await listVoices(lang));
-      chooseVoice(naturalVoiceUri(id));
-    } catch (e) {
-      console.warn("Falha ao baixar a voz natural:", e);
-      setNaturalError(id);
-    } finally {
-      setNaturalDownload(null);
-    }
-  }
-
-  useEffect(() => {
-    if (!voicePanelOpen) return;
-    let alive = true;
-    void listVoices(speakLang).then((list) => {
-      if (!alive) return;
-      setVoices(list);
-      const saved = savedVoiceUri(speakLang);
-      setVoiceUri(list.some((v) => v.uri === saved) ? saved : list[0]?.uri);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [voicePanelOpen, speakLang]);
-
-  function chooseVoice(uri: string) {
-    setVoiceUri(uri);
-    saveVoiceUri(speakLang, uri);
-    if (speaking) startSpeaking(speakingBlock ?? firstVisibleBlock());
-    else speakSample(uri, speakLang, speechRate);
-  }
-
-  function chooseRate(rate: number) {
-    setSpeechRate(rate);
-    saveRate(rate);
-    if (speaking) startSpeaking(speakingBlock ?? firstVisibleBlock(), rate);
-  }
-
-  function firstVisibleBlock(): number {
-    const el = readRef.current;
-    if (!el) return 0;
-    const top = el.getBoundingClientRect().top;
-    const els = Array.from(el.querySelectorAll<HTMLElement>("[data-block]"));
-    const first = els.find((b) => b.getBoundingClientRect().bottom > top + 8);
-    return first ? Number(first.dataset.block) : 0;
-  }
-
-  function startSpeaking(from: number, rate = speechRate) {
-    if (!book) return;
-    speechRef.current?.stop();
-    const lang = speakLang;
-    const hasNext = chapterIndex < chapters.length - 1;
-    setSpeaking(true);
-    speechRef.current = speakParagraphs(
-      shownTexts,
-      from,
-      lang,
-      rate,
-      (i) => {
-        setSpeakingBlock(i);
-        lastActivityRef.current = Date.now();
-        const target = readRef.current?.querySelector<HTMLElement>(`[data-block="${i}"]`);
-        const page = readRef.current;
-        if (target && page) {
-          const r = target.getBoundingClientRect();
-          const pr = page.getBoundingClientRect();
-          if (r.top < pr.top + 40 || r.bottom > pr.bottom - 40) target.scrollIntoView({ block: "center", behavior: "smooth" });
-        }
-      },
-      () => {
-        speechRef.current = null;
-        if (hasNext) {
-          // Fim do capítulo: continua lendo o próximo.
-          continueSpeechRef.current = true;
-          setChapterIndex((n) => n + 1);
-        } else {
-          setSpeaking(false);
-          setSpeakingBlock(null);
-        }
-      },
-    );
-  }
-
-  /** Troca de capítulo pelo leitor (não pela voz) ou tradução ligada/desligada: a voz para. */
-  useEffect(() => {
-    if (!continueSpeechRef.current) stopSpeaking();
-  }, [chapterIndex, translateOn, stopSpeaking]);
-
-  /** Lê do começo com o texto mais recente na tela (não o do render em que o efeito foi marcado). */
-  const continueSpeaking = useEffectEvent(() => startSpeaking(0));
-  /**
-   * A voz terminou um capítulo: quando o próximo estiver na tela, continua do começo. Com a
-   * tradução ligada, espera as traduções guardadas do capítulo entrarem; senão a voz em português
-   * começaria pelo texto original.
-   */
-  const chapterTextReady =
-    loadState === "ready" && blocks.length > 0 && (!translateOn || translated.chunks === chunks);
-  useEffect(() => {
-    if (!continueSpeechRef.current || !chapterTextReady) return;
-    const frame = requestAnimationFrame(() => {
-      continueSpeechRef.current = false;
-      continueSpeaking();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [chapterTextReady, blocks, translated.chunks]);
+  const leaveBook = useCallback(() => {
+    readerGeneration.current++;
+    if (leavingTitleRef.current) setBookmarkDrop({ id: Date.now(), label: leavingTitleRef.current });
+    stopSpeaking();
+    setHighlightsOpen(false);
+    setReaderSettingsOpen(false);
+    setImmersive(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    setSelection(null);
+    setWordCard(null);
+    setBook(null);
+    setCast(null);
+    resetChat();
+    setFullText("");
+    setChapterIndex(0);
+    setLoadState("idle");
+    setLoadError(null);
+  }, [stopSpeaking, resetChat]);
 
   /* ---- Seleção de texto: marcar, significado, compartilhar ---- */
 
@@ -7741,6 +2240,7 @@ export function App() {
   }
 
   function shareMessage(m: Msg) {
+    const { character, messages } = chat;
     if (!character) return;
     const idx = messages.findIndex((x) => x.id === m.id);
     const question = [...messages.slice(0, idx)].reverse().find((x) => x.role === "user")?.text;
@@ -7758,14 +2258,6 @@ export function App() {
     void shareCard({ kind: "quote", text, chapterLabel });
   }
 
-  function resetConversation() {
-    if (!character) return;
-    if (!window.confirm(`Recomeçar a conversa com ${character.name}? As mensagens desta conversa serão apagadas.`)) {
-      return;
-    }
-    setThreads((prev) => ({ ...prev, [character.id]: initialThreadsFor([character])[character.id] }));
-  }
-
   /** Posição aproximada no livro inteiro (capítulos anteriores + rolagem no atual). */
   const readingProgressPct =
     chapters.length > 0 ? ((chapterIndex + scrollRatio) / chapters.length) * 100 : 0;
@@ -7774,90 +2266,20 @@ export function App() {
     [displayedStory, scrollRatio],
   );
 
-  const limitApplies = detectProvider() === "live";
-  const outOfMessages = limitApplies && messagesLeft + extraMessagesLeft <= 0;
+  /** Lido pelo chat na hora do envio. */
+  function chatSendContext(): ChatSendContext {
+    return { ready: loadState === "ready" && Boolean(displayedStory), textExcerpt, readingProgressPct };
+  }
 
-  async function sendMessage(raw: string) {
-    if (!book || !character || loadState !== "ready" || !displayedStory) return;
-    const text = raw.trim();
-    if (!text || loading) return;
-    if (limitApplies && messagesLeftToday() + extraMessages() <= 0) {
-      setMessagesLeft(0);
-      setExtraMessagesLeft(0);
-      return;
-    }
-
-    setError(null);
-    setInput("");
-    const userMsg: Msg = { id: uid(), role: "user", text };
-    setChatReaction({ id: userMsg.id, emoji: null });
-    setThreads((prev) => ({
-      ...prev,
-      [character.id]: [...(prev[character.id] ?? []), userMsg],
-    }));
-
-    const prior = [...(threads[character.id] ?? []), userMsg];
-    const history: ChatTurn[] = prior
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.text }));
-
-    setLoading(true);
+  /** Início de um pedido ao personagem: a resposta só vale para o mesmo livro e a mesma conta. */
+  function beginChatRequest() {
     const requestBook = book;
     const requestOwner = authSessionRef.current?.user.id;
     const generation = readerGeneration.current;
-    const stillCurrent = () => readerGeneration.current === generation && currentBookRef.current === requestBook && authSessionRef.current?.user.id === requestOwner;
-    try {
-      const { text: reply, reaction } = await characterReply({
-        character,
-        history: history.slice(0, -1),
-        userMessage: text,
-        ebookTitle: book.title,
-        ebookAuthor: book.author,
-        textExcerpt,
-        readingProgressPct,
-        textLanguage: book.textLanguage,
-        shelf: shelfContextFor(book),
-      });
-      if (!stillCurrent()) return;
-      const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
-      if (limitApplies) {
-        setMessagesLeft(countMessage());
-        setExtraMessagesLeft(extraMessages());
-      }
-      // Achou a mensagem fofa ou engraçada: o emoji fica preso nela (e sobe do avatar).
-      if (reaction) setChatReaction({ id: botMsg.id, emoji: reaction });
-      setThreads((prev) => ({
-        ...prev,
-        [character.id]: [
-          ...(prev[character.id] ?? []).map((m) => (m.id === userMsg.id && reaction ? { ...m, reaction } : m)),
-          botMsg,
-        ],
-      }));
-    } catch (err) {
-      if (!stillCurrent()) return;
-      console.warn("Falha no envio da mensagem:", err);
-      if (err instanceof AuthNetworkError && err.code === "AI_QUOTA_EXHAUSTED") {
-        setMessagesLeft(0);
-        setExtraMessagesLeft(0);
-      }
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Não foi possível concluir o envio. Tente de novo.",
-      );
-      setThreads((prev) => ({
-        ...prev,
-        [character.id]: [...(prev[character.id] ?? []).filter((m) => m.id !== userMsg.id)],
-      }));
-      setInput(text);
-    } finally {
-      if (stillCurrent()) setLoading(false);
-    }
-  }
-
-  function onSend(e: React.FormEvent) {
-    e.preventDefault();
-    void sendMessage(input);
+    return () =>
+      readerGeneration.current === generation &&
+      currentBookRef.current === requestBook &&
+      authSessionRef.current?.user.id === requestOwner;
   }
 
   // Botão voltar do celular: fecha o que estiver aberto por cima, na ordem em que foi aberto.
@@ -7871,7 +2293,7 @@ export function App() {
   useBackClose(aboutOpen, () => setAboutOpen(false));
   useBackClose(installOpen, () => setInstallOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
-  useBackClose(chatOpen, () => setChatOpen(false));
+  useBackClose(chat.chatOpen, () => setChatOpen(false));
   useBackClose(highlightsOpen, () => setHighlightsOpen(false));
 
   if (ownerError) return <main className="auth-loading" role="alert"><p>{ownerError}</p><button onClick={() => window.location.reload()}>Tentar novamente</button></main>;
@@ -7911,14 +2333,16 @@ export function App() {
     const progressById = new Map(recent.map((p) => [p.book.gutenbergId, p]));
     if (shopOpen && authSession) {
       return (
-        <DiamondShopPage
-          session={authSession}
-          onClose={() => setShopOpen(false)}
-          onStreakSaved={() => {
-            setFreezeOutcome(null);
-            setDataEpoch((n) => n + 1);
-          }}
-        />
+        <Suspense fallback={<RouteLoading />}>
+          <DiamondShopPage
+            session={authSession}
+            onClose={() => setShopOpen(false)}
+            onStreakSaved={() => {
+              setFreezeOutcome(null);
+              setDataEpoch((n) => n + 1);
+            }}
+          />
+        </Suspense>
       );
     }
     if (libraryOpen && authSession && shelfOn) {
@@ -7936,41 +2360,47 @@ export function App() {
       );
     }
     if (rankingOpen && authSession) {
-      return <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />;
+      return (
+        <Suspense fallback={<RouteLoading />}>
+          <RankingPage session={authSession} onClose={() => setRankingOpen(false)} onOpenShop={() => setShopOpen(true)} />
+        </Suspense>
+      );
     }
     if (profileOpen && authSession) {
       return (
-        <ProfilePage
-          isStaff={staffOn}
-          canModerate={canModerate}
-          onOpenShop={() => setShopOpen(true)}
-          onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
-          session={authSession}
-          onSessionChange={setAuthSession}
-          onClose={() => setProfileOpen(false)}
-          onLogout={() => void logout()}
-          onAccountDeleted={() => {
-            const owner = authSession?.user.id;
-            if (owner) {
-              clearAccountStorage(owner);
-              void deleteAllLocalRecords(owner).catch(() => {});
-            }
-            if (authSession) void signOut(authSession).catch(() => {});
-            setAuthSession(null);
-            setProfileOpen(false);
-            setAuthNotice({ text: "Conta excluída.", ok: true });
-          }}
-          loggingOut={authActionLoading}
-          onOpenBook={startBook}
-          onOpenHighlight={(b, h) => {
-            openAtRef.current = { bookId: b.id, chapterIndex: h.chapterIndex, chapterLabel: h.chapterLabel, paragraph: h.paragraph };
-            startBook(b);
-          }}
-          prefs={prefs}
-          setPrefs={setPrefs}
-          lastBook={lastBook}
-          isAvailable={isAvailable}
-        />
+        <Suspense fallback={<RouteLoading />}>
+          <ProfilePage
+            isStaff={staffOn}
+            canModerate={canModerate}
+            onOpenShop={() => setShopOpen(true)}
+            onOpenShelf={shelfOn ? () => setLibraryOpen(true) : undefined}
+            session={authSession}
+            onSessionChange={setAuthSession}
+            onClose={() => setProfileOpen(false)}
+            onLogout={() => void logout()}
+            onAccountDeleted={() => {
+              const owner = authSession?.user.id;
+              if (owner) {
+                clearAccountStorage(owner);
+                void deleteAllLocalRecords(owner).catch(() => {});
+              }
+              if (authSession) void signOut(authSession).catch(() => {});
+              setAuthSession(null);
+              setProfileOpen(false);
+              setAuthNotice({ text: "Conta excluída.", ok: true });
+            }}
+            loggingOut={authActionLoading}
+            onOpenBook={startBook}
+            onOpenHighlight={(b, h) => {
+              openAtRef.current = { bookId: b.id, chapterIndex: h.chapterIndex, chapterLabel: h.chapterLabel, paragraph: h.paragraph };
+              startBook(b);
+            }}
+            prefs={prefs}
+            setPrefs={setPrefs}
+            lastBook={lastBook}
+            isAvailable={isAvailable}
+          />
+        </Suspense>
       );
     }
     const heroBook = featuredBooks.find((b) => b.demo && b.characters?.length);
@@ -7980,42 +2410,48 @@ export function App() {
     return (
       <div className={`home ${returning ? "is-returning" : ""}`} key={dataEpoch} ref={homeRef}>
         {authModal ? (
-          <AuthModal
-            mode={authModal}
-            onClose={() => setAuthModal(null)}
-            onAuthenticated={(session) => {
-              setAuthSession(session);
-              setAuthNotice(null);
-              setSanctionNotice(session.warning ? warningMessage(session.warning.reason) : null);
-              setAuthModal(null);
-            }}
-          />
+          <Suspense fallback={null}>
+            <AuthModal
+              mode={authModal}
+              onClose={() => setAuthModal(null)}
+              onAuthenticated={(session) => {
+                setAuthSession(session);
+                setAuthNotice(null);
+                setSanctionNotice(session.warning ? warningMessage(session.warning.reason) : null);
+                setAuthModal(null);
+              }}
+            />
+          </Suspense>
         ) : null}
         {resetToken ? (
-          <NewPasswordModal
-            token={resetToken}
-            onDone={(message) => {
-              setResetToken(null);
-              setAuthNotice({ text: message, ok: true });
-              if (!authSession) setAuthModal("login");
-            }}
-            onCancel={() => {
-              setResetToken(null);
-              setAuthNotice(null);
-              setAuthModal("login");
-            }}
-          />
+          <Suspense fallback={null}>
+            <NewPasswordModal
+              token={resetToken}
+              onDone={(message) => {
+                setResetToken(null);
+                setAuthNotice({ text: message, ok: true });
+                if (!authSession) setAuthModal("login");
+              }}
+              onCancel={() => {
+                setResetToken(null);
+                setAuthNotice(null);
+                setAuthModal("login");
+              }}
+            />
+          </Suspense>
         ) : passwordReset && authSession ? (
-          <NewPasswordModal
-            session={authSession}
-            onDone={(message) => {
-              setPasswordReset(false);
-              setAuthNotice({ text: message, ok: true });
-            }}
-            onCancel={() => setPasswordReset(false)}
-          />
+          <Suspense fallback={null}>
+            <NewPasswordModal
+              session={authSession}
+              onDone={(message) => {
+                setPasswordReset(false);
+                setAuthNotice({ text: message, ok: true });
+              }}
+              onCancel={() => setPasswordReset(false)}
+            />
+          </Suspense>
         ) : null}
-        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navFit !== "full" ? "is-crowded" : ""} ${navFit === "tight" ? "is-tight" : ""}`}>
+        <nav ref={navRef} className={`home-nav home-nav-main ${navScrolled ? "is-scrolled" : ""} ${navFit !== "full" ? "is-crowded" : "is-crowded"}`}>
           <span className="wordmark">
             <img className="wordmark-mark" src="/icons/icon.svg" alt="" aria-hidden="true" />
             <span className="wordmark-text">Storyverse</span>
@@ -8028,15 +2464,11 @@ export function App() {
                 <span className="online-label">{onlineCount === 1 ? "online" : "online agora"}</span>
               </span>
             ) : null}
-            <span className="status" title="Mostra se o chat usa IA em tempo real ou respostas de demonstração.">
-              <span className="status-dot" aria-hidden="true" />
-              <span className="status-label">{providerLabel}</span>
-            </span>
             <div className="nav-secondary">
             {!installed ? (
               <button
                 type="button"
-                className={`btn nav-install ${installBannerOff ? "" : "has-banner"}`}
+                className={`btn nav-install ${installBannerShown ? "has-banner" : ""}`}
                 onClick={() => setInstallOpen(true)}
                 aria-label="Baixar app"
                 title="Baixar app"
@@ -8128,18 +2560,28 @@ export function App() {
         ) : null}
 
         {appConfirmDialog}
-        {aboutOpen ? <AboutDialog onClose={() => setAboutOpen(false)} /> : null}
+        {aboutOpen ? (
+          <Suspense fallback={null}>
+            <AboutDialog onClose={() => setAboutOpen(false)} />
+          </Suspense>
+        ) : null}
         {spinOpen && authSession ? (
-          <DailySpinModal
-            session={authSession}
-            onClose={() => setSpinOpen(false)}
-            onWon={(r) => r.is_new && setToast(`+${r.prize} 💎 na roleta`)}
-          />
+          <Suspense fallback={null}>
+            <DailySpinModal
+              session={authSession}
+              onClose={() => setSpinOpen(false)}
+              onWon={(r) => r.is_new && setToast(`+${r.prize} 💎 na roleta`)}
+            />
+          </Suspense>
         ) : null}
 
-        {installOpen ? <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} /> : null}
+        {installOpen ? (
+          <Suspense fallback={null}>
+            <InstallAppDialog install={install} onClose={() => setInstallOpen(false)} />
+          </Suspense>
+        ) : null}
 
-        {!installed && !installBannerOff ? (
+        {installBannerShown ? (
           // No celular o convite fica aqui, fora do topo (lá não cabe junto com "Importar livro").
           <div className="install-banner">
             <span>Baixe o app do Storyverse: abre em tela cheia e funciona sem internet.</span>
@@ -8352,7 +2794,6 @@ export function App() {
           />
         ) : null}
 
-
         {recent.length > 0 || hasAnyReading() ? <ReadingStreak lastBook={lastBook} /> : null}
 
         {authSession ? <RankingTeaser onOpen={() => setRankingOpen(true)} /> : null}
@@ -8404,17 +2845,6 @@ export function App() {
                 Ver a biblioteca
               </Link>
             }
-          />
-        ) : null}
-
-        {communityBooks.some(isNewCommunityBook) ? (
-          <ProfileShelf
-            className="novidades"
-            eyebrow="✨ Acabou de chegar"
-            title="Novidades"
-            subtitle="Livros que entraram no acervo da comunidade nesta semana."
-            onOpen={startBook}
-            items={communityBooks.filter(isNewCommunityBook).map((b) => ({ book: b, sub: b.author, badge: newBookLabel(b) }))}
           />
         ) : null}
 
@@ -8491,7 +2921,8 @@ export function App() {
           );
         })}
 
-        {communityBooks.some((b) => !isNewCommunityBook(b)) ? (
+        {/* Uma estante só para a comunidade (U2): os recém-aprovados vêm primeiro, com o selo "Novo". */}
+        {communityBooks.length > 0 ? (
           <ProfileShelf
             title="Da comunidade"
             subtitle="Livros enviados por leitores e aprovados pela curadoria."
@@ -8499,7 +2930,7 @@ export function App() {
             items={communityBooks.map((b) => ({
               book: b,
               sub: b.author,
-              ...(isNewCommunityBook(b) ? { badge: "Novo" } : {}),
+              ...(isNewCommunityBook(b) ? { badge: newBookLabel(b) } : {}),
             }))}
           />
         ) : null}
@@ -8533,11 +2964,11 @@ export function App() {
               Storyverse
             </span>
             <p>
-              Leitura que conversa com você. Textos em domínio público do{" "}
+              Leitura que conversa com você. Clássicos do{" "}
               <a href="https://www.gutenberg.org" target="_blank" rel="noreferrer">
                 Project Gutenberg
               </a>
-              .
+              , livros da curadoria e da comunidade.
             </p>
           </div>
           <nav className="foot-cols" aria-label="Links do rodapé">
@@ -8582,8 +3013,6 @@ export function App() {
   }
 
   const ready = loadState === "ready" && fullText.length > 0;
-  const castReady = cast !== null;
-  const userHasSpoken = messages.some((m) => m.role === "user");
   const hasNextChapter = chapterIndex < chapters.length - 1;
 
   return (
@@ -8595,272 +3024,34 @@ export function App() {
       ) : null}
       {/* Por cima de tudo, sem pegar cliques: tira o azul da tela para ler à noite. */}
       {prefs.nightLight ? <div className={`night-light night-light-${prefs.nightLight}`} aria-hidden="true" /> : null}
-      <header className="reader-bar">
-        {goalFlash !== null ? (
-          <div key={goalFlash} className="goal-flash" role="status">
-            <span className="goal-flash-line" aria-hidden="true" />
-            <span className="goal-flash-sparks" aria-hidden="true">
-              {Array.from({ length: 8 }, (_, i) => (
-                <i key={i} style={{ "--i": i } as React.CSSProperties} />
-              ))}
-            </span>
-            <span className="goal-flash-pill">🎯 Meta do dia cumprida!</span>
-          </div>
-        ) : null}
-        <button type="button" className="icon-btn" onClick={leaveBook} aria-label="Voltar para a estante">
-          {Icon.back}
-        </button>
-        <div className="reader-title">
-          <strong>{book.title}</strong>
-          <span>
-            {book.author}
-            {currentChapter ? ` · ${currentChapter.label}` : ""}
-          </span>
-          {readingHere !== null && readingHere > 1 ? (
-            <span className="reading-here" role="status">
-              <span className="online-dot" aria-hidden="true" />
-              você e mais {readingHere - 1} {readingHere - 1 === 1 ? "pessoa lendo" : "pessoas lendo"} agora
-            </span>
-          ) : null}
-        </div>
-
-        {chapters.length > 1 ? (
-          <div className="chapter-nav">
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={chapterIndex <= 0}
-              onClick={() => setChapterIndex((i) => Math.max(0, i - 1))}
-              aria-label="Capítulo anterior"
-            >
-              {Icon.back}
-            </button>
-            <select
-              className="chapter-select"
-              value={chapterIndex}
-              onChange={(e) => setChapterIndex(Number(e.target.value))}
-              aria-label="Escolher capítulo"
-            >
-              {chapters.map((ch, i) => (
-                <option key={ch.index} value={i}>
-                  {ch.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!hasNextChapter}
-              onClick={() => setChapterIndex((i) => Math.min(chapters.length - 1, i + 1))}
-              aria-label="Próximo capítulo"
-            >
-              {Icon.next}
-            </button>
-          </div>
-        ) : null}
-
-        <div className="reader-tools">
-          {canSpeak && ready ? (
-            <>
-              {speaking ? (
-                <button
-                  type="button"
-                  className={`icon-btn text-btn rate-btn ${voicePanelOpen ? "is-active" : ""}`}
-                  onClick={() => setVoicePanelOpen((v) => !v)}
-                  aria-expanded={voicePanelOpen}
-                  aria-label={`Voz e velocidade (${speechRate}x)`}
-                  title="Voz e velocidade"
-                >
-                  {String(speechRate).replace(".", ",")}x
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className={`icon-btn ${speaking ? "is-active" : ""}`}
-                onClick={() => (speaking ? stopSpeaking() : listenAloud())}
-                aria-pressed={speaking}
-                aria-label={speaking ? "Parar a leitura em voz alta" : "Ouvir o capítulo em voz alta"}
-                title={speaking ? "Parar" : "Ouvir em voz alta"}
-              >
-                {speaking ? Icon.stop : Icon.speaker}
-              </button>
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Buscar no livro"
-            title="Buscar no livro"
-            disabled={!ready}
-          >
-            {Icon.search}
-          </button>
-          {shelfOn ? (
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => setShelfPanelOpen(true)}
-              aria-label="Na estante"
-              title="Na estante: status, nota e resenha"
-            >
-              {Icon.book}
-            </button>
-          ) : null}
-          {shelfOn && shelfPanelOpen ? <BookStatusControl book={book} onClose={() => setShelfPanelOpen(false)} /> : null}
-          <button
-            type="button"
-            className="icon-btn marks-btn"
-            onClick={() => setHighlightsOpen(true)}
-            aria-label={`Marcações (${highlights.length})`}
-            title="Marcações e citações"
-          >
-            {Icon.bookmark}
-            {highlights.length > 0 ? <span className="badge">{highlights.length}</span> : null}
-          </button>
-          {canTranslate ? (
-            <button
-              type="button"
-              className={`icon-btn text-btn translate-btn ${translateOn ? "is-active" : ""}`}
-              onClick={() => void toggleTranslation()}
-              aria-pressed={translateOn}
-              aria-label={translateOn ? "Ver o texto original em inglês" : "Traduzir para o português"}
-              title={translateOn ? "Ver o original em inglês" : "Traduzir para o português"}
-            >
-              {translateOn ? "PT" : "EN"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="icon-btn text-btn"
-            disabled={prefs.fontStep <= 0}
-            onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep - 1 }))}
-            aria-label="Diminuir letra"
-          >
-            A<small>−</small>
-          </button>
-          <button
-            type="button"
-            className="icon-btn text-btn"
-            disabled={prefs.fontStep >= FONT_SIZES.length - 1}
-            onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep + 1 }))}
-            aria-label="Aumentar letra"
-          >
-            A<small>+</small>
-          </button>
-          <button
-            type="button"
-            className="icon-btn reader-theme-btn"
-            onClick={() => setPrefs((p) => ({ ...p, theme: p.theme === "night" ? "sepia" : "night" }))}
-            aria-label={prefs.theme === "night" ? "Mudar para modo sépia" : "Mudar para modo noturno"}
-          >
-            {prefs.theme === "night" ? Icon.sun : Icon.moon}
-          </button>
-          <button
-            type="button"
-            className={`icon-btn night-light-btn ${prefs.nightLight ? "is-on" : ""}`}
-            onClick={() => setPrefs((p) => ({ ...p, nightLight: ((p.nightLight + 1) % 3) as NightLight }))}
-            aria-label={`Luz noturna: ${NIGHT_LIGHT_LABELS[prefs.nightLight]}. Toque para mudar.`}
-            title={`Luz noturna: ${NIGHT_LIGHT_LABELS[prefs.nightLight]}`}
-          >
-            {Icon.nightLight}
-            {prefs.nightLight ? <span className="night-light-level" aria-hidden="true">{prefs.nightLight}</span> : null}
-          </button>
-          <button
-            type="button"
-            className="icon-btn reader-settings-btn"
-            onClick={() => setReaderSettingsOpen((open) => !open)}
-            aria-expanded={readerSettingsOpen}
-            aria-label="Ajustes de leitura"
-            title="Ajustes de leitura"
-          >
-            Aa
-          </button>
-        </div>
-
-        {readerSettingsOpen ? (
-          <div className="reader-settings" role="dialog" aria-label="Ajustes de leitura">
-            <div className="reader-settings-head">
-              <strong>Ajustes de leitura</strong>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setReaderSettingsOpen(false)}
-                aria-label="Fechar ajustes"
-              >
-                {Icon.close}
-              </button>
-            </div>
-            <div className="reader-settings-row">
-              <span>Tamanho da letra</span>
-              <div className="reader-settings-actions">
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={prefs.fontStep <= 0}
-                  onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep - 1 }))}
-                  aria-label="Diminuir letra"
-                >
-                  A−
-                </button>
-                <strong>{Math.round(FONT_SIZES[prefs.fontStep] * 16)}px</strong>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={prefs.fontStep >= FONT_SIZES.length - 1}
-                  onClick={() => setPrefs((p) => ({ ...p, fontStep: p.fontStep + 1 }))}
-                  aria-label="Aumentar letra"
-                >
-                  A+
-                </button>
-              </div>
-            </div>
-            <div className="reader-settings-row">
-              <span>Tema</span>
-              <div className="segmented">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.theme === "night"}
-                  className={prefs.theme === "night" ? "is-on" : ""}
-                  onClick={() => setPrefs((p) => ({ ...p, theme: "night" }))}
-                >
-                  Noturno
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.theme === "sepia"}
-                  className={prefs.theme === "sepia" ? "is-on" : ""}
-                  onClick={() => setPrefs((p) => ({ ...p, theme: "sepia" }))}
-                >
-                  Sépia
-                </button>
-              </div>
-            </div>
-            <div className="reader-settings-row">
-              <span>Luz noturna</span>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setPrefs((p) => ({ ...p, nightLight: ((p.nightLight + 1) % 3) as NightLight }))}
-              >
-                {NIGHT_LIGHT_LABELS[prefs.nightLight]}
-              </button>
-            </div>
-            <div className="reader-settings-row">
-              <span>Tela cheia</span>
-              <button type="button" className="btn" onClick={() => void toggleReadingFullscreen()}>
-                {isFullscreen || immersive ? "Sair" : "Entrar"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="progress" aria-hidden="true">
-          <span style={{ width: `${readingProgressPct}%` }} />
-        </div>
-      </header>
+      <ReaderBar
+        book={book}
+        chapterIndex={chapterIndex}
+        chapters={chapters}
+        currentChapter={currentChapter}
+        goalFlash={goalFlash}
+        hasNextChapter={hasNextChapter}
+        highlights={highlights}
+        immersive={immersive}
+        isFullscreen={isFullscreen}
+        leaveBook={leaveBook}
+        prefs={prefs}
+        readerSettingsOpen={readerSettingsOpen}
+        readingHere={readingHere}
+        readingProgressPct={readingProgressPct}
+        ready={ready}
+        search={search}
+        setChapterIndex={setChapterIndex}
+        setHighlightsOpen={setHighlightsOpen}
+        setPrefs={setPrefs}
+        setReaderSettingsOpen={setReaderSettingsOpen}
+        setShelfPanelOpen={setShelfPanelOpen}
+        shelfOn={shelfOn}
+        shelfPanelOpen={shelfPanelOpen}
+        toggleReadingFullscreen={toggleReadingFullscreen}
+        translation={translation}
+        voice={voice}
+      />
 
       <div className="reader-layout">
         <main
@@ -8886,447 +3077,68 @@ export function App() {
           ) : null}
 
           {ready && currentChapter ? (
-            <article
-              key={chapterIndex}
-              className={`prose from-${chapterDirRef.current}`}
-              aria-label="Texto do capítulo"
-              onMouseUp={handleSelection}
-              onTouchEnd={handleSelection}
-              onKeyUp={handleSelection}
-              onPointerDown={() => (lastActivityRef.current = Date.now())}
-            >
-              <header className="chapter-head">
-                <span>
-                  {chapterIndex + 1} de {chapters.length}
-                </span>
-                <h1>{currentChapter.label}</h1>
-                <span className="chapter-ornament" aria-hidden="true">
-                  ✦
-                </span>
-              </header>
-
-              {translateOn ? (
-                <div className="translate-note" role="status">
-                  {failedChunks.length > 0 ? (
-                    <>
-                      Parte deste capítulo não pôde ser traduzida agora.{" "}
-                      <button
-                        type="button"
-                        className="link-btn"
-                        onClick={() => {
-                          if (engine === "local") warmUpLocalTranslator();
-                          setFailedChunks([]);
-                        }}
-                      >
-                        Tentar de novo
-                      </button>
-                    </>
-                  ) : translatingChunk !== null && !translations[visibleChunk?.chunk ?? 0] ? (
-                    "Traduzindo este trecho…"
-                  ) : (
-                    "Tradução automática. Pode conter imprecisões."
-                  )}
-                </div>
-              ) : null}
-
-              {blocks.map((b, i) => {
-                const c = chunkOfBlock[i];
-                if (b.kind === "image") {
-                  const src = bookImages[b.text];
-                  return src ? (
-                    <figure key={i} className="prose-figure" data-chunk={c} data-block={i}>
-                      <img src={src} alt="Ilustração do livro" loading="lazy" />
-                    </figure>
-                  ) : null;
-                }
-                const pending = translateOn && !translations[c];
-                const here = highlights.filter((h) => h.chapterIndex === chapterIndex && h.paragraph === i);
-                const marks = here.map((h) => h.text);
-                // Acabou de marcar: o trecho é pintado como caneta passando (só esse, só agora).
-                const fresh = new Set(here.filter((h) => Date.now() - h.createdAt < 4000).map((h) => h.text));
-                // Com destaque, o itálico (_assim_) sai: o trecho marcado precisa bater com o texto.
-                const text =
-                  marks.length > 0
-                    ? splitByHighlights(shownTexts[i].replace(/_/g, ""), marks).map((piece, k) =>
-                        piece.marked ? (
-                          <mark key={k} className={fresh.has(piece.text) ? "is-new" : undefined}>
-                            {piece.text}
-                          </mark>
-                        ) : (
-                          piece.text
-                        ),
-                      )
-                    : withItalics(shownTexts[i]);
-                const className =
-                  [
-                    i === dropCapIndex ? "dropcap" : "",
-                    pending ? "is-translating" : "",
-                    speakingBlock === i ? "is-speaking" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || undefined;
-                return b.kind === "heading" ? (
-                  <h2 key={i} data-chunk={c} data-block={i} className={className}>
-                    {text}
-                  </h2>
-                ) : (
-                  <p key={i} data-chunk={c} data-block={i} className={className}>
-                    {text}
-                  </p>
-                );
-              })}
-
-              <footer className="chapter-end">
-                {chapterDone?.key === chapterKey ? (
-                  <div className="chapter-done" role="status">
-                    <svg className="chapter-done-check" viewBox="0 0 52 52" aria-hidden="true">
-                      <circle cx="26" cy="26" r="23" />
-                      <path d="M15 27 l7.5 7.5 L37.5 19" />
-                    </svg>
-                    <strong>{chapterDone.label} concluído</strong>
-                    <div className="chapter-done-bar" aria-hidden="true">
-                      <span style={{ width: `${(chapterDone.done / chapterDone.total) * 100}%` }} />
-                    </div>
-                    <small>
-                      {chapterDone.done} de {chapterDone.total} capítulos ·{" "}
-                      {chapterDone.total - chapterDone.done === 1
-                        ? "falta 1"
-                        : `faltam ${chapterDone.total - chapterDone.done}`}
-                    </small>
-                  </div>
-                ) : null}
-                {hasNextChapter ? (
-                  <button
-                    type="button"
-                    className={`btn btn-primary btn-lg ${chapterDone?.key === chapterKey ? "is-ready" : ""}`}
-                    onClick={() => setChapterIndex((i) => i + 1)}
-                  >
-                    Próximo capítulo {Icon.next}
-                  </button>
-                ) : (
-                  <p className="the-end">Fim — mas a conversa continua ao lado.</p>
-                )}
-                {isLocalBook(book) ? (
-                  <span className="source-link">Livro importado · {authSession ? "guardado na sua conta" : "guardado só neste aparelho"}</span>
-                ) : book.source === "community" ? (
-                  <span className="source-link">Livro da comunidade · enviado por um leitor e aprovado pela curadoria</span>
-                ) : book.source === "catalog" && book.catalogKey ? (
-                  <Link className="source-link" to={`/biblioteca/${encodeURIComponent(book.catalogKey)}`}>
-                    Livro da biblioteca pública · ver a ficha do livro
-                  </Link>
-                ) : (
-                  <a
-                    className="source-link"
-                    href={`https://www.gutenberg.org/ebooks/${book.gutenbergId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Ver esta obra no Project Gutenberg ↗
-                  </a>
-                )}
-              </footer>
-            </article>
+            <ChapterText
+              authSession={authSession}
+              blocks={blocks}
+              book={book}
+              bookImages={bookImages}
+              chapterDirRef={chapterDirRef}
+              chapterDone={chapterDone}
+              chapterIndex={chapterIndex}
+              chapterKey={chapterKey}
+              chapters={chapters}
+              currentChapter={currentChapter}
+              dropCapIndex={dropCapIndex}
+              handleSelection={handleSelection}
+              hasNextChapter={hasNextChapter}
+              highlights={highlights}
+              lastActivityRef={lastActivityRef}
+              setChapterIndex={setChapterIndex}
+              translation={translation}
+              visibleChunk={visibleChunk}
+              voice={voice}
+            />
           ) : null}
         </main>
 
-        {voicePanelOpen && speaking ? (
-          <>
-            <div className="voice-backdrop" onClick={() => setVoicePanelOpen(false)} />
-            <div className="voice-panel" role="dialog" aria-label="Voz e velocidade">
-              <div className="voice-panel-head">
-                <strong>Voz e velocidade</strong>
-                <button type="button" className="icon-btn" onClick={() => setVoicePanelOpen(false)} aria-label="Fechar">
-                  {Icon.close}
-                </button>
-              </div>
-
-              <span className="voice-label">Velocidade</span>
-              <div className="voice-rates" role="group" aria-label="Velocidade">
-                {RATE_OPTIONS.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={r === speechRate ? "active" : undefined}
-                    aria-pressed={r === speechRate}
-                    onClick={() => chooseRate(r)}
-                  >
-                    {String(r).replace(".", ",")}x
-                  </button>
-                ))}
-              </div>
-
-              <span className="voice-label">Voz</span>
-              {naturalVoiceSupported() && missingNatural.length > 0 ? (
-                <div className="voice-natural">
-                  {storedNatural?.length ? (
-                    <>
-                      <strong>✨ Mais vozes naturais</strong>
-                      <span>Cada uma baixa uma vez (cerca de 60 MB) e fica guardada aqui; prefira usar o Wi-Fi.</span>
-                    </>
-                  ) : (
-                    <>
-                      <strong>✨ Voz natural</strong>
-                      <span>
-                        Bem mais humana que as vozes do aparelho. Escolha uma: ela baixa uma vez (cerca de 60 MB) e
-                        fica guardada aqui; prefira usar o Wi-Fi.
-                      </span>
-                    </>
-                  )}
-                  <ul className="voice-natural-options">
-                    {missingNatural.map((v) => (
-                      <li key={v.id}>
-                        <span className="voice-natural-name">{v.name}</span>
-                        {naturalDownload?.id === v.id ? (
-                          <span className="voice-natural-progress">
-                            <span
-                              className="voice-natural-bar"
-                              role="progressbar"
-                              aria-label={`Baixando a voz ${v.name}`}
-                              aria-valuenow={naturalDownload.pct}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                            >
-                              <span style={{ width: `${Math.max(3, naturalDownload.pct)}%` }} />
-                            </span>
-                            <small>{naturalDownload.pct}%</small>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            disabled={naturalDownload !== null}
-                            aria-label={`Baixar a voz ${v.name}`}
-                            onClick={() => void getNaturalVoice(v.id)}
-                          >
-                            {naturalError === v.id ? "Tentar de novo" : "Baixar"}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {naturalError ? <small>Não deu para baixar agora. Confira a internet e tente de novo.</small> : null}
-                  {!storedNatural?.length && !naturalDownload ? (
-                    <button type="button" className="link-btn voice-natural-later" onClick={declineNaturalVoice}>
-                      Agora não
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-              {voices.length === 0 ? (
-                <p className="voice-tip">Procurando as vozes deste aparelho…</p>
-              ) : (
-                <ul className="voice-list">
-                  {voices.map((v) => (
-                    <li key={v.uri}>
-                      <button
-                        type="button"
-                        className={v.uri === voiceUri ? "active" : undefined}
-                        aria-pressed={v.uri === voiceUri}
-                        onClick={() => chooseVoice(v.uri)}
-                      >
-                        <span>{v.label}</span>
-                        {v.natural ? <em>natural</em> : null}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {voices.length > 0 && !voices.some((v) => v.natural) ? (
-                <p className="voice-tip">
-                  Este aparelho só tem vozes simples. Para uma voz quase humana, grátis: abra o Storyverse no{" "}
-                  <strong>Microsoft Edge</strong> (vozes Francisca e Antônio) ou, no iPhone, baixe uma voz{" "}
-                  <strong>Aprimorada</strong> em Ajustes › Acessibilidade › Conteúdo Falado › Vozes.
-                </p>
-              ) : null}
-            </div>
-          </>
+        {voice.voicePanelOpen && voice.speaking ? (
+          <VoicePanel
+            voice={voice}
+          />
         ) : null}
 
         {selection ? (
-          <div
-            className="sel-toolbar"
-            role="toolbar"
-            aria-label="Ações do trecho selecionado"
-            style={{
-              // Metade da largura do menu (~180 px) + margem, para não sair da tela.
-              left: Math.min(Math.max(selection.x, 190), window.innerWidth - 190),
-              top: coarsePointer() || selection.top < 90 ? selection.bottom + 12 : selection.top - 54,
-            }}
-            // Clicar no menu não pode desfazer a seleção antes do clique.
-            onMouseDown={(e) => e.preventDefault()}
-            onPointerDown={(e) => e.preventDefault()}
-          >
-            <button type="button" onClick={addHighlight}>
-              {Icon.bookmark} Marcar
-            </button>
-            {selection.word ? (
-              <button type="button" onClick={showMeaning}>
-                {Icon.book} Significado
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                const text = selection.text;
-                clearSelection();
-                shareQuote(text, currentChapter?.label);
-              }}
-            >
-              {Icon.share} Compartilhar
-            </button>
-          </div>
+          <SelectionToolbar
+            addHighlight={addHighlight}
+            clearSelection={clearSelection}
+            currentChapter={currentChapter}
+            selection={selection}
+            shareQuote={shareQuote}
+            showMeaning={showMeaning}
+          />
         ) : null}
 
         {wordCard ? (
-          <div
-            className="word-card"
-            role="dialog"
-            aria-label={`Significado de ${wordCard.word}`}
-            style={{
-              left: Math.min(Math.max(wordCard.x, 176), window.innerWidth - 176),
-              top: Math.min(wordCard.y + 12, window.innerHeight - 240),
-            }}
-          >
-            <div className="word-card-head">
-              <strong>{wordCard.word}</strong>
-              {wordCard.info?.kind ? <em>{wordCard.info.kind}</em> : null}
-              <button type="button" className="icon-btn" onClick={() => setWordCard(null)} aria-label="Fechar">
-                {Icon.close}
-              </button>
-            </div>
-            {!wordCard.info ? (
-              <p className="word-card-muted">Procurando…</p>
-            ) : (
-              <>
-                {wordCard.info.translation ? (
-                  <p className="word-card-translation">
-                    <span>Em português:</span> {wordCard.info.translation}
-                  </p>
-                ) : null}
-                {wordCard.info.definitions.length > 0 ? (
-                  <ol>
-                    {wordCard.info.definitions.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ol>
-                ) : !wordCard.info.translation ? (
-                  <p className="word-card-muted">Não encontramos esta palavra no dicionário.</p>
-                ) : null}
-                {wordCard.info.source ? (
-                  <a className="word-card-source" href={wordCard.info.source.url} target="_blank" rel="noreferrer">
-                    {wordCard.info.source.label} ↗
-                  </a>
-                ) : null}
-              </>
-            )}
-          </div>
+          <WordCard
+            setWordCard={setWordCard}
+            wordCard={wordCard}
+          />
         ) : null}
 
-        {searchOpen ? (
-          <div className="import-overlay" onClick={() => setSearchOpen(false)}>
-            <div
-              className="import-panel marks-panel search-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="search-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="import-head">
-                <h3 id="search-title">Buscar no livro</h3>
-                <button type="button" className="icon-btn" onClick={() => setSearchOpen(false)} aria-label="Fechar">
-                  {Icon.close}
-                </button>
-              </div>
-              <label className="search-field">
-                {Icon.search}
-                <input
-                  type="search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Uma palavra ou um nome"
-                  aria-label="O que buscar no livro"
-                  autoFocus
-                />
-              </label>
-              {deferredTerm.trim().length < 2 ? (
-                <>
-                  <p className="import-note">Digite pelo menos 2 letras. A busca olha o livro inteiro, no texto original.</p>
-                  <PrivacyNote details="O livro já está aberto aqui, então a busca roda no seu aparelho: o que você digita não vai para a internet nem fica salvo.">
-                    Busca privada: acontece só neste aparelho.
-                  </PrivacyNote>
-                </>
-              ) : searchResults.hits.length === 0 ? (
-                <p className="import-note">Nada encontrado para “{deferredTerm.trim()}”.</p>
-              ) : (
-                <>
-                  <p className="search-count">
-                    {searchResults.total} {searchResults.total === 1 ? "trecho" : "trechos"}
-                    {searchResults.total > searchResults.hits.length ? ` (mostrando os ${searchResults.hits.length} primeiros)` : ""}
-                  </p>
-                  <ul className="marks-list search-list">
-                    {searchResults.hits.map((r) => (
-                      <li key={`${r.chapterIndex}-${r.paragraph}-${r.start}`}>
-                        <button type="button" className="search-hit" onClick={() => openSearchResult(r)}>
-                          <span className="marks-chapter">{r.chapterLabel}</span>
-                          <span className="search-snippet">
-                            {r.before}
-                            <mark>{r.match}</mark>
-                            {r.after}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          </div>
+        {search.searchOpen ? (
+          <BookSearchDialog
+            search={search}
+          />
         ) : null}
 
         {highlightsOpen ? (
-          <div className="import-overlay" onClick={() => setHighlightsOpen(false)}>
-            <div
-              className="import-panel marks-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="marks-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="import-head">
-                <h3 id="marks-title">Marcações</h3>
-                <button type="button" className="icon-btn" onClick={() => setHighlightsOpen(false)} aria-label="Fechar">
-                  {Icon.close}
-                </button>
-              </div>
-              {highlightGroups.length === 0 ? (
-                <p className="import-note">
-                  Selecione um trecho do livro e toque em <strong>Marcar</strong> para guardar suas citações
-                  favoritas aqui.
-                </p>
-              ) : (
-                <ul className="marks-list">
-                  {highlightGroups.map(({ first, text }) => (
-                    <li key={first.group ?? first.id}>
-                      <span className="marks-chapter">{first.chapterLabel}</span>
-                      <blockquote>{text}</blockquote>
-                      <div className="marks-actions">
-                        <button type="button" className="link-btn" onClick={() => openHighlight(first)}>
-                          Ir para o trecho
-                        </button>
-                        <button type="button" className="link-btn" onClick={() => shareQuote(text, first.chapterLabel)}>
-                          Compartilhar
-                        </button>
-                        <button type="button" className="link-btn marks-remove" onClick={() => removeHighlight(first)}>
-                          Remover
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+          <HighlightsDialog
+            highlightGroups={highlightGroups}
+            openHighlight={openHighlight}
+            removeHighlight={removeHighlight}
+            setHighlightsOpen={setHighlightsOpen}
+            shareQuote={shareQuote}
+          />
         ) : null}
 
         {celebration ? <CelebrationOverlay celebration={celebration} onClose={() => setCelebration(null)} /> : null}
@@ -9341,224 +3153,25 @@ export function App() {
           </div>
         ) : null}
 
-        <aside className={`chat ${chatOpen ? "is-open" : ""}`} aria-label="Conversa com os personagens">
-          {character ? (
-            <div className="chat-head" style={{ "--c": character.color } as React.CSSProperties}>
-              <span className="chat-head-avatar" ref={chatAvatarRef}>
-                <Avatar character={character} size="lg" bookTitle={book.title} generate />
-                {chatReaction?.emoji ? (
-                  <span key={chatReaction.id} className="chat-reaction" aria-hidden="true">
-                    {chatReaction.emoji}
-                  </span>
-                ) : null}
-              </span>
-              <div className="chat-head-text">
-                <strong>{character.name}</strong>
-                <span>{character.role}</span>
-              </div>
-              {userHasSpoken ? (
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={resetConversation}
-                  aria-label={`Recomeçar a conversa com ${character.name}`}
-                  title="Recomeçar a conversa"
-                >
-                  {Icon.refresh}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="icon-btn chat-close"
-                onClick={() => setChatOpen(false)}
-                aria-label="Fechar conversa"
-              >
-                {Icon.close}
-              </button>
-            </div>
-          ) : (
-            <div className="chat-head chat-head-pending">
-              <span className="spinner" aria-hidden="true" />
-              <div className="chat-head-text">
-                <strong>{ready ? "Conhecendo os personagens…" : "Abrindo o livro…"}</strong>
-                <span>Em instantes eles chegam para conversar</span>
-              </div>
-              <button
-                type="button"
-                className="icon-btn chat-close"
-                onClick={() => setChatOpen(false)}
-                aria-label="Fechar conversa"
-              >
-                {Icon.close}
-              </button>
-            </div>
-          )}
+        <ChatPanel
+          book={book}
+          chat={chat}
+          ready={ready}
+          setShopOpen={setShopOpen}
+          shareMessage={shareMessage}
+        />
 
-          {characters.length > 1 ? (
-            <div className="cast" role="tablist" aria-label="Personagens">
-              {characters.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={c.id === character?.id}
-                  className={`cast-chip ${c.id === character?.id ? "active" : ""}`}
-                  style={{ "--c": c.color } as React.CSSProperties}
-                  onClick={() => setActiveCharId(c.id)}
-                >
-                  <Avatar character={c} size="sm" bookTitle={book.title} generate />
-                  {shortNameOf(c)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <PrivacyNote
-            details={
-              <>
-                Ninguém da comunidade vê suas conversas. Cada mensagem vai por conexão criptografada (HTTPS) até a
-                IA que dá voz ao personagem, só para ele responder, e o histórico fica no seu aparelho e na sua conta, para continuar de
-                onde parou. Você pode apagar tudo em Perfil › Ajustes › Privacidade.
-              </>
-            }
-          >
-            Conversa privada: só você vê.
-          </PrivacyNote>
-
-          <div ref={chatBodyRef} className="chat-body">
-            {character ? (
-              // Sempre no começo da conversa: deixa claro que é ficção feita por IA.
-              <p className="chat-ai-notice" role="note">
-                <span aria-hidden="true">🤖</span>
-                <span>
-                  <strong>Conversa fictícia criada por inteligência artificial.</strong> {character.name} é um personagem, não uma pessoa
-                  real: as respostas são geradas por IA e podem conter erros.
-                </span>
-              </p>
-            ) : null}
-            {messages.map((m) =>
-              m.role === "assistant" && character ? (
-                <div key={m.id} className="msg msg-assistant">
-                  <Avatar character={character} size="sm" bookTitle={book.title} generate />
-                  <div className="bubble assistant">{m.text}</div>
-                  <button
-                    type="button"
-                    className="msg-share"
-                    onClick={() => shareMessage(m)}
-                    aria-label="Compartilhar esta fala como imagem"
-                    title="Compartilhar como imagem"
-                  >
-                    {Icon.share}
-                  </button>
-                </div>
-              ) : (
-                <div key={m.id} className={`msg msg-user ${m.reaction ? "has-reaction" : ""}`}>
-                  <div className="bubble user">
-                    {m.text}
-                    {m.reaction ? (
-                      <span className="bubble-reaction" role="img" aria-label={`${character?.name ?? "O personagem"} reagiu com ${m.reaction}`}>
-                        {m.reaction}
-                      </span>
-                    ) : null}
-                  </div>
-                  {loading && messages[messages.length - 1]?.id === m.id ? (
-                    <span className="msg-seen" aria-label={`${character?.name ?? "O personagem"} viu a mensagem`}>
-                      Visto
-                    </span>
-                  ) : null}
-                </div>
-              ),
-            )}
-            {loading && character ? (
-              <div className="msg msg-assistant is-typing">
-                <Avatar character={character} size="sm" bookTitle={book.title} generate />
-                <div className="bubble assistant typing" aria-label={`${character.name} está escrevendo`}>
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {error ? <div className="chat-err">{error}</div> : null}
-
-          {!userHasSpoken && character && ready && !loading && !outOfMessages ? (
-            <div className="suggestions">
-              {suggestionsFor(character).map((s) => (
-                <button key={s} type="button" className="suggestion" onClick={() => void sendMessage(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {limitApplies && messagesLeft > 0 && messagesLeft <= 5 ? (
-            <p className="limit-note">
-              {messagesLeft === 1 ? "Resta 1 mensagem hoje." : `Restam ${messagesLeft} mensagens hoje.`}
-            </p>
-          ) : null}
-          {limitApplies && messagesLeft === 0 && extraMessagesLeft > 0 ? (
-            <p className="limit-note">
-              {extraMessagesLeft === 1
-                ? "Usando 1 mensagem extra."
-                : `Usando mensagens extras: ${extraMessagesLeft} restantes.`}
-            </p>
-          ) : null}
-
-          {outOfMessages ? (
-            <div className="limit-out" role="status">
-              <strong>Por hoje é só 💛</strong>
-              <span>
-                Você usou as mensagens gratuitas e extras de hoje. Os personagens voltam a conversar amanhã —
-                enquanto isso, a leitura continua.
-              </span>
-              <button type="button" className="btn btn-primary" onClick={() => setShopOpen(true)}>
-                Comprar mensagens extras
-              </button>
-            </div>
-          ) : (
-          <form className="composer" onSubmit={onSend}>
-            <textarea
-              ref={inputRef}
-              rows={1}
-              maxLength={USER_MESSAGE_MAX_CHARS}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                ready && character ? `Escreva para ${shortNameOf(character)}…` : "Aguarde um instante…"
-              }
-              disabled={loading || !ready || !castReady || !character}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void sendMessage(input);
-                }
-              }}
-            />
-            <button
-              type="submit"
-              className="send-btn"
-              disabled={loading || !ready || !character || !input.trim()}
-              aria-label="Enviar"
-            >
-              {Icon.send}
-            </button>
-          </form>
-          )}
-        </aside>
-
-        {!chatOpen ? (
+        {!chat.chatOpen ? (
           <button
             type="button"
             className="chat-fab"
             onClick={() => {
               setChatOpen(true);
-              requestAnimationFrame(() => inputRef.current?.focus());
+              requestAnimationFrame(() => chat.inputRef.current?.focus());
             }}
           >
-            {character ? <Avatar character={character} size="sm" bookTitle={book.title} generate /> : null}
-            {character ? `Conversar com ${shortNameOf(character)}` : "Conversar"}
+            {chat.character ? <Avatar character={chat.character} size="sm" bookTitle={book.title} generate /> : null}
+            {chat.character ? `Conversar com ${shortNameOf(chat.character)}` : "Conversar"}
           </button>
         ) : null}
       </div>

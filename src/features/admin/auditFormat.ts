@@ -40,6 +40,10 @@ const ACTION_LABEL: Record<string, string> = {
   "billing.view": "Assinatura consultada",
   "billing.grant": "Acesso manual concedido",
   "billing.grant.revoke": "Acesso manual retirado",
+  "shop_item.create": "Item da loja criado",
+  "shop_item.update": "Item da loja editado",
+  "shop_item.delete": "Item da loja apagado",
+  "shop_image.upload": "Imagem da loja enviada",
 };
 
 export function actionLabel(action: string): string {

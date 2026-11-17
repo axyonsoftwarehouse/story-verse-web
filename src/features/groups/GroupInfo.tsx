@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ConfirmOptions } from "../../components/ConfirmDialog";
 import {
-  addMemberByEmail,
   deleteGroup,
   inviteUrl,
   leaveGroup,
@@ -16,7 +15,9 @@ import {
 import { chatSoundsOn, setChatSounds } from "../../lib/chatSounds";
 import { GroupForm } from "./GroupForm";
 import { RoleplayBookCard } from "./RoleplayBookCard";
+import { InvitePeople } from "./InvitePeople";
 import { GroupAvatar, PersonFace } from "./GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "./groupIcons";
 import { TransitionLink } from "../../components/TransitionLink";
 
@@ -46,8 +47,6 @@ export function GroupInfo({
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [openMember, setOpenMember] = useState<string | null>(null);
-  const [addEmail, setAddEmail] = useState("");
-  const [added, setAdded] = useState("");
   const [coverBroken, setCoverBroken] = useState(false);
   const [sounds, setSounds] = useState(chatSoundsOn);
   const owner = group.my_role === "owner";
@@ -237,46 +236,7 @@ export function GroupInfo({
           />
         </label>
 
-        {manager ? (
-          <form
-            className="group-info-card group-add-member"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const email = addEmail.trim();
-              if (!email) return;
-              void run(
-                () => addMemberByEmail(group.id, email),
-                (g) => {
-                  onChanged(g);
-                  setAddEmail("");
-                  setAdded(email);
-                },
-              );
-            }}
-          >
-            <span className="group-info-card-icon">{GIcon.users}</span>
-            <span className="group-add-member-body">
-              <strong>Adicionar pessoa</strong>
-              <small>{added ? `Pronto: ${added} entrou no grupo e foi avisada no sininho.` : "Digite o e-mail da conta da pessoa no Storyverse."}</small>
-              <span className="group-add-member-row">
-                <input
-                  type="email"
-                  value={addEmail}
-                  onChange={(e) => {
-                    setAddEmail(e.target.value);
-                    setAdded("");
-                  }}
-                  placeholder="email@exemplo.com"
-                  aria-label="E-mail da pessoa"
-                  maxLength={254}
-                />
-                <button type="submit" className="btn btn-primary" disabled={!addEmail.trim()}>
-                  Adicionar
-                </button>
-              </span>
-            </span>
-          </form>
-        ) : null}
+        {manager ? <InvitePeople groupId={group.id} /> : null}
 
         <h3 className="group-info-section">
           Membros <small>{members.length}</small>
@@ -294,6 +254,8 @@ export function GroupInfo({
                     photo={m.rp_character ? m.rp_photo : m.photo}
                     size="sm"
                     online={m.online && m.user_id !== me}
+                    // Roleplay: quem aparece como personagem fica sem enfeites (imersão).
+                    cosmetics={m.rp_character ? null : m.cosmetics}
                   />
                   <span className="group-member-name">
                     {m.rp_character ? (
@@ -301,10 +263,10 @@ export function GroupInfo({
                         {m.rp_character} <small className="group-author-player">· {m.user_id === me ? `${m.name} (você)` : m.name}</small>
                       </>
                     ) : m.user_id === me ? (
-                      `${m.name} (você)`
+                      <PersonName name={`${m.name} (você)`} cosmetics={m.cosmetics} />
                     ) : (
                       <TransitionLink className="group-member-link" to={`/pessoas/${m.user_id}`} title={`Ver o perfil de ${m.name}`}>
-                        {m.name}
+                        <PersonName name={m.name} cosmetics={m.cosmetics} />
                       </TransitionLink>
                     )}
                     {ROLE_LABEL[m.role] ? <small className="group-role">{ROLE_LABEL[m.role]}</small> : null}

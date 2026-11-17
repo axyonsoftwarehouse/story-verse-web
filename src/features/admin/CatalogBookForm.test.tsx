@@ -145,6 +145,9 @@ describe("CatalogBookForm", () => {
       target: { value: "Dom Casmurro" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.change(screen.getByLabelText(/Justificativa/), {
+      target: { value: "Project Gutenberg; Machado morreu em 1908" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
@@ -156,6 +159,21 @@ describe("CatalogBookForm", () => {
       { path: "admin-1/b1.txt", contentType: "text/plain" },
       { allowDuplicate: false },
     );
+  });
+
+  it("exige justificativa também em domínio público e lembra a regra dos 70 anos", () => {
+    renderForm();
+    pick(file("livro.txt"));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.change(screen.getByLabelText(/Título/), { target: { value: "Livro" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(screen.getByRole("note")).toHaveTextContent(/70 anos depois da morte do autor/);
+    fireEvent.change(screen.getByLabelText(/Justificativa/), { target: { value: "é livre" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/Explique por que esta obra/);
+    expect(createCatalogBook).not.toHaveBeenCalled();
   });
 
   it("exige justificativa quando a obra não é domínio público", async () => {

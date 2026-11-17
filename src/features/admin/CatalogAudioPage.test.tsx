@@ -162,6 +162,13 @@ describe("CatalogAudioPage", () => {
       target: { value: "Karen Savage" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Criar edição" }));
+    // V1: sem justificativa, nem em domínio público.
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Explique por que esta obra/);
+    expect(createAudioEdition).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/Justificativa dos direitos/), {
+      target: { value: "LibriVox; Machado de Assis morreu em 1908" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar edição" }));
 
     await waitFor(() =>
       expect(createAudioEdition).toHaveBeenCalledWith(

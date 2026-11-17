@@ -6,15 +6,28 @@ import "./social.css";
 import { useStoredSession } from "../auth/useStoredSession";
 import { useGroupsGate } from "../groups/groupHelpers";
 import { GIcon } from "../groups/groupIcons";
-import { followersOf, followingOf, peopleSuggestions, removeFollower, searchPeople, type Person, errorText } from "../../lib/social";
+import {
+  acceptFollowRequest,
+  declineFollowRequest,
+  followersOf,
+  followingOf,
+  followRequests,
+  getPerson,
+  peopleSuggestions,
+  removeFollower,
+  searchPeople,
+  type Person,
+  errorText,
+} from "../../lib/social";
 import { PeopleBlocked, PeopleEmpty, PeopleList, PeopleSkeleton, PersonRow, SuggestionsStrip } from "./PeopleParts";
 import { TransitionLink } from "../../components/TransitionLink";
 
-type Tab = "sugestoes" | "seguindo" | "seguidores";
+type Tab = "sugestoes" | "seguindo" | "seguidores" | "pedidos";
 const TABS: { id: Tab; label: string }[] = [
   { id: "sugestoes", label: "Sugestões" },
   { id: "seguindo", label: "Seguindo" },
   { id: "seguidores", label: "Seguidores" },
+  { id: "pedidos", label: "Pedidos" },
 ];
 
 /** "Pessoas": achar leitores pelo nome, sugestões dos grupos e a própria rede (seguindo/seguidores). */
@@ -26,8 +39,22 @@ export function PeoplePage() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const me = session?.user.id ?? "";
+  /** A aba "Pedidos" só aparece com perfil privado ou pedido esperando (ou se o link pediu). */
+  const [requests, setRequests] = useState<{ private: boolean; pending: number } | null>(null);
+
+  useEffect(() => {
+    if (!gate.ready || !me) return;
+    let alive = true;
+    getPerson(me)
+      .then((p) => alive && setRequests({ private: Boolean(p.is_private), pending: p.pending_requests ?? 0 }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [gate.ready, me]);
 
   if (!gate.ready) return <PeopleBlocked text={gate.blocked} />;
+  const showRequests = tab === "pedidos" || Boolean(requests && (requests.private || requests.pending > 0));
 
   return (
     <div className="home groups-page people-page">
@@ -73,7 +100,7 @@ export function PeoplePage() {
       ) : (
         <>
           <div className="segmented groups-tabs people-tabs" role="tablist">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t.id !== "pedidos" || showRequests).map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -83,6 +110,7 @@ export function PeoplePage() {
                 onClick={() => setParams(t.id === "sugestoes" ? {} : { aba: t.id }, { replace: true })}
               >
                 {t.label}
+                {t.id === "pedidos" && requests && requests.pending > 0 ? <span className="people-tab-count">{requests.pending}</span> : null}
               </button>
             ))}
           </div>
@@ -106,7 +134,31 @@ export function PeoplePage() {
               extra={(p, remove) => <RemoveFollower person={p} onRemoved={remove} />}
             />
           ) : null}
-          {tab !== "sugestoes" ? <SuggestionsStrip me={me} title="Sugestões para você" skipFollowers={tab === "seguidores"} /> : null}
+          {tab === "pedidos" ? (
+            <PeopleList
+              reloadKey={`requests-${me}`}
+              load={(offset) => followRequests(offset)}
+              me={me}
+              follow={false}
+              empty={
+                <PeopleEmpty
+                  icon={GIcon.userPlus}
+                  title="Nenhum pedido esperando"
+                  text={requests?.private === false ? "Seu perfil é público: quem quiser já segue você direto." : "Quando alguém pedir para seguir você, o pedido aparece aqui."}
+                />
+              }
+              extra={(p, remove) => (
+                <RequestActions
+                  person={p}
+                  onDone={() => {
+                    remove();
+                    setRequests((cur) => (cur ? { ...cur, pending: Math.max(0, cur.pending - 1) } : cur));
+                  }}
+                />
+              )}
+            />
+          ) : null}
+          {tab !== "sugestoes" && tab !== "pedidos" ? <SuggestionsStrip me={me} title="Sugestões para você" skipFollowers={tab === "seguidores"} /> : null}
         </>
       )}
     </div>
@@ -206,6 +258,37 @@ function Suggestions({ me }: { me: string }) {
         ))}
       </ul>
     </>
+  );
+}
+
+/** Aceitar ou recusar um pedido para seguir (recusar não avisa a pessoa). */
+function RequestActions({ person, onDone }: { person: Person; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const act = (accept: boolean) => {
+    setBusy(true);
+    setError("");
+    void (accept ? acceptFollowRequest(person.id) : declineFollowRequest(person.id))
+      .then(onDone)
+      .catch((err: unknown) => {
+        setError(errorText(err, "Não deu certo agora. Tente de novo."));
+        setBusy(false);
+      });
+  };
+  return (
+    <span className="people-request-actions">
+      <button type="button" className="btn btn-primary is-compact" disabled={busy} onClick={() => act(true)} aria-label={`Aceitar o pedido de ${person.name}`}>
+        Aceitar
+      </button>
+      <button type="button" className="btn is-compact" disabled={busy} onClick={() => act(false)} aria-label={`Recusar o pedido de ${person.name}`}>
+        Recusar
+      </button>
+      {error ? (
+        <small className="people-follow-error" role="alert">
+          {error}
+        </small>
+      ) : null}
+    </span>
   );
 }
 

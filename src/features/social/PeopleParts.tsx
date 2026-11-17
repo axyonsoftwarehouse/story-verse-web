@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { PersonFace } from "../groups/GroupParts";
+import { PersonName } from "../shop/PersonName";
 import { GIcon } from "../groups/groupIcons";
 import { errorText, follow, followLabel, PEOPLE_PAGE, peopleSuggestions, relationOf, unfollow, type Person, type PersonProfile } from "../../lib/social";
+import { profileCoverUrl } from "../../lib/shop";
 import { TransitionLink } from "../../components/TransitionLink";
 
 /** Selo ao lado do nome: "Conexão" (as duas se seguem) ou "Segue você". */
@@ -13,9 +15,17 @@ export function RelationBadge({ person }: { person: Pick<Person, "is_following" 
   return null;
 }
 
+const CLOCK = (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+
 /**
  * Seguir / deixar de seguir, com resposta imediata (volta atrás se a API recusar). Deixar de
- * seguir uma conexão pede confirmação: a pessoa perde o selo de conexão.
+ * seguir uma conexão pede confirmação: a pessoa perde o selo de conexão. Perfil privado: seguir
+ * vira "Pedido enviado", e tocar de novo cancela o pedido.
  */
 export function FollowButton({
   person,
@@ -33,16 +43,19 @@ export function FollowButton({
   const [burst, setBurst] = useState(0);
   const [error, setError] = useState("");
   const relation = relationOf(person);
-  const on = person.is_following;
+  const requested = relation === "requested";
+  const on = person.is_following || requested;
 
   async function toggle() {
     if (busy) return;
-    if (on && relation === "connection" && !window.confirm(`Deixar de seguir ${person.name}? Vocês deixam de ser conexão.`)) return;
+    if (person.is_following && relation === "connection" && !window.confirm(`Deixar de seguir ${person.name}? Vocês deixam de ser conexão.`)) return;
+    if (person.is_following && person.is_private && !window.confirm(`Deixar de seguir ${person.name}? O perfil é privado: para voltar a ver, você vai precisar pedir de novo.`)) return;
     setBusy(true);
     setError("");
     const before = person;
-    if (!on && celebrate) setBurst((n) => n + 1);
-    onChange({ ...person, is_following: !on });
+    if (!on && celebrate && !person.is_private) setBurst((n) => n + 1);
+    // Perfil privado vira pedido; o resto segue na hora.
+    onChange(on ? { ...person, is_following: false, requested: false } : person.is_private ? { ...person, requested: true } : { ...person, is_following: true });
     try {
       const next = on ? await unfollow(person.id) : await follow(person.id);
       onChange({ ...person, ...next });
@@ -65,13 +78,21 @@ export function FollowButton({
       ) : null}
       <button
         type="button"
-        className={`btn people-follow ${on ? "is-on" : "btn-primary"} ${compact ? "is-compact" : ""} ${burst > 0 && on ? "is-celebrating" : ""}`}
+        className={`btn people-follow ${on ? "is-on" : "btn-primary"} ${requested ? "is-requested" : ""} ${compact ? "is-compact" : ""} ${burst > 0 && on ? "is-celebrating" : ""}`}
         onClick={() => void toggle()}
         disabled={busy}
         aria-pressed={on}
-        aria-label={on ? `Deixar de seguir ${person.name}` : `Seguir ${person.name}`}
+        aria-label={
+          requested
+            ? `Cancelar o pedido para seguir ${person.name}`
+            : on
+              ? `Deixar de seguir ${person.name}`
+              : person.is_private
+                ? `Pedir para seguir ${person.name}`
+                : `Seguir ${person.name}`
+        }
       >
-        {on ? GIcon.check : GIcon.plus}
+        {requested ? CLOCK : on ? GIcon.check : GIcon.plus}
         <span className="people-follow-label">{followLabel(relation)}</span>
       </button>
       {error ? (
@@ -90,30 +111,42 @@ export function PersonRow({
   detail,
   onChange,
   extra,
+  follow = true,
 }: {
   person: Person;
   me: string;
   detail?: string | null;
   onChange: (next: Person) => void;
   extra?: React.ReactNode;
+  /** Botão de seguir na linha (a lista de pedidos usa só Aceitar/Recusar). */
+  follow?: boolean;
 }) {
+  const cover = profileCoverUrl(person.shop_cover, person.cover);
   return (
-    <div className="people-row">
-      <TransitionLink className="people-row-main" to={`/pessoas/${person.id}`}>
-        <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} />
-        <span className="people-row-text">
-          <strong>
-            {person.name}
-            {person.id === me ? <small className="people-you"> (você)</small> : null}
-          </strong>
-          <span className="people-row-meta">
-            <RelationBadge person={person} />
-            {detail ? <span>{detail}</span> : null}
-          </span>
+    <div className={`people-row ${cover ? "has-cover" : ""}`}>
+      {/* Faixa da capa (3:1) no topo do card; sem capa o card fica como sempre foi. */}
+      {cover ? (
+        <span className="people-row-cover" aria-hidden="true">
+          <img src={cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
         </span>
-      </TransitionLink>
-      {person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
-      {extra}
+      ) : null}
+      <div className="people-row-body">
+        <TransitionLink className="people-row-main" to={`/pessoas/${person.id}`}>
+          <PersonFace id={person.id} name={person.name} avatar={person.avatar} photo={person.photo} cosmetics={person.cosmetics} />
+          <span className="people-row-text">
+            <strong>
+              <PersonName name={person.name} cosmetics={person.cosmetics} />
+              {person.id === me ? <small className="people-you"> (você)</small> : null}
+            </strong>
+            <span className="people-row-meta">
+              <RelationBadge person={person} />
+              {detail ? <span>{detail}</span> : null}
+            </span>
+          </span>
+        </TransitionLink>
+        {follow && person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
+        {extra}
+      </div>
     </div>
   );
 }
@@ -129,6 +162,7 @@ export function PeopleList({
   detail,
   extra,
   reloadKey,
+  follow = true,
 }: {
   load: (offset: number) => Promise<Person[]>;
   me: string;
@@ -136,6 +170,7 @@ export function PeopleList({
   detail?: (p: Person) => string | null;
   extra?: (p: Person, remove: () => void) => React.ReactNode;
   reloadKey?: string;
+  follow?: boolean;
 }) {
   const [items, setItems] = useState<Person[] | null>(null);
   const [more, setMore] = useState(false);
@@ -195,6 +230,7 @@ export function PeopleList({
               me={me}
               detail={detail?.(p)}
               onChange={update}
+              follow={follow}
               extra={extra?.(p, () => setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null))}
             />
           </li>
@@ -306,8 +342,10 @@ export function SuggestionsStrip({
           {shown.map((p, i) => (
             <li key={p.id} className="people-strip-card" style={{ "--i": i } as React.CSSProperties}>
               <TransitionLink className="people-strip-person" to={`/pessoas/${p.id}`}>
-                <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} />
-                <strong>{p.name}</strong>
+                <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} cosmetics={p.cosmetics} />
+                <strong>
+                  <PersonName name={p.name} cosmetics={p.cosmetics} />
+                </strong>
                 <small>
                   {p.follows_me
                     ? "Segue você"
