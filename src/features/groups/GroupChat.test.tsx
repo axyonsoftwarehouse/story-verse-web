@@ -134,3 +134,43 @@ describe("GroupChat: enfeites nas mensagens", () => {
     expect(row.querySelector("img.person-name-badge")).toBeNull();
   });
 });
+
+describe("GroupChat: botão fixo de editar no roleplay", () => {
+  beforeEach(() => {
+    getGroup.mockReset();
+    listMessages.mockReset();
+  });
+
+  const recent = () => new Date(Date.now() - 60_000).toISOString();
+
+  it("aparece só na própria mensagem de texto e abre a edição com o texto", async () => {
+    getGroup.mockResolvedValue(group({ mode: "roleplay", members: [member({ user_id: "eu", name: "Eu", cosmetics: null }), member({ rp_character: "Capitu" })] }));
+    listMessages.mockResolvedValue([
+      msg({ id: 1, body: "Fala da Ana", created_at: recent() }),
+      msg({ id: 2, author_id: "eu", author_name: "Eu", body: "Minha fala", created_at: recent() }),
+    ]);
+    renderChat();
+    await screen.findByText("Minha fala");
+    const buttons = screen.getAllByRole("button", { name: "Editar mensagem" });
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(await screen.findByDisplayValue("Minha fala")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancelar edição" })).toBeTruthy();
+  });
+
+  it("não aparece no chat comum nem depois do prazo", async () => {
+    getGroup.mockResolvedValue(group({ mode: "chat" }));
+    listMessages.mockResolvedValue([msg({ id: 2, author_id: "eu", author_name: "Eu", body: "Minha fala", created_at: recent() })]);
+    const { unmount } = renderChat();
+    await screen.findByText("Minha fala");
+    expect(screen.queryByRole("button", { name: "Editar mensagem" })).toBeNull();
+    unmount();
+
+    getGroup.mockResolvedValue(group({ mode: "roleplay" }));
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    listMessages.mockResolvedValue([msg({ id: 3, author_id: "eu", author_name: "Eu", body: "Fala antiga", created_at: old })]);
+    renderChat();
+    await screen.findByText("Fala antiga");
+    expect(screen.queryByRole("button", { name: "Editar mensagem" })).toBeNull();
+  });
+});

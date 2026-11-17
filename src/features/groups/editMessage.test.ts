@@ -36,8 +36,10 @@ describe("canEditMessage", () => {
     expect(canEditMessage({ ...base, pending: true }, "eu", true, now)).toBe(false);
   });
 
-  it("passou de 24 horas não", () => {
-    const old = { ...base, created_at: new Date(now - EDIT_WINDOW_MS - 1000).toISOString() };
-    expect(canEditMessage(old, "eu", true, now)).toBe(false);
+  it("prazo de 7 dias: 6 dias depois ainda edita, 8 dias depois não", () => {
+    expect(EDIT_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    const day = 24 * 60 * 60 * 1000;
+    expect(canEditMessage({ ...base, created_at: new Date(now - 6 * day).toISOString() }, "eu", true, now)).toBe(true);
+    expect(canEditMessage({ ...base, created_at: new Date(now - 8 * day).toISOString() }, "eu", true, now)).toBe(false);
   });
 });

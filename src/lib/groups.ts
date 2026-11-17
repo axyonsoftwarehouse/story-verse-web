@@ -340,11 +340,11 @@ export const sendMessage = (
   body: { body: string; clientId: string; spoilerChapter?: number | null; replyTo?: number | null },
 ) => call<GroupMessage>(`/api/v1/groups/${id}/messages`, { method: "POST", body });
 /** Roleplay: quanto tempo depois de enviar ainda dá para editar (a API confere o mesmo). */
-export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Dá para editar a mensagem? Só no roleplay, a própria mensagem de texto (não do narrador, nem
- * foto ou áudio), já gravada e até 24 h depois. Denúncia e livro pronto a API recusa.
+ * foto ou áudio), já gravada e até 7 dias depois. Denúncia e livro pronto a API recusa.
  */
 export function canEditMessage(m: GroupMessage, me: string, roleplay: boolean, now = Date.now()): boolean {
   return (

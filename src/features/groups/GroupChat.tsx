@@ -979,6 +979,18 @@ export function GroupChat() {
                                 </button>
                               ) : (
                                 <>
+                                  {/* Fixo (sem passar o mouse nem segurar): quem quer corrigir acha na hora. */}
+                                  {canEditMessage(m, me, roleplay) && editing?.id !== m.id ? (
+                                    <button
+                                      type="button"
+                                      className="group-edit-button"
+                                      aria-label="Editar mensagem"
+                                      title="Editar mensagem"
+                                      onClick={() => startEdit(m)}
+                                    >
+                                      {GIcon.pencil}
+                                    </button>
+                                  ) : null}
                                   {m.edited_at && !m.deleted ? <span className="group-edited">editada · </span> : null}
                                   {m.pending ? "enviando…" : messageTime(m.created_at)}
                                   {mine ? <StatusTicks status={messageStatus(m, group.members ?? [], me)} /> : null}
