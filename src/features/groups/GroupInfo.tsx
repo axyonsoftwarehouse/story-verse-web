@@ -33,7 +33,7 @@ function inviteValidity(group: Group): string {
   parts.push(group.invite_expires_at ? `válido até ${new Date(group.invite_expires_at).toLocaleDateString("pt-BR")}` : "sem prazo");
   if (group.invite_max_uses) {
     const left = Math.max(0, group.invite_max_uses - (group.invite_uses ?? 0));
-    parts.push(`${left} de ${group.invite_max_uses} entradas restantes`);
+    parts.push(left === 0 ? "link esgotado — gere outro" : `${left} de ${group.invite_max_uses} entradas restantes`);
   } else {
     parts.push("sem limite de entradas");
   }
