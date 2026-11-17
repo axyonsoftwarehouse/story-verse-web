@@ -979,6 +979,21 @@ export function GroupChat() {
                                 </button>
                               ) : (
                                 <>
+                                  {/* Atalho de responder ao lado da mensagem: achar no menu é lento no celular. */}
+                                  {!m.deleted && canAct ? (
+                                    <button
+                                      type="button"
+                                      className="group-reply-button"
+                                      aria-label="Responder mensagem"
+                                      title="Responder"
+                                      onClick={() => {
+                                        setReplyTo(m);
+                                        inputRef.current?.focus();
+                                      }}
+                                    >
+                                      {GIcon.reply}
+                                    </button>
+                                  ) : null}
                                   {/* Fixo (sem passar o mouse nem segurar): quem quer corrigir acha na hora. */}
                                   {canEditMessage(m, me, roleplay) && editing?.id !== m.id ? (
                                     <button

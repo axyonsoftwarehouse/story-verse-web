@@ -1034,6 +1034,9 @@
 }
 
 .group-quote span {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   color: var(--muted);
   white-space: nowrap;
@@ -1242,6 +1245,10 @@
 
 .group-replying span {
   flex: 1;
+  /* Sem min-width: 0 o item não encolhe abaixo do conteúdo e o texto é cortado seco na borda,
+     sem as reticências (bug do cartão: citação cortada ao responder). */
+  min-width: 0;
+  display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1460,6 +1467,42 @@
   font-size: 0.78rem;
   font-weight: 500;
   text-align: left;
+}
+
+/* Prazo e limite do link: escolhe antes de gerar; o contador aparece embaixo do endereço. */
+.group-invite-new {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+  width: 100%;
+  padding-left: 3rem;
+}
+
+.group-invite-new label {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.group-invite-new select {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.group-invite-new .group-invite-rotate {
+  width: auto;
+  padding-left: 0;
+}
+
+.group-invite-validity {
+  color: var(--accent);
 }
 
 .group-switch {
@@ -4624,6 +4667,35 @@ button.group-rp-character small {
 
 @media (hover: hover) {
   .group-edit-button:hover {
+    color: var(--text);
+  }
+}
+
+/* Atalho de responder ao lado da mensagem (mesma área de toque do lápis). */
+.group-reply-button {
+  display: inline-grid;
+  place-items: center;
+  margin: -0.45rem 0.05rem -0.45rem -0.35rem;
+  padding: 0.45rem 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.group-reply-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.group-reply-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .group-reply-button:hover {
     color: var(--text);
   }
 }

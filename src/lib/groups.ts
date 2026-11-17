@@ -75,6 +75,12 @@ export type Group = {
   last_read_id: number;
   unread: number;
   invite_code: string | null;
+  /** Fim da validade do link de convite (null = sem prazo). Só quem administra recebe. */
+  invite_expires_at?: string | null;
+  /** Quantas entradas o link aceita (null = sem limite). */
+  invite_max_uses?: number | null;
+  /** Entradas já feitas com o link atual. */
+  invite_uses?: number;
   last_message_id: number | null;
   last_author_name: string | null;
   last_body: string | null;
@@ -227,7 +233,9 @@ export const joinGroup = (id: string) => call<Group>(`/api/v1/groups/${id}/join`
 export const joinByInvite = (code: string) =>
   call<Group>(`/api/v1/groups/join/${encodeURIComponent(code)}`, { method: "POST" });
 export const leaveGroup = (id: string) => call<void>(`/api/v1/groups/${id}/leave`, { method: "POST" });
-export const rotateInvite = (id: string) => call<Group>(`/api/v1/groups/${id}/invite/rotate`, { method: "POST" });
+/** Gera link novo. `expiresInDays`/`maxUses` 0 ou ausente = sem prazo / sem limite. */
+export const rotateInvite = (id: string, opts?: { expiresInDays?: number; maxUses?: number }) =>
+  call<Group>(`/api/v1/groups/${id}/invite/rotate`, { method: "POST", body: opts ?? {} });
 export const setMuted = (id: string, muted: boolean) =>
   call<Group>(`/api/v1/groups/${id}/mute`, { method: "POST", body: { muted } });
 export const markRead = (id: string, lastId: number) =>
