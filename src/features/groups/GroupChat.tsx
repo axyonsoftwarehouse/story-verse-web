@@ -995,7 +995,7 @@ export function GroupChat() {
                                     </button>
                                   ) : null}
                                   {/* Fixo (sem passar o mouse nem segurar): quem quer corrigir acha na hora. */}
-                                  {canEditMessage(m, me, roleplay) && editing?.id !== m.id ? (
+                                  {canEditMessage(m, me) && editing?.id !== m.id ? (
                                     <button
                                       type="button"
                                       className="group-edit-button"
@@ -1266,7 +1266,7 @@ export function GroupChat() {
             menuFor.message.spoiler_chapter !== null && menuFor.message.author_id !== me && chapter <= menuFor.message.spoiler_chapter && !revealed.has(menuFor.message.id)
           }
           canDelete={menuFor.message.author_id === me || manager}
-          canEdit={canEditMessage(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message, me, roleplay)}
+          canEdit={canEditMessage(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message, me)}
           onEdit={() => startEdit(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message)}
           onClose={() => setMenuFor(null)}
           onReact={(emoji) => void toggleReaction(messages.find((x) => x.id === menuFor.message.id) ?? menuFor.message, emoji)}

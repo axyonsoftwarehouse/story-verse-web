@@ -351,12 +351,11 @@ export const sendMessage = (
 export const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Dá para editar a mensagem? Só no roleplay, a própria mensagem de texto (não do narrador, nem
- * foto ou áudio), já gravada e até 7 dias depois. Denúncia e livro pronto a API recusa.
+ * A própria mensagem de texto, dentro do prazo — em qualquer grupo (chat comum ou roleplay).
+ * Antes exigia roleplay; o cartão de 15/11 pede o mesmo no chat de conversa.
  */
-export function canEditMessage(m: GroupMessage, me: string, roleplay: boolean, now = Date.now()): boolean {
+export function canEditMessage(m: GroupMessage, me: string, now = Date.now()): boolean {
   return (
-    roleplay &&
     m.author_id === me &&
     m.kind !== "narrator" &&
     !m.media_kind &&
