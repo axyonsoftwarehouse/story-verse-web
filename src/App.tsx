@@ -2,9 +2,7 @@ import { userStorage } from "./lib/dataOwner";
 import { authModalFromUrl, safeLoginReturn } from "./lib/loginReturn";
 import {
   useCallback,
-  useDeferredValue,
   useEffect,
-  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -40,15 +38,6 @@ import {
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
 import { applyAppTheme } from "./lib/appTheme";
-import {
-  dismissNaturalOffer,
-  downloadNaturalVoice,
-  naturalOfferDismissed,
-  naturalVoicesFor,
-  naturalVoiceSupported,
-  naturalVoiceUri,
-  storedNaturalVoices,
-} from "./lib/naturalVoice";
 import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -160,18 +149,6 @@ import { lastCharacter, syncEngagementState } from "./lib/reminders";
 import { useAppInstall, useUpdateReady } from "./lib/pwa";
 import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
-  listVoices,
-  saveRate,
-  savedRate,
-  savedVoiceUri,
-  saveVoiceUri,
-  speakParagraphs,
-  speakSample,
-  speechSupported,
-  type SpeechSession,
-  type VoiceOption,
-} from "./lib/speech";
-import {
   AUTH_SESSION_STORAGE_KEY,
   AuthNetworkError,
   AuthSessionError,
@@ -187,17 +164,6 @@ import {
   type SupabaseSession,
   type SupabaseUser,
 } from "./lib/auth";
-import {
-  cachedTranslation,
-  chunkRanges,
-  detectTranslationEngine,
-  grantRemoteTranslationConsent,
-  hasRemoteTranslationConsent,
-  storeTranslation,
-  translateParagraphs,
-  warmUpLocalTranslator,
-  type TranslationEngine,
-} from "./lib/translate";
 import { LEGAL_HOLDER_NAME } from "./features/legal/holder";
 import "./App.css";
 import { installNudgeReady, noteBookOpened, noteVisit } from "./lib/installNudge";
@@ -219,7 +185,7 @@ import { SHELVES } from "./data/shelves";
 import { MyBooks } from "./features/home/MyBooks";
 import { CelebrationOverlay, type Celebration } from "./features/home/CelebrationOverlay";
 import { withoutImageMarkers } from "./lib/imageMarkers";
-import { searchBook, toBlocks, type BookSearchHit } from "./features/reader/bookText";
+import { toBlocks } from "./features/reader/bookText";
 import { listNames, uid, type Msg } from "./features/chat/chatHelpers";
 import { VoicePanel } from "./features/reader/VoicePanel";
 import { SelectionToolbar } from "./features/reader/SelectionToolbar";
@@ -228,11 +194,13 @@ import { BookSearchDialog } from "./features/reader/BookSearchDialog";
 import { HighlightsDialog } from "./features/reader/HighlightsDialog";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { useChat, type ChatSendContext } from "./features/chat/useChat";
+import { useBookSearch } from "./features/reader/useBookSearch";
+import { useBookTranslation } from "./features/reader/useBookTranslation";
+import { useReadAloud } from "./features/reader/useReadAloud";
 import { ReaderBar } from "./features/reader/ReaderBar";
 import { ChapterText } from "./features/reader/ChapterText";
 
 /** Capítulo sem tradução carregada: a mesma referência sempre, para não refazer o texto da tela. */
-const NO_TRANSLATIONS: Record<number, (string | null)[]> = {};
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -1412,16 +1380,6 @@ export function App() {
     null,
   );
 
-  /* Leitura em voz alta. */
-  const [speaking, setSpeaking] = useState(false);
-  const [speakingBlock, setSpeakingBlock] = useState<number | null>(null);
-  const [speechRate, setSpeechRate] = useState(savedRate);
-  const [voicePanelOpen, setVoicePanelOpen] = useState(false);
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
-  const [voiceUri, setVoiceUri] = useState<string | undefined>(undefined);
-  const speechRef = useRef<SpeechSession | null>(null);
-  /** A voz chegou ao fim do capítulo e segue no próximo. */
-  const continueSpeechRef = useRef(false);
   /** Ao abrir um capítulo, rola até este parágrafo (vindo de uma marcação). */
   const jumpToBlockRef = useRef<number | null>(null);
   /** Última interação no leitor: o tempo de leitura só conta com o leitor presente. */
@@ -1850,36 +1808,6 @@ export function App() {
     [authLoading, canRead],
   );
 
-  const stopSpeaking = useCallback(() => {
-    speechRef.current?.stop();
-    speechRef.current = null;
-    continueSpeechRef.current = false;
-    setSpeaking(false);
-    setSpeakingBlock(null);
-    setVoicePanelOpen(false);
-  }, []);
-
-  /** Livro aberto e já carregado: ao sair, a fita do marcador lembra que o ponto ficou guardado. */
-  const leavingTitleRef = useRef<string | null>(null);
-  const leaveBook = useCallback(() => {
-    readerGeneration.current++;
-    if (leavingTitleRef.current) setBookmarkDrop({ id: Date.now(), label: leavingTitleRef.current });
-    stopSpeaking();
-    setHighlightsOpen(false);
-    setReaderSettingsOpen(false);
-    setImmersive(false);
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    setSelection(null);
-    setWordCard(null);
-    setBook(null);
-    setCast(null);
-    resetChat();
-    setFullText("");
-    setChapterIndex(0);
-    setLoadState("idle");
-    setLoadError(null);
-  }, [stopSpeaking, resetChat]);
-
   const toggleReadingFullscreen = useCallback(async () => {
     setReaderSettingsOpen(false);
     if (immersive) {
@@ -1955,38 +1883,15 @@ export function App() {
     [noticeAchievements],
   );
 
-  /** Tempo de leitura (para a sequência de dias e a meta): conta de 15 em 15 s com o leitor ativo. */
-  useEffect(() => {
-    if (!book || loadState !== "ready") return;
-    const TICK = 15;
-    const session = authSessionRef.current;
-    if (session) void readingHeartbeat(session, true).catch(() => {});
-    const t = window.setInterval(() => {
-      const active = Date.now() - lastActivityRef.current < 120_000 || speechRef.current !== null;
-      const reading = document.visibilityState === "visible" && active;
-      if (reading) {
-        celebrate(addReadingSeconds(TICK));
-        countVisibleWordsRef.current();
-      }
-      if (session && authSessionRef.current?.user.id === session.user.id)
-        void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
-    }, TICK * 1000);
-    return () => {
-      window.clearInterval(t);
-      if (session) void readingHeartbeat(session, false).catch(() => {});
-    };
-  }, [book, loadState, celebrate]);
-
   // Conquista nova ao conversar, marcar um trecho ou ao abrir o app com os dados prontos.
   useEffect(() => {
     if (dataIsReady) noticeAchievements();
   }, [dataIsReady, chat.threads, highlights, noticeAchievements]);
 
-  /** A voz para ao sair do livro ou fechar a página. */
-  useEffect(() => () => speechRef.current?.stop(), []);
-
   const chapters = useMemo(() => (fullText ? splitIntoChapters(fullText) : []), [fullText]);
   const currentChapter = chapters[chapterIndex] ?? chapters[0];
+  /** Livro aberto e já carregado: ao sair, a fita do marcador lembra que o ponto ficou guardado. */
+  const leavingTitleRef = useRef<string | null>(null);
   leavingTitleRef.current = book && loadState === "ready" ? book.title : null;
 
   useEffect(() => {
@@ -2065,23 +1970,7 @@ export function App() {
   const displayedStory = currentChapter?.body ?? "";
 
   /** Buscar no livro: palavra ou nome em todos os capítulos, com o trecho e o salto até lá. */
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const deferredTerm = useDeferredValue(searchTerm);
-  const bookBlocks = useMemo(
-    () => (searchOpen ? chapters.map((ch) => toBlocks(ch.body, ch.label)) : []),
-    [searchOpen, chapters],
-  );
-  const searchResults = useMemo(() => searchBook(bookBlocks, chapters, deferredTerm), [bookBlocks, chapters, deferredTerm]);
-  function openSearchResult(r: BookSearchHit) {
-    setSearchOpen(false);
-    if (r.chapterIndex === chapterIndex) {
-      requestAnimationFrame(() => scrollToBlock(r.paragraph));
-    } else {
-      jumpToBlockRef.current = r.paragraph;
-      setChapterIndex(r.chapterIndex);
-    }
-  }
+  const search = useBookSearch({ chapters, chapterIndex, setChapterIndex, jumpToBlockRef, scrollToBlock });
 
   /** Rola até um parágrafo do capítulo aberto e o destaca por um instante. */
   function scrollToBlock(i: number) {
@@ -2127,301 +2016,76 @@ export function App() {
   useEffect(() => () => window.clearTimeout(scrollIdleRef.current), []);
 
   /* ---- Tradução dos livros em inglês: trecho a trecho, conforme o leitor avança. ---- */
-  const [engine, setEngine] = useState<TranslationEngine>("google");
-  useEffect(() => {
-    let alive = true;
-    void detectTranslationEngine().then((e) => alive && setEngine(e));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const canTranslate = book?.textLanguage === "en";
-  // Livros locais/importados podem ser privados: o tradutor remoto só roda com consentimento.
-  const [translateConsent, setTranslateConsent] = useState(() => hasRemoteTranslationConsent());
-  const remoteTranslationNeedsConsent =
-    book?.source === "local" && engine !== "local" && !translateConsent;
-  const translateOn = canTranslate && prefs.translate && !remoteTranslationNeedsConsent;
-  const chunks = useMemo(() => chunkRanges(blocks.map((b) => b.text)), [blocks]);
-  /** Traduções do capítulo; `chunks` diz para quais trechos o guardado no aparelho já foi carregado. */
-  const [translated, setTranslated] = useState<{
-    key: string;
-    chunks: [number, number][] | null;
-    byChunk: Record<number, (string | null)[]>;
-  }>({ key: "", chunks: null, byChunk: {} });
-  const translations = useMemo(
-    () => (translated.key === chapterKey ? translated.byChunk : NO_TRANSLATIONS),
-    [translated, chapterKey],
-  );
-  const [translatingChunk, setTranslatingChunk] = useState<number | null>(null);
-  const [failedChunks, setFailedChunks] = useState<number[]>([]);
-
-  async function toggleTranslation() {
-    const active = prefs.translate && !remoteTranslationNeedsConsent;
-    if (active) {
-      setPrefs((p) => ({ ...p, translate: false }));
-      return;
-    }
-    const detected = await detectTranslationEngine();
-    if (detected !== "local" && book?.source === "local" && !hasRemoteTranslationConsent()) {
-      const ok = window.confirm(
-        "Para traduzir este livro local, trechos do texto serão enviados ao Google Tradutor/MyMemory. " +
-          "Se o livro for privado, cancele e use o tradutor do próprio navegador quando disponível. Continuar?",
-      );
-      if (!ok) {
-        setPrefs((p) => ({ ...p, translate: false }));
-        return;
-      }
-      grantRemoteTranslationConsent();
-    }
-    if (detected === "local") {
-      warmUpLocalTranslator();
-      setEngine("local");
-      setTranslateConsent(true);
-    } else if (hasRemoteTranslationConsent()) {
-      setTranslateConsent(true);
-    }
-    setPrefs((p) => ({ ...p, translate: true }));
-  }
-
-  /** Troca de capítulo: começa com o que já foi traduzido antes e está guardado. */
-  useEffect(() => {
-    const cached: Record<number, (string | null)[]> = {};
-    if (book && canTranslate) {
-      chunks.forEach((_, c) => {
-        const t = cachedTranslation(book.gutenbergId, chapterIndex, c);
-        if (t) cached[c] = t;
-      });
-    }
-    setTranslated({ key: chapterKeyRef.current, chunks, byChunk: cached });
-    setTranslatingChunk(null);
-    setFailedChunks([]);
-  }, [book, canTranslate, chapterIndex, chunks]);
-
-  /** Traduz o trecho visível e o seguinte, um pedido por vez. */
-  useEffect(() => {
-    if (!book || !translateOn || loadState !== "ready" || translatingChunk !== null) return;
-    // Espera o capítulo carregar o que está guardado e a rolagem ser medida.
-    if (translated.key !== chapterKey || visibleChunk?.key !== chapterKey) return;
-    const c = [visibleChunk.chunk, visibleChunk.chunk + 1].find(
-      (n) => n < chunks.length && !translations[n] && !failedChunks.includes(n),
-    );
-    if (c === undefined) return;
-    const key = chapterKey;
-    const [start, end] = chunks[c];
-    // Espera a rolagem parar: quem passa correndo pelo capítulo não dispara um pedido por trecho.
-    const t = setTimeout(() => {
-      setTranslatingChunk(c);
-      // Ilustrações não têm o que traduzir.
-      translateParagraphs(
-        engine,
-        blocks.slice(start, end).map((b) => (b.kind === "image" ? "" : b.text)),
-        book.source !== "local" || translateConsent,
-      )
-        .then((result) => {
-          storeTranslation(book.gutenbergId, chapterIndex, c, result);
-          if (chapterKeyRef.current === key) {
-            setTranslated((prev) => ({ ...prev, key, byChunk: { ...prev.byChunk, [c]: result } }));
-          }
-        })
-        .catch((err) => {
-          console.warn("Falha na tradução:", err);
-          if (chapterKeyRef.current === key) setFailedChunks((prev) => [...prev, c]);
-        })
-        .finally(() => {
-          if (chapterKeyRef.current === key) setTranslatingChunk(null);
-        });
-    }, 700);
-    return () => clearTimeout(t);
-  }, [
-    engine,
+  const translation = useBookTranslation({
     book,
-    translateOn,
-    translateConsent,
-    loadState,
-    translatingChunk,
-    visibleChunk,
-    chunks,
-    translated,
-    translations,
-    failedChunks,
-    chapterKey,
-    chapterIndex,
     blocks,
-  ]);
-
-  const chunkOfBlock = useMemo(() => {
-    const map: number[] = [];
-    chunks.forEach(([start, end], c) => {
-      for (let i = start; i < end; i++) map[i] = c;
-    });
-    return map;
-  }, [chunks]);
-
-  /** Texto na tela de cada parágrafo: a tradução, quando ligada e pronta, ou o original. */
-  const shownTexts = useMemo(
-    () =>
-      blocks.map((b, i) => {
-        // Ilustração: sem texto (a voz pula, a tradução ignora).
-        if (b.kind === "image") return "";
-        const c = chunkOfBlock[i];
-        return (translateOn ? translations[c]?.[i - chunks[c][0]] : null) ?? b.text;
-      }),
-    [blocks, chunkOfBlock, chunks, translateOn, translations],
-  );
-  /** Idioma do parágrafo na tela (para a voz e o dicionário). */
-  const blockLanguage = (i: number): "pt" | "en" => {
-    if (!book) return "pt";
-    const c = chunkOfBlock[i];
-    const translatedNow = translateOn && translations[c]?.[i - (chunks[c]?.[0] ?? 0)];
-    return translatedNow ? "pt" : book.textLanguage;
-  };
+    chapterIndex,
+    chapterKey,
+    chapterKeyRef,
+    loaded: loadState === "ready",
+    visibleChunk,
+    prefs,
+    setPrefs,
+  });
+  const { engine, translateOn, blockLanguage } = translation;
 
   /* ---- Leitura em voz alta ---- */
-  const canSpeak = speechSupported();
-  const speakLang: "pt" | "en" = !book ? "pt" : translateOn ? "pt" : book.textLanguage;
+  const voice = useReadAloud({
+    book,
+    loaded: loadState === "ready",
+    blocks,
+    chunks: translation.chunks,
+    translatedChunks: translation.translatedChunks,
+    translateOn,
+    shownTexts: translation.shownTexts,
+    chapterIndex,
+    chapterCount: chapters.length,
+    setChapterIndex,
+    readRef,
+    lastActivityRef,
+  });
+  const { stopSpeaking, isSpeaking } = voice;
 
-  /** Vozes naturais (Piper) do idioma já baixadas (null = conferindo), a que está baixando e a que falhou. */
-  const [storedNatural, setStoredNatural] = useState<string[] | null>(null);
-  const [naturalDownload, setNaturalDownload] = useState<{ id: string; pct: number } | null>(null);
-  const [naturalError, setNaturalError] = useState<string | null>(null);
+  /** Tempo de leitura (para a sequência de dias e a meta): conta de 15 em 15 s com o leitor ativo. */
   useEffect(() => {
-    if (!voicePanelOpen || !naturalVoiceSupported()) return;
-    let alive = true;
-    setStoredNatural(null);
-    void storedNaturalVoices(speakLang).then((ids) => {
-      if (alive) setStoredNatural(ids);
-    });
+    if (!book || loadState !== "ready") return;
+    const TICK = 15;
+    const session = authSessionRef.current;
+    if (session) void readingHeartbeat(session, true).catch(() => {});
+    const t = window.setInterval(() => {
+      const active = Date.now() - lastActivityRef.current < 120_000 || isSpeaking();
+      const reading = document.visibilityState === "visible" && active;
+      if (reading) {
+        celebrate(addReadingSeconds(TICK));
+        countVisibleWordsRef.current();
+      }
+      if (session && authSessionRef.current?.user.id === session.user.id)
+        void readingHeartbeat(authSessionRef.current, reading).catch(() => {});
+    }, TICK * 1000);
     return () => {
-      alive = false;
+      window.clearInterval(t);
+      if (session) void readingHeartbeat(session, false).catch(() => {});
     };
-  }, [voicePanelOpen, speakLang]);
-  const missingNatural = storedNatural ? naturalVoicesFor(speakLang).filter((v) => !storedNatural.includes(v.id)) : [];
+  }, [book, loadState, celebrate, isSpeaking]);
 
-  /** Começa a ler e, enquanto a voz natural não foi baixada (nem recusada), já mostra a oferta. */
-  function listenAloud() {
-    startSpeaking(firstVisibleBlock());
-    if (!naturalVoiceSupported() || naturalOfferDismissed()) return;
-    void storedNaturalVoices(speakLang).then((ids) => {
-      if (ids.length === 0) setVoicePanelOpen(true);
-    });
-  }
-
-  function declineNaturalVoice() {
-    dismissNaturalOffer();
-    setVoicePanelOpen(false);
-  }
-
-  async function getNaturalVoice(id: string) {
-    const lang = speakLang;
-    setNaturalDownload({ id, pct: 0 });
-    setNaturalError(null);
-    try {
-      await downloadNaturalVoice(id, (pct) => setNaturalDownload({ id, pct }));
-      setStoredNatural(await storedNaturalVoices(lang));
-      setVoices(await listVoices(lang));
-      chooseVoice(naturalVoiceUri(id));
-    } catch (e) {
-      console.warn("Falha ao baixar a voz natural:", e);
-      setNaturalError(id);
-    } finally {
-      setNaturalDownload(null);
-    }
-  }
-
-  useEffect(() => {
-    if (!voicePanelOpen) return;
-    let alive = true;
-    void listVoices(speakLang).then((list) => {
-      if (!alive) return;
-      setVoices(list);
-      const saved = savedVoiceUri(speakLang);
-      setVoiceUri(list.some((v) => v.uri === saved) ? saved : list[0]?.uri);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [voicePanelOpen, speakLang]);
-
-  function chooseVoice(uri: string) {
-    setVoiceUri(uri);
-    saveVoiceUri(speakLang, uri);
-    if (speaking) startSpeaking(speakingBlock ?? firstVisibleBlock());
-    else speakSample(uri, speakLang, speechRate);
-  }
-
-  function chooseRate(rate: number) {
-    setSpeechRate(rate);
-    saveRate(rate);
-    if (speaking) startSpeaking(speakingBlock ?? firstVisibleBlock(), rate);
-  }
-
-  function firstVisibleBlock(): number {
-    const el = readRef.current;
-    if (!el) return 0;
-    const top = el.getBoundingClientRect().top;
-    const els = Array.from(el.querySelectorAll<HTMLElement>("[data-block]"));
-    const first = els.find((b) => b.getBoundingClientRect().bottom > top + 8);
-    return first ? Number(first.dataset.block) : 0;
-  }
-
-  function startSpeaking(from: number, rate = speechRate) {
-    if (!book) return;
-    speechRef.current?.stop();
-    const lang = speakLang;
-    const hasNext = chapterIndex < chapters.length - 1;
-    setSpeaking(true);
-    speechRef.current = speakParagraphs(
-      shownTexts,
-      from,
-      lang,
-      rate,
-      (i) => {
-        setSpeakingBlock(i);
-        lastActivityRef.current = Date.now();
-        const target = readRef.current?.querySelector<HTMLElement>(`[data-block="${i}"]`);
-        const page = readRef.current;
-        if (target && page) {
-          const r = target.getBoundingClientRect();
-          const pr = page.getBoundingClientRect();
-          if (r.top < pr.top + 40 || r.bottom > pr.bottom - 40) target.scrollIntoView({ block: "center", behavior: "smooth" });
-        }
-      },
-      () => {
-        speechRef.current = null;
-        if (hasNext) {
-          // Fim do capítulo: continua lendo o próximo.
-          continueSpeechRef.current = true;
-          setChapterIndex((n) => n + 1);
-        } else {
-          setSpeaking(false);
-          setSpeakingBlock(null);
-        }
-      },
-    );
-  }
-
-  /** Troca de capítulo pelo leitor (não pela voz) ou tradução ligada/desligada: a voz para. */
-  useEffect(() => {
-    if (!continueSpeechRef.current) stopSpeaking();
-  }, [chapterIndex, translateOn, stopSpeaking]);
-
-  /** Lê do começo com o texto mais recente na tela (não o do render em que o efeito foi marcado). */
-  const continueSpeaking = useEffectEvent(() => startSpeaking(0));
-  /**
-   * A voz terminou um capítulo: quando o próximo estiver na tela, continua do começo. Com a
-   * tradução ligada, espera as traduções guardadas do capítulo entrarem; senão a voz em português
-   * começaria pelo texto original.
-   */
-  const chapterTextReady =
-    loadState === "ready" && blocks.length > 0 && (!translateOn || translated.chunks === chunks);
-  useEffect(() => {
-    if (!continueSpeechRef.current || !chapterTextReady) return;
-    const frame = requestAnimationFrame(() => {
-      continueSpeechRef.current = false;
-      continueSpeaking();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [chapterTextReady, blocks, translated.chunks]);
+  const leaveBook = useCallback(() => {
+    readerGeneration.current++;
+    if (leavingTitleRef.current) setBookmarkDrop({ id: Date.now(), label: leavingTitleRef.current });
+    stopSpeaking();
+    setHighlightsOpen(false);
+    setReaderSettingsOpen(false);
+    setImmersive(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    setSelection(null);
+    setWordCard(null);
+    setBook(null);
+    setCast(null);
+    resetChat();
+    setFullText("");
+    setChapterIndex(0);
+    setLoadState("idle");
+    setLoadError(null);
+  }, [stopSpeaking, resetChat]);
 
   /* ---- Seleção de texto: marcar, significado, compartilhar ---- */
 
@@ -3362,8 +3026,6 @@ export function App() {
       {prefs.nightLight ? <div className={`night-light night-light-${prefs.nightLight}`} aria-hidden="true" /> : null}
       <ReaderBar
         book={book}
-        canSpeak={canSpeak}
-        canTranslate={canTranslate}
         chapterIndex={chapterIndex}
         chapters={chapters}
         currentChapter={currentChapter}
@@ -3373,28 +3035,22 @@ export function App() {
         immersive={immersive}
         isFullscreen={isFullscreen}
         leaveBook={leaveBook}
-        listenAloud={listenAloud}
         prefs={prefs}
         readerSettingsOpen={readerSettingsOpen}
         readingHere={readingHere}
         readingProgressPct={readingProgressPct}
         ready={ready}
+        search={search}
         setChapterIndex={setChapterIndex}
         setHighlightsOpen={setHighlightsOpen}
         setPrefs={setPrefs}
         setReaderSettingsOpen={setReaderSettingsOpen}
-        setSearchOpen={setSearchOpen}
         setShelfPanelOpen={setShelfPanelOpen}
-        setVoicePanelOpen={setVoicePanelOpen}
         shelfOn={shelfOn}
         shelfPanelOpen={shelfPanelOpen}
-        speaking={speaking}
-        speechRate={speechRate}
-        stopSpeaking={stopSpeaking}
         toggleReadingFullscreen={toggleReadingFullscreen}
-        toggleTranslation={toggleTranslation}
-        translateOn={translateOn}
-        voicePanelOpen={voicePanelOpen}
+        translation={translation}
+        voice={voice}
       />
 
       <div className="reader-layout">
@@ -3431,41 +3087,23 @@ export function App() {
               chapterIndex={chapterIndex}
               chapterKey={chapterKey}
               chapters={chapters}
-              chunkOfBlock={chunkOfBlock}
               currentChapter={currentChapter}
               dropCapIndex={dropCapIndex}
-              engine={engine}
-              failedChunks={failedChunks}
               handleSelection={handleSelection}
               hasNextChapter={hasNextChapter}
               highlights={highlights}
               lastActivityRef={lastActivityRef}
               setChapterIndex={setChapterIndex}
-              setFailedChunks={setFailedChunks}
-              shownTexts={shownTexts}
-              speakingBlock={speakingBlock}
-              translateOn={translateOn}
-              translatingChunk={translatingChunk}
-              translations={translations}
+              translation={translation}
               visibleChunk={visibleChunk}
+              voice={voice}
             />
           ) : null}
         </main>
 
-        {voicePanelOpen && speaking ? (
+        {voice.voicePanelOpen && voice.speaking ? (
           <VoicePanel
-            chooseRate={chooseRate}
-            chooseVoice={chooseVoice}
-            declineNaturalVoice={declineNaturalVoice}
-            getNaturalVoice={getNaturalVoice}
-            missingNatural={missingNatural}
-            naturalDownload={naturalDownload}
-            naturalError={naturalError}
-            setVoicePanelOpen={setVoicePanelOpen}
-            speechRate={speechRate}
-            storedNatural={storedNatural}
-            voices={voices}
-            voiceUri={voiceUri}
+            voice={voice}
           />
         ) : null}
 
@@ -3487,14 +3125,9 @@ export function App() {
           />
         ) : null}
 
-        {searchOpen ? (
+        {search.searchOpen ? (
           <BookSearchDialog
-            deferredTerm={deferredTerm}
-            openSearchResult={openSearchResult}
-            searchResults={searchResults}
-            searchTerm={searchTerm}
-            setSearchOpen={setSearchOpen}
-            setSearchTerm={setSearchTerm}
+            search={search}
           />
         ) : null}
 

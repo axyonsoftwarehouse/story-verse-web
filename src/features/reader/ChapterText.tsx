@@ -1,3 +1,5 @@
+import type { BookTranslationState } from "./useBookTranslation";
+import type { ReadAloudState } from "./useReadAloud";
 import type { StoryChapter } from "../../lib/chapters";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { Link } from "react-router-dom";
@@ -6,7 +8,7 @@ import type { Ebook } from "../../data/types";
 import { splitByHighlights, type Highlight } from "../../lib/highlights";
 import { isLocalBook } from "../../lib/localBooks";
 import { type SupabaseSession } from "../../lib/auth";
-import { warmUpLocalTranslator, type TranslationEngine } from "../../lib/translate";
+import { warmUpLocalTranslator } from "../../lib/translate";
 import { withItalics, type Block } from "./bookText";
 
 /** Texto do capítulo aberto, com destaques, tradução e navegação. */
@@ -20,23 +22,16 @@ export function ChapterText({
   chapterIndex,
   chapterKey,
   chapters,
-  chunkOfBlock,
   currentChapter,
   dropCapIndex,
-  engine,
-  failedChunks,
   handleSelection,
   hasNextChapter,
   highlights,
   lastActivityRef,
   setChapterIndex,
-  setFailedChunks,
-  shownTexts,
-  speakingBlock,
-  translateOn,
-  translatingChunk,
-  translations,
+  translation,
   visibleChunk,
+  voice,
 }: {
   authSession: SupabaseSession | null;
   blocks: Block[];
@@ -47,24 +42,29 @@ export function ChapterText({
   chapterIndex: number;
   chapterKey: string;
   chapters: StoryChapter[];
-  chunkOfBlock: number[];
   currentChapter: StoryChapter;
   dropCapIndex: number;
-  engine: TranslationEngine;
-  failedChunks: number[];
   handleSelection: () => void;
   hasNextChapter: boolean;
   highlights: Highlight[];
   lastActivityRef: RefObject<number>;
   setChapterIndex: Dispatch<SetStateAction<number>>;
-  setFailedChunks: Dispatch<SetStateAction<number[]>>;
-  shownTexts: string[];
-  speakingBlock: number | null;
-  translateOn: boolean;
-  translatingChunk: number | null;
-  translations: Record<number, (string | null)[]>;
+  translation: BookTranslationState;
   visibleChunk: { key: string; chunk: number } | null;
+  voice: ReadAloudState;
 }) {
+  const {
+    translateOn,
+    failedChunks,
+    engine,
+    setFailedChunks,
+    translatingChunk,
+    translations,
+    chunkOfBlock,
+    shownTexts,
+  } = translation;
+  const { speakingBlock } = voice;
+
   return (
     <article
       key={chapterIndex}

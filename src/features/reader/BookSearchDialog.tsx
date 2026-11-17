@@ -1,24 +1,18 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { BookSearchState } from "./useBookSearch";
 import { Icon } from "../../components/Icon";
 import { PrivacyNote } from "../../components/PrivacyNote";
-import { type BookSearchHit } from "./bookText";
 
 /** Busca dentro do livro aberto (roda no aparelho). */
-export function BookSearchDialog({
-  deferredTerm,
-  openSearchResult,
-  searchResults,
-  searchTerm,
-  setSearchOpen,
-  setSearchTerm,
-}: {
-  deferredTerm: string;
-  openSearchResult: (r: BookSearchHit) => void;
-  searchResults: { hits: BookSearchHit[]; total: number };
-  searchTerm: string;
-  setSearchOpen: Dispatch<SetStateAction<boolean>>;
-  setSearchTerm: Dispatch<SetStateAction<string>>;
-}) {
+export function BookSearchDialog({ search }: { search: BookSearchState }) {
+  const {
+    setSearchOpen,
+    searchTerm,
+    setSearchTerm,
+    deferredTerm,
+    searchResults,
+    openSearchResult,
+  } = search;
+
   return (
     <div className="import-overlay" onClick={() => setSearchOpen(false)}>
       <div
