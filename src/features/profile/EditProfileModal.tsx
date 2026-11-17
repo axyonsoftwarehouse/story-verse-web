@@ -20,10 +20,13 @@ export function EditProfileModal({
   session,
   onSaved,
   onClose,
+  onThemePreview,
 }: {
   session: SupabaseSession;
   onSaved: (session: SupabaseSession) => void;
   onClose: () => void;
+  /** Atualiza o perfil atrás do modal enquanto a pessoa testa as cores. */
+  onThemePreview?: (theme: ProfileThemeId) => void;
 }) {
   const savedName = displayNameOf(session.user);
   const savedAvatar = findAvatar(session.user.user_metadata?.avatar)?.id ?? null;
@@ -62,6 +65,10 @@ export function EditProfileModal({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose, saving]);
+
+  useEffect(() => {
+    onThemePreview?.(profileTheme);
+  }, [onThemePreview, profileTheme]);
 
   // Prévias locais (blob:) liberadas ao trocar ou fechar.
   useEffect(() => () => void (photo.blob && photo.url && URL.revokeObjectURL(photo.url)), [photo]);
@@ -238,7 +245,7 @@ export function EditProfileModal({
         </div>
 
         <span className="edit-profile-label">Tema do perfil</span>
-        <p className="edit-profile-hint">Outras pessoas veem esta paleta na sua página em Pessoas.</p>
+        <p className="edit-profile-hint">Esta paleta aparece no seu perfil e na sua página em Pessoas.</p>
         <div className="theme-swatches edit-profile-theme" role="radiogroup" aria-label="Tema do perfil">
           {PROFILE_THEMES.map((t) => (
             <button

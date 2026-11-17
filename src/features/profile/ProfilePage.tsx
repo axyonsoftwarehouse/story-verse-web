@@ -3,8 +3,6 @@ import { Link } from "react-router-dom";
 import { BadgeIcon, GiftIcon } from "../../components/badgeIcons";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { Icon } from "../../components/Icon";
-import { profileColor } from "../../lib/profileColor";
-import { findAvatar } from "../../avatars";
 import { featuredBooks } from "../../data/ebooks";
 import type { Ebook, StoryCharacter } from "../../data/types";
 import { narratorCharacter } from "../../lib/ai";
@@ -30,6 +28,8 @@ import { fetchGiftSummary, fetchReceivedGifts, giftDate, type GiftSummary, type 
 import { loadReminderPrefs, saveReminderPrefs } from "../../lib/reminders";
 import { updatePassword, type SupabaseSession } from "../../lib/auth";
 import { NightLight, NIGHT_LIGHT_LABELS, ReadingPrefs } from "../../lib/readingPrefs";
+import { normalizeProfileTheme, PROFILE_THEME_HUE } from "../../lib/profileTheme";
+import "../../lib/profileTheme.css";
 import { displayNameOf, metaString } from "../../lib/userMeta";
 import { useBackClose } from "../../lib/useBackClose";
 import { shelfAchievements } from "../../lib/shelfAchievements";
@@ -245,7 +245,14 @@ export function ProfilePage({
   const [nightLight, setNightLight] = useState<NightLight>(prefs.nightLight);
   const [reminderTime, setReminderTime] = useState(() => loadReminderPrefs().time);
   const [editOpen, setEditOpen] = useState(false);
-  useBackClose(editOpen, () => setEditOpen(false));
+  const [profileThemeDraft, setProfileThemeDraft] = useState<ReturnType<typeof normalizeProfileTheme> | null>(null);
+  const savedProfileTheme = normalizeProfileTheme(user.user_metadata?.profile_theme);
+  const profileTheme = profileThemeDraft ?? savedProfileTheme;
+  const closeEdit = () => {
+    setEditOpen(false);
+    setProfileThemeDraft(null);
+  };
+  useBackClose(editOpen, closeEdit);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -479,11 +486,20 @@ export function ProfilePage({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const chosenAvatar = findAvatar(user.user_metadata?.avatar);
-
   return (
-    <div className={`home profile ${dirty ? "has-savebar" : ""}`}>
-      {editOpen ? <EditProfileModal session={session} onSaved={onSessionChange} onClose={() => setEditOpen(false)} /> : null}
+    <div
+      className={`home profile ${dirty ? "has-savebar" : ""}`}
+      data-profile-theme={profileTheme}
+      style={{ "--person-hue": PROFILE_THEME_HUE[profileTheme] } as React.CSSProperties}
+    >
+      {editOpen ? (
+        <EditProfileModal
+          session={session}
+          onSaved={onSessionChange}
+          onClose={closeEdit}
+          onThemePreview={setProfileThemeDraft}
+        />
+      ) : null}
       <nav className="home-nav profile-nav nav-split">
         <button type="button" className="btn" onClick={settingsOpen ? () => setSettingsOpen(false) : leave}>
           Voltar
@@ -517,7 +533,7 @@ export function ProfilePage({
             aria-hidden="true"
           />
         ) : null}
-        <div className="profile-hero-glow" style={{ "--c": chosenAvatar?.color ?? profileColor(user.id) } as React.CSSProperties} aria-hidden="true" />
+        <div className="profile-hero-glow" aria-hidden="true" />
         <button type="button" className="profile-avatar-btn" onClick={() => setEditOpen(true)} aria-label="Editar perfil">
           <UserAvatar user={user} className="profile-avatar" cosmetics={shopProfile?.cosmetics} animate />
           <span className="profile-avatar-edit" aria-hidden="true">{Icon.pencil}</span>
