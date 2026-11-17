@@ -1,3 +1,6 @@
+import type { ReadAloudState } from "./useReadAloud";
+import type { BookTranslationState } from "./useBookTranslation";
+import type { BookSearchState } from "./useBookSearch";
 import type { StoryChapter } from "../../lib/chapters";
 import type { Dispatch, SetStateAction } from "react";
 import { Icon } from "../../components/Icon";
@@ -15,8 +18,6 @@ import { ReaderSettingsPanel } from "./ReaderSettingsPanel";
 /** Barra do topo do leitor: voltar, título, capítulos, voz, estante, tradução e ajustes. */
 export function ReaderBar({
   book,
-  canSpeak,
-  canTranslate,
   chapterIndex,
   chapters,
   currentChapter,
@@ -26,32 +27,24 @@ export function ReaderBar({
   immersive,
   isFullscreen,
   leaveBook,
-  listenAloud,
   prefs,
   readerSettingsOpen,
   readingHere,
   readingProgressPct,
   ready,
+  search,
   setChapterIndex,
   setHighlightsOpen,
   setPrefs,
   setReaderSettingsOpen,
-  setSearchOpen,
   setShelfPanelOpen,
-  setVoicePanelOpen,
   shelfOn,
   shelfPanelOpen,
-  speaking,
-  speechRate,
-  stopSpeaking,
   toggleReadingFullscreen,
-  toggleTranslation,
-  translateOn,
-  voicePanelOpen,
+  translation,
+  voice,
 }: {
   book: Ebook;
-  canSpeak: boolean;
-  canTranslate: boolean;
   chapterIndex: number;
   chapters: StoryChapter[];
   currentChapter: StoryChapter;
@@ -61,29 +54,35 @@ export function ReaderBar({
   immersive: boolean;
   isFullscreen: boolean;
   leaveBook: () => void;
-  listenAloud: () => void;
   prefs: ReadingPrefs;
   readerSettingsOpen: boolean;
   readingHere: number | null;
   readingProgressPct: number;
   ready: boolean;
+  search: BookSearchState;
   setChapterIndex: Dispatch<SetStateAction<number>>;
   setHighlightsOpen: Dispatch<SetStateAction<boolean>>;
   setPrefs: Dispatch<SetStateAction<ReadingPrefs>>;
   setReaderSettingsOpen: Dispatch<SetStateAction<boolean>>;
-  setSearchOpen: Dispatch<SetStateAction<boolean>>;
   setShelfPanelOpen: Dispatch<SetStateAction<boolean>>;
-  setVoicePanelOpen: Dispatch<SetStateAction<boolean>>;
   shelfOn: boolean;
   shelfPanelOpen: boolean;
-  speaking: boolean;
-  speechRate: number;
-  stopSpeaking: () => void;
   toggleReadingFullscreen: () => Promise<void>;
-  toggleTranslation: () => Promise<void>;
-  translateOn: boolean;
-  voicePanelOpen: boolean;
+  translation: BookTranslationState;
+  voice: ReadAloudState;
 }) {
+  const {
+    canSpeak,
+    speaking,
+    voicePanelOpen,
+    setVoicePanelOpen,
+    speechRate,
+    stopSpeaking,
+    listenAloud,
+  } = voice;
+  const { canTranslate, translateOn, toggleTranslation } = translation;
+  const { setSearchOpen } = search;
+
   return (
     <header className="reader-bar">
       {goalFlash !== null ? (

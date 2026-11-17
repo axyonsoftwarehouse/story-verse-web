@@ -1,37 +1,25 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { ReadAloudState } from "./useReadAloud";
 import { Icon } from "../../components/Icon";
-import { naturalVoiceSupported, type NaturalVoice } from "../../lib/naturalVoice";
-import { RATE_OPTIONS, type VoiceOption } from "../../lib/speech";
+import { naturalVoiceSupported } from "../../lib/naturalVoice";
+import { RATE_OPTIONS } from "../../lib/speech";
 
 /** Painel da leitura em voz alta: voz, velocidade e voz natural. */
-export function VoicePanel({
-  chooseRate,
-  chooseVoice,
-  declineNaturalVoice,
-  getNaturalVoice,
-  missingNatural,
-  naturalDownload: download,
-  naturalError,
-  setVoicePanelOpen,
-  speechRate,
-  storedNatural,
-  voices,
-  voiceUri,
-}: {
-  chooseRate: (rate: number) => void;
-  chooseVoice: (uri: string) => void;
-  declineNaturalVoice: () => void;
-  getNaturalVoice: (id: string) => Promise<void>;
-  missingNatural: NaturalVoice[];
-  naturalDownload: { id: string; pct: number } | null;
-  naturalError: string | null;
-  setVoicePanelOpen: Dispatch<SetStateAction<boolean>>;
-  speechRate: number;
-  storedNatural: string[] | null;
-  voices: VoiceOption[];
-  voiceUri: string | undefined;
-}) {
-  const naturalDownload = download;
+export function VoicePanel({ voice }: { voice: ReadAloudState }) {
+  const {
+    setVoicePanelOpen,
+    speechRate,
+    chooseRate,
+    missingNatural,
+    storedNatural,
+    naturalDownload,
+    getNaturalVoice,
+    naturalError,
+    declineNaturalVoice,
+    voices,
+    voiceUri,
+    chooseVoice,
+  } = voice;
+
   return (
     <>
       <div className="voice-backdrop" onClick={() => setVoicePanelOpen(false)} />
