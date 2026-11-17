@@ -20,7 +20,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Audit
+      # Bloqueia só o que vai para o navegador. Ferramentas de build/teste (vite, vitest, eslint)
+      # às vezes ganham alertas sem correção publicada; esses aparecem no passo seguinte, sem travar.
+      - name: Audit (produção)
+        run: npm audit --audit-level=high --omit=dev
+      - name: Audit (completo, informativo)
+        continue-on-error: true
         run: npm audit --audit-level=high
       - name: Lint
         run: npm run lint
