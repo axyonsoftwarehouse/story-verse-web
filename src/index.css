@@ -335,6 +335,13 @@ body {
   }
 }
 
+/* Comunidade e estante: lista aparece direto (sem “montar” item por item a cada visita). */
+.groups-page .stagger > *,
+.people-page .stagger > *,
+.shelf-page .stagger > * {
+  animation: none;
+}
+
 /*
  * "Reduzir movimento" no aparelho: uma regra para o app todo. Animações e transições terminam na
  * hora (no estado final); só o spinner e os pontinhos de "digitando" continuam, mais devagar

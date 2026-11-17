@@ -711,7 +711,7 @@ export function GroupChat() {
     }
   }
 
-  if (!gate.ready) return <GroupsBlocked text={gate.blocked} />;
+  if (!gate.ready && gate.blocked) return <GroupsBlocked text={gate.blocked} />;
 
   const manager = group?.my_role === "owner" || group?.my_role === "moderator";
   const byId = new Map(messages.map((m) => [m.id, m]));
