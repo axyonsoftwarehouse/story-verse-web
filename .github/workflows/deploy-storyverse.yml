@@ -37,7 +37,13 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      - name: Audit
+      # Bloqueia só o que vai para o navegador; o audit completo (com ferramentas de build/teste)
+      # roda em seguida sem travar o deploy. Ver frontend.yml.
+      - name: Audit (produção)
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Audit (completo, informativo)
+        continue-on-error: true
         run: npm audit --audit-level=high
 
       - name: Testar
