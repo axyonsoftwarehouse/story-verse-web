@@ -1228,6 +1228,9 @@
 .group-replying,
 .group-spoiler-row {
   display: flex;
+  /* É item de grid no compositor: sem min-width: 0 o texto em nowrap dita a largura mínima
+     e a caixa estoura a tela, cortando a citação sem reticências. */
+  min-width: 0;
   align-items: center;
   gap: 0.55rem;
   padding: 0.35rem 0.35rem 0.35rem 0.75rem;
