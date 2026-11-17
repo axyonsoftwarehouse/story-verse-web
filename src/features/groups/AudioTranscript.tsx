@@ -46,7 +46,10 @@ export function AudioTranscript({ url }: { url: string }) {
     setEstado({ tipo: "baixando" });
     const ok = await downloadModel();
     if (!ok) {
-      setEstado({ tipo: "aviso", mensagem: "O download do modelo de voz não terminou. Tente de novo." });
+      setEstado({
+        tipo: "aviso",
+        mensagem: "O download do modelo de voz não terminou. Esse modelo é oferecido pelo Google Chrome; em outros navegadores a transcrição no aparelho não existe.",
+      });
       return;
     }
     await transcrever();
@@ -81,8 +84,8 @@ export function AudioTranscript({ url }: { url: string }) {
       {estado.tipo === "baixarModelo" ? (
         <>
           <small className="audio-transcript-note">
-            O modelo de voz em português ainda não está neste aparelho. O download é de uma vez (~100 MB) e fica no
-            navegador.
+            O modelo de voz em português ainda não está neste aparelho. O download é de uma vez (~100 MB), fica no
+            navegador e é oferecido pelo Google Chrome.
           </small>
           <button type="button" className="audio-transcript-toggle" onClick={() => void baixarModelo()}>
             Baixar modelo de voz
