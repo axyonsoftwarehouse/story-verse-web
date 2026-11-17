@@ -19,27 +19,26 @@ const base: GroupMessage = {
 };
 
 describe("canEditMessage", () => {
-  it("a própria mensagem de texto no roleplay, dentro do prazo", () => {
-    expect(canEditMessage(base, "eu", true, now)).toBe(true);
+  it("a própria mensagem de texto, dentro do prazo — no chat comum também", () => {
+    expect(canEditMessage(base, "eu", now)).toBe(true);
   });
 
-  it("fora do roleplay, de outra pessoa ou do narrador não", () => {
-    expect(canEditMessage(base, "eu", false, now)).toBe(false);
-    expect(canEditMessage(base, "outra", true, now)).toBe(false);
-    expect(canEditMessage({ ...base, kind: "narrator" }, "eu", true, now)).toBe(false);
+  it("de outra pessoa ou do narrador não", () => {
+    expect(canEditMessage(base, "outra", now)).toBe(false);
+    expect(canEditMessage({ ...base, kind: "narrator" }, "eu", now)).toBe(false);
   });
 
   it("foto, áudio, apagada ou ainda enviando não", () => {
-    expect(canEditMessage({ ...base, media_kind: "image" }, "eu", true, now)).toBe(false);
-    expect(canEditMessage({ ...base, media_kind: "audio", body: null }, "eu", true, now)).toBe(false);
-    expect(canEditMessage({ ...base, deleted: true }, "eu", true, now)).toBe(false);
-    expect(canEditMessage({ ...base, pending: true }, "eu", true, now)).toBe(false);
+    expect(canEditMessage({ ...base, media_kind: "image" }, "eu", now)).toBe(false);
+    expect(canEditMessage({ ...base, media_kind: "audio", body: null }, "eu", now)).toBe(false);
+    expect(canEditMessage({ ...base, deleted: true }, "eu", now)).toBe(false);
+    expect(canEditMessage({ ...base, pending: true }, "eu", now)).toBe(false);
   });
 
   it("prazo de 7 dias: 6 dias depois ainda edita, 8 dias depois não", () => {
     expect(EDIT_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
     const day = 24 * 60 * 60 * 1000;
-    expect(canEditMessage({ ...base, created_at: new Date(now - 6 * day).toISOString() }, "eu", true, now)).toBe(true);
-    expect(canEditMessage({ ...base, created_at: new Date(now - 8 * day).toISOString() }, "eu", true, now)).toBe(false);
+    expect(canEditMessage({ ...base, created_at: new Date(now - 6 * day).toISOString() }, "eu", now)).toBe(true);
+    expect(canEditMessage({ ...base, created_at: new Date(now - 8 * day).toISOString() }, "eu", now)).toBe(false);
   });
 });

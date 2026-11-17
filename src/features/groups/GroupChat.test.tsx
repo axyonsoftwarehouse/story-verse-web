@@ -135,7 +135,7 @@ describe("GroupChat: enfeites nas mensagens", () => {
   });
 });
 
-describe("GroupChat: botão fixo de editar no roleplay", () => {
+describe("GroupChat: botão fixo de editar a própria mensagem", () => {
   beforeEach(() => {
     getGroup.mockReset();
     listMessages.mockReset();
@@ -158,12 +158,13 @@ describe("GroupChat: botão fixo de editar no roleplay", () => {
     expect(screen.getByRole("button", { name: "Cancelar edição" })).toBeTruthy();
   });
 
-  it("não aparece no chat comum nem depois do prazo", async () => {
+  it("aparece no chat comum e some depois do prazo", async () => {
+    // O cartão de 15/11 pede edição também no chat de conversa (antes era só roleplay).
     getGroup.mockResolvedValue(group({ mode: "chat" }));
     listMessages.mockResolvedValue([msg({ id: 2, author_id: "eu", author_name: "Eu", body: "Minha fala", created_at: recent() })]);
     const { unmount } = renderChat();
     await screen.findByText("Minha fala");
-    expect(screen.queryByRole("button", { name: "Editar mensagem" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Editar mensagem" })).toHaveLength(1);
     unmount();
 
     getGroup.mockResolvedValue(group({ mode: "roleplay" }));
