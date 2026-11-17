@@ -22,6 +22,7 @@ import {
   NewPasswordModal,
   ProfilePage,
   RankingPage,
+  prefetchCommunityRoutes,
   RouteLoading,
 } from "./lazyRoutes";
 import { Icon } from "./components/Icon";
@@ -37,7 +38,7 @@ import {
 } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
-import { applyAppTheme } from "./lib/appTheme";
+import { applyAppTheme, syncAppThemeFromAccount } from "./lib/appTheme";
 import { activateDataOwner, clearAccountStorage, currentDataOwner, dataOwnerReady } from "./lib/dataOwner";
 import { startAutoSync, syncNow } from "./lib/cloudSync";
 import { syncBooks } from "./lib/bookSync";
@@ -1121,10 +1122,13 @@ export function App() {
    * antes de desenhar a tela, para não aparecer nada da conta anterior nem por um instante.
    */
   const [dataEpoch, setDataEpoch] = useState(0);
-  // Cor do app da conta: ao entrar, trocar de conta ou chegar do outro aparelho.
+  // Cor do app: no aparelho ou da conta (para bater com o perfil em Pessoas).
+  const accountTheme = authSession?.user.user_metadata?.profile_theme;
   useEffect(() => {
-    if (dataIsReady) applyAppTheme();
-  }, [dataIsReady, dataEpoch]);
+    if (!dataIsReady) return;
+    if (authSession?.user) syncAppThemeFromAccount(authSession.user.user_metadata);
+    else applyAppTheme();
+  }, [dataIsReady, dataEpoch, authSession?.user.id, accountTheme]);
   const onlineCount = usePresenceCount(authEnabled ? "app" : null, authUserId);
   /** Elenco do livro aberto (null enquanto a IA ainda está sugerindo). */
   const [cast, setCast] = useState<StoryCharacter[] | null>(null);
@@ -2507,6 +2511,8 @@ export function App() {
               <Link
                 className="btn nav-groups"
                 to="/grupos"
+                onMouseEnter={prefetchCommunityRoutes}
+                onFocus={prefetchCommunityRoutes}
                 aria-label={groupsUnread > 0 ? `Abrir os grupos, ${groupsUnread} mensagens não lidas` : "Abrir os grupos"}
               >
                 {Icon.chat}
