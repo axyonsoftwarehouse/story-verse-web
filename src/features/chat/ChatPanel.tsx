@@ -1,71 +1,52 @@
-import type { ChatMsg } from "../../lib/chatHistory";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { Icon } from "../../components/Icon";
-import type { Ebook, StoryCharacter } from "../../data/types";
+import type { Ebook } from "../../data/types";
 import { USER_MESSAGE_MAX_CHARS } from "../../lib/ai";
 import { shortNameOf } from "../../lib/characterName";
 import { Avatar } from "../../components/Avatar";
 import { PrivacyNote } from "../../components/PrivacyNote";
 import { suggestionsFor, type Msg } from "./chatHelpers";
+import type { ChatState } from "./useChat";
 
 /** Conversa com os personagens, ao lado do texto. */
 export function ChatPanel({
   book,
-  castReady,
-  character,
-  characters,
-  chatAvatarRef,
-  chatBodyRef,
-  chatOpen,
-  chatReaction,
-  error,
-  extraMessagesLeft,
-  input,
-  inputRef,
-  limitApplies,
-  loading,
-  messages,
-  messagesLeft,
-  onSend,
-  outOfMessages,
+  chat,
   ready,
-  resetConversation,
-  sendMessage,
-  setActiveCharId,
-  setChatOpen,
-  setInput,
   setShopOpen,
   shareMessage,
-  userHasSpoken,
 }: {
   book: Ebook;
-  castReady: boolean;
-  character: StoryCharacter;
-  characters: StoryCharacter[];
-  chatAvatarRef: RefObject<HTMLSpanElement | null>;
-  chatBodyRef: RefObject<HTMLDivElement | null>;
-  chatOpen: boolean;
-  chatReaction: { id: string; emoji: string | null } | null;
-  error: string | null;
-  extraMessagesLeft: number;
-  input: string;
-  inputRef: RefObject<HTMLTextAreaElement | null>;
-  limitApplies: boolean;
-  loading: boolean;
-  messages: ChatMsg[];
-  messagesLeft: number;
-  onSend: (e: React.FormEvent) => void;
-  outOfMessages: boolean;
+  chat: ChatState;
   ready: boolean;
-  resetConversation: () => void;
-  sendMessage: (raw: string) => Promise<void>;
-  setActiveCharId: Dispatch<SetStateAction<string>>;
-  setChatOpen: Dispatch<SetStateAction<boolean>>;
-  setInput: Dispatch<SetStateAction<string>>;
   setShopOpen: Dispatch<SetStateAction<boolean>>;
   shareMessage: (m: Msg) => void;
-  userHasSpoken: boolean;
 }) {
+  const {
+    castReady,
+    character,
+    characters,
+    chatAvatarRef,
+    chatBodyRef,
+    chatOpen,
+    chatReaction,
+    error,
+    extraMessagesLeft,
+    input,
+    inputRef,
+    limitApplies,
+    loading,
+    messages,
+    messagesLeft,
+    onSend,
+    outOfMessages,
+    resetConversation,
+    sendMessage,
+    setActiveCharId,
+    setChatOpen,
+    setInput,
+    userHasSpoken,
+  } = chat;
   return (
     <aside className={`chat ${chatOpen ? "is-open" : ""}`} aria-label="Conversa com os personagens">
       {character ? (

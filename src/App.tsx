@@ -33,17 +33,9 @@ import { disablePush } from "./lib/push";
 import { warningMessage } from "./features/auth/sanctionNotice";
 import { featuredBooks } from "./data/ebooks";
 import type { Ebook, StoryCharacter } from "./data/types";
-import {
-  characterReply,
-  detectProvider,
-  refreshAiQuota,
-  type ChatTurn,
-} from "./lib/ai";
 import { knownCast, loadCast } from "./lib/cast";
 import {
   characterTalks,
-  loadChat,
-  saveChat,
 } from "./lib/chatHistory";
 import { achievements, takeNewAchievements, type Achievement } from "./lib/achievements";
 import { quoteOfTheDay } from "./data/dailyQuotes";
@@ -86,7 +78,6 @@ import {
   recordOpened,
   recordProgress,
   shelfEnabled,
-  shelfEntry,
   type LocalShelfEntry,
 } from "./lib/libraryStore";
 import { useFinishPrompt } from "./features/library/useFinishPrompt";
@@ -138,7 +129,6 @@ import {
   saveProgress,
   type ReadingProgress,
 } from "./lib/progress";
-import { missYouMessage, tidyAmbientMessages } from "./lib/readingAmbient";
 import { dismissNudge, homeNudge, NUDGE_AFTER_DAYS, nudgeText, voiceFor, type HomeNudge } from "./lib/characterNudge";
 import { withOfflineCopy } from "./lib/offlineText";
 import { type BookHint } from "./lib/openLibrary";
@@ -166,7 +156,7 @@ import {
   type FreezeOutcome,
 } from "./lib/diamonds";
 import { PLACE_MEDALS, reportReading, readingHeartbeat, takeWeeklyAwards } from "./lib/ranking";
-import { lastCharacter, rememberCharacter, syncEngagementState } from "./lib/reminders";
+import { lastCharacter, syncEngagementState } from "./lib/reminders";
 import { useAppInstall, useUpdateReady } from "./lib/pwa";
 import { renderShareCard, shareOrDownload, type ShareCardInput } from "./lib/shareCard";
 import {
@@ -181,7 +171,6 @@ import {
   type SpeechSession,
   type VoiceOption,
 } from "./lib/speech";
-import { countMessage, extraMessages, messagesLeftToday } from "./lib/usageLimit";
 import {
   AUTH_SESSION_STORAGE_KEY,
   AuthNetworkError,
@@ -231,17 +220,17 @@ import { MyBooks } from "./features/home/MyBooks";
 import { CelebrationOverlay, type Celebration } from "./features/home/CelebrationOverlay";
 import { withoutImageMarkers } from "./lib/imageMarkers";
 import { searchBook, toBlocks, type BookSearchHit } from "./features/reader/bookText";
-import { initialThreadsFor, listNames, uid, type Msg } from "./features/chat/chatHelpers";
+import { listNames, uid, type Msg } from "./features/chat/chatHelpers";
 import { VoicePanel } from "./features/reader/VoicePanel";
 import { SelectionToolbar } from "./features/reader/SelectionToolbar";
 import { WordCard } from "./features/reader/WordCard";
 import { BookSearchDialog } from "./features/reader/BookSearchDialog";
 import { HighlightsDialog } from "./features/reader/HighlightsDialog";
 import { ChatPanel } from "./features/chat/ChatPanel";
+import { useChat, type ChatSendContext } from "./features/chat/useChat";
 import { ReaderBar } from "./features/reader/ReaderBar";
 import { ChapterText } from "./features/reader/ChapterText";
 
-const EMPTY_THREAD: Msg[] = [];
 /** Capítulo sem tradução carregada: a mesma referência sempre, para não refazer o texto da tela. */
 const NO_TRANSLATIONS: Record<number, (string | null)[]> = {};
 
@@ -342,14 +331,6 @@ function usePresenceCount(room: string | null, who: string | undefined): number 
     return watchPresence(room, who, setCount);
   }, [room, who]);
   return count;
-}
-
-/** Status e nota deste livro na estante, para o chat (só com a estante ligada). */
-function shelfContextFor(book: Ebook) {
-  if (!shelfEnabled()) return undefined;
-  const key = bookKeyOf(book);
-  const entry = key ? shelfEntry(key) : null;
-  return entry ? { status: entry.status, rating: entry.rating } : undefined;
 }
 
 /** Conquistas da conta agora (sem presentes: esses dependem do servidor e só contam no perfil). */
@@ -1177,6 +1158,10 @@ export function App() {
     if (dataIsReady) applyAppTheme();
   }, [dataIsReady, dataEpoch]);
   const onlineCount = usePresenceCount(authEnabled ? "app" : null, authUserId);
+  /** Elenco do livro aberto (null enquanto a IA ainda está sugerindo). */
+  const [cast, setCast] = useState<StoryCharacter[] | null>(null);
+  const chat = useChat({ book, cast, authSession, sendContext: chatSendContext, beginRequest: beginChatRequest });
+  const { resetChat, startConversation, setChatOpen } = chat;
   const bookRoomId = book?.id;
   const readingHere = usePresenceCount(authEnabled && bookRoomId ? `book:${bookRoomId}` : null, authUserId);
   useLayoutEffect(() => {
@@ -1186,7 +1171,7 @@ export function App() {
     readerGeneration.current++;
     setOwnerError(null);
     setBook(null);
-    setThreads({});
+    resetChat();
     void activateDataOwner(authUserId ?? "anon").then((changed) => {
       if (!alive) return;
       setReadyOwner(authUserId ?? "anon");
@@ -1200,7 +1185,7 @@ export function App() {
     return () => {
       alive = false;
     };
-  }, [authUserId, authLoading]);
+  }, [authUserId, authLoading, resetChat]);
 
   /**
    * Nuvem: a mesma conta na Web e no app instalado. Ao entrar (depois da troca de dono acima),
@@ -1324,29 +1309,6 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
-  /** Elenco do livro aberto (null enquanto a IA ainda está sugerindo). */
-  const [cast, setCast] = useState<StoryCharacter[] | null>(null);
-  const [activeCharId, setActiveCharId] = useState<string>("");
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [threads, setThreads] = useState<Record<string, Msg[]>>({});
-  /** No celular o chat abre como painel por cima do texto. */
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messagesLeft, setMessagesLeft] = useState(messagesLeftToday);
-  const [extraMessagesLeft, setExtraMessagesLeft] = useState(extraMessages);
-  useEffect(() => {
-    if (!authEnabled || !authSession) return;
-    let alive = true;
-    void refreshAiQuota().then(() => {
-      if (!alive) return;
-      setMessagesLeft(messagesLeftToday());
-      setExtraMessagesLeft(extraMessages());
-    });
-    return () => {
-      alive = false;
-    };
-  }, [authSession]);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   /** Conquistas novas na fila do aviso (uma por vez). */
   const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
@@ -1427,16 +1389,6 @@ export function App() {
    * progresso do livro. Some sozinho ao trocar de capítulo (a chave deixa de bater).
    */
   const [chapterDone, setChapterDone] = useState<{ key: string; label: string; done: number; total: number } | null>(null);
-  /** O personagem "ouviu": o avatar do topo do chat pula; quando ele reage à mensagem, solta o emoji. */
-  const [chatReaction, setChatReaction] = useState<{ id: string; emoji: string | null } | null>(null);
-  const chatAvatarRef = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!chatReaction || prefersReducedMotion()) return;
-    chatAvatarRef.current?.animate(
-      [{ transform: "translateY(0)" }, { transform: "translateY(-7px) scale(1.06)" }, { transform: "translateY(0)" }],
-      { duration: 420, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
-    );
-  }, [chatReaction]);
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 2600);
@@ -1689,8 +1641,6 @@ export function App() {
   }, [prefs]);
 
   const readRef = useRef<HTMLDivElement>(null);
-  const chatBodyRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [scrollRatio, setScrollRatio] = useState(0);
   /**
    * Capítulo a que a rolagem medida pertence. Fica vazio ao trocar de capítulo até o novo ser
@@ -1762,30 +1712,7 @@ export function App() {
         return loadCast(book, text.slice(0, 3000)).then((list) => {
           if (cancelled) return;
           setCast(list);
-          // Conversa guardada da última vez; personagem sem conversa começa com a saudação.
-          const saved = loadChat(book.id);
-          const greetings = initialThreadsFor(list);
-          setThreads((prev) =>
-            Object.keys(prev).length > 0
-              ? prev
-              : Object.fromEntries(
-                  list.map((c) => [c.id, saved?.threads[c.id]?.length ? saved.threads[c.id] : greetings[c.id]]),
-                ),
-          );
-          const savedActive = saved?.activeCharId && list.some((c) => c.id === saved.activeCharId);
-          const activeId = savedActive ? saved!.activeCharId : list[0]?.id;
-          setActiveCharId((id) => id || activeId || "");
-          if (awayDays >= NUDGE_AFTER_DAYS && awayChapter && activeId) {
-            // O mesmo recado da tela inicial, de quem o mandou (sem ele, a saudade genérica).
-            const voice = voiceFor(book);
-            const from = list.find((c) => c.id === voice?.id || c.name === voice?.name)?.id ?? activeId;
-            const line = voice ? nudgeText(book, voice, awayChapter, awayDays) : missYouMessage(awayChapter, awayDays);
-            setThreads((prev) => ({
-              ...prev,
-              // Uma saudade só: se a anterior ficou sem resposta, a nova toma o lugar dela.
-              [from]: tidyAmbientMessages([...(prev[from] ?? []), { id: uid(), role: "assistant", text: line }]),
-            }));
-          }
+          startConversation(book, list, { days: awayDays, chapter: awayChapter });
         });
       })
       .catch((err) => {
@@ -1797,7 +1724,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [book, loadAttempt]);
+  }, [book, loadAttempt, startConversation]);
 
   const onReadScroll = useCallback(() => {
     const el = readRef.current;
@@ -1846,16 +1773,11 @@ export function App() {
     readerGeneration.current++;
     openBookWithTransition(() => {
       setBook(b);
-      setLoading(false);
       setCast(null);
-      setActiveCharId(opts?.characterId ?? "");
-      setThreads({});
-      setError(null);
-      setInput("");
-      setChatOpen(opts?.chat ?? false);
+      resetChat({ characterId: opts?.characterId, open: opts?.chat });
       window.scrollTo({ top: 0 });
     });
-  }, [authLoading, authUser, canRead]);
+  }, [authLoading, authUser, canRead, resetChat]);
 
   /**
    * Link direto para um livro da biblioteca (`/?abrir=cat:<uuid>`). Se a pessoa ainda não entrou,
@@ -1885,7 +1807,7 @@ export function App() {
           text: err instanceof Error ? err.message : "Não foi possível abrir o livro.",
         });
       });
-  }, [authLoading, authUser, canRead, startBook]);
+  }, [authLoading, authUser, canRead, startBook, setChatOpen]);
 
   /**
    * Recarregou com o livro aberto (`?ler=`): abre o mesmo livro quando a conta estiver pronta.
@@ -1950,18 +1872,13 @@ export function App() {
     setSelection(null);
     setWordCard(null);
     setBook(null);
-    setLoading(false);
     setCast(null);
-    setActiveCharId("");
-    setThreads({});
-    setError(null);
-    setInput("");
+    resetChat();
     setFullText("");
     setChapterIndex(0);
     setLoadState("idle");
     setLoadError(null);
-    setChatOpen(false);
-  }, [stopSpeaking]);
+  }, [stopSpeaking, resetChat]);
 
   const toggleReadingFullscreen = useCallback(async () => {
     setReaderSettingsOpen(false);
@@ -1986,22 +1903,6 @@ export function App() {
   }, [immersive]);
 
   const retryLoad = useCallback(() => setLoadAttempt((n) => n + 1), []);
-
-  const characters = useMemo(() => cast ?? [], [cast]);
-  const character = useMemo(
-    () => characters.find((c) => c.id === activeCharId) ?? characters[0],
-    [activeCharId, characters],
-  );
-
-  const messages = character ? (threads[character.id] ?? EMPTY_THREAD) : EMPTY_THREAD;
-
-  /** Guarda a conversa do livro para continuar na próxima vez. */
-  useEffect(() => {
-    if (!book || !cast || Object.keys(threads).length === 0) return;
-    const owner = currentDataOwner();
-    const t = window.setTimeout(() => saveChat(book.id, threads, activeCharId, owner), 400);
-    return () => window.clearTimeout(t);
-  }, [book, cast, threads, activeCharId]);
 
   /** Marcações do livro aberto. */
   useEffect(() => {
@@ -2079,34 +1980,10 @@ export function App() {
   // Conquista nova ao conversar, marcar um trecho ou ao abrir o app com os dados prontos.
   useEffect(() => {
     if (dataIsReady) noticeAchievements();
-  }, [dataIsReady, threads, highlights, noticeAchievements]);
-
-  /** Trocou de personagem no chat: o retrato do topo gira como uma moeda. */
-  const flippedForRef = useRef<string | null>(null);
-  useEffect(() => {
-    const id = character?.id ?? null;
-    const before = flippedForRef.current;
-    flippedForRef.current = id;
-    if (!id || !before || before === id || prefersReducedMotion()) return;
-    chatAvatarRef.current?.animate(
-      [{ transform: "perspective(400px) rotateY(0)" }, { transform: "perspective(400px) rotateY(180deg) scale(0.9)" }, { transform: "perspective(400px) rotateY(360deg)" }],
-      { duration: 520, easing: "cubic-bezier(0.45, 0, 0.25, 1)" },
-    );
-  }, [character?.id]);
-
-  /** Guarda com quem o leitor conversou por último (usado no texto dos lembretes). */
-  useEffect(() => {
-    if (book && character) rememberCharacter(book.id, character.name);
-  }, [book, character]);
+  }, [dataIsReady, chat.threads, highlights, noticeAchievements]);
 
   /** A voz para ao sair do livro ou fechar a página. */
   useEffect(() => () => speechRef.current?.stop(), []);
-
-  useEffect(() => {
-    const el = chatBodyRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, activeCharId, loading, chatOpen]);
 
   const chapters = useMemo(() => (fullText ? splitIntoChapters(fullText) : []), [fullText]);
   const currentChapter = chapters[chapterIndex] ?? chapters[0];
@@ -2699,6 +2576,7 @@ export function App() {
   }
 
   function shareMessage(m: Msg) {
+    const { character, messages } = chat;
     if (!character) return;
     const idx = messages.findIndex((x) => x.id === m.id);
     const question = [...messages.slice(0, idx)].reverse().find((x) => x.role === "user")?.text;
@@ -2716,14 +2594,6 @@ export function App() {
     void shareCard({ kind: "quote", text, chapterLabel });
   }
 
-  function resetConversation() {
-    if (!character) return;
-    if (!window.confirm(`Recomeçar a conversa com ${character.name}? As mensagens desta conversa serão apagadas.`)) {
-      return;
-    }
-    setThreads((prev) => ({ ...prev, [character.id]: initialThreadsFor([character])[character.id] }));
-  }
-
   /** Posição aproximada no livro inteiro (capítulos anteriores + rolagem no atual). */
   const readingProgressPct =
     chapters.length > 0 ? ((chapterIndex + scrollRatio) / chapters.length) * 100 : 0;
@@ -2732,90 +2602,20 @@ export function App() {
     [displayedStory, scrollRatio],
   );
 
-  const limitApplies = detectProvider() === "live";
-  const outOfMessages = limitApplies && messagesLeft + extraMessagesLeft <= 0;
+  /** Lido pelo chat na hora do envio. */
+  function chatSendContext(): ChatSendContext {
+    return { ready: loadState === "ready" && Boolean(displayedStory), textExcerpt, readingProgressPct };
+  }
 
-  async function sendMessage(raw: string) {
-    if (!book || !character || loadState !== "ready" || !displayedStory) return;
-    const text = raw.trim();
-    if (!text || loading) return;
-    if (limitApplies && messagesLeftToday() + extraMessages() <= 0) {
-      setMessagesLeft(0);
-      setExtraMessagesLeft(0);
-      return;
-    }
-
-    setError(null);
-    setInput("");
-    const userMsg: Msg = { id: uid(), role: "user", text };
-    setChatReaction({ id: userMsg.id, emoji: null });
-    setThreads((prev) => ({
-      ...prev,
-      [character.id]: [...(prev[character.id] ?? []), userMsg],
-    }));
-
-    const prior = [...(threads[character.id] ?? []), userMsg];
-    const history: ChatTurn[] = prior
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.text }));
-
-    setLoading(true);
+  /** Início de um pedido ao personagem: a resposta só vale para o mesmo livro e a mesma conta. */
+  function beginChatRequest() {
     const requestBook = book;
     const requestOwner = authSessionRef.current?.user.id;
     const generation = readerGeneration.current;
-    const stillCurrent = () => readerGeneration.current === generation && currentBookRef.current === requestBook && authSessionRef.current?.user.id === requestOwner;
-    try {
-      const { text: reply, reaction } = await characterReply({
-        character,
-        history: history.slice(0, -1),
-        userMessage: text,
-        ebookTitle: book.title,
-        ebookAuthor: book.author,
-        textExcerpt,
-        readingProgressPct,
-        textLanguage: book.textLanguage,
-        shelf: shelfContextFor(book),
-      });
-      if (!stillCurrent()) return;
-      const botMsg: Msg = { id: uid(), role: "assistant", text: reply };
-      if (limitApplies) {
-        setMessagesLeft(countMessage());
-        setExtraMessagesLeft(extraMessages());
-      }
-      // Achou a mensagem fofa ou engraçada: o emoji fica preso nela (e sobe do avatar).
-      if (reaction) setChatReaction({ id: botMsg.id, emoji: reaction });
-      setThreads((prev) => ({
-        ...prev,
-        [character.id]: [
-          ...(prev[character.id] ?? []).map((m) => (m.id === userMsg.id && reaction ? { ...m, reaction } : m)),
-          botMsg,
-        ],
-      }));
-    } catch (err) {
-      if (!stillCurrent()) return;
-      console.warn("Falha no envio da mensagem:", err);
-      if (err instanceof AuthNetworkError && err.code === "AI_QUOTA_EXHAUSTED") {
-        setMessagesLeft(0);
-        setExtraMessagesLeft(0);
-      }
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Não foi possível concluir o envio. Tente de novo.",
-      );
-      setThreads((prev) => ({
-        ...prev,
-        [character.id]: [...(prev[character.id] ?? []).filter((m) => m.id !== userMsg.id)],
-      }));
-      setInput(text);
-    } finally {
-      if (stillCurrent()) setLoading(false);
-    }
-  }
-
-  function onSend(e: React.FormEvent) {
-    e.preventDefault();
-    void sendMessage(input);
+    return () =>
+      readerGeneration.current === generation &&
+      currentBookRef.current === requestBook &&
+      authSessionRef.current?.user.id === requestOwner;
   }
 
   // Botão voltar do celular: fecha o que estiver aberto por cima, na ordem em que foi aberto.
@@ -2829,7 +2629,7 @@ export function App() {
   useBackClose(aboutOpen, () => setAboutOpen(false));
   useBackClose(installOpen, () => setInstallOpen(false));
   useBackClose(importRequest !== null, () => setImportRequest(null));
-  useBackClose(chatOpen, () => setChatOpen(false));
+  useBackClose(chat.chatOpen, () => setChatOpen(false));
   useBackClose(highlightsOpen, () => setHighlightsOpen(false));
 
   if (ownerError) return <main className="auth-loading" role="alert"><p>{ownerError}</p><button onClick={() => window.location.reload()}>Tentar novamente</button></main>;
@@ -3549,8 +3349,6 @@ export function App() {
   }
 
   const ready = loadState === "ready" && fullText.length > 0;
-  const castReady = cast !== null;
-  const userHasSpoken = messages.some((m) => m.role === "user");
   const hasNextChapter = chapterIndex < chapters.length - 1;
 
   return (
@@ -3724,45 +3522,23 @@ export function App() {
 
         <ChatPanel
           book={book}
-          castReady={castReady}
-          character={character}
-          characters={characters}
-          chatAvatarRef={chatAvatarRef}
-          chatBodyRef={chatBodyRef}
-          chatOpen={chatOpen}
-          chatReaction={chatReaction}
-          error={error}
-          extraMessagesLeft={extraMessagesLeft}
-          input={input}
-          inputRef={inputRef}
-          limitApplies={limitApplies}
-          loading={loading}
-          messages={messages}
-          messagesLeft={messagesLeft}
-          onSend={onSend}
-          outOfMessages={outOfMessages}
+          chat={chat}
           ready={ready}
-          resetConversation={resetConversation}
-          sendMessage={sendMessage}
-          setActiveCharId={setActiveCharId}
-          setChatOpen={setChatOpen}
-          setInput={setInput}
           setShopOpen={setShopOpen}
           shareMessage={shareMessage}
-          userHasSpoken={userHasSpoken}
         />
 
-        {!chatOpen ? (
+        {!chat.chatOpen ? (
           <button
             type="button"
             className="chat-fab"
             onClick={() => {
               setChatOpen(true);
-              requestAnimationFrame(() => inputRef.current?.focus());
+              requestAnimationFrame(() => chat.inputRef.current?.focus());
             }}
           >
-            {character ? <Avatar character={character} size="sm" bookTitle={book.title} generate /> : null}
-            {character ? `Conversar com ${shortNameOf(character)}` : "Conversar"}
+            {chat.character ? <Avatar character={chat.character} size="sm" bookTitle={book.title} generate /> : null}
+            {chat.character ? `Conversar com ${shortNameOf(chat.character)}` : "Conversar"}
           </button>
         ) : null}
       </div>
