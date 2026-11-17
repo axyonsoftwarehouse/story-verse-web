@@ -262,7 +262,7 @@ export function GroupsHome() {
         </ul>
       )}
 
-      {tab === "mine" && list !== null && me ? <SuggestionsStrip me={me} /> : null}
+      {tab === "mine" && list !== null && list.length > 0 && me ? <SuggestionsStrip me={me} /> : null}
 
       {creating ? (
         <GroupForm
