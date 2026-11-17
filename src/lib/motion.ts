@@ -80,7 +80,7 @@ export function navigateWithTransition(update: () => void, opts: { back?: boolea
       .startViewTransition(async () => {
         flushSync(update);
         // Espera a rota preguiçosa montar (no máximo 700 ms; depois anima com o que tiver).
-        const until = performance.now() + 700;
+        const until = performance.now() + 220;
         while (routeStillLoading() && performance.now() < until) {
           await new Promise((r) => window.setTimeout(r, 16));
         }

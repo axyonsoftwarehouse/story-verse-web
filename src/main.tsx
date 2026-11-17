@@ -20,6 +20,7 @@ import {
   PersonProfilePage,
   PublicBookPage,
   PublicLibraryPage,
+  prefetchCommunityRoutes,
   RouteLoading,
   SubscribePage,
   SubscriptionPage,
@@ -41,6 +42,17 @@ applyAppTheme();
 
 // Luz seguindo o cursor nos cartões e onda no toque dos botões (todas as telas).
 installAmbientMotion();
+
+// Grupos/Pessoas: prefetch em idle para a troca de rota não travar no primeiro clique.
+if (typeof window !== "undefined") {
+  const warm = () => prefetchCommunityRoutes();
+  const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+  if (idle) {
+    idle(warm, { timeout: 2500 });
+  } else {
+    setTimeout(warm, 800);
+  }
+}
 
 // App instalável e leitura offline (só no build de produção).
 registerServiceWorker();

@@ -91,12 +91,34 @@ export const AboutDialog = lazy(() =>
   loadRoute(() => import("./features/home/AboutDialog")).then((m) => ({ default: m.AboutDialog })),
 );
 
-/** Enquanto o código da rota chega (na primeira visita a abertura ainda cobre a tela). */
+let communityPrefetched = false;
+
+/** Baixa cedo os trechos de Grupos e Pessoas (idle ou ao passar o mouse no menu). */
+export function prefetchCommunityRoutes() {
+  if (communityPrefetched) return;
+  communityPrefetched = true;
+  const routes = [
+    () => import("./features/groups/GroupsHome"),
+    () => import("./features/groups/GroupChat"),
+    () => import("./features/social/PeoplePage"),
+    () => import("./features/social/PersonProfilePage"),
+  ];
+  for (const load of routes) void loadRoute(load as () => Promise<unknown>);
+}
+
+/** Enquanto o código da rota chega: casca fixa, sem spinner central que pisca. */
 export function RouteLoading() {
   return (
-    <main className="auth-loading" role="status" aria-live="polite" data-route-loading>
-      <span className="spinner" aria-hidden="true" />
-      <p>Carregando…</p>
+    <main className="home groups-page route-loading-shell" role="status" aria-live="polite" data-route-loading>
+      <nav className="home-nav profile-nav" aria-hidden="true">
+        <span className="route-loading-pill skeleton" />
+      </nav>
+      <header className="groups-hero route-loading-hero skeleton" aria-hidden="true" />
+      <ul className="route-loading-list" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <li key={i} className="route-loading-row skeleton" />
+        ))}
+      </ul>
     </main>
   );
 }

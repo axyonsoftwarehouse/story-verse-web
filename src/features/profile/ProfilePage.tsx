@@ -12,7 +12,7 @@ import { knownCast } from "../../lib/cast";
 import { characterTalks, forgetAllChats, storedChatSummary } from "../../lib/chatHistory";
 import { achievements } from "../../lib/achievements";
 import { deleteAccount, exportAccount, exportAccountFiles } from "../../lib/account";
-import { APP_THEMES, loadAppTheme, saveAppTheme, type AppThemeId } from "../../lib/appTheme";
+import { APP_THEMES, appThemeFromMetadata, loadAppTheme, saveAppTheme, type AppThemeId } from "../../lib/appTheme";
 import { finishedBooks } from "../../lib/finished";
 import { publishShowcase } from "../../lib/social";
 import { ownProfileCover, useOwnProfileExtras } from "../shop/useOwnProfileExtras";
@@ -28,7 +28,8 @@ import { GOAL_OPTIONS, readingSummary, readingTotals, setReadingGoalMinutes } fr
 import { fetchWallet } from "../../lib/diamonds";
 import { fetchGiftSummary, fetchReceivedGifts, giftDate, type GiftSummary, type ReceivedGift } from "../../lib/gifts";
 import { loadReminderPrefs, saveReminderPrefs } from "../../lib/reminders";
-import { updatePassword, type SupabaseSession } from "../../lib/auth";
+import { apiEnabled } from "../../lib/backend";
+import { updatePassword, updateProfileData, type SupabaseSession } from "../../lib/auth";
 import { NightLight, NIGHT_LIGHT_LABELS, ReadingPrefs } from "../../lib/readingPrefs";
 import { displayNameOf, metaString } from "../../lib/userMeta";
 import { useBackClose } from "../../lib/useBackClose";
@@ -366,8 +367,27 @@ export function ProfilePage({
   }, [user.id, badges, totals, finished.length, allTalks]);
   const nowReading = lendo[0];
 
-  /** Cor do app: vale na hora (sem "Salvar"), e o app inteiro troca junto. */
-  const [appTheme, setAppTheme] = useState<AppThemeId>(loadAppTheme);
+  /** Cor do app: vale na hora (sem "Salvar"), sincroniza na conta para o perfil em Pessoas. */
+  const [appTheme, setAppTheme] = useState<AppThemeId>(() =>
+    apiEnabled ? appThemeFromMetadata(user.user_metadata?.profile_theme) : loadAppTheme(),
+  );
+  useEffect(() => {
+    const fromAccount = appThemeFromMetadata(user.user_metadata?.profile_theme);
+    setAppTheme(fromAccount);
+    saveAppTheme(fromAccount);
+  }, [user.user_metadata?.profile_theme]);
+
+  async function pickAppTheme(id: AppThemeId) {
+    setAppTheme(id);
+    saveAppTheme(id);
+    if (!apiEnabled) return;
+    try {
+      const next = await updateProfileData(session, { profileTheme: id === "dourado" ? "" : id });
+      onSessionChange(next);
+    } catch {
+      /* o app já mudou; na próxima vez que salvar ou entrar tenta de novo */
+    }
+  }
   /** Preferências e conta ficam numa tela à parte; o perfil é sobre a leitura. */
   const [settingsOpen, setSettingsOpen] = useState(false);
   useBackClose(settingsOpen, () => setSettingsOpen(false));
@@ -814,6 +834,7 @@ export function ProfilePage({
         <div className="profile-card profile-prefs">
           <div className="profile-pref">
             <span>Cor do app</span>
+            <p className="profile-pref-hint">Vale no app inteiro e na sua página em Pessoas.</p>
             <div className="theme-swatches" role="radiogroup" aria-label="Cor do app">
               {APP_THEMES.map((t) => (
                 <button
@@ -823,10 +844,7 @@ export function ProfilePage({
                   aria-checked={appTheme === t.id}
                   className={`theme-swatch ${appTheme === t.id ? "is-on" : ""}`}
                   style={{ "--a": t.swatch[0], "--b": t.swatch[1], "--bg": t.bg } as React.CSSProperties}
-                  onClick={() => {
-                    setAppTheme(t.id);
-                    saveAppTheme(t.id);
-                  }}
+                  onClick={() => void pickAppTheme(t.id)}
                   title={t.label}
                 >
                   <span className="theme-swatch-dot" aria-hidden="true" />

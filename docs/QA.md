@@ -16,7 +16,9 @@ mostra a faixa "Ambiente de QA" no rodapé e nenhum dos dois domínios é indexa
 
 ## O que o QA não tem
 
-- **E-mail**: cadastro entra direto, sem confirmação; "esqueci a senha" não envia nada.
+- **E-mail**: nada é enviado. O cadastro entra direto, sem confirmação
+  (`APP_AUTH_REQUIRE_EMAIL_CONFIRMATION=false` no `.env` de QA), e "esqueci a senha" não envia
+  nada. Se alguém ligar a confirmação de novo, veja "Contas novas" abaixo.
 - **IA de produção**: o QA usa uma chave Gemini exclusiva, com teto de 20 mensagens por conta/dia e
   100/dia no QA inteiro. Não consome a cota de produção.
 - **Dados de produção**: o banco começa vazio e só tem as contas de teste.
@@ -36,9 +38,35 @@ Erros do site e da API vão para os projetos Sentry `storyverse-web-qa` e `story
 | `qa-suspenso@example.com` | suspensa por 30 dias: login bloqueado (recriada pelo `reset-qa.sh`) |
 
 Senha: `QA_TEST_PASSWORD` no `.env` de QA da VPS (`/home/deploy/storyverse-qa/.env`). `example.com`
-é reservado: nenhum e-mail real recebe nada. Para criar mais contas, use o cadastro do próprio site.
-Se as contas de papel ainda não existirem, rode `bash seed-qa.sh` de novo. `qa-suspenso` já nasce
+é reservado: nenhum e-mail real recebe nada. Para criar mais contas, use o cadastro do próprio site
+(veja "Contas novas" para o paywall). Se as contas de papel ainda não existirem, rode `bash seed-qa.sh` de novo. `qa-suspenso` já nasce
 com uma suspensão ativa: use a senha normal e confira a mensagem de bloqueio com motivo e prazo.
+
+### Contas novas
+
+A conta criada pelo cadastro do QA já entra logada. Entre 16 e 17/11/2026, o QA teve
+`APP_AUTH_REQUIRE_EMAIL_CONFIRMATION=true` no `.env` de QA (vale mais que o `false` do
+`docker-compose.yml`). Com ela ligada, o cadastro mostra "Confira seu e-mail" e o login responde
+"Confirme seu e-mail antes de entrar". Como nenhum e-mail sai, confirme pelo banco de QA (troque o
+e-mail):
+
+```bash
+ssh deploy@<VPS> 'docker exec storyverse-qa-qa-db-1 sh -c "psql -U \$POSTGRES_USER -d \$POSTGRES_DB \
+  -c \"update auth.users set email_confirmed_at = now() where email = '"'"'nova-conta@example.com'"'"' \
+       and email_confirmed_at is null returning email\""'
+```
+
+Com o paywall ligado (veja "Assinatura (Stripe)"), a conta confirmada ainda cai em "Sua assinatura
+não está ativa". Para testar sem passar pelo checkout, entre como `qa-admin` e dê **Acesso grátis**
+à conta em `/admin/contas` (com prazo, para ele não ficar esquecido). Assim a cobrança fica de fora.
+
+Para desligar a confirmação, ponha `APP_AUTH_REQUIRE_EMAIL_CONFIRMATION=false` no `.env` de QA e
+recrie só a API de QA:
+
+```bash
+cd /home/deploy/storyverse-qa
+docker compose -p storyverse-qa -f docker-compose.yml -f docker-compose.override.yml up -d --no-deps qa-api
+```
 
 ## Roteiro do painel admin
 

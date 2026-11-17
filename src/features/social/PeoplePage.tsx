@@ -53,7 +53,8 @@ export function PeoplePage() {
     };
   }, [gate.ready, me]);
 
-  if (!gate.ready) return <PeopleBlocked text={gate.blocked} />;
+  if (!gate.ready && gate.blocked) return <PeopleBlocked text={gate.blocked} />;
+  const booting = !gate.ready;
   const showRequests = tab === "pedidos" || Boolean(requests && (requests.private || requests.pending > 0));
 
   return (
@@ -95,7 +96,9 @@ export function PeoplePage() {
         />
       </form>
 
-      {query ? (
+      {booting ? (
+        <PeopleSkeleton />
+      ) : query ? (
         <SearchResults query={query} me={me} />
       ) : (
         <>

@@ -27,6 +27,19 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : "Algo deu errado. Tente de novo.";
 }
 
+/** "sem prazo · 3 de 5 entradas restantes" — só quem administra recebe estes campos. */
+function inviteValidity(group: Group): string {
+  const parts: string[] = [];
+  parts.push(group.invite_expires_at ? `válido até ${new Date(group.invite_expires_at).toLocaleDateString("pt-BR")}` : "sem prazo");
+  if (group.invite_max_uses) {
+    const left = Math.max(0, group.invite_max_uses - (group.invite_uses ?? 0));
+    parts.push(left === 0 ? "link esgotado — gere outro" : `${left} de ${group.invite_max_uses} entradas restantes`);
+  } else {
+    parts.push("sem limite de entradas");
+  }
+  return parts.join(" · ");
+}
+
 /** Detalhes do grupo: foto, descrição, livro e meta, convite, membros, silenciar, sair e gestão. */
 export function GroupInfo({
   group,
@@ -46,6 +59,8 @@ export function GroupInfo({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [linkDays, setLinkDays] = useState("0");
+  const [linkMax, setLinkMax] = useState("0");
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [coverBroken, setCoverBroken] = useState(false);
   const [sounds, setSounds] = useState(chatSoundsOn);
@@ -190,20 +205,55 @@ export function GroupInfo({
           </p>
         ) : null}
 
-        {manager && group.invite_code ? (
+        {manager && (group.invite_code || owner) ? (
           <div className="group-info-card group-invite">
             <span className="group-info-card-icon">{GIcon.link}</span>
             <span className="group-invite-text">
               <strong>Link de convite</strong>
-              <small>{inviteUrl(group.invite_code).replace(/^https?:\/\//, "")}</small>
+              {group.invite_code ? (
+                <>
+                  <small>{inviteUrl(group.invite_code).replace(/^https?:\/\//, "")}</small>
+                  <small className="group-invite-validity">{inviteValidity(group)}</small>
+                </>
+              ) : (
+                <small className="group-invite-validity">O link anterior foi usado por completo. Gere outro para convidar.</small>
+              )}
             </span>
-            <button type="button" className="btn btn-primary group-invite-share" onClick={() => void shareInvite()}>
-              {copied ? "Copiado!" : "Compartilhar"}
-            </button>
-            {owner ? (
-              <button type="button" className="group-text-btn group-invite-rotate" onClick={() => void run(() => rotateInvite(group.id), onChanged)}>
-                Gerar link novo (o antigo para de funcionar)
+            {group.invite_code ? (
+              <button type="button" className="btn btn-primary group-invite-share" onClick={() => void shareInvite()}>
+                {copied ? "Copiado!" : "Compartilhar"}
               </button>
+            ) : null}
+            {owner ? (
+              <div className="group-invite-new">
+                <label>
+                  Prazo do link
+                  <select value={linkDays} onChange={(e) => setLinkDays(e.target.value)}>
+                    <option value="0">sem prazo</option>
+                    <option value="1">1 dia</option>
+                    <option value="7">7 dias</option>
+                    <option value="30">30 dias</option>
+                  </select>
+                </label>
+                <label>
+                  Entradas
+                  <select value={linkMax} onChange={(e) => setLinkMax(e.target.value)}>
+                    <option value="0">sem limite</option>
+                    <option value="1">1 pessoa (uso único)</option>
+                    <option value="5">5 pessoas</option>
+                    <option value="10">10 pessoas</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="group-text-btn group-invite-rotate"
+                  onClick={() =>
+                    void run(() => rotateInvite(group.id, { expiresInDays: Number(linkDays), maxUses: Number(linkMax) }), onChanged)
+                  }
+                >
+                  Gerar link novo (o antigo para de funcionar)
+                </button>
+              </div>
             ) : null}
           </div>
         ) : null}

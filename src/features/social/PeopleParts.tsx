@@ -318,8 +318,10 @@ export function SuggestionsStrip({
     };
   }, []);
 
-  const shown = (items ?? []).filter((p) => !exclude.includes(p.id) && !(skipFollowers && p.follows_me)).slice(0, 8);
-  if (items !== null && shown.length === 0) return null;
+  if (items === null) return null;
+
+  const shown = items.filter((p) => !exclude.includes(p.id) && !(skipFollowers && p.follows_me)).slice(0, 8);
+  if (shown.length === 0) return null;
 
   return (
     <section className="people-strip" aria-label={title}>
@@ -331,36 +333,28 @@ export function SuggestionsStrip({
           Ver todos
         </TransitionLink>
       </header>
-      {items === null ? (
-        <div className="people-strip-row" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="people-strip-card is-skeleton skeleton" />
-          ))}
-        </div>
-      ) : (
-        <ul className="people-strip-row">
-          {shown.map((p, i) => (
-            <li key={p.id} className="people-strip-card" style={{ "--i": i } as React.CSSProperties}>
-              <TransitionLink className="people-strip-person" to={`/pessoas/${p.id}`}>
-                <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} cosmetics={p.cosmetics} />
-                <strong>
-                  <PersonName name={p.name} cosmetics={p.cosmetics} />
-                </strong>
-                <small>
-                  {p.follows_me
-                    ? "Segue você"
-                    : p.groups_in_common
-                      ? `${p.groups_in_common} ${p.groups_in_common === 1 ? "grupo em comum" : "grupos em comum"}`
-                      : "Leitor do Storyverse"}
-                </small>
-              </TransitionLink>
-              {p.id !== me ? (
-                <FollowButton person={p} compact onChange={(next) => setItems((cur) => cur?.map((x) => (x.id === next.id ? { ...x, ...next } : x)) ?? null)} />
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="people-strip-row">
+        {shown.map((p, i) => (
+          <li key={p.id} className="people-strip-card" style={{ "--i": i } as React.CSSProperties}>
+            <TransitionLink className="people-strip-person" to={`/pessoas/${p.id}`}>
+              <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} cosmetics={p.cosmetics} />
+              <strong>
+                <PersonName name={p.name} cosmetics={p.cosmetics} />
+              </strong>
+              <small>
+                {p.follows_me
+                  ? "Segue você"
+                  : p.groups_in_common
+                    ? `${p.groups_in_common} ${p.groups_in_common === 1 ? "grupo em comum" : "grupos em comum"}`
+                    : "Leitor do Storyverse"}
+              </small>
+            </TransitionLink>
+            {p.id !== me ? (
+              <FollowButton person={p} compact onChange={(next) => setItems((cur) => cur?.map((x) => (x.id === next.id ? { ...x, ...next } : x)) ?? null)} />
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

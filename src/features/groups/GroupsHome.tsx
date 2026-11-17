@@ -108,9 +108,9 @@ export function GroupsHome() {
     };
   }, [gate.ready, tab, query, presetBook]);
 
-  if (!gate.ready) return <GroupsBlocked text={gate.blocked} />;
+  if (!gate.ready && gate.blocked) return <GroupsBlocked text={gate.blocked} />;
 
-  const list = tab === "mine" ? mine : explore;
+  const list = !gate.ready ? null : tab === "mine" ? mine : explore;
   const unread = (mine ?? []).reduce((sum, g) => sum + (Number(g.unread) || 0), 0);
 
   return (
@@ -262,7 +262,7 @@ export function GroupsHome() {
         </ul>
       )}
 
-      {tab === "mine" && list !== null && me ? <SuggestionsStrip me={me} /> : null}
+      {tab === "mine" && list !== null && list.length > 0 && me ? <SuggestionsStrip me={me} /> : null}
 
       {creating ? (
         <GroupForm

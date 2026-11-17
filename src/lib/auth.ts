@@ -621,8 +621,8 @@ export async function updatePassword(
 }
 
 /**
- * Nome, avatar, biografia e tema do perfil (ficam em user_metadata na conta; o avatar é só um id,
- * sem imagem). Biografia vazia apaga; ausente mantém.
+ * Nome, avatar, biografia e cor do app (profile_theme na conta, para o perfil em Pessoas).
+ * O avatar é só um id, sem imagem. Biografia vazia apaga; ausente mantém.
  */
 export async function updateProfileData(
   session: SupabaseSession,
@@ -632,6 +632,7 @@ export async function updateProfileData(
     photo?: string | null;
     cover?: string | null;
     bio?: string;
+    /** Sincroniza Ajustes › Cor do app com o que outros veem em Pessoas. */
     profileTheme?: string | null;
   },
 ): Promise<SupabaseSession> {

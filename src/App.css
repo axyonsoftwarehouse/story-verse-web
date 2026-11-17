@@ -5055,6 +5055,13 @@
   font-weight: 600;
 }
 
+.profile-pref-hint {
+  margin: 0.15rem 0 0.45rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;
@@ -11457,47 +11464,57 @@ button.ranking-diamonds {
  */
 html.vt-route::view-transition-old(root),
 html.vt-route-back::view-transition-old(root) {
-  animation: vt-route-out 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: vt-route-out 0.14s ease-out both;
 }
 
-html.vt-route::view-transition-new(root) {
-  animation: vt-route-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-html.vt-route-back::view-transition-old(root) {
-  animation-name: vt-route-out-back;
-}
-
+html.vt-route::view-transition-new(root),
 html.vt-route-back::view-transition-new(root) {
-  animation: vt-route-in-back 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: vt-route-in 0.18s ease-out both;
 }
 
 @keyframes vt-route-out {
   to {
     opacity: 0;
-    transform: translateX(-24px);
   }
 }
 
 @keyframes vt-route-in {
   from {
     opacity: 0;
-    transform: translateX(32px);
   }
 }
 
-@keyframes vt-route-out-back {
-  to {
-    opacity: 0;
-    transform: translateX(24px);
-  }
+/* Casca enquanto o JS da rota baixa (mesmo layout da lista de grupos). */
+.route-loading-shell {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 var(--page-pad, 1rem) 3rem;
 }
 
-@keyframes vt-route-in-back {
-  from {
-    opacity: 0;
-    transform: translateX(-32px);
-  }
+.route-loading-pill {
+  display: block;
+  width: 5.5rem;
+  height: 2.25rem;
+  border-radius: var(--radius-pill);
+}
+
+.route-loading-hero {
+  min-height: 7.5rem;
+  margin: 0.4rem 0 1.4rem;
+  border-radius: calc(var(--radius) + 4px);
+}
+
+.route-loading-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-loading-row {
+  min-height: 5.25rem;
+  border-radius: var(--radius);
 }
 
 /* Telas internas sem rodapé: um respiro no fim para o último item não colar na borda. */
