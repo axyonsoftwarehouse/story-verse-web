@@ -64,12 +64,26 @@ function translatorApi(): TranslatorApi | null {
 
 let enginePromise: Promise<TranslationEngine> | null = null;
 
+/**
+ * Tempo máximo para o navegador dizer se traduz sozinho. Alguns Chromium (como navegadores
+ * embutidos em apps) têm `Translator`, mas `availability()` nunca responde; sem limite, o botão
+ * de traduzir ficava parado.
+ */
+const DETECT_TIMEOUT_MS = 2000;
+
 /** Descobre (uma vez) se o navegador traduz sozinho; senão, usa o Google. */
 export function detectTranslationEngine(): Promise<TranslationEngine> {
   enginePromise ??= (async () => {
     try {
       const api = translatorApi();
-      if (api && (await api.availability(LANGS)) !== "unavailable") return "local";
+      if (!api) return "google";
+      const availability = await Promise.race([
+        api.availability(LANGS),
+        new Promise<"unavailable">((resolve) =>
+          setTimeout(() => resolve("unavailable"), DETECT_TIMEOUT_MS),
+        ),
+      ]);
+      if (availability !== "unavailable") return "local";
     } catch {
       // Segue para o Google.
     }
