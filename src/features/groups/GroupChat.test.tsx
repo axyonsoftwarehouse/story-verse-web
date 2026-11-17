@@ -174,3 +174,29 @@ describe("GroupChat: botão fixo de editar no roleplay", () => {
     expect(screen.queryByRole("button", { name: "Editar mensagem" })).toBeNull();
   });
 });
+
+describe("GroupChat: atalho de responder ao lado da mensagem", () => {
+  beforeEach(() => {
+    getGroup.mockReset();
+    listMessages.mockReset();
+  });
+
+  it("aparece em mensagem de outra pessoa e já abre a citação no campo", async () => {
+    getGroup.mockResolvedValue(group({ mode: "chat" }));
+    listMessages.mockResolvedValue([msg({ id: 7, body: "Oi, gente!" })]);
+    renderChat();
+    await screen.findByText("Oi, gente!");
+    const buttons = screen.getAllByRole("button", { name: "Responder mensagem" });
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(await screen.findByRole("button", { name: "Cancelar resposta" })).toBeTruthy();
+  });
+
+  it("não aparece em mensagem ainda enviando", async () => {
+    getGroup.mockResolvedValue(group({ mode: "chat" }));
+    listMessages.mockResolvedValue([msg({ id: 9, body: "Nova fala", pending: true })]);
+    renderChat();
+    await screen.findByText("Nova fala");
+    expect(screen.queryByRole("button", { name: "Responder mensagem" })).toBeNull();
+  });
+});
