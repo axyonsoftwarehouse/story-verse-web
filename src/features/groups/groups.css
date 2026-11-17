@@ -4598,6 +4598,36 @@ button.group-rp-character small {
   font-style: italic;
 }
 
+/* Roleplay: lápis fixo ao lado da hora, nas mensagens que ainda dá para corrigir. A área de toque
+   é maior que o ícone (que acompanha o tamanho da hora). */
+.group-edit-button {
+  display: inline-grid;
+  place-items: center;
+  margin: -0.45rem 0.05rem -0.45rem -0.35rem;
+  padding: 0.45rem 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.group-edit-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.group-edit-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .group-edit-button:hover {
+    color: var(--text);
+  }
+}
+
 /* ==========================================================================
  * Convites para grupos: quem administra procura pelo nome e convida; quem recebe aceita ou
  * recusa no topo de "Meus grupos".
