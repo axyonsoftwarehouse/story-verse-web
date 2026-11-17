@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { mediaUrl } from "../../lib/chatMedia";
 import type { GroupMessage } from "../../lib/groups";
 import { AudioPlayer } from "./AudioPlayer";
+import { AudioTranscript } from "./AudioTranscript";
 import { GIcon } from "./groupIcons";
 
 /** Endereço local da foto/áudio: a cópia do aparelho ou baixada agora; `null` = expirou. */
@@ -82,5 +83,10 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
 export function ChatAudio({ message: m }: { message: GroupMessage }) {
   const { url, loading } = useMedia(m);
   if (!url && !loading) return <Expired kind="audio" />;
-  return <AudioPlayer url={url} loading={loading} durationMs={m.media_duration_ms ?? 0} seed={m.id} label="áudio da mensagem" />;
+  return (
+    <>
+      <AudioPlayer url={url} loading={loading} durationMs={m.media_duration_ms ?? 0} seed={m.id} label="áudio da mensagem" />
+      {url ? <AudioTranscript url={url} /> : null}
+    </>
+  );
 }

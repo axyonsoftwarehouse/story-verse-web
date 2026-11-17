@@ -4709,6 +4709,53 @@ button.group-rp-character small {
 }
 
 /* ==========================================================================
+ * Transcrição do áudio: botão discreto embaixo do tocador e o texto quando sai.
+ * ========================================================================== */
+
+.audio-transcript {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: start;
+  margin-top: 0.35rem;
+  max-width: 22rem;
+}
+
+.audio-transcript-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.audio-transcript-toggle:disabled {
+  color: var(--muted);
+  cursor: progress;
+}
+
+.audio-transcript-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.audio-transcript-text {
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.audio-transcript-note {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+/* ==========================================================================
  * Convites para grupos: quem administra procura pelo nome e convida; quem recebe aceita ou
  * recusa no topo de "Meus grupos".
  * ========================================================================== */
