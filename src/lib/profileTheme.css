@@ -1,8 +1,8 @@
 /*
- * Tema do perfil: afeta só .person-page e a prévia em "Editar perfil".
+ * Tema do perfil: página em Pessoas, perfil próprio e modal "Editar perfil".
  * O fundo permanece escuro; só destaques, bordas e brilhos mudam.
  */
-.person-page[data-profile-theme="dourado"],
+:is(.person-page, .home.profile)[data-profile-theme="dourado"],
 .edit-profile[data-profile-theme="dourado"],
 .edit-profile-theme-preview[data-profile-theme="dourado"] {
   --accent: #e4b86a;
@@ -20,7 +20,7 @@
   --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
 }
 
-.person-page[data-profile-theme="esmeralda"],
+:is(.person-page, .home.profile)[data-profile-theme="esmeralda"],
 .edit-profile[data-profile-theme="esmeralda"],
 .edit-profile-theme-preview[data-profile-theme="esmeralda"] {
   --accent: #6fcf9f;
@@ -38,7 +38,7 @@
   --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
 }
 
-.person-page[data-profile-theme="rosa"],
+:is(.person-page, .home.profile)[data-profile-theme="rosa"],
 .edit-profile[data-profile-theme="rosa"],
 .edit-profile-theme-preview[data-profile-theme="rosa"] {
   --accent: #ee9fbf;
@@ -56,7 +56,7 @@
   --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
 }
 
-.person-page[data-profile-theme="oceano"],
+:is(.person-page, .home.profile)[data-profile-theme="oceano"],
 .edit-profile[data-profile-theme="oceano"],
 .edit-profile-theme-preview[data-profile-theme="oceano"] {
   --accent: #7fb6ec;
@@ -74,7 +74,7 @@
   --accent-2-dim: rgba(var(--accent-2-rgb), 0.35);
 }
 
-.person-page[data-profile-theme="lavanda"],
+:is(.person-page, .home.profile)[data-profile-theme="lavanda"],
 .edit-profile[data-profile-theme="lavanda"],
 .edit-profile-theme-preview[data-profile-theme="lavanda"] {
   --accent: #b9a2f0;
@@ -144,4 +144,30 @@
   pointer-events: none;
   font-size: 0.78rem;
   padding: 0.35rem 0.75rem;
+}
+
+.home.profile .profile-hero {
+  border-color: rgba(var(--accent-rgb), 0.22);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(var(--accent-rgb), 0.16), transparent 55%),
+    linear-gradient(165deg, rgba(var(--card-top-rgb), 0.7), rgba(var(--card-bottom-rgb), 0.8));
+}
+
+.home.profile .profile-hero-glow {
+  inset: -40% -10% auto auto;
+  width: 55%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--person-hue, 40) 60% 55% / 0.22), transparent 65%);
+  opacity: 1;
+  filter: blur(10px);
+}
+
+.home.profile .profile-avatar {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.35), 0 10px 30px -12px rgba(var(--accent-rgb), 0.4);
+}
+
+.home.profile .profile-hero.has-cover .profile-avatar {
+  box-shadow: 0 0 0 4px var(--bg), 0 12px 30px -10px rgba(0, 0, 0, 0.7);
 }
