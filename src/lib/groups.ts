@@ -75,6 +75,12 @@ export type Group = {
   last_read_id: number;
   unread: number;
   invite_code: string | null;
+  /** Fim da validade do link de convite (null = sem prazo). Só quem administra recebe. */
+  invite_expires_at?: string | null;
+  /** Quantas entradas o link aceita (null = sem limite). */
+  invite_max_uses?: number | null;
+  /** Entradas já feitas com o link atual. */
+  invite_uses?: number;
   last_message_id: number | null;
   last_author_name: string | null;
   last_body: string | null;
@@ -227,7 +233,9 @@ export const joinGroup = (id: string) => call<Group>(`/api/v1/groups/${id}/join`
 export const joinByInvite = (code: string) =>
   call<Group>(`/api/v1/groups/join/${encodeURIComponent(code)}`, { method: "POST" });
 export const leaveGroup = (id: string) => call<void>(`/api/v1/groups/${id}/leave`, { method: "POST" });
-export const rotateInvite = (id: string) => call<Group>(`/api/v1/groups/${id}/invite/rotate`, { method: "POST" });
+/** Gera link novo. `expiresInDays`/`maxUses` 0 ou ausente = sem prazo / sem limite. */
+export const rotateInvite = (id: string, opts?: { expiresInDays?: number; maxUses?: number }) =>
+  call<Group>(`/api/v1/groups/${id}/invite/rotate`, { method: "POST", body: opts ?? {} });
 export const setMuted = (id: string, muted: boolean) =>
   call<Group>(`/api/v1/groups/${id}/mute`, { method: "POST", body: { muted } });
 export const markRead = (id: string, lastId: number) =>
@@ -340,15 +348,14 @@ export const sendMessage = (
   body: { body: string; clientId: string; spoilerChapter?: number | null; replyTo?: number | null },
 ) => call<GroupMessage>(`/api/v1/groups/${id}/messages`, { method: "POST", body });
 /** Roleplay: quanto tempo depois de enviar ainda dá para editar (a API confere o mesmo). */
-export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Dá para editar a mensagem? Só no roleplay, a própria mensagem de texto (não do narrador, nem
- * foto ou áudio), já gravada e até 24 h depois. Denúncia e livro pronto a API recusa.
+ * A própria mensagem de texto, dentro do prazo — em qualquer grupo (chat comum ou roleplay).
+ * Antes exigia roleplay; o cartão de 15/11 pede o mesmo no chat de conversa.
  */
-export function canEditMessage(m: GroupMessage, me: string, roleplay: boolean, now = Date.now()): boolean {
+export function canEditMessage(m: GroupMessage, me: string, now = Date.now()): boolean {
   return (
-    roleplay &&
     m.author_id === me &&
     m.kind !== "narrator" &&
     !m.media_kind &&

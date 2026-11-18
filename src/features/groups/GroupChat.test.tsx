@@ -199,3 +199,70 @@ describe("GroupChat: Enter no campo", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("GroupChat: botão fixo de editar a própria mensagem", () => {
+  beforeEach(() => {
+    getGroup.mockReset();
+    listMessages.mockReset();
+  });
+
+  const recent = () => new Date(Date.now() - 60_000).toISOString();
+
+  it("aparece só na própria mensagem de texto e abre a edição com o texto", async () => {
+    getGroup.mockResolvedValue(group({ mode: "roleplay", members: [member({ user_id: "eu", name: "Eu", cosmetics: null }), member({ rp_character: "Capitu" })] }));
+    listMessages.mockResolvedValue([
+      msg({ id: 1, body: "Fala da Ana", created_at: recent() }),
+      msg({ id: 2, author_id: "eu", author_name: "Eu", body: "Minha fala", created_at: recent() }),
+    ]);
+    renderChat();
+    await screen.findByText("Minha fala");
+    const buttons = screen.getAllByRole("button", { name: "Editar mensagem" });
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(await screen.findByDisplayValue("Minha fala")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancelar edição" })).toBeTruthy();
+  });
+
+  it("aparece no chat comum e some depois do prazo", async () => {
+    // O cartão de 15/11 pede edição também no chat de conversa (antes era só roleplay).
+    getGroup.mockResolvedValue(group({ mode: "chat" }));
+    listMessages.mockResolvedValue([msg({ id: 2, author_id: "eu", author_name: "Eu", body: "Minha fala", created_at: recent() })]);
+    const { unmount } = renderChat();
+    await screen.findByText("Minha fala");
+    expect(screen.getAllByRole("button", { name: "Editar mensagem" })).toHaveLength(1);
+    unmount();
+
+    getGroup.mockResolvedValue(group({ mode: "roleplay" }));
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    listMessages.mockResolvedValue([msg({ id: 3, author_id: "eu", author_name: "Eu", body: "Fala antiga", created_at: old })]);
+    renderChat();
+    await screen.findByText("Fala antiga");
+    expect(screen.queryByRole("button", { name: "Editar mensagem" })).toBeNull();
+  });
+});
+
+describe("GroupChat: atalho de responder ao lado da mensagem", () => {
+  beforeEach(() => {
+    getGroup.mockReset();
+    listMessages.mockReset();
+  });
+
+  it("aparece em mensagem de outra pessoa e já abre a citação no campo", async () => {
+    getGroup.mockResolvedValue(group({ mode: "chat" }));
+    listMessages.mockResolvedValue([msg({ id: 7, body: "Oi, gente!" })]);
+    renderChat();
+    await screen.findByText("Oi, gente!");
+    const buttons = screen.getAllByRole("button", { name: "Responder mensagem" });
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(await screen.findByRole("button", { name: "Cancelar resposta" })).toBeTruthy();
+  });
+
+  it("não aparece em mensagem ainda enviando", async () => {
+    getGroup.mockResolvedValue(group({ mode: "chat" }));
+    listMessages.mockResolvedValue([msg({ id: 9, body: "Nova fala", pending: true })]);
+    renderChat();
+    await screen.findByText("Nova fala");
+    expect(screen.queryByRole("button", { name: "Responder mensagem" })).toBeNull();
+  });
+});
