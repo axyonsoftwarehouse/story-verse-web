@@ -122,7 +122,7 @@ export function InvitePeople({ groupId }: { groupId: string }) {
             <ul className="group-invite-list" aria-label="Pessoas encontradas">
               {results.map((p) => (
                 <li key={p.id}>
-                  <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" cosmetics={p.cosmetics} />
+                  <PersonFace id={p.id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" cosmetics={p.cosmetics} profileTo={`/pessoas/${p.id}`} />
                   <span className="group-invite-name">
                     <PersonName name={p.name} cosmetics={p.cosmetics} />
                   </span>
@@ -155,7 +155,7 @@ export function InvitePeople({ groupId }: { groupId: string }) {
             <ul className="group-invite-list" aria-label="Convites esperando resposta">
               {pending.map((p) => (
                 <li key={p.user_id}>
-                  <PersonFace id={p.user_id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" cosmetics={p.cosmetics} />
+                  <PersonFace id={p.user_id} name={p.name} avatar={p.avatar} photo={p.photo} size="sm" cosmetics={p.cosmetics} profileTo={`/pessoas/${p.user_id}`} />
                   <span className="group-invite-name">
                     <PersonName name={p.name} cosmetics={p.cosmetics} />
                     <small>convite de {p.invited_by_name}</small>

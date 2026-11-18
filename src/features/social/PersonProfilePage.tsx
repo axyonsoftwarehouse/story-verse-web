@@ -130,6 +130,7 @@ export function PersonProfilePage() {
       <section className={`person-hero ${cover ? "has-cover" : ""}`}>
         {cover ? <span className="person-cover" style={{ backgroundImage: `url("${cover}")` }} aria-hidden="true" /> : null}
         <span className="person-hero-glow" aria-hidden="true" />
+        <div className="person-identity">
         <span className="person-avatar">
           <PersonFace id={profile.id} name={profile.name} avatar={profile.avatar} photo={profile.photo} size="lg" cosmetics={profile.cosmetics} animate />
         </span>
@@ -187,6 +188,7 @@ export function PersonProfilePage() {
               }
             />
           )}
+        </div>
         </div>
 
         <dl className="person-stats">
@@ -263,6 +265,7 @@ export function PersonProfilePage() {
 
       {locked ? null : (
         <>
+          <section className="person-section person-network">
           <h2 className="people-section-title person-network-title" ref={networkRef}>
             Rede
           </h2>
@@ -285,6 +288,7 @@ export function PersonProfilePage() {
               />
             }
           />
+          </section>
         </>
       )}
       {profile.is_me ? <SuggestionsStrip me={me} skipFollowers={list === "seguidores"} /> : null}
@@ -417,7 +421,9 @@ function ReadingNumbers({ profile }: { profile: PersonProfile }) {
   ].filter((i) => i.value > 0);
   if (items.length === 0) return null;
   return (
-    <section className="person-section person-numbers" style={{ "--i": 1 } as CSSProperties} aria-label="Leitura em números">
+    <section className="person-section" style={{ "--i": 1 } as CSSProperties} aria-label="Leitura em números">
+      <h2 className="person-section-title">Em números</h2>
+      <div className="person-numbers">
       {items.map((item, i) => (
         <div key={item.key} className="person-number" style={{ "--i": i } as CSSProperties}>
           <span className="person-number-icon" aria-hidden="true">
@@ -429,6 +435,7 @@ function ReadingNumbers({ profile }: { profile: PersonProfile }) {
           <small>{item.label}</small>
         </div>
       ))}
+      </div>
     </section>
   );
 }

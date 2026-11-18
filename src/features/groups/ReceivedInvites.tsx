@@ -84,6 +84,7 @@ function InviteCard({ invite, onAccepted, onGone }: { invite: ReceivedInvite; on
           <PersonFace
             id={invite.invited_by}
             name={invite.invited_by_name}
+            profileTo={`/pessoas/${invite.invited_by}`}
             avatar={invite.invited_by_avatar}
             photo={invite.invited_by_photo}
             size="sm"

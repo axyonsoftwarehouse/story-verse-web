@@ -114,6 +114,20 @@
   font-size: 2.3rem;
 }
 
+.group-face-link {
+  display: inline-grid;
+  flex-shrink: 0;
+  border-radius: 50%;
+  line-height: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.group-face-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .group-face-sm {
   width: 1.9rem;
   height: 1.9rem;

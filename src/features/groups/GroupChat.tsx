@@ -536,6 +536,7 @@ export function GroupChat() {
     e?.preventDefault();
     const text = input.trim();
     if (!text || !session) return;
+    if (spoilerOn && !spoiler) return;
     if (editing) {
       void saveEdit(editing, text);
       return;
@@ -581,11 +582,15 @@ export function GroupChat() {
       cancelEdit();
       return;
     }
-    // Enter quebra a linha (como no WhatsApp do celular); Ctrl+Enter (ou ⌘+Enter) envia pelo teclado.
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      submit();
-    }
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    // Celular: Enter quebra a linha e o envio é o botão. Desktop: Enter envia, Shift+Enter quebra.
+    const desktop =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(hover: hover) and (pointer: fine)").matches === true;
+    const send = e.ctrlKey || e.metaKey || (desktop && !e.shiftKey);
+    if (!send) return;
+    e.preventDefault();
+    submit();
   }
 
   function burst(m: GroupMessage, emoji: string) {
@@ -921,6 +926,7 @@ export function GroupChat() {
                         {!mine ? grouped ? <span className="group-face-gap" /> : <PersonFace
                               id={m.author_id}
                               name={characterOf(m.author_id) ?? m.author_name}
+                              profileTo={`/pessoas/${m.author_id}`}
                               avatar={characterOf(m.author_id) ? null : m.author_avatar}
                               photo={characterPhotoOf(m.author_id) ?? (characterOf(m.author_id) ? null : (m.author_photo ?? group.members?.find((x) => x.user_id === m.author_id)?.photo))}
                               size="sm"
@@ -1056,6 +1062,7 @@ export function GroupChat() {
                     <PersonFace
                       id={typingIds[0]}
                       name={typingNames[0]}
+                      profileTo={`/pessoas/${typingIds[0]}`}
                       avatar={characterOf(typingIds[0]) ? null : (group.members?.find((m) => m.user_id === typingIds[0])?.avatar ?? null)}
                       photo={characterPhotoOf(typingIds[0]) ?? (characterOf(typingIds[0]) ? null : group.members?.find((m) => m.user_id === typingIds[0])?.photo)}
                       size="sm"
@@ -1250,6 +1257,9 @@ export function GroupChat() {
                 )}
               </div>
               )}
+              {!recording ? (
+                <p className="group-key-hint">Enter envia · Shift+Enter quebra a linha</p>
+              ) : null}
             </div>
           </form>
         </>

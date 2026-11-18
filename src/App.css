@@ -8694,11 +8694,15 @@ button.identity-card {
   color: var(--on-accent);
 }
 
-.person-badge-medal svg,
+.person-badge-medal svg {
+  color: var(--accent);
+}
+
+/* Presente tem a cor do objeto. O tema do perfil não pinta coração nem flor. */
 .person-gift-icon svg,
 .gift-option-icon svg,
 .gift-received-icon svg {
-  color: var(--accent);
+  color: inherit;
 }
 
 .badge-card strong {

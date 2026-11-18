@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { applyReaction, mergeMessages, messageStatus, messageTime, parseSse, typingLabel, type GroupMember, type GroupMessage } from "./groups";
+import {
+  applyReaction,
+  mergeMessages,
+  messageStatus,
+  messageTime,
+  notificationTitle,
+  parseSse,
+  stackNotificationLines,
+  typingLabel,
+  type GroupMember,
+  type GroupMessage,
+} from "./groups";
 
 function msg(id: number, extra: Partial<GroupMessage> = {}): GroupMessage {
   return {
@@ -73,6 +84,18 @@ describe("applyReaction", () => {
     expect(m.reactions[0]).toEqual({ emoji: "👍", count: 2, mine: true });
     m = applyReaction(applyReaction(m, "👍", false, true), "👍", false, false);
     expect(m.reactions).toEqual([]);
+  });
+});
+
+describe("stackNotificationLines", () => {
+  it("põe a mensagem nova no topo e guarda as anteriores", () => {
+    const lines = stackNotificationLines(["Ana: oi"], "Bia: tudo bem?");
+    expect(lines).toEqual(["Bia: tudo bem?", "Ana: oi"]);
+    expect(notificationTitle("Clube", lines.length)).toBe("Clube · 2 novas");
+  });
+
+  it("não repete a mesma linha seguida", () => {
+    expect(stackNotificationLines(["Ana: oi"], "Ana: oi")).toEqual(["Ana: oi"]);
   });
 });
 
