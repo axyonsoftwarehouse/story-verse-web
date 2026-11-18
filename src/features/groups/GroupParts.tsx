@@ -1,5 +1,6 @@
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type PointerEvent } from "react";
 import { Link } from "react-router-dom";
+import { TransitionLink } from "../../components/TransitionLink";
 import { AvatarArt, findAvatar } from "../../avatars";
 import { apiBaseUrl } from "../../lib/backend";
 import { GIcon } from "./groupIcons";
@@ -22,6 +23,7 @@ export function PersonFace({
   online = false,
   cosmetics,
   animate = false,
+  profileTo,
 }: {
   id: string;
   name: string;
@@ -33,12 +35,14 @@ export function PersonFace({
   cosmetics?: Cosmetics | null;
   /** Só aqui a moldura animada pode tocar (e ainda assim respeitando "reduzir movimento"). */
   animate?: boolean;
+  /** Quando existe, o rosto abre o perfil dessa pessoa. */
+  profileTo?: string;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
   const def = findAvatar(avatar);
   const color = def?.color ?? `hsl(${hueOf(id)} 42% 62%)`;
   const showPhoto = Boolean(photo && (photo.startsWith("https://") || photo.startsWith(`${apiBaseUrl}/`) || photo.startsWith("blob:")) && broken !== photo);
-  return (
+  const face = (
     <span className={`group-face group-face-${size}`} style={{ "--c": color } as CSSProperties} aria-hidden="true">
       {showPhoto ? (
         <img src={photo!} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(photo!)} />
@@ -50,6 +54,18 @@ export function PersonFace({
       <FaceFrame cosmetics={cosmetics} animate={animate} />
       {online ? <span className="group-online" /> : null}
     </span>
+  );
+  if (!profileTo) return face;
+  return (
+    <TransitionLink
+      className="group-face-link"
+      to={profileTo}
+      aria-label={`Ver o perfil de ${name}`}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e: PointerEvent<HTMLAnchorElement>) => e.stopPropagation()}
+    >
+      {face}
+    </TransitionLink>
   );
 }
 

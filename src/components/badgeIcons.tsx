@@ -24,7 +24,7 @@ const STROKE = {
   strokeLinejoin: "round" as const,
 };
 
-function Svg({ size = 26, className, children }: IconProps & { children: ReactNode }) {
+function Svg({ size = 26, className, color, children }: IconProps & { color?: string; children: ReactNode }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -33,6 +33,7 @@ function Svg({ size = 26, className, children }: IconProps & { children: ReactNo
       className={className}
       aria-hidden="true"
       focusable="false"
+      style={color ? { color } : undefined}
       {...STROKE}
     >
       {children}
@@ -160,6 +161,14 @@ const ACHIEVEMENTS: Record<string, ReactNode> = {
   ),
 };
 
+/** Cor do objeto, independente do tema do perfil (um coração não fica verde). */
+const GIFT_COLOR: Record<string, string> = {
+  flor: "#e56b93",
+  coracao: "#e5484d",
+  coroa: "#e4b86a",
+  trofeu: "#c9892a",
+};
+
 const GIFTS: Record<string, ReactNode> = {
   flor: (
     <>
@@ -205,7 +214,7 @@ export function BadgeIcon({ id, size = 26, className }: IconProps & { id: string
  */
 export function GiftIcon({ id, emoji, size = 18, className }: IconProps & { id: string; emoji: string }) {
   const desenho = GIFTS[id];
-  if (desenho) return <Svg size={size} className={className}>{desenho}</Svg>;
+  if (desenho) return <Svg size={size} className={className} color={GIFT_COLOR[id]}>{desenho}</Svg>;
   return (
     <span className={className} aria-hidden="true" style={{ fontSize: `${size}px`, lineHeight: 1 }}>
       {emoji}
