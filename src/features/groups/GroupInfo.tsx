@@ -250,6 +250,7 @@ export function GroupInfo({
                   <PersonFace
                     id={m.user_id}
                     name={m.rp_character ?? m.name}
+                    profileTo={`/pessoas/${m.user_id}`}
                     avatar={m.rp_character ? null : m.avatar}
                     photo={m.rp_character ? m.rp_photo : m.photo}
                     size="sm"

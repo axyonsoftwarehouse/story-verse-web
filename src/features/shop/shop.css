@@ -18,7 +18,7 @@
 }
 
 .store-head {
-  max-width: 960px;
+  max-width: 1080px;
   margin: 0.25rem auto 1.25rem;
 }
 
@@ -38,7 +38,7 @@
 .store-layout {
   display: grid;
   gap: 1.25rem;
-  max-width: 960px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 
@@ -46,10 +46,11 @@
   min-width: 0;
 }
 
-@media (min-width: 820px) {
+@media (min-width: 900px) {
   .store-layout {
-    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
     align-items: start;
+    gap: 1.75rem;
   }
 
   .store-preview {
@@ -63,8 +64,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1.25rem 1rem 1rem;
+  gap: 0.45rem;
+  padding: 1.1rem 1rem 1rem;
+  overflow: visible;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: linear-gradient(180deg, rgba(var(--card-top-rgb), 0.9), rgba(var(--card-bottom-rgb), 0.9));
@@ -93,7 +95,8 @@
   position: relative;
   width: 100%;
   aspect-ratio: 3 / 1;
-  margin-bottom: 3.9rem;
+  margin-bottom: 2.6rem;
+  overflow: visible;
   border-radius: var(--radius-sm);
   background: linear-gradient(120deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-2-rgb), 0.16));
 }
@@ -179,18 +182,26 @@
 
 .store-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+@media (min-width: 720px) {
+  .store-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.9rem;
+  }
 }
 
 .store-card {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  padding: 0.8rem;
+  min-width: 0;
+  padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
@@ -227,7 +238,7 @@
   display: grid;
   place-items: center;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  height: 6.5rem;
   overflow: hidden;
   border-radius: var(--radius-sm);
 }
@@ -239,8 +250,9 @@
 }
 
 .store-thumb-frame {
-  aspect-ratio: auto;
-  padding: 1.25rem 0;
+  height: 6.5rem;
+  overflow: visible;
+  padding: 0.85rem 0 0.35rem;
 }
 
 .store-thumb-badge img {
@@ -250,7 +262,7 @@
 }
 
 .store-thumb-cover {
-  aspect-ratio: 3 / 1;
+  height: 6.5rem;
 }
 
 .store-thumb-cover img {
@@ -272,9 +284,13 @@
 
 .store-card-top {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.35rem;
+}
+
+.store-card-top strong {
+  line-height: 1.25;
 }
 
 .store-card-body p {
@@ -315,13 +331,14 @@
 .store-card-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  margin-top: auto;
 }
 
 .store-card-actions .btn {
   flex: 1;
-  padding-inline: 0.6rem;
+  min-width: 0;
+  padding-inline: 0.55rem;
   white-space: nowrap;
 }
 
@@ -353,6 +370,13 @@
 .store-mine .store-card-preview {
   flex: none;
   width: 5.5rem;
+}
+
+.store-mine .store-thumb,
+.store-mine .store-thumb-frame,
+.store-mine .store-thumb-cover {
+  height: auto;
+  padding: 0.35rem 0;
 }
 
 .store-mine-text {
@@ -428,5 +452,38 @@
 @media (max-width: 480px) {
   .store-sheet-actions .btn {
     flex: 1;
+  }
+
+  .store-card-actions .btn {
+    white-space: normal;
+    line-height: 1.2;
+  }
+}
+
+/* No celular a prévia vira uma faixa, para os itens começarem logo abaixo. */
+@media (max-width: 899px) {
+  .store-preview:not(:has(.store-banner)) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.35rem 0.85rem;
+    padding: 0.75rem 0.9rem;
+    text-align: left;
+  }
+
+  .store-preview:not(:has(.store-banner)) .store-preview-face {
+    padding: 0.2rem;
+  }
+
+  .store-preview:not(:has(.store-banner)) .store-preview-face .group-face-lg {
+    width: 3.4rem;
+    height: 3.4rem;
+    font-size: 1.35rem;
+  }
+
+  .store-preview:not(:has(.store-banner)) .store-preview-hint,
+  .store-preview:not(:has(.store-banner)) .inline-link {
+    flex-basis: 100%;
   }
 }

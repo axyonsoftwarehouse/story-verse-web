@@ -540,8 +540,9 @@ export function messageTime(iso: string, now = new Date()): string {
 /* ------------------------- Avisos com o app aberto ------------------------- */
 
 /** Sem Web Push: o aviso só sai com o app aberto (em outra aba ou minimizado). */
-const lastNotified = new Map<string, number>();
-const NOTIFY_EVERY_MS = 5 * 60_000;
+const memoryLines = new Map<string, string[]>();
+/** Quantas mensagens novas a notificação guarda (a seta do celular abre a lista). */
+export const NOTIFICATION_LINES = 8;
 
 export function notificationsAvailable(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
@@ -553,10 +554,6 @@ export async function enableGroupNotifications(): Promise<boolean> {
   return (await Notification.requestPermission()) === "granted";
 }
 
-/**
- * Aviso de mensagem nova quando a tela não está visível: no máximo 1 por grupo a cada 5 minutos,
- * nunca para grupo silenciado.
- */
 /**
  * Formatação do WhatsApp: *negrito*, _itálico_ e ~riscado~ (um dentro do outro também vale).
  * O marcador abre no começo ou depois de espaço/pontuação, encosta no texto e fecha na mesma
@@ -574,24 +571,64 @@ export function stripFormatting(text: string): string {
   }
 }
 
+/** Uma linha da notificação: a mais nova fica no topo, para aparecer com o aviso fechado. */
+export function stackNotificationLines(previous: readonly string[], line: string, max = NOTIFICATION_LINES): string[] {
+  const clean = line.replace(/\s+/g, " ").trim().slice(0, 140);
+  if (!clean) return [...previous];
+  if (previous[0] === clean) return [...previous];
+  return [clean, ...previous].slice(0, max);
+}
+
+export function notificationTitle(groupName: string, count: number): string {
+  return count > 1 ? `${groupName} · ${count} novas` : groupName;
+}
+
+function messageLine(m: GroupMessage): string {
+  const text = m.spoiler_chapter
+    ? "🙈 mensagem com spoiler"
+    : m.media_kind === "image"
+      ? "📷 Foto"
+      : m.media_kind === "audio"
+        ? "🎤 Áudio"
+        : stripFormatting(m.body ?? "");
+  return `${m.author_name}: ${text}`;
+}
+
+/**
+ * Aviso de mensagem nova quando a tela não está visível. O mesmo aviso do grupo vai acumulando
+ * as mensagens: fechado mostra a última; a seta do celular abre as outras.
+ */
 export function notifyGroupMessage(m: GroupMessage, groupName: string, muted: boolean) {
   if (muted || !notificationsAvailable() || Notification.permission !== "granted") return;
   if (document.visibilityState === "visible") return;
-  const now = Date.now();
-  if (now - (lastNotified.get(m.group_id) ?? 0) < NOTIFY_EVERY_MS) return;
-  lastNotified.set(m.group_id, now);
-  try {
-    const n = new Notification(groupName, {
-      body: `${m.author_name}: ${m.spoiler_chapter ? "🙈 mensagem com spoiler" : stripFormatting(m.body ?? "").slice(0, 140)}`,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/badge-96.png",
-      tag: `group-${m.group_id}`,
-    });
-    n.onclick = () => {
-      window.focus();
-      window.location.assign(`/grupos/${m.group_id}`);
-    };
-  } catch {
-    // Alguns navegadores (Android) só aceitam notificação pelo service worker: fica só o selo.
-  }
+  const tag = `group-${m.group_id}`;
+  const line = messageLine(m);
+  void (async () => {
+    let previous = memoryLines.get(tag) ?? [];
+    try {
+      const notes = await navigator.serviceWorker?.getRegistration().then((reg) => reg?.getNotifications({ tag }));
+      const saved = notes?.[0]?.data?.lines;
+      if (Array.isArray(saved)) previous = saved.filter((x): x is string => typeof x === "string");
+    } catch {
+      // Sem service worker: vale a lista desta aba.
+    }
+    const lines = stackNotificationLines(previous, line);
+    memoryLines.set(tag, lines);
+    try {
+      const n = new Notification(notificationTitle(groupName, lines.length), {
+        body: lines.join("\n"),
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png",
+        tag,
+        data: { lines, url: `/grupos/${m.group_id}` },
+      });
+      n.onclick = () => {
+        memoryLines.delete(tag);
+        window.focus();
+        window.location.assign(`/grupos/${m.group_id}`);
+      };
+    } catch {
+      // Alguns navegadores (Android) só aceitam notificação pelo service worker: fica só o selo.
+    }
+  })();
 }

@@ -209,6 +209,20 @@ self.addEventListener("message", (event) => {
 });
 
 // Notificação no celular (Web Push): mensagem nova num grupo, mandada pela API.
+// Várias mensagens do mesmo grupo ficam no mesmo aviso. A mais nova é a primeira linha
+// (o que aparece fechado); as outras vêm embaixo e a seta do Android abre a lista.
+const PUSH_LINES = 8;
+
+function stackLines(previous, line) {
+  const clean = String(line || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
+  if (!clean) return previous.slice();
+  if (previous[0] === clean) return previous.slice();
+  return [clean, ...previous].slice(0, PUSH_LINES);
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -221,13 +235,18 @@ self.addEventListener("push", (event) => {
       // App aberto na frente: a mensagem já aparece na tela, sem notificação por cima.
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       if (windows.some((c) => c.visibilityState === "visible" && c.focused)) return;
-      await self.registration.showNotification(data.title || "Storyverse", {
-        body: data.body || "Mensagem nova",
+      const tag = data.tag || "storyverse-push";
+      const current = await self.registration.getNotifications({ tag });
+      const saved = current[0] && current[0].data && Array.isArray(current[0].data.lines) ? current[0].data.lines : [];
+      const lines = stackLines(saved, data.body || "Mensagem nova");
+      const name = data.title || "Storyverse";
+      await self.registration.showNotification(lines.length > 1 ? `${name} · ${lines.length} novas` : name, {
+        body: lines.join("\n"),
         icon: "/icons/icon-192.png",
         badge: "/icons/badge-96.png",
-        tag: data.tag || "storyverse-push",
+        tag,
         renotify: true,
-        data: { url: data.url || "/" },
+        data: { url: data.url || "/", lines },
       });
     })(),
   );
