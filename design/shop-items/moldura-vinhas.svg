@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8e1a6"/>
+      <stop offset="1" stop-color="#b07b32"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="198" fill="none" stroke="#14110e" stroke-width="10"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#1e4630" stroke-width="28"/>
+  <g fill="#3f9a5c" stroke="#143222" stroke-width="4" stroke-linejoin="round">
+    <ellipse cx="256" cy="30" rx="16" ry="26"/>
+    <ellipse cx="256" cy="482" rx="16" ry="26"/>
+    <ellipse cx="30" cy="256" rx="26" ry="16"/>
+    <ellipse cx="482" cy="256" rx="26" ry="16"/>
+    <ellipse cx="96" cy="96" rx="22" ry="13" transform="rotate(-45 96 96)"/>
+    <ellipse cx="416" cy="96" rx="22" ry="13" transform="rotate(45 416 96)"/>
+    <ellipse cx="96" cy="416" rx="22" ry="13" transform="rotate(45 96 416)"/>
+    <ellipse cx="416" cy="416" rx="22" ry="13" transform="rotate(-45 416 416)"/>
+  </g>
+  <circle cx="256" cy="256" r="214" fill="none" stroke="url(#ouro)" stroke-width="6"/>
+</svg>

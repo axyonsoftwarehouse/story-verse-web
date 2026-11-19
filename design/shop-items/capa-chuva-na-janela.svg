@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500">
+  <rect width="1500" height="500" fill="#1a2740"/>
+  <rect x="80" y="40" width="1340" height="420" rx="18" fill="#243656" stroke="#8fb8e8" stroke-width="10"/>
+  <g stroke="#cfe2f8" stroke-width="4" stroke-linecap="round" opacity="0.55">
+    <path d="M180 80 l-18 70 M260 120 l-18 80 M340 70 l-16 64 M460 150 l-20 90 M560 90 l-16 70"/>
+    <path d="M700 110 l-18 80 M820 70 l-16 60 M940 140 l-20 86 M1080 90 l-16 74 M1220 120 l-18 80 M1340 80 l-14 60"/>
+  </g>
+  <rect x="180" y="300" width="220" height="28" rx="6" fill="#e6cf9a"/>
+  <path d="M210 300 v-36 h150 v36" fill="#f4e7c8" stroke="#8a6239" stroke-width="6"/>
+  <ellipse cx="1120" cy="340" rx="70" ry="28" fill="#f4d7b0"/>
+  <path d="M1050 340 h40 v-20 h60 v20 h40" fill="none" stroke="#e4b86a" stroke-width="8"/>
+</svg>

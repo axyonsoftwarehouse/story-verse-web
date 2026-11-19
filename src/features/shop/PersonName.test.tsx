@@ -26,6 +26,15 @@ describe("PersonName", () => {
     expect(label.style.backgroundImage).toContain("rgb(0, 0, 255)");
   });
 
+  it("mostra até quatro insígnias ao lado do nome", () => {
+    const badges = [1, 2, 3, 4, 5].map((n) => ({ image: `/shop/b-${n}.png`, name: `Selo ${n}` }));
+    const { container } = render(<PersonName name="Ana" cosmetics={{ ...base, badges }} />);
+    const imgs = container.querySelectorAll("img");
+    expect(imgs).toHaveLength(4);
+    expect(imgs[0]?.getAttribute("alt")).toBe("Selo 1");
+    expect(imgs[3]?.getAttribute("alt")).toBe("Selo 4");
+  });
+
   it("sem enfeites mostra só o nome, e insígnia com URL inválida é ignorada", () => {
     const bad: Cosmetics = { ...base, badge: { image: "javascript:x", name: "X" } };
     const { container } = render(<PersonName name="Ana" cosmetics={bad} className="extra" />);

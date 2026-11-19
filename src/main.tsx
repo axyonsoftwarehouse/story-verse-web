@@ -48,9 +48,9 @@ if (typeof window !== "undefined") {
   const warm = () => prefetchCommunityRoutes();
   const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
   if (idle) {
-    idle(warm, { timeout: 2500 });
+    idle(warm, { timeout: 800 });
   } else {
-    setTimeout(warm, 800);
+    setTimeout(warm, 200);
   }
 }
 
