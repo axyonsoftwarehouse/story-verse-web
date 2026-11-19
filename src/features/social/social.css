@@ -671,7 +671,17 @@ button.person-stat.is-on {
 }
 
 .person-number-icon {
-  font-size: 1.2rem;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-bottom: 0.15rem;
+  color: var(--accent);
+}
+
+.person-number-icon svg,
+.person-badge-medal svg {
+  display: block;
 }
 
 .person-number strong {

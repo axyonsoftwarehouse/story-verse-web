@@ -5038,6 +5038,10 @@
   font-size: 1.1rem;
 }
 
+.profile-empty-icon svg {
+  display: block;
+}
+
 .profile-card {
   padding: 1.2rem 1.3rem;
   border: 1px solid var(--border);
