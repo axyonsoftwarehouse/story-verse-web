@@ -102,9 +102,10 @@ export function EditProfileModal({
       const coverUrl = await imageUrl("cover", cover, savedCover);
       const saved = await updateProfileData(session, {
         name: trimmed,
-        avatar,
-        photo: photoUrl,
-        cover: coverUrl,
+        // Vazio apaga. Ausente (a troca de tema) mantém foto e capa.
+        avatar: avatar ?? "",
+        photo: photoUrl ?? "",
+        cover: coverUrl ?? "",
         bio: cleanBio,
       });
       // Capa enviada nova: a comprada sai de cena para a enviada aparecer (a pessoa pode reequipar a comprada na loja).

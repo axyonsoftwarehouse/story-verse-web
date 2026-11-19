@@ -622,7 +622,8 @@ export async function updatePassword(
 
 /**
  * Nome, avatar, biografia e cor do app (profile_theme na conta, para o perfil em Pessoas).
- * O avatar é só um id, sem imagem. Biografia vazia apaga; ausente mantém.
+ * O avatar é só um id, sem imagem. Foto, capa e avatar vazios apagam; ausentes mantêm
+ * (trocar o tema manda só a cor). Biografia vazia apaga; ausente mantém.
  */
 export async function updateProfileData(
   session: SupabaseSession,

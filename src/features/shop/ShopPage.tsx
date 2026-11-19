@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SupabaseSession, SupabaseUser } from "../../lib/auth";
 import { apiBaseUrl } from "../../lib/backend";
 import { fetchWallet } from "../../lib/diamonds";
@@ -258,6 +258,23 @@ export function ShopPage({
         <p>Enfeites para o seu perfil. Toque num item para ver como fica em você.</p>
       </header>
 
+      <div className="store-tabs" role="tablist" aria-label="Tipos de item">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`store-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls="store-panel"
+            className={`store-tab ${tab === t.id ? "is-active" : ""}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {error ? (
         <p className="auth-error moderation-error" role="alert">
           {error}
@@ -270,7 +287,7 @@ export function ShopPage({
       ) : null}
 
       <div className="store-layout">
-        <aside className="store-preview" aria-label="Prévia no seu perfil">
+        <aside key={`${tab}-${previewId ?? "hoje"}`} className="store-preview" aria-label="Prévia no seu perfil">
           {tab === "cover" || (preview?.category === "cover" && tab === "mine") ? (
             <div className="store-banner">
               {coverSrc ? <img src={coverSrc} alt="" decoding="async" referrerPolicy="no-referrer" /> : null}
@@ -293,24 +310,7 @@ export function ShopPage({
         </aside>
 
         <section className="store-main">
-          <div className="store-tabs" role="tablist" aria-label="Tipos de item">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                id={`store-tab-${t.id}`}
-                aria-selected={tab === t.id}
-                aria-controls="store-panel"
-                className={`store-tab ${tab === t.id ? "is-active" : ""}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div id="store-panel" role="tabpanel" aria-labelledby={`store-tab-${tab}`}>
+          <div key={tab} id="store-panel" className="store-panel" role="tabpanel" aria-labelledby={`store-tab-${tab}`}>
             {catalog === null && !error ? (
               <div className="page-status">
                 <span className="spinner" aria-hidden="true" />
@@ -349,9 +349,10 @@ export function ShopPage({
                   <p className="profile-empty">Nenhum item deste tipo à venda por enquanto.</p>
                 ) : (
                   <ul className="store-grid">
-                    {items.map((item) => (
+                    {items.map((item, index) => (
                       <ItemCard
                         key={item.id}
+                        index={index}
                         item={item}
                         user={user}
                         name={name}
@@ -464,6 +465,7 @@ function TierLabel({ tier }: { tier: ShopTier }) {
 
 function ItemCard({
   item,
+  index = 0,
   user,
   name,
   owned,
@@ -476,6 +478,7 @@ function ItemCard({
   onEquip,
 }: {
   item: ShopItem;
+  index?: number;
   user: SupabaseUser;
   name: string;
   owned: boolean;
@@ -491,7 +494,7 @@ function ItemCard({
   const short = Math.max(0, item.price - balance);
   const until = untilLabel(item.available_until);
   return (
-    <li className={`store-card store-card-${item.tier} ${previewing ? "is-previewing" : ""}`}>
+    <li className={`store-card store-card-${item.tier} ${previewing ? "is-previewing" : ""}`} style={{ "--i": index } as CSSProperties}>
       <button type="button" className="store-card-preview" aria-pressed={previewing} aria-label={`Prévia: ${item.name}`} onClick={onPreview}>
         <ItemThumb item={item} user={user} name={name} />
       </button>

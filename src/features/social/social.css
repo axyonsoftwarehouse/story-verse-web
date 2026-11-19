@@ -21,6 +21,17 @@
   margin-bottom: 1rem;
 }
 
+.person-tab-in {
+  animation: person-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .person-tab-in,
+  .people-follow.is-celebrating {
+    animation: none;
+  }
+}
+
 .people-hint {
   margin: 0 0 0.6rem;
   color: var(--muted);
@@ -1010,8 +1021,11 @@ button.person-stat.is-on {
 }
 
 @keyframes follow-pop {
-  40% {
-    transform: scale(1.12);
+  35% {
+    transform: scale(0.92);
+  }
+  70% {
+    transform: scale(1.08);
   }
 }
 
