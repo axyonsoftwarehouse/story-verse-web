@@ -44,6 +44,7 @@ const ACTION_LABEL: Record<string, string> = {
   "shop_item.update": "Item da loja editado",
   "shop_item.delete": "Item da loja apagado",
   "shop_image.upload": "Imagem da loja enviada",
+  "diamonds.grant": "Diamantes lançados",
 };
 
 export function actionLabel(action: string): string {

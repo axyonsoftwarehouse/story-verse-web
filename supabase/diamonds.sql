@@ -310,3 +310,76 @@ grant execute on function public.spin_daily_wheel() to authenticated;
 
 -- Confere: deve aparecer o preço do salva-ofensiva (10) e o limite por semana (2).
 select freeze_price, freezes_per_week, goal_minutes, goal_reward from public.diamond_rules();
+
+-- Conceder (ou tirar) diamantes pelo painel de admin: acha a conta pelo e-mail, lança como
+-- 'adjustment' com a ref 'admin:<uuid>' (única por concessão) e guarda quem concedeu, a nota e o
+-- saldo novo em admin_audit_log. A nota é interna (o extrato mostra só "Ajuste").
+-- Em produção (VPS) esta função vem da migração V63 da API, que confere has_role('superadmin');
+-- aqui a checagem é is_admin(), que na API já inclui o superadmin.
+-- Auditoria das ações de admin (mesmas colunas da tabela da API, V6). Sem grants: só as funções
+-- security definer gravam aqui.
+create table if not exists public.admin_audit_log (
+  id bigint generated always as identity primary key,
+  actor_id uuid references auth.users (id) on delete set null,
+  action text not null,
+  target_type text,
+  target_id text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.admin_audit_log enable row level security;
+
+create or replace function public.admin_grant_diamonds(p_email text, p_amount integer, p_note text)
+returns table (user_id uuid, email text, amount integer, balance integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  actor uuid := auth.uid();
+  target uuid;
+  target_email text;
+  matches integer;
+  note text := btrim(coalesce(p_note, ''));
+  ref text;
+  bal integer;
+begin
+  if actor is null or not public.is_admin() then
+    raise exception 'Só admin pode conceder diamantes.';
+  end if;
+  if p_amount is null or p_amount = 0 then
+    raise exception 'Informe uma quantidade diferente de zero.';
+  end if;
+  if abs(p_amount) > 100000 then
+    raise exception 'Quantidade grande demais (máximo de 100.000 por lançamento).';
+  end if;
+  if char_length(note) < 3 or char_length(note) > 200 then
+    raise exception 'Escreva o motivo (de 3 a 200 caracteres).';
+  end if;
+
+  select count(*)::integer, min(u.id::text)::uuid, min(u.email)
+    into matches, target, target_email
+    from auth.users u
+   where lower(u.email) = lower(btrim(coalesce(p_email, '')));
+  if matches = 0 then
+    raise exception 'Nenhuma conta com esse e-mail.';
+  end if;
+  if matches > 1 then
+    raise exception 'Mais de uma conta com esse e-mail; resolva pelo banco.';
+  end if;
+
+  -- Débito maior que o saldo: apply_diamonds recusa ('Diamantes insuficientes.') e nada fica gravado.
+  ref := 'admin:' || gen_random_uuid()::text;
+  bal := public.apply_diamonds(target, p_amount, 'adjustment', ref);
+
+  insert into public.admin_audit_log (actor_id, action, target_type, target_id, metadata)
+  values (actor, 'diamonds.grant', 'user', target::text,
+          jsonb_build_object('amount', p_amount, 'note', note, 'ref', ref, 'balance_after', bal));
+
+  return query select target, target_email, p_amount, bal;
+end;
+$$;
+
+revoke execute on function public.admin_grant_diamonds(text, integer, text) from public, anon;
+grant execute on function public.admin_grant_diamonds(text, integer, text) to authenticated;
