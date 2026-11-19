@@ -4912,10 +4912,8 @@
 }
 
 .profile-bio-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0.1rem 0 0.4rem;
+  margin: 0.35rem 0 0.55rem;
+  padding: 0.45rem 0.95rem;
   font-size: 0.85rem;
 }
 
@@ -9150,6 +9148,12 @@ button.ranking-diamonds {
 
 .shop-history .is-out {
   color: var(--danger);
+}
+
+.shop-history-more {
+  margin-top: 0.85rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
 }
 
 /* ---- Roleta diária ---- */
