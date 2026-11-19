@@ -601,9 +601,9 @@ export function ProfilePage({
         {talks.length === 0 ? (
           <p className="profile-empty profile-empty-card">
             <span className="profile-empty-icon" aria-hidden="true">
-              💬
+              <BadgeIcon id="first-chat" size={22} />
             </span>
-            <span>Abra um livro e puxe conversa com um personagem: quem você mais conversar aparece aqui.</span>
+            <span>Converse com um personagem para ele aparecer aqui.</span>
           </p>
         ) : (
           <ol className="talk-grid">
@@ -768,9 +768,9 @@ export function ProfilePage({
         ) : (
           <p className="profile-empty profile-empty-card">
             <span className="profile-empty-icon" aria-hidden="true">
-              🎁
+              <BadgeIcon id="gift" size={22} />
             </span>
-            <span>Nenhum presente recebido ainda. Participe do ranking e os leitores podem enviar um.</span>
+            <span>Nenhum presente ainda.</span>
           </p>
         )}
       </section>

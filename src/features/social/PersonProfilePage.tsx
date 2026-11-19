@@ -416,10 +416,10 @@ function ReadingNumbers({ profile }: { profile: PersonProfile }) {
   const finished = Math.max(profile.reading_counts?.finished ?? 0, s.finishedBooks ?? 0);
   const hours = Math.floor((s.totalMinutes ?? 0) / 60);
   const items = [
-    { key: "finished", icon: "📚", value: finished, label: finished === 1 ? "livro lido" : "livros lidos" },
-    { key: "hours", icon: "⏳", value: hours, label: hours === 1 ? "hora lendo" : "horas lendo" },
-    { key: "streak", icon: "🔥", value: s.bestStreak ?? 0, label: "dias seguidos (recorde)" },
-    { key: "chat", icon: "💬", value: s.messagesSent ?? 0, label: "mensagens a personagens" },
+    { key: "finished", icon: "finish-5", value: finished, label: finished === 1 ? "lido" : "lidos" },
+    { key: "hours", icon: "hours-10", value: hours, label: hours === 1 ? "hora" : "horas" },
+    { key: "streak", icon: "streak-7", value: s.bestStreak ?? 0, label: "recorde" },
+    { key: "chat", icon: "first-chat", value: s.messagesSent ?? 0, label: s.messagesSent === 1 ? "mensagem" : "mensagens" },
   ].filter((i) => i.value > 0);
   if (items.length === 0) return null;
   return (
@@ -429,7 +429,7 @@ function ReadingNumbers({ profile }: { profile: PersonProfile }) {
       {items.map((item, i) => (
         <div key={item.key} className="person-number" style={{ "--i": i } as CSSProperties}>
           <span className="person-number-icon" aria-hidden="true">
-            {item.icon}
+            <BadgeIcon id={item.icon} size={22} />
           </span>
           <strong>
             <CountUp value={item.value} delay={450 + i * 110} />
@@ -548,7 +548,7 @@ function BadgesSection({ profile, first }: { profile: PersonProfile; first: stri
     return (
       <section className="person-section" style={{ "--i": 3 } as CSSProperties}>
         <h2 className="person-section-title">Conquistas</h2>
-        <p className="person-empty-line">{profile.is_me ? "Suas conquistas aparecem aqui quando você desbloquear a primeira." : `${first} ainda não desbloqueou conquistas.`}</p>
+        <p className="person-empty-line">{profile.is_me ? "A primeira conquista aparece aqui." : `${first} ainda não tem conquistas.`}</p>
       </section>
     );
   }
@@ -571,7 +571,6 @@ function BadgesSection({ profile, first }: { profile: PersonProfile; first: stri
               <BadgeIcon id={b.id} size={24} />
             </span>
             <strong>{b.title}</strong>
-            {b.description ? <small>{b.description}</small> : null}
           </li>
         ))}
       </ul>
@@ -593,7 +592,7 @@ function GiftsSection({ profile }: { profile: PersonProfile }) {
   return (
     <section className="person-section" style={{ "--i": 4 } as CSSProperties}>
       <h2 className="person-section-title">
-        Presentes recebidos <small>{total}</small>
+        Presentes <small>{total}</small>
       </h2>
       <ul className="person-gifts">
         {gifts.map((g, i) => (
