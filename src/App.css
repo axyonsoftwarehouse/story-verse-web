@@ -1384,10 +1384,18 @@
   gap: 0.4rem;
 }
 
+.chapter-menu {
+  position: relative;
+  min-width: 0;
+}
+
 .chapter-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   height: 36px;
   max-width: 11rem;
-  padding: 0 0.8rem;
+  padding: 0 0.75rem 0 0.95rem;
   border-radius: var(--radius-pill);
   border: 1px solid var(--r-border);
   background: var(--r-chip);
@@ -1398,9 +1406,68 @@
   cursor: pointer;
 }
 
-.chapter-select option {
+.chapter-select span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-select svg {
+  flex: none;
+  opacity: 0.7;
+  transition: transform 0.2s var(--ease-out);
+}
+
+.chapter-select[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.chapter-menu-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.45rem);
+  left: 50%;
+  translate: -50% 0;
+  width: max(100%, 16rem);
+  max-height: min(22rem, 62vh);
+  padding: 0.35rem;
+  overflow: auto;
+  border: 1px solid var(--r-border);
+  border-radius: 16px;
   background: var(--r-panel);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  scrollbar-width: thin;
+  scrollbar-color: var(--r-border) transparent;
+}
+
+.chapter-menu-list button {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
   color: var(--r-text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chapter-menu-list button.is-on {
+  background: rgba(var(--accent-rgb), 0.2);
+  color: var(--r-heading);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .chapter-menu-list button:hover {
+    background: var(--r-chip);
+  }
+
+  .chapter-menu-list button.is-on:hover {
+    background: rgba(var(--accent-rgb), 0.28);
+  }
 }
 
 .reader-tools {
@@ -3486,9 +3553,14 @@
     justify-content: center;
   }
 
-  .chapter-select {
+  .chapter-menu {
     flex: 1;
     max-width: 16rem;
+  }
+
+  .chapter-select {
+    width: 100%;
+    max-width: none;
   }
 }
 
