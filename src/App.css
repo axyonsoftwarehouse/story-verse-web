@@ -157,7 +157,7 @@
 .home {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 0 clamp(1rem, 4vw, 2.5rem) 3rem;
+  padding: 0 clamp(1rem, 4vw, 2.5rem) 1.25rem;
 }
 
 .home-nav {
@@ -1554,7 +1554,7 @@
 .prose {
   max-width: 40rem;
   margin: 0 auto;
-  padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 5vw, 2.5rem) 5rem;
+  padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 5vw, 2.5rem) 2.5rem;
   font-family: var(--font-read);
   /* No texto do livro as ligaduras (fi, fl) ficam bonitas: só a interface as desliga. */
   font-variant-ligatures: common-ligatures;
@@ -11492,7 +11492,7 @@ html.vt-route-back::view-transition-new(root) {
 .route-loading-shell {
   max-width: 760px;
   margin: 0 auto;
-  padding: 0 var(--page-pad, 1rem) 3rem;
+  padding: 0 var(--page-pad, 1rem) 1.25rem;
 }
 
 .route-loading-pill {
@@ -11521,10 +11521,10 @@ html.vt-route-back::view-transition-new(root) {
   border-radius: var(--radius);
 }
 
-/* Telas internas sem rodapé: um respiro no fim para o último item não colar na borda. */
+/* Telas internas sem rodapé: um respiro curto, sem faixa vazia depois do último item. */
 .groups-page,
 .shelf-page {
-  padding-bottom: 3rem;
+  padding-bottom: 1.25rem;
 }
 
 /* ======================= Vida no ambiente (mágico/literário) ======================= */

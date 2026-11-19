@@ -129,8 +129,16 @@ export function ShopPage({
   }, [load]);
 
   useEffect(() => {
-    if (pending) confirmRef.current?.focus();
-  }, [pending]);
+    if (!pending && !bought) return;
+    confirmRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || buying) return;
+      if (pending) setPending(null);
+      else setBought(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending, bought, buying]);
 
   const visuals = useMemo(() => {
     const map = new Map<string, Visual>();
@@ -375,58 +383,64 @@ export function ShopPage({
       </div>
 
       {pending ? (
-        <div className="store-sheet" role="dialog" aria-modal="false" aria-labelledby="store-sheet-title">
-          <div className="store-sheet-row">
-            <PersonFace id={user.id} name={name} avatar={meta(user, "avatar")} photo={meta(user, "photo")} size="md" cosmetics={previewCosmetics} />
-            <span className="store-sheet-text">
-              <strong id="store-sheet-title">
-                {CATEGORY_LABEL[pending.item.category]} {pending.item.name}
-              </strong>
-              <span>
-                {pending.item.price} 💎 · fica com {Math.max(0, (balance ?? 0) - pending.item.price)} 💎
-              </span>
-            </span>
-          </div>
-          {buyError ? (
-            <p className="store-sheet-error" role="alert">
-              {buyError}
+        <div
+          className="store-modal-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !buying) setPending(null);
+          }}
+        >
+          <div className="store-modal" role="dialog" aria-modal="true" aria-labelledby="store-modal-title">
+            <ItemThumb item={pending.item} user={user} name={name} />
+            <h2 id="store-modal-title">Comprar {pending.item.name}?</h2>
+            <p>
+              Custa {pending.item.price} diamantes. Seu saldo fica em {Math.max(0, (balance ?? 0) - pending.item.price)}.
             </p>
-          ) : null}
-          <div className="store-sheet-actions">
-            <button type="button" className="btn" disabled={buying} onClick={() => setPending(null)}>
-              Cancelar
-            </button>
-            <button ref={confirmRef} type="button" className="btn btn-primary" aria-busy={buying} onClick={() => void confirmBuy()}>
-              {buying ? "Comprando…" : buyError ? "Tentar de novo" : "Confirmar compra"}
-            </button>
+            {buyError ? (
+              <p className="store-modal-error" role="alert">
+                {buyError}
+              </p>
+            ) : null}
+            <div className="store-modal-actions">
+              <button type="button" className="btn" disabled={buying} onClick={() => setPending(null)}>
+                Cancelar
+              </button>
+              <button ref={confirmRef} type="button" className="btn btn-primary" aria-busy={buying} onClick={() => void confirmBuy()}>
+                {buying ? "Comprando…" : buyError ? "Tentar de novo" : "Confirmar compra"}
+              </button>
+            </div>
           </div>
         </div>
       ) : bought ? (
-        <div className="store-sheet" role="dialog" aria-modal="false" aria-labelledby="store-sheet-title">
-          <div className="store-sheet-row">
-            <span className="store-sheet-text">
-              <strong id="store-sheet-title">Equipar agora?</strong>
-              <span>
-                {CATEGORY_LABEL[bought.category]} {bought.name} agora é sua.
-              </span>
-            </span>
-          </div>
-          <div className="store-sheet-actions">
-            <button type="button" className="btn" onClick={() => setBought(null)}>
-              Agora não
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={equipping !== null}
-              onClick={() => {
-                const item = bought;
-                setBought(null);
-                void equip(item.category, item.id);
-              }}
-            >
-              Equipar
-            </button>
+        <div
+          className="store-modal-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setBought(null);
+          }}
+        >
+          <div className="store-modal" role="dialog" aria-modal="true" aria-labelledby="store-modal-title">
+            <ItemThumb item={bought} user={user} name={name} />
+            <h2 id="store-modal-title">Equipar agora?</h2>
+            <p>{bought.name} já é seu. Dá para usar no perfil agora.</p>
+            <div className="store-modal-actions">
+              <button type="button" className="btn" onClick={() => setBought(null)}>
+                Agora não
+              </button>
+              <button
+                ref={confirmRef}
+                type="button"
+                className="btn btn-primary"
+                disabled={equipping !== null}
+                onClick={() => {
+                  const item = bought;
+                  setBought(null);
+                  void equip(item.category, item.id);
+                }}
+              >
+                Equipar
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
