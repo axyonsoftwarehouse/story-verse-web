@@ -602,7 +602,7 @@ export function DiamondShopPage({
                   ))}
                 </ol>
                 {!showAll && history && history.length > 5 ? (
-                  <button type="button" className="inline-link" onClick={() => setShowAll(true)}>
+                  <button type="button" className="btn shop-history-more" onClick={() => setShowAll(true)}>
                     Ver tudo
                   </button>
                 ) : null}

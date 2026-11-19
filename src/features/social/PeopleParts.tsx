@@ -144,7 +144,7 @@ export function PersonRow({
             </span>
           </span>
         </TransitionLink>
-        {follow && person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact /> : null}
+        {follow && person.id !== me ? <FollowButton person={person} onChange={(p) => onChange(p)} compact celebrate /> : null}
         {extra}
       </div>
     </div>

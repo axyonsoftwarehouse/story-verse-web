@@ -550,7 +550,7 @@ export function ProfilePage({
           {metaString(user, "bio") ? (
             <p className="profile-bio">{metaString(user, "bio")}</p>
           ) : (
-            <button type="button" className="inline-link profile-bio-add" onClick={() => setEditOpen(true)}>
+            <button type="button" className="btn profile-bio-add" onClick={() => setEditOpen(true)}>
               {Icon.pencil}
               Adicionar biografia
             </button>
