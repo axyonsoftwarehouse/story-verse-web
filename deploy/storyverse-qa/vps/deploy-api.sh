@@ -19,5 +19,6 @@ docker compose --project-name storyverse-qa up -d qa-api
 # O job so pode ficar verde se o container estiver rodando exatamente a imagem deste build.
 test "$(docker inspect --format '{{.Config.Image}}' storyverse-qa-api-1)" = "$image"
 docker compose --project-name storyverse-qa ps qa-api
-curl -fsS --retry 20 --retry-delay 3 --retry-all-errors \
+# Ate 2 minutos: a API leva cerca de 1 minuto para subir (Flyway + Spring).
+curl -fsS --retry 40 --retry-delay 3 --retry-all-errors \
   https://api.qa.storyverse.2.29.42.104.sslip.io/api/v1/health/ready

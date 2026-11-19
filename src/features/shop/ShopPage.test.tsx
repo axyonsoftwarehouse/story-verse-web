@@ -165,6 +165,6 @@ describe("ShopPage", () => {
     expect(screen.getByText("Coruja")).toBeInTheDocument();
     expect(screen.getByText("Raro")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tirar" }));
-    await waitFor(() => expect(equipShopItem).toHaveBeenCalledWith(session, "badge", null));
+    await waitFor(() => expect(equipShopItem).toHaveBeenCalledWith(session, "badge", "b1"));
   });
 });

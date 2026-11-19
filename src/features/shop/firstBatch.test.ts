@@ -71,11 +71,11 @@ describe("primeiro lote da loja", () => {
   const of = (category: string) => rows.filter((r) => r.category === category);
 
   it("tem as quantidades combinadas por categoria", () => {
-    expect(of("frame").length).toBeGreaterThanOrEqual(6);
-    expect(of("frame").filter((r) => r.tier === "epic")).toHaveLength(1);
-    expect(of("badge").length).toBeGreaterThanOrEqual(6);
-    expect(of("cover")).toHaveLength(3);
-    expect(of("name_color")).toHaveLength(3);
+    expect(of("frame").length).toBeGreaterThanOrEqual(8);
+    expect(of("frame").filter((r) => r.tier === "epic")).toHaveLength(2);
+    expect(of("badge").length).toBeGreaterThanOrEqual(11);
+    expect(of("cover")).toHaveLength(7);
+    expect(of("name_color")).toHaveLength(6);
     expect(rows.every((r) => ["frame", "badge", "cover", "name_color"].includes(r.category))).toBe(true);
   });
 
@@ -146,6 +146,6 @@ describe("primeiro lote da loja", () => {
     }
     const lengths = of("name_color").map((r) => r.colors!.length).sort();
     expect(lengths[0]).toBe(1);
-    expect(lengths.filter((n) => n > 1)).toHaveLength(2);
+    expect(lengths.filter((n) => n > 1).length).toBeGreaterThanOrEqual(4);
   });
 });

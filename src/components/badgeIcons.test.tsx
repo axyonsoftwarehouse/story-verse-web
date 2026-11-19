@@ -48,12 +48,13 @@ describe("GiftIcon (presentes)", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("coração e flor têm cor própria, não a do tema", () => {
+  it("coração e flor são desenhos coloridos, sem herdar a cor do perfil", () => {
     const heart = render(<GiftIcon id="coracao" emoji="❤️" />).container.querySelector("svg");
     const flower = render(<GiftIcon id="flor" emoji="🌸" />).container.querySelector("svg");
-    expect(heart?.style.color).toBe("rgb(229, 72, 77)");
-    expect(flower?.style.color).toBe("rgb(229, 107, 147)");
-    expect(heart?.style.color).not.toBe(flower?.style.color);
+    expect(heart?.innerHTML).toContain("#e5484d");
+    expect(flower?.innerHTML).toContain("#e56b93");
+    expect(heart?.getAttribute("stroke")).toBeNull();
+    expect(heart?.innerHTML).not.toContain("currentColor");
   });
 
   it("presente novo, sem desenho, mantém o emoji do banco", () => {
