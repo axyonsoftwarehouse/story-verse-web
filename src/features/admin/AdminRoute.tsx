@@ -18,6 +18,7 @@ import { MetricsSection } from "./MetricsSection";
 import { OverviewSection } from "./OverviewSection";
 import { SanctionsSection } from "./SanctionsSection";
 import { ShopItemsSection } from "./ShopItemsSection";
+import { DiamondGrantSection } from "./DiamondGrantSection";
 import { SiteSection } from "./SiteSection";
 import { canModerate, visibleSections, type AdminSectionId } from "./adminSections";
 import "./admin.css";
@@ -316,7 +317,10 @@ export function AdminRoute() {
               path="loja"
               element={
                 <RequireSection id="shop" roles={allowed}>
-                  <ShopItemsSection session={session} />
+                  <>
+                    <ShopItemsSection session={session} />
+                    <DiamondGrantSection session={session} />
+                  </>
                 </RequireSection>
               }
             />
