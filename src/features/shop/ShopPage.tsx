@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SupabaseSession, SupabaseUser } from "../../lib/auth";
 import { apiBaseUrl } from "../../lib/backend";
 import { fetchWallet } from "../../lib/diamonds";
@@ -129,8 +129,16 @@ export function ShopPage({
   }, [load]);
 
   useEffect(() => {
-    if (pending) confirmRef.current?.focus();
-  }, [pending]);
+    if (!pending && !bought) return;
+    confirmRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || buying) return;
+      if (pending) setPending(null);
+      else setBought(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending, bought, buying]);
 
   const visuals = useMemo(() => {
     const map = new Map<string, Visual>();
@@ -258,6 +266,23 @@ export function ShopPage({
         <p>Enfeites para o seu perfil. Toque num item para ver como fica em você.</p>
       </header>
 
+      <div className="store-tabs" role="tablist" aria-label="Tipos de item">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`store-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls="store-panel"
+            className={`store-tab ${tab === t.id ? "is-active" : ""}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {error ? (
         <p className="auth-error moderation-error" role="alert">
           {error}
@@ -270,7 +295,7 @@ export function ShopPage({
       ) : null}
 
       <div className="store-layout">
-        <aside className="store-preview" aria-label="Prévia no seu perfil">
+        <aside key={`${tab}-${previewId ?? "hoje"}`} className="store-preview" aria-label="Prévia no seu perfil">
           {tab === "cover" || (preview?.category === "cover" && tab === "mine") ? (
             <div className="store-banner">
               {coverSrc ? <img src={coverSrc} alt="" decoding="async" referrerPolicy="no-referrer" /> : null}
@@ -293,24 +318,7 @@ export function ShopPage({
         </aside>
 
         <section className="store-main">
-          <div className="store-tabs" role="tablist" aria-label="Tipos de item">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                id={`store-tab-${t.id}`}
-                aria-selected={tab === t.id}
-                aria-controls="store-panel"
-                className={`store-tab ${tab === t.id ? "is-active" : ""}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div id="store-panel" role="tabpanel" aria-labelledby={`store-tab-${tab}`}>
+          <div key={tab} id="store-panel" className="store-panel" role="tabpanel" aria-labelledby={`store-tab-${tab}`}>
             {catalog === null && !error ? (
               <div className="page-status">
                 <span className="spinner" aria-hidden="true" />
@@ -349,9 +357,10 @@ export function ShopPage({
                   <p className="profile-empty">Nenhum item deste tipo à venda por enquanto.</p>
                 ) : (
                   <ul className="store-grid">
-                    {items.map((item) => (
+                    {items.map((item, index) => (
                       <ItemCard
                         key={item.id}
+                        index={index}
                         item={item}
                         user={user}
                         name={name}
@@ -374,58 +383,64 @@ export function ShopPage({
       </div>
 
       {pending ? (
-        <div className="store-sheet" role="dialog" aria-modal="false" aria-labelledby="store-sheet-title">
-          <div className="store-sheet-row">
-            <PersonFace id={user.id} name={name} avatar={meta(user, "avatar")} photo={meta(user, "photo")} size="md" cosmetics={previewCosmetics} />
-            <span className="store-sheet-text">
-              <strong id="store-sheet-title">
-                {CATEGORY_LABEL[pending.item.category]} {pending.item.name}
-              </strong>
-              <span>
-                {pending.item.price} 💎 · fica com {Math.max(0, (balance ?? 0) - pending.item.price)} 💎
-              </span>
-            </span>
-          </div>
-          {buyError ? (
-            <p className="store-sheet-error" role="alert">
-              {buyError}
+        <div
+          className="store-modal-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !buying) setPending(null);
+          }}
+        >
+          <div className="store-modal" role="dialog" aria-modal="true" aria-labelledby="store-modal-title">
+            <ItemThumb item={pending.item} user={user} name={name} />
+            <h2 id="store-modal-title">Comprar {pending.item.name}?</h2>
+            <p>
+              Custa {pending.item.price} diamantes. Seu saldo fica em {Math.max(0, (balance ?? 0) - pending.item.price)}.
             </p>
-          ) : null}
-          <div className="store-sheet-actions">
-            <button type="button" className="btn" disabled={buying} onClick={() => setPending(null)}>
-              Cancelar
-            </button>
-            <button ref={confirmRef} type="button" className="btn btn-primary" aria-busy={buying} onClick={() => void confirmBuy()}>
-              {buying ? "Comprando…" : buyError ? "Tentar de novo" : "Confirmar compra"}
-            </button>
+            {buyError ? (
+              <p className="store-modal-error" role="alert">
+                {buyError}
+              </p>
+            ) : null}
+            <div className="store-modal-actions">
+              <button type="button" className="btn" disabled={buying} onClick={() => setPending(null)}>
+                Cancelar
+              </button>
+              <button ref={confirmRef} type="button" className="btn btn-primary" aria-busy={buying} onClick={() => void confirmBuy()}>
+                {buying ? "Comprando…" : buyError ? "Tentar de novo" : "Confirmar compra"}
+              </button>
+            </div>
           </div>
         </div>
       ) : bought ? (
-        <div className="store-sheet" role="dialog" aria-modal="false" aria-labelledby="store-sheet-title">
-          <div className="store-sheet-row">
-            <span className="store-sheet-text">
-              <strong id="store-sheet-title">Equipar agora?</strong>
-              <span>
-                {CATEGORY_LABEL[bought.category]} {bought.name} agora é sua.
-              </span>
-            </span>
-          </div>
-          <div className="store-sheet-actions">
-            <button type="button" className="btn" onClick={() => setBought(null)}>
-              Agora não
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={equipping !== null}
-              onClick={() => {
-                const item = bought;
-                setBought(null);
-                void equip(item.category, item.id);
-              }}
-            >
-              Equipar
-            </button>
+        <div
+          className="store-modal-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setBought(null);
+          }}
+        >
+          <div className="store-modal" role="dialog" aria-modal="true" aria-labelledby="store-modal-title">
+            <ItemThumb item={bought} user={user} name={name} />
+            <h2 id="store-modal-title">Equipar agora?</h2>
+            <p>{bought.name} já é seu. Dá para usar no perfil agora.</p>
+            <div className="store-modal-actions">
+              <button type="button" className="btn" onClick={() => setBought(null)}>
+                Agora não
+              </button>
+              <button
+                ref={confirmRef}
+                type="button"
+                className="btn btn-primary"
+                disabled={equipping !== null}
+                onClick={() => {
+                  const item = bought;
+                  setBought(null);
+                  void equip(item.category, item.id);
+                }}
+              >
+                Equipar
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -464,6 +479,7 @@ function TierLabel({ tier }: { tier: ShopTier }) {
 
 function ItemCard({
   item,
+  index = 0,
   user,
   name,
   owned,
@@ -476,6 +492,7 @@ function ItemCard({
   onEquip,
 }: {
   item: ShopItem;
+  index?: number;
   user: SupabaseUser;
   name: string;
   owned: boolean;
@@ -491,7 +508,7 @@ function ItemCard({
   const short = Math.max(0, item.price - balance);
   const until = untilLabel(item.available_until);
   return (
-    <li className={`store-card store-card-${item.tier} ${previewing ? "is-previewing" : ""}`}>
+    <li className={`store-card store-card-${item.tier} ${previewing ? "is-previewing" : ""}`} style={{ "--i": index } as CSSProperties}>
       <button type="button" className="store-card-preview" aria-pressed={previewing} aria-label={`Prévia: ${item.name}`} onClick={onPreview}>
         <ItemThumb item={item} user={user} name={name} />
       </button>

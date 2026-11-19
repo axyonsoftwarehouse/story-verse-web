@@ -277,6 +277,7 @@ export function PersonProfilePage() {
               {profile.is_me ? "Você segue" : `${first} segue`}
             </button>
           </div>
+          <div key={list} className="person-tab-in">
           <PeopleList
             reloadKey={`${profile.id}-${list}`}
             load={(offset) => (list === "seguidores" ? followersOf(profile.id, offset) : followingOf(profile.id, offset))}
@@ -288,6 +289,7 @@ export function PersonProfilePage() {
               />
             }
           />
+          </div>
           </section>
         </>
       )}

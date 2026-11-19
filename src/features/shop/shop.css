@@ -1,8 +1,5 @@
 /* Loja de itens de perfil (molduras, insígnias, capas, cores de nome). */
 
-.store {
-  padding-bottom: 9rem;
-}
 
 .store-balance {
   display: inline-flex;
@@ -17,9 +14,16 @@
   font-weight: 600;
 }
 
-.store-head {
+.store-head,
+.store-tabs {
   max-width: 1080px;
-  margin: 0.25rem auto 1.25rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.store-head {
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
 }
 
 .store-head h1 {
@@ -123,7 +127,7 @@
 .store-tabs {
   display: flex;
   gap: 0.4rem;
-  margin: 0 0 1rem;
+  margin-bottom: 1.15rem;
   padding-bottom: 0.2rem;
   overflow-x: auto;
   scrollbar-width: none;
@@ -196,6 +200,14 @@
   }
 }
 
+.store-panel {
+  animation: store-in 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.store-preview {
+  animation: store-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .store-card {
   display: flex;
   flex-direction: column;
@@ -205,7 +217,41 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
-  transition: border-color 0.2s;
+  animation: store-card-in 0.46s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+@keyframes store-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes store-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (hover: hover) {
+  .store-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .store-panel,
+  .store-preview,
+  .store-card,
+  .store-modal {
+    animation: none;
+  }
 }
 
 .store-card-rare {
@@ -402,55 +448,62 @@
   font-size: 0.62rem;
 }
 
-/* Confirmação e "Equipar agora?": barra presa embaixo, perto do polegar. */
-.store-sheet {
+/* Confirmação da compra e "Equipar agora?": modal no centro. */
+.store-modal-backdrop {
   position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
   z-index: 40;
-  width: min(560px, 100%);
-  margin: 0 auto;
-  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-  border: 1px solid var(--border-strong);
-  border-bottom: 0;
-  border-radius: var(--radius) var(--radius) 0 0;
-  background: var(--surface-deep);
-  box-shadow: var(--shadow-elevated);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(5, 4, 3, 0.72);
+  backdrop-filter: blur(6px);
 }
 
-.store-sheet-row {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.store-sheet-text {
+.store-modal {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  align-items: center;
+  width: min(22rem, 100%);
+  padding: 1.35rem 1.25rem 1.15rem;
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--surface-deep);
+  box-shadow: var(--shadow-elevated);
+  text-align: center;
+  animation: store-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.store-sheet-text span {
+.store-modal h2 {
+  margin: 0.85rem 0 0.35rem;
+  font-family: var(--font-read);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.store-modal > p {
+  margin: 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
-.store-sheet-error {
+.store-modal-error {
   margin: 0.7rem 0 0;
   color: var(--danger);
   font-size: 0.86rem;
 }
 
-.store-sheet-actions {
+.store-modal-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 0.6rem;
-  margin-top: 0.9rem;
+  width: 100%;
+  margin-top: 1.15rem;
 }
 
 @media (max-width: 480px) {
-  .store-sheet-actions .btn {
+  .store-modal-actions .btn {
     flex: 1;
   }
 

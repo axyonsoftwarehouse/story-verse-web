@@ -122,6 +122,7 @@ export function GroupChat() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [input, setInput] = useState("");
+  const [sentPulse, setSentPulse] = useState(0);
   const photoRef = useRef<HTMLInputElement>(null);
   /** Gravando (ou ouvindo antes de mandar) um áudio: a barra de gravação toma o lugar do campo. */
   const [recording, setRecording] = useState(false);
@@ -537,6 +538,7 @@ export function GroupChat() {
     const text = input.trim();
     if (!text || !session) return;
     if (spoilerOn && !spoiler) return;
+    setSentPulse((n) => n + 1);
     if (editing) {
       void saveEdit(editing, text);
       return;
@@ -1248,7 +1250,7 @@ export function GroupChat() {
                 ) : (
                   <button
                     type="submit"
-                    className="group-send"
+                    className={`group-send ${sentPulse > 0 ? (sentPulse % 2 ? "is-sent" : "is-sent-alt") : ""}`}
                     disabled={!input.trim() || (spoilerOn && !spoiler)}
                     aria-label={editing ? "Salvar edição" : "Enviar"}
                   >

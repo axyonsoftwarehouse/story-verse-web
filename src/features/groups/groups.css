@@ -3978,6 +3978,45 @@ button.group-rp-character small {
   transform: scale(0.92);
 }
 
+.group-chat-page .group-send.is-sent,
+.group-chat-page .group-send.is-sent-alt {
+  animation: group-send-hop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.35);
+}
+
+@keyframes group-send-hop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.82) rotate(-14deg);
+  }
+  70% {
+    transform: scale(1.12) rotate(8deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+.group-chat-page .group-msg.is-new.is-mine {
+  animation: group-send-bubble 0.34s cubic-bezier(0.16, 0.84, 0.32, 1.15) both;
+}
+
+@keyframes group-send-bubble {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-chat-page .group-send.is-sent,
+  .group-chat-page .group-send.is-sent-alt,
+  .group-chat-page .group-msg.is-new.is-mine {
+    animation: none;
+  }
+}
+
 /*
  * Narrador: uma mensagem como as outras, do lado esquerdo e com a foto 🎭, para alinhar com
  * quem escreve. Só o tom da bolha e o texto em itálico mostram que é a voz da história.
