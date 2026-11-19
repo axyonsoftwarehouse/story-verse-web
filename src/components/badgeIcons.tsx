@@ -161,40 +161,44 @@ const ACHIEVEMENTS: Record<string, ReactNode> = {
   ),
 };
 
-/** Cor do objeto, independente do tema do perfil (um coração não fica verde). */
-const GIFT_COLOR: Record<string, string> = {
-  flor: "#e56b93",
-  coracao: "#e5484d",
-  coroa: "#e4b86a",
-  trofeu: "#c9892a",
-};
-
+/** Desenhos cheios, com a cor do objeto. O tema do perfil não pinta esses presentes. */
 const GIFTS: Record<string, ReactNode> = {
   flor: (
     <>
-      <circle cx="12" cy="12" r="2.1" />
-      <path d="M12 9.9c-.9-1.5-.6-3.5.6-4.3 1.2.8 1.5 2.8.6 4.3" />
-      <path d="M14.1 12c1.5-.9 3.5-.6 4.3.6-.8 1.2-2.8 1.5-4.3.6" />
-      <path d="M12 14.1c.9 1.5.6 3.5-.6 4.3-1.2-.8-1.5-2.8-.6-4.3" />
-      <path d="M9.9 12c-1.5.9-3.5.6-4.3-.6.8-1.2 2.8-1.5 4.3-.6" />
+      <path d="M32 38c2 10 2 16 0 22" fill="none" stroke="#3d8f4a" strokeWidth="4" strokeLinecap="round" />
+      <path d="M32 48c-8 2-12 8-10 12" fill="none" stroke="#3d8f4a" strokeWidth="3" strokeLinecap="round" />
+      <ellipse cx="32" cy="22" rx="8" ry="14" fill="#e56b93" transform="rotate(0 32 22)" />
+      <ellipse cx="32" cy="22" rx="8" ry="14" fill="#f2a0bf" transform="rotate(60 32 22)" />
+      <ellipse cx="32" cy="22" rx="8" ry="14" fill="#d4537c" transform="rotate(120 32 22)" />
+      <circle cx="32" cy="22" r="5.5" fill="#f6d36b" />
     </>
   ),
-  coracao: <path d="M12 20.2S4.6 15.6 4.6 10.9A4.2 4.2 0 0 1 12 8.2a4.2 4.2 0 0 1 7.4 2.7c0 4.7-7.4 9.3-7.4 9.3Z" />,
+  coracao: <path d="M32 54S10 40 10 26a12 12 0 0 1 22-6 12 12 0 0 1 22 6c0 14-22 28-22 28Z" fill="#e5484d" />,
   coroa: (
     <>
-      <path d="M4.4 18.2h15.2" />
-      <path d="M5.4 18.2 4.2 7.8l4.6 3.5L12 5.6l3.2 5.7 4.6-3.5-1.2 10.4" />
+      <path d="M10 46h44l-3-24-10 10-9-16-9 16-10-10z" fill="#e4b86a" stroke="#8a5a22" strokeWidth="2" strokeLinejoin="round" />
+      <circle cx="18" cy="20" r="3" fill="#e5484d" />
+      <circle cx="32" cy="14" r="3.2" fill="#5b8def" />
+      <circle cx="46" cy="20" r="3" fill="#3d8f4a" />
     </>
   ),
   trofeu: (
     <>
-      <path d="M8.2 4.2h7.6v4a3.8 3.8 0 0 1-7.6 0v-4Z" />
-      <path d="M8.2 5.8H5.4v1.4a3 3 0 0 0 3 3" />
-      <path d="M15.8 5.8h2.8v1.4a3 3 0 0 1-3 3" />
-      <path d="M12 12v4.2M9 20.4h6M10 16.2h4l.6 4.2h-5.2z" />
+      <path d="M22 12h20v12a10 10 0 0 1-20 0V12Z" fill="#f0c36a" stroke="#8a5a22" strokeWidth="2" />
+      <path d="M22 16H14a8 8 0 0 0 8 10" fill="none" stroke="#e4b86a" strokeWidth="3" />
+      <path d="M42 16h8a8 8 0 0 1-8 10" fill="none" stroke="#e4b86a" strokeWidth="3" />
+      <path d="M32 34v8M24 54h16M26 42h12l2 12H24z" fill="#c9892a" stroke="#8a5a22" strokeWidth="2" strokeLinejoin="round" />
     </>
   ),
 };
+
+function GiftSvg({ size = 18, className, children }: IconProps & { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} className={className} aria-hidden="true" focusable="false">
+      {children}
+    </svg>
+  );
+}
 
 /** Conquista: desenho vetorial pelo id; id desconhecido cai num selo genérico. */
 export function BadgeIcon({ id, size = 26, className }: IconProps & { id: string }) {
@@ -214,7 +218,7 @@ export function BadgeIcon({ id, size = 26, className }: IconProps & { id: string
  */
 export function GiftIcon({ id, emoji, size = 18, className }: IconProps & { id: string; emoji: string }) {
   const desenho = GIFTS[id];
-  if (desenho) return <Svg size={size} className={className} color={GIFT_COLOR[id]}>{desenho}</Svg>;
+  if (desenho) return <GiftSvg size={size} className={className}>{desenho}</GiftSvg>;
   return (
     <span className={className} aria-hidden="true" style={{ fontSize: `${size}px`, lineHeight: 1 }}>
       {emoji}

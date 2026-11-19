@@ -7,11 +7,25 @@ import { rpc } from "./rpc";
 export type ShopCategory = "frame" | "badge" | "cover" | "name_color";
 export type ShopTier = "common" | "rare" | "epic";
 
+export type NameBadge = { image: string; name: string };
+
+/** Quantas insígnias cabem ao lado do nome. */
+export const MAX_NAME_BADGES = 4;
+
 export type Cosmetics = {
   frame: { image: string; animated: string | null; tier: ShopTier } | null;
-  badge: { image: string; name: string } | null;
+  badge: NameBadge | null;
+  /** Até quatro insígnias equipadas. Se vier vazio, vale `badge`. */
+  badges?: NameBadge[] | null;
   name_color: string[] | null;
 };
+
+/** Insígnias que aparecem ao lado do nome, no máximo quatro. */
+export function nameBadges(cosmetics: Cosmetics | null | undefined): NameBadge[] {
+  const listed = (cosmetics?.badges ?? []).filter((b) => b && typeof b.image === "string" && typeof b.name === "string");
+  const source = listed.length > 0 ? listed : cosmetics?.badge ? [cosmetics.badge] : [];
+  return source.slice(0, MAX_NAME_BADGES);
+}
 
 export type ShopItem = {
   id: string;

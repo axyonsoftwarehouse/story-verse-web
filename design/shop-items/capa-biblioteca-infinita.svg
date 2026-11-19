@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500">
+  <defs>
+    <linearGradient id="chao" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a120c"/>
+      <stop offset="1" stop-color="#3a2414"/>
+    </linearGradient>
+  </defs>
+  <rect width="1500" height="500" fill="#120e0c"/>
+  <g>
+    <rect x="40" y="40" width="90" height="420" fill="#6b3a22"/>
+    <rect x="150" y="70" width="80" height="360" fill="#8a4b2a"/>
+    <rect x="250" y="100" width="70" height="300" fill="#5c3318"/>
+    <rect x="340" y="130" width="60" height="240" fill="#a8643a"/>
+    <rect x="1100" y="130" width="60" height="240" fill="#a8643a"/>
+    <rect x="1180" y="100" width="70" height="300" fill="#5c3318"/>
+    <rect x="1270" y="70" width="80" height="360" fill="#8a4b2a"/>
+    <rect x="1370" y="40" width="90" height="420" fill="#6b3a22"/>
+  </g>
+  <rect x="430" y="180" width="640" height="220" fill="url(#chao)"/>
+  <circle cx="750" cy="250" r="36" fill="#f1cf88" opacity="0.85"/>
+  <rect x="742" y="250" width="16" height="90" fill="#c48a3a"/>
+</svg>

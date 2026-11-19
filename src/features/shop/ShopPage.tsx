@@ -8,6 +8,7 @@ import {
   fetchMyShopItems,
   fetchShopCatalog,
   newRef,
+  MAX_NAME_BADGES,
   shopAssetUrl,
   type Cosmetics,
   type OwnedItem,
@@ -40,9 +41,13 @@ const TIER_LABEL: Record<ShopTier, string> = { common: "Comum", rare: "Raro", ep
 
 /** O que basta para desenhar um item: vem do catálogo ou da lista de itens da pessoa. */
 type Visual = Pick<ShopItem, "id" | "category" | "tier" | "name" | "image_url" | "animated_url" | "colors">;
-type Equipped = Record<ShopCategory, string | null>;
+type Equipped = { frame: string | null; badge: string[]; cover: string | null; name_color: string | null };
 
-const NO_EQUIPPED: Equipped = { frame: null, badge: null, cover: null, name_color: null };
+const NO_EQUIPPED: Equipped = { frame: null, badge: [], cover: null, name_color: null };
+
+function wearing(equipped: Equipped, category: ShopCategory, id: string): boolean {
+  return category === "badge" ? equipped.badge.includes(id) : equipped[category] === id;
+}
 
 function meta(user: SupabaseUser, key: string): string | null {
   const v = user.user_metadata?.[key];
@@ -61,11 +66,15 @@ function ownCoverUrl(user: SupabaseUser): string | null {
 
 function cosmeticsOf(equipped: Equipped, visuals: Map<string, Visual>): Cosmetics {
   const frame = equipped.frame ? visuals.get(equipped.frame) : undefined;
-  const badge = equipped.badge ? visuals.get(equipped.badge) : undefined;
+  const badges = equipped.badge
+    .map((id) => visuals.get(id))
+    .filter((item): item is Visual => Boolean(item))
+    .slice(0, MAX_NAME_BADGES);
   const color = equipped.name_color ? visuals.get(equipped.name_color) : undefined;
   return {
     frame: frame ? { image: frame.image_url, animated: frame.animated_url, tier: frame.tier } : null,
-    badge: badge ? { image: badge.image_url, name: badge.name } : null,
+    badge: badges[0] ? { image: badges[0].image_url, name: badges[0].name } : null,
+    badges: badges.map((item) => ({ image: item.image_url, name: item.name })),
     name_color: color?.colors ?? null,
   };
 }
@@ -115,9 +124,16 @@ export function ShopPage({
         setCatalog(items);
         setMine(owned);
         setBalance(wallet.balance);
-        const next = { ...NO_EQUIPPED };
-        for (const o of owned) if (o.equipped) next[o.category] = o.item_id;
-        for (const i of items) if (i.equipped) next[i.category] = i.id;
+        const next: Equipped = { frame: null, badge: [], cover: null, name_color: null };
+        const mark = (category: ShopCategory, id: string) => {
+          if (category === "badge") {
+            if (!next.badge.includes(id) && next.badge.length < MAX_NAME_BADGES) next.badge.push(id);
+          } else {
+            next[category] = id;
+          }
+        };
+        for (const o of owned) if (o.equipped) mark(o.category, o.item_id);
+        for (const i of items) if (i.equipped) mark(i.category, i.id);
         setEquipped(next);
       })
       .catch((err: unknown) => setError(errorText(err, "Não foi possível abrir a loja.")));
@@ -154,7 +170,16 @@ export function ShopPage({
   }, [catalog, mine]);
 
   const preview = previewId ? visuals.get(previewId) : undefined;
-  const previewEquipped = preview ? { ...equipped, [preview.category]: preview.id } : equipped;
+  const previewEquipped: Equipped = !preview
+    ? equipped
+    : preview.category === "badge"
+      ? {
+          ...equipped,
+          badge: equipped.badge.includes(preview.id)
+            ? equipped.badge
+            : [...equipped.badge, preview.id].slice(0, MAX_NAME_BADGES),
+        }
+      : { ...equipped, [preview.category]: preview.id };
   const previewCosmetics = cosmeticsOf(previewEquipped, visuals);
   const coverItem = previewEquipped.cover ? visuals.get(previewEquipped.cover) : undefined;
   const coverSrc = coverItem ? shopAssetUrl(coverItem.image_url) : ownCoverUrl(user);
@@ -224,18 +249,44 @@ export function ShopPage({
     setEquipping(category);
     setError("");
     setNotice("");
+    const hadBadge = category === "badge" && itemId !== null && equipped.badge.includes(itemId);
     try {
       await equipShopItem(session, category, itemId);
-      setEquipped((e) => ({ ...e, [category]: itemId }));
-      setMine((list) => list.map((o) => (o.category === category ? { ...o, equipped: o.item_id === itemId } : o)));
-      setCatalog((list) => (list ?? []).map((i) => (i.category === category ? { ...i, equipped: i.id === itemId } : i)));
+      setEquipped((e) => {
+        if (category !== "badge") return { ...e, [category]: itemId };
+        if (!itemId) return { ...e, badge: [] };
+        if (e.badge.includes(itemId)) return { ...e, badge: e.badge.filter((id) => id !== itemId) };
+        return { ...e, badge: [...e.badge, itemId].slice(0, MAX_NAME_BADGES) };
+      });
+      setMine((list) =>
+        list.map((o) => {
+          if (o.category !== category) return o;
+          if (category === "badge") {
+            if (!itemId) return { ...o, equipped: false };
+            return o.item_id === itemId ? { ...o, equipped: !o.equipped } : o;
+          }
+          return { ...o, equipped: o.item_id === itemId };
+        }),
+      );
+      setCatalog((list) =>
+        (list ?? []).map((i) => {
+          if (i.category !== category) return i;
+          if (category === "badge") {
+            if (!itemId) return { ...i, equipped: false };
+            return i.id === itemId ? { ...i, equipped: !i.equipped } : i;
+          }
+          return { ...i, equipped: i.id === itemId };
+        }),
+      );
       if (itemId && previewId === itemId) setPreviewId(null);
       setNotice(
-        itemId
-          ? `${visuals.get(itemId)?.name ?? "Item"} equipado.`
-          : category === "cover"
-            ? "Seu perfil voltou a usar sua foto de capa."
-            : `${CATEGORY_LABEL[category]} retirada.`,
+        category === "badge" && itemId && hadBadge
+          ? `${visuals.get(itemId)?.name ?? "Insígnia"} retirada.`
+          : itemId
+            ? `${visuals.get(itemId)?.name ?? "Item"} equipado.`
+            : category === "cover"
+              ? "Seu perfil voltou a usar sua foto de capa."
+              : `${CATEGORY_LABEL[category]} retirada.`,
       );
     } catch (err) {
       setError(errorText(err, "Não foi possível equipar o item."));
@@ -337,6 +388,9 @@ export function ShopPage({
               />
             ) : (
               <>
+                {tab === "badge" ? (
+                  <p className="store-own-cover">Até 4 insígnias ficam ao lado do seu nome. Toque em Equipar de novo para tirar uma.</p>
+                ) : null}
                 {tab === "cover" ? (
                   <div className="store-own-cover">
                     <span>
@@ -365,7 +419,8 @@ export function ShopPage({
                         user={user}
                         name={name}
                         owned={owned.has(item.id)}
-                        isEquipped={equipped[item.category] === item.id}
+                        isEquipped={wearing(equipped, item.category, item.id)}
+                        badgeFull={item.category === "badge" && equipped.badge.length >= MAX_NAME_BADGES}
                         balance={balance ?? 0}
                         previewing={previewId === item.id}
                         busy={equipping !== null || pending !== null}
@@ -484,6 +539,7 @@ function ItemCard({
   name,
   owned,
   isEquipped,
+  badgeFull = false,
   balance,
   previewing,
   busy,
@@ -497,6 +553,8 @@ function ItemCard({
   name: string;
   owned: boolean;
   isEquipped: boolean;
+  /** As quatro vagas ao lado do nome já estão ocupadas. */
+  badgeFull?: boolean;
   balance: number;
   previewing: boolean;
   busy: boolean;
@@ -528,8 +586,13 @@ function ItemCard({
         {owned ? (
           <>
             <span className="shop-chip store-owned">Seu</span>
-            <button type="button" className={`btn ${isEquipped ? "" : "btn-primary"}`} disabled={busy} onClick={() => onEquip(isEquipped ? null : item.id)}>
-              {isEquipped ? "Tirar" : "Equipar"}
+            <button
+              type="button"
+              className={`btn ${isEquipped ? "" : "btn-primary"}`}
+              disabled={busy || (badgeFull && !isEquipped)}
+              onClick={() => onEquip(isEquipped && item.category !== "badge" ? null : item.id)}
+            >
+              {isEquipped ? "Tirar" : badgeFull ? "4 no nome" : "Equipar"}
             </button>
           </>
         ) : soldOut ? (
@@ -575,7 +638,8 @@ function MyItems({
   return (
     <ul className="store-mine">
       {mine.map((o) => {
-        const on = equipped[o.category] === o.item_id;
+        const on = wearing(equipped, o.category, o.item_id);
+        const full = o.category === "badge" && !on && equipped.badge.length >= MAX_NAME_BADGES;
         return (
           <li key={o.item_id} className={previewId === o.item_id ? "is-previewing" : ""}>
             <button
@@ -594,8 +658,13 @@ function MyItems({
                 {on ? " · Em uso" : ""}
               </span>
             </span>
-            <button type="button" className={`btn ${on ? "" : "btn-primary"}`} disabled={equipping !== null} onClick={() => onEquip(o.category, on ? null : o.item_id)}>
-              {on ? "Tirar" : "Equipar"}
+            <button
+              type="button"
+              className={`btn ${on ? "" : "btn-primary"}`}
+              disabled={equipping !== null || full}
+              onClick={() => onEquip(o.category, on && o.category !== "badge" ? null : o.item_id)}
+            >
+              {on ? "Tirar" : full ? "4 no nome" : "Equipar"}
             </button>
           </li>
         );

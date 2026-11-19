@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500">
+  <defs>
+    <linearGradient id="ceu" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12324a"/>
+      <stop offset="1" stop-color="#1d4d3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1500" height="500" fill="url(#ceu)"/>
+  <circle cx="1180" cy="110" r="54" fill="#f1cf88"/>
+  <g fill="#0e2a22">
+    <polygon points="80,420 180,160 280,420"/>
+    <polygon points="220,440 360,120 500,440"/>
+    <polygon points="460,430 620,90 780,430"/>
+    <polygon points="700,440 860,150 1020,440"/>
+    <polygon points="960,430 1140,70 1320,430"/>
+    <polygon points="1240,440 1380,180 1500,440"/>
+  </g>
+  <rect y="400" width="1500" height="100" fill="#10241c"/>
+  <g fill="#f1cf88" opacity="0.8">
+    <circle cx="300" cy="250" r="3"/><circle cx="520" cy="180" r="2"/><circle cx="900" cy="140" r="2.4"/><circle cx="200" cy="80" r="2"/>
+  </g>
+</svg>

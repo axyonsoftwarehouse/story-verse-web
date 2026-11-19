@@ -886,11 +886,16 @@ button.person-stat.is-on {
 .person-gift-icon {
   display: grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: var(--surface-2);
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.55rem;
+  background: #f6f1e8;
   font-size: 1.1rem;
+}
+
+.person-gift-icon svg {
+  width: 1.55rem;
+  height: 1.55rem;
 }
 
 .person-gift > span:last-child {

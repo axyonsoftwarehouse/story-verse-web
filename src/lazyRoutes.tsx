@@ -93,7 +93,7 @@ export const AboutDialog = lazy(() =>
 
 let communityPrefetched = false;
 
-/** Baixa cedo os trechos de Grupos e Pessoas (idle ou ao passar o mouse no menu). */
+/** Baixa cedo as páginas que abrem por clique, para a troca não esperar o arquivo. */
 export function prefetchCommunityRoutes() {
   if (communityPrefetched) return;
   communityPrefetched = true;
@@ -102,6 +102,14 @@ export function prefetchCommunityRoutes() {
     () => import("./features/groups/GroupChat"),
     () => import("./features/social/PeoplePage"),
     () => import("./features/social/PersonProfilePage"),
+    () => import("./features/profile/ProfilePage"),
+    () => import("./features/home/RankingPage"),
+    () => import("./features/home/DiamondShop"),
+    () => import("./features/shop/ShopPage"),
+    () => import("./features/audiobook/AudiobooksPage"),
+    () => import("./features/audiobook/AudiobookPage"),
+    () => import("./features/billing/SubscribePage"),
+    () => import("./features/catalog/PublicLibraryPage"),
   ];
   for (const load of routes) void loadRoute(load as () => Promise<unknown>);
 }
