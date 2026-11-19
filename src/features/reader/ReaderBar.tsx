@@ -2,7 +2,7 @@ import type { ReadAloudState } from "./useReadAloud";
 import type { BookTranslationState } from "./useBookTranslation";
 import type { BookSearchState } from "./useBookSearch";
 import type { StoryChapter } from "../../lib/chapters";
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Icon } from "../../components/Icon";
 import type { Ebook } from "../../data/types";
 import { BookStatusControl } from "../library/BookStatusControl";
@@ -130,18 +130,7 @@ export function ReaderBar({
           >
             {Icon.back}
           </button>
-          <select
-            className="chapter-select"
-            value={chapterIndex}
-            onChange={(e) => setChapterIndex(Number(e.target.value))}
-            aria-label="Escolher capítulo"
-          >
-            {chapters.map((ch, i) => (
-              <option key={ch.index} value={i}>
-                {ch.label}
-              </option>
-            ))}
-          </select>
+          <ChapterMenu chapters={chapters} chapterIndex={chapterIndex} setChapterIndex={setChapterIndex} />
           <button
             type="button"
             className="icon-btn"
@@ -300,5 +289,75 @@ export function ReaderBar({
         <span style={{ width: `${readingProgressPct}%` }} />
       </div>
     </header>
+  );
+}
+
+function ChapterMenu({
+  chapters,
+  chapterIndex,
+  setChapterIndex,
+}: {
+  chapters: StoryChapter[];
+  chapterIndex: number;
+  setChapterIndex: Dispatch<SetStateAction<number>>;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const list = listRef.current;
+    const current = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (list && current) list.scrollTop = current.offsetTop - list.clientHeight / 2 + current.clientHeight / 2;
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="chapter-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="chapter-select"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Escolher capítulo"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{chapters[chapterIndex]?.label}</span>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open ? (
+        <div className="chapter-menu-list" role="listbox" aria-label="Capítulos" ref={listRef}>
+          {chapters.map((ch, i) => (
+            <button
+              key={ch.index}
+              type="button"
+              role="option"
+              aria-selected={i === chapterIndex}
+              className={i === chapterIndex ? "is-on" : ""}
+              onClick={() => {
+                setChapterIndex(i);
+                setOpen(false);
+              }}
+            >
+              {ch.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
